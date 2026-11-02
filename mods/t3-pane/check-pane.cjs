@@ -82,6 +82,8 @@ pane.title = "pi";
 assert.equal(named(), "Pi");
 tab.named = true; props = { pane: "p3" };
 assert.equal(named(), "zsh");
+shell.title = "t3";
+assert.equal(named(), "zsh");
 
 // A settled agent's done dot goes only while the Focus list shows.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;
