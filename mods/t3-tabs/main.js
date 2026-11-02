@@ -4,6 +4,7 @@ import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layo
 import { namer } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
+import { watchReview, reviewBar } from "./review.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -29,9 +30,10 @@ function find(node, id) {
 }
 
 export default class Tabs extends View {
-  init() {
+  init(_props, cx) {
     this.pressed = null;
     if (props()?.actions === "edit") initEditor(this);
+    watchReview(this, cx);
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -92,6 +94,7 @@ export default class Tabs extends View {
         .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(lit(this, `close-${c.id}`)).on_hover(glow(this, `close-${c.id}`)).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
+    const review = reviewBar(this, t, stop);
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
@@ -101,6 +104,7 @@ export default class Tabs extends View {
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
+      .when(Boolean(review), el => el.child(review))
       // Actions before +, so + keeps its spot however long the action's name is.
       .child(div().mr(4).flex_none().child(control(this, t, stop)))
       .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))

@@ -57,7 +57,7 @@ function fixture(width) {
   const panes = agents.map(a => ({ ...a, terminal: a.address, cwd: `/work/${a.space}` }));
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
-  const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" };
+  const calls = [], overlays = [], stores = new Map(), scopes = new Map(), labelled = [], shown = { agent: "child" };
   let hcAnswer = () => ({ code: 0 });
   const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
@@ -85,18 +85,19 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js and tree.js, the shared naming and status rules, and t3-tabs' actions.js are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js and tree.js, the shared naming and status rules, and t3-tabs' actions.js and review.js are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "actions.js", "review.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
     const context = vm.createContext({ ...env, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
     vm.runInContext(source, context, { filename: name });
+    scopes.set(name, context);
     const mod = new context.Mod();
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, answerHc: fn => { hcAnswer = fn; } };
+  return { ...env, load, slots, state, calls, overlays, stores, scopes, labelled, shown, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -729,7 +730,45 @@ for (const width of [208, 240, 256, 320, 480]) {
 (async () => {
   {
     const f = fixture(256);
-    assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review button");
+    assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review bar before git is read");
+  }
+  {
+    // The Review bar's counts: a line per file (renamed and untracked too), the arrows from the branch headers,
+    // and the commits the branch adds to the default branch, resolved as the CLI does.
+    const f = fixture(256);
+    const tabs = f.load("t3-tabs");
+    const scope = f.scopes.get("t3-tabs");
+    let status = ["# branch.oid 1a2b", "# branch.head feat", "# branch.upstream origin/feat", "# branch.ab +2 -1",
+      "1 .M N... 100644 100644 100644 1a2b 1a2b src/a.js", "2 R. N... 100644 100644 100644 1a2b 1a2b R100 new.js\told.js", "? notes.md", ""].join("\n");
+    const refs = { "main...HEAD": "0\t4\n" }; // No origin/HEAD, no origin/main: the local main.
+    scope.exec = async (_command, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" }
+      : args.includes("symbolic-ref") ? { code: 1, stdout: "" }
+      : args.includes("rev-list") ? (refs[args.at(-1)] ? { code: 0, stdout: refs[args.at(-1)] } : { code: 128, stdout: "" })
+      : { code: 0, stdout: status };
+    const review = await scope.readReview("/repo/src");
+    assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
+    tabs.review = review;
+    const bar = tabs.render(cx);
+    assert.deepEqual(strings(find(bar, "review-open")), ["4 commits vs main"], "the branch's count names its unit and what it is against");
+    assert.deepEqual(strings(find(bar, "review-changes")), ["3 files uncommitted"]);
+    assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
+    assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
+    assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
+    assert.equal(walk(bar).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips, like the rest of the layout");
+    tabs.review = { ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 };
+    assert.equal(find(tabs.render(cx), "pulls-review"), null, "nothing to review, no bar");
+    tabs.review = { ...review, newer: 1, gone: true };
+    assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label,
+      "Review the branch: 4 commits on feat, not on main · main has 1 newer commit · origin/feat is gone, likely merged");
+    const full = status;
+    status = full.replace(/^# branch\.ab .*\n/m, "");
+    const lost = await scope.readReview("/repo");
+    assert.deepEqual([lost.gone, lost.ahead, lost.behind], [true, 0, 0], "an upstream without branch.ab is gone");
+    status = full.replace("origin/feat", "origin/main");
+    const tracking = await scope.readReview("/repo");
+    assert.deepEqual([tracking.ahead, tracking.behind], [0, 1], "tracking main: ↑ repeats N commits vs main, so it goes; ↓ stays");
+    refs["main...HEAD"] = "0\t0\n";
+    assert.equal((await scope.readReview("/repo")).unmerged, 0, "nothing past main: no Review");
   }
   {
     // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
