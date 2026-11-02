@@ -84,13 +84,18 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 
 ### pulls.review
 
-`extras/mods/pulls-review/` opens the focused pane's repository in [pulls.review](https://github.com/antfu/pulls.review): its uncommitted changes when there are any, else what pulls.review opens by default (the current branch against the default branch).
+`extras/mods/pulls-review/` reviews the focused worktree in [pulls.review](https://github.com/antfu/pulls.review): its uncommitted changes when there are any, else what pulls.review opens by default (the current branch against the default branch).
 
-- **Needs the CLI from [my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)** (`multi-repo` branch). The mod runs `pulls.review -d --pwa`: `-d` hands the repo to one background server shared by every repo, `--pwa` opens the installed pulls.review app instead of a browser tab. Upstream pulls.review has neither flag.
+With it installed, the tab bar shows a Review bar before the view toggle, with only what there is: `4 commits vs main` (the branch's commits not on the default branch), `3 files uncommitted` (uncommitted files), `↑2` (commits your upstream doesn't have), `↓1` (commits from your upstream). Click one to review just that diff. It follows the focused pane, or the agent in the agent view. The counts read your remote-tracking refs as they are: nothing is fetched for you.
+
+1. Install one pulls.review CLI on Herdr's `PATH`, and set `MODE` at the top of `extras/mods/pulls-review/main.js` to match:
+   - `"official"` (the default): `bun add --global pulls.review`. Each worktree gets its own server, which herdr-core keeps running in the background (`hc ls --label pulls-review.root=<folder>`; stop one with `hc kill <address>`). The first open signs the browser in; later ones open a new tab on the same server.
+   - `"daemon"`: `bun add --global jin.review`, the CLI from [my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo), which installs next to `pulls.review`. One background server for every repo (`jin.review -d`); stop it with `jin.review --stop`.
+   - `"pwa"`: the fork too, opened in the installed jin.review app (`jin.review -d --pwa`). Install the app first: run `jin.review -d` once, open the page in Chrome, install it as an app and allow it to open `web+pullsreview` links.
+2. Copy `extras/mods/pulls-review/` into `~/.config/herdr-app/mods/`, and add a key to the `global` section of your `keys.json`: `"cmd-shift-r": "mod.open:pulls-review"`.
+
 - Local folders only: a pane on another machine shows an error.
-- Install: copy `extras/mods/pulls-review/` into `~/.config/herdr-app/mods/`, then add a key to the `global` section of your `keys.json`: `"cmd-shift-r": "mod.open:pulls-review"`.
-- Runs read-only `git status --porcelain` and `pulls.review`.
-- This layout's tab bar has no button for it; use the key or the command palette.
+- Runs read-only git (`git status`, `git rev-parse`, `git symbolic-ref`) and `pulls.review` or `jin.review`.
 
 ### Theme and settings from the preview
 

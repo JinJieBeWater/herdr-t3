@@ -84,13 +84,18 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 ### pulls.review
 
-`extras/mods/pulls-review/` 在 [pulls.review](https://github.com/antfu/pulls.review) 里打开当前窗格所在的仓库：有未提交改动时看这些改动，否则打开 pulls.review 的默认页面（当前分支对比默认分支）。
+`extras/mods/pulls-review/` 在 [pulls.review](https://github.com/antfu/pulls.review) 里评审当前焦点所在的工作树：有未提交改动时看这些改动，否则打开 pulls.review 的默认页面（当前分支对比默认分支）。
 
-- **需要[我的 fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo) 里的 CLI**（`multi-repo` 分支）。这个 mod 运行 `pulls.review -d --pwa`：`-d` 把仓库交给一个所有仓库共用的后台服务，`--pwa` 打开已安装的 pulls.review 应用，而不是浏览器标签页。上游 pulls.review 没有这两个参数。
+安装后，标签栏在视图切换按钮前出现 Review 栏，只显示有的内容：`4 commits vs main`（当前分支上默认分支没有的提交）、`3 files uncommitted`（未提交的文件数）、`↑2`（上游还没有的提交）、`↓1`（上游新增的提交）。点击只看那一份 diff。它跟随当前焦点窗格，Agent 模式下跟随显示的 agent。这些计数读取现有的远程跟踪引用，不会替你 fetch。
+
+1. 在 Herdr 的 `PATH` 里装一种 pulls.review CLI，并把 `extras/mods/pulls-review/main.js` 顶部的 `MODE` 改成对应的值：
+   - `"official"`（默认）：`bun add --global pulls.review`。每个工作树一个服务，由 herdr-core 在后台托管（`hc ls --label pulls-review.root=<目录>` 查看，`hc kill <address>` 停止）。第一次打开时浏览器完成登录，之后在同一个服务上打开新标签页。
+   - `"daemon"`：`bun add --global jin.review`，即[我的 fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo) 的 CLI，可与 `pulls.review` 同时安装。所有仓库共用一个后台服务（`jin.review -d`），用 `jin.review --stop` 停止。
+   - `"pwa"`：同样用 fork，在已安装的 jin.review 应用里打开（`jin.review -d --pwa`）。先安装应用：运行一次 `jin.review -d`，在 Chrome 打开该页面，安装为应用，并允许它打开 `web+pullsreview` 链接。
+2. 把 `extras/mods/pulls-review/` 复制进 `~/.config/herdr-app/mods/`，再在 `keys.json` 的 `global` 里加一个快捷键：`"cmd-shift-r": "mod.open:pulls-review"`。
+
 - 只支持本机目录：窗格在其他机器上时会报错。
-- 安装：把 `extras/mods/pulls-review/` 复制进 `~/.config/herdr-app/mods/`，再在 `keys.json` 的 `global` 里加一个快捷键：`"cmd-shift-r": "mod.open:pulls-review"`。
-- 会运行只读的 `git status --porcelain` 和 `pulls.review`。
-- 本布局的标签栏没有对应按钮，用快捷键或命令面板打开。
+- 会运行只读的 git（`git status`、`git rev-parse`、`git symbolic-ref`）和 `pulls.review` 或 `jin.review`。
 
 ### 预览图里的主题和设置
 

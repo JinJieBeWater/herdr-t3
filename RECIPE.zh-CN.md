@@ -18,7 +18,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
       - 卡片：同 T3，当前查看、需要你处理或已完成时标题突出（`foreground`，medium），其余退后（`muted`，normal）；悬停只提亮颜色。程序图标（60% 透明度）和远程机器标记放在第三行行尾，没有第三行时放在标题行行尾。
   - **底栏**（41px，上边框）：一行 Settings；App 更新就绪时带一个 6px `accent` 圆点；行尾一个 server 图标，打开官方的 `machine-add`。
 - **工作区**：
-  - **标签栏**（40px，可拖动窗口）：当前 space 的标签，28px 胶囊（圆角 6，当前标签 `selected`）：程序图标、名字（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点；当前标签有关闭 `×`。然后是动作控件，再往右、在最右端是 26px 的 `+`（`tab.new`：在当前 space 开终端标签），位置固定不随动作名变化。动作控件是26px 描边框（圆角 6，`border`，12px `muted` 文字），里面是主动作的 12px 图标和名字（最宽 140px）、1px 分隔线和 `chevron-down`；还没有动作时显示 `dim` 色的 `▶ Add action`。Windows 上有窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
+  - **标签栏**（40px，可拖动窗口）：当前 space 的标签，28px 胶囊（圆角 6，当前标签 `selected`）：程序图标、名字（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点；当前标签有关闭 `×`。安装了 pulls.review 扩展时，先是 Review 栏（见 README）。然后是动作控件，再往右、在最右端是 26px 的 `+`（`tab.new`：在当前 space 开终端标签），位置固定不随动作名变化。动作控件是26px 描边框（圆角 6，`border`，12px `muted` 文字），里面是主动作的 12px 图标和名字（最宽 140px）、1px 分隔线和 `chevron-down`；还没有动作时显示 `dim` 色的 `▶ Add action`。Windows 上有窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
   - **窗格**（内边距 2/8，间距 8），即当前标签：圆角 8，`background` 填充，聚焦边框 2px，默认关闭（`focus.color` 为 `background`，改成 `accent` 即显示；平时的边框也是 2px，颜色同 `background`，所以聚焦时终端不会变尺寸），单个窗格也带框。每个窗格顶部有 28px 标题栏：程序图标、agent 名或终端标题（13px 中粗，聚焦时 `foreground`）、目录、状态标记，以及右分屏、下分屏、缩放/取消缩放、关闭按钮（悬停时出现）。
   - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
 - **新建菜单**（`t3-new-menu`，520×420 弹层，位于顶部）：选一个 space 开终端标签（`tab.new`），或 New space（`space.new`）；`⌘1…` 按编号选 space。
