@@ -1,33 +1,45 @@
 // Opens the focused pane's worktree in pulls.review: its uncommitted changes when there are
 // any, else what pulls.review opens by default. Bound in keys.json as `mod.open:pulls-review`;
 // t3-tabs' Review bar opens it with `{ cwd, args, analyze }` for one diff, analyzed by AI in the fork.
+// With the fork in "herdr" mode the review opens beside the agent, in the review mod.
 
 import { View, div } from "gpui-kit";
-import { spaces, panes, focused, exec, hc, window, notify, props, closeOverlay } from "herdr";
+import { spaces, panes, focused, exec, hc, window, notify, props, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
 
-// Which pulls.review you installed (see the README):
-// "official": the `pulls.review` CLI. Each worktree gets its own server, kept running by herdr-core.
-// "daemon":   the fork's `jin.review -d`, one background server for every repo, in the browser.
+// Where a review opens, `open` in this folder's config.json (see the README):
+// "herdr":    the fork's daemon, drawn in a pane beside the agent (the review mod).
 // "pwa":      the fork's `jin.review -d --pwa`, in the installed jin.review app.
-const MODE = "official";
-const COMMAND = MODE === "official" ? "pulls.review" : "jin.review";
+// "browser":  the fork's `jin.review -d`, one background server for every repo, in the browser.
+// "official": the `pulls.review` CLI. Each worktree gets its own server, kept running by herdr-core.
+const MODES = ["herdr", "pwa", "browser", "official"];
 const LABEL = "pulls-review.root";
+const PANE = "review";
 
-// Same lookup as the shipped `changes` mod.
+async function readMode() {
+  const text = await readTextFile(`${appHome()}/mods/pulls-review/config.json`).catch(() => null);
+  let open;
+  try { open = text ? JSON.parse(text).open : "herdr"; } catch { throw new Error("mods/pulls-review/config.json isn't valid JSON."); }
+  if (!MODES.includes(open)) throw new Error(`"open" in mods/pulls-review/config.json is one of ${MODES.join(", ")}.`);
+  return open;
+}
+
+// The shipped `changes` mod's lookup, except for a mod pane (below).
 function location() {
   const space = spaces().find((s) => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
+  const ps = panes(), pane = f?.pane ? ps.find(p => p.pane === f.pane) : null;
   const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return { cwd: pane?.cwd || f?.cwd || space?.folder, on };
+  // A mod pane has no folder (the review pane itself): its tab's terminals stand in for it.
+  const beside = pane && !pane.cwd ? ps.find(p => p.tab === pane.tab && p.cwd)?.cwd : null;
+  return { cwd: pane?.cwd || beside || f?.cwd || space?.folder, on };
 }
 
 // Reads that write nothing under .git, as the shipped changes mod reads.
 const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
 const browserPath = page => encodeURI(page).replaceAll("#", "%23");
 
-async function cli(args, options) {
-  try { return await exec(COMMAND, args, options); }
-  catch { throw new Error(`${COMMAND} isn't installed. See the pulls.review section of the herdr-t3 README.`); }
+async function cli(command, args, options) {
+  try { return await exec(command, args, options); }
+  catch { throw new Error(`${command} isn't installed. See the pulls.review section of the herdr-t3 README.`); }
 }
 
 async function core([command, ...args]) {
@@ -60,14 +72,33 @@ async function official(root, args) {
   const label = `${LABEL}=${root}`;
   const [live] = (await core(["ls", "--label", label])).terminals;
   if (!live) {
-    await cli(["--help"]);
-    await core(["run", "--bg", "--no-parent", "--rm", "--cwd", root, "--label", label, "--", COMMAND, ...args]);
+    await cli("pulls.review", ["--help"]);
+    await core(["run", "--bg", "--no-parent", "--rm", "--cwd", root, "--label", label, "--", "pulls.review", ...args]);
     return; // The CLI opens its first page itself, signed in; the browser keeps the sign-in.
   }
   const { text } = await core(["read", live.address, "--lines", "5000"]);
   const origin = /pulls\.review is serving (http:\/\/[^/\s]+)/.exec(text)?.[1];
   if (!origin) throw new Error(`pulls.review is still starting. Its output: hc read ${live.address}`);
   await openUrl(origin + await pageFor(root, args));
+}
+
+// Per the pane's "Open in" setting, one review pane per tab, split off the focused pane, or one review tab per space.
+// An open one is focused and told the new page.
+function herdr(root, page) {
+  if (page === "/") throw new Error("Nothing to review on the default branch: pick a diff in the Review bar.");
+  const f = focused(), ps = panes(), n = Date.now();
+  const inTab = shared(`${PANE}.prefs`)?.openIn === "tab";
+  const here = new Set(spaces().find(s => s.id === f?.space)?.tabs.map(c => c.id) ?? []);
+  const open = ps.find(p => p.mod === PANE && (inTab ? here.has(p.tab) : p.tab === f?.tab));
+  if (open) {
+    setShared(PANE, { tab: open.tab, root, page, n });
+    run("pane.focus", { pane: open.pane });
+    return;
+  }
+  if (inTab) return run("tab.new", { mod: PANE, props: { root, page, n } });
+  // With an agent block focused (the agent view) there is no focused pane: split the agent's own.
+  const from = f?.pane ?? ps.find(p => p.terminal === f?.agent)?.pane;
+  run("pane.split", { direction: "right", ...(from ? { pane: from } : {}), mod: PANE, props: { root, page, n } });
 }
 
 export default class PullsReview extends View {
@@ -84,9 +115,12 @@ export default class PullsReview extends View {
         if (top.code !== 0) return fail("Not a git repository.");
         const root = top.stdout.trim();
         const args = input.args ?? ((await git(root, ["status", "--porcelain"])).stdout.trim() ? ["--worktree"] : []);
-        if (MODE === "official") return await official(root, args);
+        const mode = await readMode();
+        if (mode === "official") return await official(root, args);
+        // The pane starts an analysis itself only with its Analyze automatically setting on, as the app never does unasked.
+        if (mode === "herdr") return herdr(root, await pageFor(root, args));
         // `--analyze` starts the AI analysis, or follows the one running; the official CLI has no such flag.
-        const r = await cli(["-d", ...(MODE === "pwa" ? ["--pwa"] : []), ...(input.analyze ? ["--analyze"] : []), ...args], { cwd: root });
+        const r = await cli("jin.review", ["-d", ...(mode === "pwa" ? ["--pwa"] : []), ...(input.analyze ? ["--analyze"] : []), ...args], { cwd: root });
         if (r.code !== 0) fail((r.stderr || r.stdout).trim() || `exit ${r.code}`);
       } catch (error) { fail(error?.message ?? String(error)); }
       finally { closeOverlay(input.overlay); }
