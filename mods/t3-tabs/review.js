@@ -58,7 +58,7 @@ async function readReview(cwd) {
   if (top.code !== 0) return null;
   const root = top.stdout.trim(), status = await git(root, ["status", "--porcelain=v2", "--branch"]);
   if (status.code !== 0) return null;
-  const review = { root, branch: null, upstream: null, base: null, changed: 0, ahead: 0, behind: 0, unmerged: 0, newer: 0, gone: false };
+  const review = { root, branch: null, upstream: null, base: null, baseRef: null, changed: 0, ahead: 0, behind: 0, unmerged: 0, newer: 0, gone: false };
   let ab = false;
   for (const line of status.stdout.split("\n")) {
     if (line.startsWith("# branch.head ")) review.branch = line.slice(14);
@@ -74,7 +74,9 @@ async function readReview(cwd) {
   for (const ref of names.flatMap(name => [`origin/${name}`, name])) {
     const count = await git(root, ["rev-list", "--left-right", "--count", `${ref}...HEAD`]);
     if (count.code !== 0) continue; // No such ref.
+    // `base` is the branch name; `baseRef` is what was compared, shown so a fork's stale origin/main reads as itself.
     review.base = ref.replace(/^origin\//, "");
+    review.baseRef = ref;
     // On the default branch or a detached HEAD the CLI opens its ref picker instead: nothing to show.
     if (review.branch !== review.base && review.branch !== "(detached)") {
       [review.newer, review.unmerged] = count.stdout.trim().split(/\s+/).map(n => parseInt(n, 10) || 0);
@@ -98,8 +100,8 @@ export function reviewBar(view, t, stop) {
     .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args, analyze: true } }))
     .child(label);
   return h_flex().id("pulls-review").flex_none().items_center()
-    .when(r.unmerged > 0, el => el.child(item("review-open", `${n(r.unmerged, "commit")} vs ${r.base}`, t.foreground, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.base}`
-      + (r.newer ? ` · ${r.base} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), [])))
+    .when(r.unmerged > 0, el => el.child(item("review-open", `${n(r.unmerged, "commit")} vs ${r.baseRef}`, t.foreground, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
+      + (r.newer ? ` · ${r.baseRef} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), [])))
     .when(r.changed > 0, el => el.child(item("review-changes", `${n(r.changed, "file")} uncommitted`, t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"])))
     .when(r.ahead > 0, el => el.child(item("review-ahead", `↑${r.ahead}`, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`])))
     .when(r.behind > 0, el => el.child(item("review-behind", `↓${r.behind}`, t.ansi1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`])));

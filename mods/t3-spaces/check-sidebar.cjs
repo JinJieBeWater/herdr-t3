@@ -747,7 +747,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       : { code: 0, stdout: status };
     const review = await scope.readReview("/repo/src");
     const show = r => tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
-    assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
+    assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", baseRef: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
     show(review);
     const bar = tabs.render(cx);
     assert.deepEqual(strings(find(bar, "review-open")), ["4 commits vs main"], "the branch's count names its unit and what it is against");
@@ -772,6 +772,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     status = full.replace("origin/feat", "origin/main");
     const tracking = await scope.readReview("/repo");
     assert.deepEqual([tracking.ahead, tracking.behind], [0, 1], "tracking main: ↑ repeats N commits vs main, so it goes; ↓ stays");
+    // With origin/main the label names the remote ref: a fork's origin/main can lag the upstream it mirrors.
+    refs["origin/main...HEAD"] = "0\t43\n";
+    show(await scope.readReview("/repo"));
+    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["43 commits vs origin/main"]);
+    delete refs["origin/main...HEAD"];
     refs["main...HEAD"] = "0\t0\n";
     assert.equal((await scope.readReview("/repo")).unmerged, 0, "nothing past main: no Review");
   }
