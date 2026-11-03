@@ -2,7 +2,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, focused, run, openOverlay, theme, window, layout, settings, nextCommand } from "herdr";
 import { namer } from "./name.js";
-import { subAgents, treeStatus } from "./tree.js";
+import { ownStatus, subAgents, treeStatus } from "./tree.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -78,8 +78,8 @@ export default class Tabs extends View {
     const shown = space?.tabs ?? [];
     const live = awake();
     // Each agent with its sub-agents (tree.js).
-    const every = agents(), under = subAgents(every, terminals());
-    const st = (a) => treeStatus(a.status, under(a.address));
+    const every = agents(), all = terminals(), under = subAgents(every, all);
+    const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const ps = panes(), title = namer();
     // The agent view keeps the keyboard on its agent, so a split or new tab would land unseen.
     // A new shell or mod pane in this space brings the tabs back, focused; a new agent's (often an agent

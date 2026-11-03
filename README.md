@@ -16,7 +16,7 @@ Only want the Settle sidebar? It is also published alone: [herdr-t3-focus](https
   - Inbox: T3-style Settle. Agents that need you stay up top as cards; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf.
 - **Agent view** (`cmd-shift-a`, or the button left of `+`): the work area shows one agent full size instead of the active tab, and clicking in the sidebar picks which. The tab bar turns into a bar naming that agent; the scroll wheel walks agents. Anything that would land out of sight brings the tabs back: a new shell or split in this space (focused), starting something from `+`, moving focus to a shell. A new agent pane (often an agent starting another) doesn't take the view; it shows up in the sidebar.
 - **One name everywhere**: Inbox cards, the agents list, tabs and pane headers name a terminal the same way: its Pi session, then a tab you named, then a telling terminal title, else the program. Two Pis in one tab read as their own sessions.
-- **The same status marks everywhere**: a spinner while working, `!` when blocked, a dot when done. While Inbox shows, a settled agent's done dot leaves the tabs and pane headers too.
+- **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. While Inbox shows, a settled agent's done dot leaves the tabs and pane headers too.
 - **Slim tabs, framed panes**: 28px pill tabs; rounded panes with a 28px header (name, folder, status; split, zoom and close on hover).
 - **New**: the tab bar's `+` opens a terminal tab in the current space; the sidebar's New tab picks a space (or a new one) first. No agent picker: start agents in the terminal.
 

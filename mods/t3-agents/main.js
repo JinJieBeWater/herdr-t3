@@ -5,7 +5,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
 import { namer } from "./name.js";
-import { kidStatus, subAgents, treeStatus } from "./tree.js";
+import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
@@ -212,8 +212,9 @@ export default class Agents extends View {
     const under = subAgents(list, all);
     const kidsOf = new Map(list.map((a) => [a.address, under(a.address)]));
     // As shown: its own word with its sub-agents'. Sorted, a viewed done agent keeps Done.
-    const shownStatus = (a) => treeStatus(a.status, kidsOf.get(a.address));
-    const urgency = new Map(list.map((a) => [a.address, RANK[treeStatus(this.word(a), kidsOf.get(a.address))] ?? 0]));
+    const own = (a) => ownStatus(a.status, a.address, all);
+    const shownStatus = (a) => treeStatus(own(a), kidsOf.get(a.address));
+    const urgency = new Map(list.map((a) => [a.address, RANK[treeStatus(ownStatus(this.word(a), a.address, all), kidsOf.get(a.address))] ?? 0]));
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);
     this.prune(all);
@@ -303,7 +304,7 @@ export default class Agents extends View {
       const name = full ? more ?? (a.space_name || label(a)) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
       const where = full && more && a.space_name && a.space_name !== more ? a.space_name : null;
       // Its sub-agents' word, when it isn't its own, is marked as theirs.
-      const fromKid = st !== a.status;
+      const fromKid = st !== own(a);
       const when = this.since(a);
       return h_flex()
         .id(`ag-${a.address}`)
