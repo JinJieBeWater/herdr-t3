@@ -53,7 +53,7 @@ Pinned、Active order key、inbox return、Working 排序都会比较 `environme
 
 | 场景 | 探针结果 | 代码位置 |
 |---|---|---|
-| 同一个 Agent 在 200ms 内经历 working → idle → working | 分区立即变成 Working → Active → Working，没有退出宽限。与 T3 的 2 秒缓冲形成直接差异。 | [工作分区判断](../../mods/t3-focus/main.js)，`working`、`out`、`work` |
+| 同一个 Agent 在 200ms 内经历 working → idle → working | 分区立即变成 Working → Active → Working，没有退出宽限。与 T3 的 2 秒缓冲形成直接差异。 | [工作分区判断](../../mods/t3-inbox/main.js)，`working`、`out`、`work` |
 | 查看已完成 Agent，done → idle，其他输入不变 | 相对顺序保持不变。现有归一化有效，不能把所有查看动作都归为抖动来源。 | 同文件，`track` |
 | A 完成后位于 C 前；A 暂时缺席，同时 B 状态变化；A 再出现 | A 的已观察完成时间从 2000 丢成 0，回退到旧 `status_ms=100`，顺序由 A,C 变成 C,A。缺席项清理必须在有状态变化的那一帧才会触发。 | 同文件，`track` 的缺项删除与 `since` 回退 |
 | 两个 Settled Agent 的 Settle 时间相同，仅反转底层窗格顺序 | 顺序由 A,B 变成 B,A。Settled 比较器没有固定的次级排序键；批量 Settle 可能产生同毫秒时间。 | 同文件，`put.sort`；[基线排序代码](https://github.com/JinJieBeWater/herdr-t3/blob/528722b/mods/t3-focus/main.js#L173-L177) |

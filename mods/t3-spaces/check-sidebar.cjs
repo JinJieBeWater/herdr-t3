@@ -290,29 +290,29 @@ for (const width of [208, 240, 256, 320, 480]) {
 
 {
   // The inbox: Working holds busy trees; Settle is by hand, undone by new work, never by looking.
-  const f = fixture(256), fo = f.load("t3-inbox"), run = { ...cx, spawn: fn => { fn(run); } };
+  const f = fixture(256), inbox = f.load("t3-inbox"), run = { ...cx, spawn: fn => { fn(run); } };
   const remote = f.agents()[1], k = f.terminals().find(k => k.address === "vps/t2"), child = f.terminals().find(c => c.address === "child");
   child.status = "idle";
-  assert.deepEqual(strings(find(fo.render(run), "working-header")), ["Working", "1"], "a working tree moves down to Working");
-  fire(find(fo.render(run), "card-t0"), "on_hover", true, run);
-  assert.equal(find(fo.render(run), "settle-t0"), null, "a working tree can't be settled");
+  assert.deepEqual(strings(find(inbox.render(run), "working-header")), ["Working", "1"], "a working tree moves down to Working");
+  fire(find(inbox.render(run), "card-t0"), "on_hover", true, run);
+  assert.equal(find(inbox.render(run), "settle-t0"), null, "a working tree can't be settled");
   remote.status = "done"; k.turn = 4;
-  fire(find(fo.render(run), "card-vps/t2"), "on_hover", true, run);
-  fire(find(fo.render(run), "settle-vps/t2"), "on_click", {}, run);
+  fire(find(inbox.render(run), "card-vps/t2"), "on_hover", true, run);
+  fire(find(inbox.render(run), "settle-vps/t2"), "on_click", {}, run);
   const [, , value] = f.labelled.pop();
   assert.match(value, /^settled=\d+:4$/, "the label keeps when and the turn it was settled at");
   k.labels = { settled: value.slice(8) };
-  const at = fo.render(run);
+  const at = inbox.render(run);
   assert.ok(!find(at, "card-vps/t2") && strings(find(at, "settled-header")).includes("1"), "settled leaves the cards for the tail");
   {
     // The settle key (t3-inbox.settle) acts on the agent in view: a busy one stays, a settled one comes back, then goes again.
     const t0 = f.agents()[0], n = f.labelled.length;
-    fo.render(run); fo.settleKey(run);
+    inbox.render(run); inbox.settleKey(run);
     assert.equal(f.labelled.length, n, "the key doesn't settle a working agent");
     t0.focused = false; remote.focused = true;
-    fo.render(run); fo.settleKey(run);
+    inbox.render(run); inbox.settleKey(run);
     assert.deepEqual(f.labelled.pop(), ["label", "vps/t2", "settled="], "on a settled agent the key brings it back");
-    fo.render(run); fo.settleKey(run);
+    inbox.render(run); inbox.settleKey(run);
     const [, , again] = f.labelled.pop();
     assert.match(again, /^settled=\d+:4$/, "and settles it again");
     k.labels = { settled: again.slice(8) };
@@ -324,54 +324,54 @@ for (const width of [208, 240, 256, 320, 480]) {
     let due = null;
     const later = { ...run, timer: { after(ms, fn) { const task = { ms, fn, cancel() { if (due === task) due = null; } }; return (due = task); } } };
     const tick = () => { const { fn } = due; due = null; fn(later); };
-    const label = () => strings(find(fo.render(later), "settled-clear"));
+    const label = () => strings(find(inbox.render(later), "settled-clear"));
     const n = f.calls.length;
     f.spaces()[0].tabs[0].active = true;
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
     assert.equal(f.calls.length, n, "the first click only asks");
     assert.deepEqual(label(), ["Clear 1?"]);
     assert.equal(due.ms, 3000, "asked without the pointer (keyboard), the ask ends on its own");
     tick();
     assert.deepEqual(label(), ["Clear"]);
-    fire(find(fo.render(later), "settled-clear"), "on_hover", true, later);
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_hover", true, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
     assert.equal(due, null, "under the pointer the ask stays");
-    fire(find(fo.render(later), "settled-clear"), "on_hover", false, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_hover", false, later);
     assert.equal(due.ms, 400, "leaving the button ends the ask shortly");
-    fire(find(fo.render(later), "settled-clear"), "on_hover", true, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_hover", true, later);
     assert.equal(due, null, "coming back in time keeps it");
     assert.deepEqual(label(), ["Clear 1?"]);
-    fire(find(fo.render(later), "settled-clear"), "on_click", { click_count: 2 }, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", { click_count: 2 }, later);
     assert.equal(f.calls.length, n, "a double-click's second click doesn't clear");
     assert.deepEqual(label(), ["Clear 1?"]);
     f.panes().push({ pane: "p9", tab: "b2", terminal: "t9" });
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
     assert.deepEqual(f.calls.splice(n), [["pane.close", { pane: "p2" }], ["space.select", { id: "s0" }], ["tab.select", { id: "b0" }]], "another pane keeps the space");
     f.panes().pop();
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
     assert.deepEqual(f.calls.splice(n), [["tab.new", { space: "s2", folder: "/work/s2" }], ["pane.close", { pane: "p2" }],
       ["space.select", { id: "s0" }], ["tab.select", { id: "b0" }]], "an emptied space keeps a fresh shell tab where its terminal was, not where the space began");
-    fire(find(fo.render(later), "settled-clear"), "on_click", {}, later);
+    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
     assert.equal(due, null, "asked under the pointer: no timer");
     remote.focused = true;
-    assert.equal(find(fo.render(later), "settled-clear"), null, "the agent in view is never cleared");
+    assert.equal(find(inbox.render(later), "settled-clear"), null, "the agent in view is never cleared");
     remote.focused = false;
     assert.deepEqual(label(), ["Clear"], "a button that went away under the pointer comes back unasked");
     assert.equal(f.calls.length, n);
   }
   remote.focused = true;
-  fo.render(run);
+  inbox.render(run);
   assert.equal(f.labelled.length, 0, "looking doesn't bring it back");
   k.turn = 5;
-  fo.render(run);
+  inbox.render(run);
   assert.deepEqual(f.labelled.pop(), ["label", "vps/t2", "settled="], "a turn ended since brings it back");
   // The space filter, as T3's project scope: picking a space hides the others' agents; All spaces brings them back.
-  const scope = (id) => fire(find(find(fo.render(run), "inbox-scope-menu").style.content, `scope-${id}`), "on_click", { modifiers: {} }, run);
+  const scope = (id) => fire(find(find(inbox.render(run), "inbox-scope-menu").style.content, `scope-${id}`), "on_click", { modifiers: {} }, run);
   scope("s2");
-  assert.ok(find(fo.render(run), "card-vps/t2") && !find(fo.render(run), "working-header"), "only the chosen space's agents");
+  assert.ok(find(inbox.render(run), "card-vps/t2") && !find(inbox.render(run), "working-header"), "only the chosen space's agents");
   scope("all");
-  assert.ok(find(fo.render(run), "working-header"), "all spaces again");
+  assert.ok(find(inbox.render(run), "working-header"), "all spaces again");
   // The brand bar switches the sidebar; with the inbox showing, a settled agent's done is no news.
   fire(find(f.load("t3-chrome").render(cx), "sidebar-mode"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "sidebar-lists", child: "inbox" }]);
@@ -385,17 +385,17 @@ for (const width of [208, 240, 256, 320, 480]) {
 {
   // A parent's unread reply shows first, its working sub-agents beside it; once read, waiting on them is
   // working, everywhere, for as long as the longest-working one has worked.
-  const f = fixture(256), fo = f.load("t3-inbox");
+  const f = fixture(256), inbox = f.load("t3-inbox");
   f.agents()[0].status = "idle"; f.terminals().find(c => c.address === "child").status = "idle";
   f.terminals().find(c => c.address === "grandchild").status_ms = Date.now() - 90000;
-  assert.deepEqual(strings(find(fo.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
+  assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
   f.agents()[0].status = "done"; f.panes()[0].status = "done";
-  const focus = fo.render(cx);
-  assert.ok(strings(find(focus, "state-t0")).includes("Done") && strings(focus).includes("1 sub-agent working"), "an unread reply isn't hidden by a working sub-agent");
+  const drawn = inbox.render(cx);
+  assert.ok(strings(find(drawn, "state-t0")).includes("Done") && strings(drawn).includes("1 sub-agent working"), "an unread reply isn't hidden by a working sub-agent");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Done");
   assert.ok(find(f.load("t3-tabs").render(cx), "tab-b0").items.some(n => n.style.rounded_full), "its tab shows the done dot");
   f.agents()[0].status = "idle"; f.panes()[0].status = "idle";
-  assert.deepEqual(strings(find(fo.render(cx), "state-t0")), ["Working", "1m"], "read, the run goes on from its start");
+  assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "read, the run goes on from its start");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Working (sub-agent)", "a read parent waiting on a sub-agent is working");
   const spins = tree => walk(tree).some(n => n.source === "mods/workspace-chrome/spinner.svg");
   assert.ok(spins(find(f.load("t3-tabs").render(cx), "tab-b0")) && spins(f.load("t3-pane", { pane: "p0" }).render(cx)), "its tab and pane header show it working");
@@ -405,12 +405,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Dragging, as T3's sidebar: labels and gaps open only while a row is lifted; Pinned pins and reorders,
   // Active unpins and unsettles, Settled settles; empty sections take drops; Esc, leaving, or a row
   // vanishing put it back; Working never lifts; a sweep from Settle or undo takes a run of rows along.
-  const f = fixture(256), run = { ...cx, spawn: fn => { fn(run); } }, fo = f.load("t3-inbox");
+  const f = fixture(256), run = { ...cx, spawn: fn => { fn(run); } }, inbox = f.load("t3-inbox");
   for (const a of f.agents()) { a.status = "done"; a.focused = false; }
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   const t0 = f.terminals().find(k => k.address === "t0");
   const pins = () => [...(f.state["agents.pins"] ?? [])];
-  const root = () => fo.render(run);
+  const root = () => inbox.render(run);
   const h = (id) => find(root(), id)?.style.h;
   const badge = (v) => find(find(root(), "drag-ghost"), `badge-${v}`);
   // Press 10px into an 80px row, then move: the sidebar sees the pointer at y.
@@ -477,7 +477,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(addr, "t0");
   assert.match(value, /^settled=\d+:/, "dropped on Settled, it's settled");
   t0.labels = { settled: value.slice(8) };
-  fo.open = true;
+  inbox.open = true;
   lift("slim-t0");
   assert.ok(find(find(root(), "drag-ghost"), "ghost-slim-t0"), "a settled row lifts as its row");
   over("card-vps/t2", 10);
