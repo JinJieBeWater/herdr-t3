@@ -71,7 +71,9 @@ find(header.render(), "ph-x-p2").handlers.click({}, cx);
 assert.deepEqual(take(), [["pane.close", { pane: "p2" }]]);
 
 // Names: Pi session, else (agents only) a named tab, else a telling title, else the program.
-const named = () => texts(header.render())[0];
+// The terminal's address leads, then its name.
+assert.equal(texts(header.render())[0], "t2");
+const named = () => texts(header.render())[1];
 terms[0].labels["pi.session"] = "Fix login";
 assert.equal(named(), "Fix login");
 delete terms[0].labels["pi.session"];
