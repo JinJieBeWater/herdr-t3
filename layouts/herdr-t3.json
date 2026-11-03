@@ -49,9 +49,9 @@
               ]
             },
             {
-              "id": "focus",
+              "id": "inbox",
               "type": "block",
-              "content": { "mod": "t3-focus", "props": { "newMenu": "t3-new-menu" } }
+              "content": { "mod": "t3-inbox", "props": { "newMenu": "t3-new-menu" } }
             }
           ]
         },

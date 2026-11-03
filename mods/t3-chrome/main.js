@@ -11,9 +11,9 @@ function find(node, id) {
   return null;
 }
 
-// The sidebar shows either Spaces and Agents, or the focus list (t3-focus): a stack in the layout.
-const focusing = () => find(layout(), "sidebar-lists")?.active === "focus";
-const switchSidebar = () => run("layout.select", { stack: "sidebar-lists", child: focusing() ? "lists" : "focus" });
+// The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
+const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
+const switchSidebar = () => run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
 
 export default class WorkspaceChrome extends View {
   init(_props, cx) {
@@ -42,14 +42,14 @@ export default class WorkspaceChrome extends View {
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
-    const focus = focusing();
+    const inbox = inboxShown();
     return h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
       .child(div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
-        .role("button").accessibility_label(focus ? "Show spaces and agents" : "Show focus list")
+        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
-        .child(svg(`mods/workspace-chrome/${focus ? "layers" : "circle-check"}.svg`).size(14)))
+        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)))
       .child(div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
         .role("button").accessibility_label("Hide sidebar")

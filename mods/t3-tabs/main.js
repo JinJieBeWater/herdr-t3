@@ -4,10 +4,10 @@ import { spaces, panes, agents, terminals, focused, run, openOverlay, theme, win
 import { namer } from "./name.js";
 import { subAgents, treeStatus } from "./tree.js";
 
-// With the focus list showing (t3-focus), an agent settled there isn't news: its done is left out.
+// With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
 function awake() {
-  if (find(layout(), "sidebar-lists")?.active !== "focus") return agents();
+  if (find(layout(), "sidebar-lists")?.active !== "inbox") return agents();
   const put = new Set(terminals().filter((k) => k.labels?.settled).map((k) => k.address));
   return agents().filter((a) => !put.has(a.address));
 }

@@ -85,15 +85,15 @@ assert.equal(named(), "zsh");
 shell.title = "t3";
 assert.equal(named(), "zsh");
 
-// A settled agent's done dot goes only while the Focus list shows.
+// A settled agent's done dot goes only while the inbox shows.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;
 const dots = () => header.render().items.length;
 const shown = dots();
 terms[0].labels.settled = "1:1";
 assert.equal(dots(), shown);
-sidebar.children[0].active = "focus";
+sidebar.children[0].active = "inbox";
 assert.equal(dots(), shown - 1);
 
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);
-console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule; a settled done dot hides under Focus; a missing pane renders nothing.");
+console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule; a settled done dot hides under Inbox; a missing pane renders nothing.");

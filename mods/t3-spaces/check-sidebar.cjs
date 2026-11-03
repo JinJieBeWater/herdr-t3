@@ -198,7 +198,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   f.agents()[0].status = "working";
   const t0 = f.terminals().find(k => k.address === "t0");
   t0.labels = { "pi.session": "mine" };
-  assert.ok(strings(find(ag.render(cx), "ag-t0")).includes("mine"), "a lone agent reads as its session, as in Focus");
+  assert.ok(strings(find(ag.render(cx), "ag-t0")).includes("mine"), "a lone agent reads as its session, as in the inbox");
   f.agents().push({ ...f.agents()[0], address: "t1", pane: "p1", seq: 1, focused: false });
   f.terminals().push({ address: "t1", state: "live", labels: { "pi.session": "theirs" } });
   const shared = ag.render(cx);
@@ -289,8 +289,8 @@ for (const width of [208, 240, 256, 320, 480]) {
 }
 
 {
-  // The focus sidebar: Working holds busy trees; Settle is by hand, undone by new work, never by looking.
-  const f = fixture(256), fo = f.load("t3-focus"), run = { ...cx, spawn: fn => { fn(run); } };
+  // The inbox: Working holds busy trees; Settle is by hand, undone by new work, never by looking.
+  const f = fixture(256), fo = f.load("t3-inbox"), run = { ...cx, spawn: fn => { fn(run); } };
   const remote = f.agents()[1], k = f.terminals().find(k => k.address === "vps/t2"), child = f.terminals().find(c => c.address === "child");
   child.status = "idle";
   assert.deepEqual(strings(find(fo.render(run), "working-header")), ["Working", "1"], "a working tree moves down to Working");
@@ -305,7 +305,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const at = fo.render(run);
   assert.ok(!find(at, "card-vps/t2") && strings(find(at, "settled-header")).includes("1"), "settled leaves the cards for the tail");
   {
-    // The settle key (t3-focus.settle) acts on the agent in view: a busy one stays, a settled one comes back, then goes again.
+    // The settle key (t3-inbox.settle) acts on the agent in view: a busy one stays, a settled one comes back, then goes again.
     const t0 = f.agents()[0], n = f.labelled.length;
     fo.render(run); fo.settleKey(run);
     assert.equal(f.labelled.length, n, "the key doesn't settle a working agent");
@@ -367,15 +367,15 @@ for (const width of [208, 240, 256, 320, 480]) {
   fo.render(run);
   assert.deepEqual(f.labelled.pop(), ["label", "vps/t2", "settled="], "a turn ended since brings it back");
   // The space filter, as T3's project scope: picking a space hides the others' agents; All spaces brings them back.
-  const scope = (id) => fire(find(find(fo.render(run), "focus-scope-menu").style.content, `scope-${id}`), "on_click", { modifiers: {} }, run);
+  const scope = (id) => fire(find(find(fo.render(run), "inbox-scope-menu").style.content, `scope-${id}`), "on_click", { modifiers: {} }, run);
   scope("s2");
   assert.ok(find(fo.render(run), "card-vps/t2") && !find(fo.render(run), "working-header"), "only the chosen space's agents");
   scope("all");
   assert.ok(find(fo.render(run), "working-header"), "all spaces again");
-  // The brand bar switches the sidebar; with the focus list showing, a settled agent's done is no news.
+  // The brand bar switches the sidebar; with the inbox showing, a settled agent's done is no news.
   fire(find(f.load("t3-chrome").render(cx), "sidebar-mode"), "on_click", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "sidebar-lists", child: "focus" }]);
-  f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "focus" };
+  assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "sidebar-lists", child: "inbox" }]);
+  f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
   f.spaces()[0].tabs[0].status = "done"; f.agents()[0].status = "done";
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
@@ -385,7 +385,7 @@ for (const width of [208, 240, 256, 320, 480]) {
 {
   // A parent's unread reply shows first, its working sub-agents beside it; once read, waiting on them is
   // working, everywhere, for as long as the longest-working one has worked.
-  const f = fixture(256), fo = f.load("t3-focus");
+  const f = fixture(256), fo = f.load("t3-inbox");
   f.agents()[0].status = "idle"; f.terminals().find(c => c.address === "child").status = "idle";
   f.terminals().find(c => c.address === "grandchild").status_ms = Date.now() - 90000;
   assert.deepEqual(strings(find(fo.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
@@ -405,7 +405,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Dragging, as T3's sidebar: labels and gaps open only while a row is lifted; Pinned pins and reorders,
   // Active unpins and unsettles, Settled settles; empty sections take drops; Esc, leaving, or a row
   // vanishing put it back; Working never lifts; a sweep from Settle or undo takes a run of rows along.
-  const f = fixture(256), run = { ...cx, spawn: fn => { fn(run); } }, fo = f.load("t3-focus");
+  const f = fixture(256), run = { ...cx, spawn: fn => { fn(run); } }, fo = f.load("t3-inbox");
   for (const a of f.agents()) { a.status = "done"; a.focused = false; }
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   const t0 = f.terminals().find(k => k.address === "t0");
@@ -543,9 +543,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   const old = fixture(256);
   old.stores.set("t3-agents", new Map([["pins", '["t0"]']]));
   old.load("t3-agents");
-  assert.deepEqual([...old.state["agents.pins"]], ["t0"], "older pins move to the shared set, so a drag in Focus keeps them");
+  assert.deepEqual([...old.state["agents.pins"]], ["t0"], "older pins move to the shared set, so a drag in the inbox keeps them");
 
-  const w = fixture(256), wf = w.load("t3-focus");
+  const w = fixture(256), wf = w.load("t3-inbox");
   for (const k of w.terminals()) if (k.parent) k.status = "idle";
   fire(find(wf.render(cx), "card-t0"), "on_mouse_down:left", { position: { x: 0, y: 0 }, local_position: { x: 0, y: 10 }, bounds: { height: 80 } }, cx);
   fire(wf.render(cx), "on_mouse_move", { position: { x: 0, y: 30 }, local_position: { x: 0, y: 130 } }, cx);
@@ -636,7 +636,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(root, "tab-b0").hoverStyle.bg, undefined);
   assert.equal(find(root, "tab-other").hoverStyle.bg, f.theme().hover);
   assert.equal(find(root, "tab-scroll").style.gap, 4);
-  // A tab nobody named reads as its agent, the name its pane header and Focus card show.
+  // A tab nobody named reads as its agent, the name its pane header and inbox card show.
   Object.assign(first, { name: "1", named: false });
   f.terminals().find(k => k.address === "t0").labels = { "pi.session": "mine" };
   assert.ok(strings(find(f.load("t3-tabs").render(cx), "tab-b0")).includes("mine"), "an unnamed tab reads as its agent's session");
@@ -747,5 +747,5 @@ for (const width of [208, 240, 256, 320, 480]) {
     const f = fixture(256);
     assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review button");
   }
-  console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, focus sidebar Working/Settle.");
+  console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

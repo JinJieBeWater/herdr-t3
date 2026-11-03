@@ -36,11 +36,11 @@ export default class Agents extends View {
     this.folded = JSON.parse(localStorage.getItem("folded") ?? "{}");
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
-    // Older installs kept pins in this list's storage; move them over once, before the focus list writes any.
+    // Older installs kept pins in this list's storage; move them over once, before the inbox writes any.
     if (shared("agents.pins") == null && localStorage.getItem("pins")) setShared("agents.pins", JSON.parse(localStorage.getItem("pins")));
   }
 
-  // Shared with the focus list (t3-focus): one set of pins.
+  // Shared with the inbox (t3-inbox): one set of pins.
   get pins() {
     return shared("agents.pins") ?? [];
   }
@@ -220,9 +220,9 @@ export default class Agents extends View {
     const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
     const rest = list.filter((a) => !this.pins.includes(a.address));
     list = [...pinned, ...rest];
-    // Only while this list shows: the focus list (t3-focus) sets its own.
+    // Only while this list shows: the inbox (t3-inbox) sets its own.
     const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-    if (find(layout())?.active !== "focus") setAgentOrder(list.map((a) => a.address));
+    if (find(layout())?.active !== "inbox") setAgentOrder(list.map((a) => a.address));
 
     const withKids = (a, i) => {
       const subs = this.tree(all, a.address);
@@ -234,7 +234,7 @@ export default class Agents extends View {
     };
 
     // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state,
-    // as in Focus. Inside a hovered row a button's own hover fill doesn't show, so this is the cue.
+    // as in the inbox. Inside a hovered row a button's own hover fill doesn't show, so this is the cue.
     const glow = (id) => (on, cx) => {
       if (on) this.hot = id;
       else if (this.hot === id) this.hot = null;
@@ -266,7 +266,7 @@ export default class Agents extends View {
         .when(!open, (el) => el.child(String(subs.length)));
     };
 
-    // A row's detail is what the agent is on, as Focus, tabs and pane headers name it.
+    // A row's detail is what the agent is on, as the inbox, tabs and pane headers name it.
     const label = namer();
     const detail = new Map(list.map(a => [a.address, /^\d+$/.test(label(a)) ? null : label(a)]));
     const seen = {};
