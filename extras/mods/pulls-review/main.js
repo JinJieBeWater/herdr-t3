@@ -1,6 +1,6 @@
 // Opens the focused pane's worktree in pulls.review: its uncommitted changes when there are
 // any, else what pulls.review opens by default. Bound in keys.json as `mod.open:pulls-review`;
-// t3-tabs' Review bar opens it with `{ cwd, args }` for one diff.
+// t3-tabs' Review bar opens it with `{ cwd, args, analyze }` for one diff, analyzed by AI in the fork.
 
 import { View, div } from "gpui-kit";
 import { spaces, panes, focused, exec, hc, window, notify, props, closeOverlay } from "herdr";
@@ -85,7 +85,8 @@ export default class PullsReview extends View {
         const root = top.stdout.trim();
         const args = input.args ?? ((await git(root, ["status", "--porcelain"])).stdout.trim() ? ["--worktree"] : []);
         if (MODE === "official") return await official(root, args);
-        const r = await cli(["-d", ...(MODE === "pwa" ? ["--pwa"] : []), ...args], { cwd: root });
+        // `--analyze` starts the AI analysis, or follows the one running; the official CLI has no such flag.
+        const r = await cli(["-d", ...(MODE === "pwa" ? ["--pwa"] : []), ...(input.analyze ? ["--analyze"] : []), ...args], { cwd: root });
         if (r.code !== 0) fail((r.stderr || r.stdout).trim() || `exit ${r.code}`);
       } catch (error) { fail(error?.message ?? String(error)); }
       finally { closeOverlay(input.overlay); }

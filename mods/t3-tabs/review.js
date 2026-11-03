@@ -91,7 +91,7 @@ export function reviewBar(view, t, stop) {
   const item = (id, label, color, name, args) => div().id(id).h(26).px(6).flex_none().flex().items_center().rounded(6)
     .text_size(12).text_color(color).hover(s => s.bg(t.hover)).role("button").accessibility_label(name)
     .on_mouse_down("left", stop)
-    .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args } }))
+    .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args, analyze: true } }))
     .child(label);
   return h_flex().id("pulls-review").flex_none().items_center()
     .when(r.unmerged > 0, el => el.child(item("review-open", `${n(r.unmerged, "commit")} vs ${r.base}`, t.foreground, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.base}`
