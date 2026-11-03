@@ -180,7 +180,6 @@ export default class Agents extends View {
       .child(h_flex().size(18).flex_none().items_center().justify_center()
         .when(Boolean(pic), el => el.child(pic)))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
-        .when(name !== k.address, el => el.child(div().flex_none().text_color(t.dim).child(`${k.address} `)))
         .child(div().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(name)))
       .child(this.status(t, { status: st }).id(`sub-status-${k.address}`));
   }
@@ -333,7 +332,6 @@ export default class Agents extends View {
             this.toggleFold(a.address, cx);
           })).when(Boolean(pic), el => el.child(pic)))
         .child(h_flex().flex_1().min_w(0).gap(8).items_center()
-          .when(name !== a.address, el => el.child(div().flex_none().text_color(t.dim).child(a.address)))
           .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(name))
           .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
         .when(Boolean(machine), el => el.child(div().text_size(11).text_color(t.dim).child(machine)))

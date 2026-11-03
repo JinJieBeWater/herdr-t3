@@ -621,9 +621,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(menu, "sort-priority"), "on_click", {}, cx);
   assert.equal(f.state["agents.sort"], "priority");
   const byPriority = find(ag.render(cx), "ag-t0"), names = byPriority.items[1];
-  assert.deepEqual(strings(names), ["t0", "local task", "project 0"], "without a space header the address and task lead and its space follows");
-  assert.equal(names.items[0].style.text_color, f.theme().dim, "the address is dim");
-  assert.deepEqual([names.items[2].style.text_color, names.items[2].style.text_size, names.items[2].style.flex_shrink], [f.theme().dim, 12, 1000], "the space is dim, smaller, and gives way first");
+  assert.deepEqual(strings(names), ["local task", "project 0"], "without a space header the task leads and its space follows; the address stays in the pane header");
+  assert.deepEqual([names.items[1].style.text_color, names.items[1].style.text_size, names.items[1].style.flex_shrink], [f.theme().dim, 12, 1000], "the space is dim, smaller, and gives way first");
 }
 
 {
