@@ -6,12 +6,14 @@ import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay } from "herdr";
 
-// Same lookup as the shipped `changes` mod.
+// The shipped `changes` mod's lookup, except for a mod pane (below).
 function reviewLocation() {
   const space = spaces().find((s) => s.active), f = focused();
-  const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
+  const ps = panes(), pane = f?.pane ? ps.find(p => p.pane === f.pane) : null;
   const on = f?.pane === null ? (f.terminal?.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
-  return { cwd: pane?.cwd || f?.cwd || space?.folder, on };
+  // A mod pane has no folder (the review pane itself): its tab's terminals stand in for it.
+  const beside = pane && !pane.cwd ? ps.find(p => p.tab === pane.tab && p.cwd)?.cwd : null;
+  return { cwd: pane?.cwd || beside || f?.cwd || space?.folder, on };
 }
 
 // Reads write nothing under .git, so the folder watch doesn't wake on them.
