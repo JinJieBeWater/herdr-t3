@@ -746,8 +746,9 @@ for (const width of [208, 240, 256, 320, 480]) {
       : args.includes("rev-list") ? (refs[args.at(-1)] ? { code: 0, stdout: refs[args.at(-1)] } : { code: 128, stdout: "" })
       : { code: 0, stdout: status };
     const review = await scope.readReview("/repo/src");
+    const show = r => tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
     assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
-    tabs.review = review;
+    show(review);
     const bar = tabs.render(cx);
     assert.deepEqual(strings(find(bar, "review-open")), ["4 commits vs main"], "the branch's count names its unit and what it is against");
     assert.deepEqual(strings(find(bar, "review-changes")), ["3 files uncommitted"]);
@@ -755,9 +756,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
     assert.equal(walk(bar).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips, like the rest of the layout");
-    tabs.review = { ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 };
+    f.shown.cwd = "/other";
+    assert.equal(find(tabs.render(cx), "pulls-review"), null, "another location never shows this one's counts, even before its own read");
+    delete f.shown.cwd;
+    assert.ok(find(tabs.render(cx), "review-open"), "coming back shows the last read at once");
+    show({ ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 });
     assert.equal(find(tabs.render(cx), "pulls-review"), null, "nothing to review, no bar");
-    tabs.review = { ...review, newer: 1, gone: true };
+    show({ ...review, newer: 1, gone: true });
     assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label,
       "Review the branch: 4 commits on feat, not on main · main has 1 newer commit · origin/feat is gone, likely merged");
     const full = status;

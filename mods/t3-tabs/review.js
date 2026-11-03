@@ -17,35 +17,36 @@ function reviewLocation() {
 // Reads write nothing under .git, so the folder watch doesn't wake on them.
 const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
 
-// Follows the focus each second, and reads git again when the worktree changes, else every 10 s.
+// Each location keeps its last read, so switching back shows it at once and switching away never shows the old one.
+// Focus is checked every 250 ms (memory reads only); git is read on a new location, a change in the worktree, else every 10 s.
 export function watchReview(view, cx) {
-  view.review = null;
-  view.reviewAt = 0;
+  view.reviews = new Map();
+  view.reviewAt = new Map();
+  view.reviewBusy = new Set();
   view.reviewWatching = new Set();
-  cx.timer.every(1000, (cx) => {
+  cx.timer.every(250, (cx) => {
     const where = reviewLocation(), key = JSON.stringify(where);
-    if (!window()?.active || view.reviewBusy || (key === view.reviewKey && Date.now() - view.reviewAt < 10000)) return;
-    if (key !== view.reviewKey) { view.reviewKey = key; view.review = null; }
-    view.reviewBusy = true;
-    view.reviewAt = Date.now();
+    if (key !== view.reviewKey) { view.reviewKey = key; cx.notify(); }
+    if (!window()?.active || view.reviewBusy.has(key) || Date.now() - (view.reviewAt.get(key) ?? 0) < 10000) return;
+    view.reviewBusy.add(key);
+    view.reviewAt.set(key, Date.now());
     cx.spawn(async (cx) => {
       try {
         const review = where.cwd && !where.on && await readTextFile(`${appHome()}/mods/pulls-review/mod.json`) !== null
           ? await readReview(where.cwd) : null;
-        if (view.reviewKey !== key) return;
-        view.review = review;
+        view.reviews.set(key, review);
         // One watch per repo: focus moving A → B → A before A changes keeps A's first watch.
         const root = review?.root;
         if (root && !view.reviewWatching.has(root)) {
           view.reviewWatching.add(root);
           cx.spawn(async () => {
-            try { while (view.review?.root === root) { await watchFolder(root); view.reviewAt = 0; } }
+            try { while (view.reviews.get(view.reviewKey)?.root === root) { await watchFolder(root); view.reviewAt.clear(); } }
             catch {} // The next read watches it again.
             finally { view.reviewWatching.delete(root); }
           });
         }
-      } catch { view.review = null; }
-      finally { view.reviewBusy = false; cx.notify(); }
+      } catch { view.reviews.set(key, null); }
+      finally { view.reviewBusy.delete(key); cx.notify(); }
     });
   });
 }
@@ -84,7 +85,8 @@ async function readReview(cwd) {
 }
 
 export function reviewBar(view, t, stop) {
-  const r = view.review;
+  // Looked up on each render, so the frame that shows another space already shows its own counts.
+  const r = view.reviews?.get(JSON.stringify(reviewLocation()));
   if (!r || !(r.unmerged || r.changed || r.ahead || r.behind)) return null;
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // The accessibility label says what each count compares, which the short label can't.
