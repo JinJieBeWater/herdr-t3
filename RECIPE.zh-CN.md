@@ -26,7 +26,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 
 ## 它怎么表现
 
-- **名字**，各处（Inbox 卡片、agents 列表、标签、窗格标题）一条规则，写在 `mods/t3-inbox/name.js`，用到它的 mod 各放一份副本：先用 Pi 会话名（`pi.session` 标签）；agent 再看有人命名过的标签名；然后是有意义的终端标题（不是路径、不含 `user@host`、不是程序自己的名字）；最后是程序名。
+- **名字**，各处（Inbox 卡片、agents 列表、标签、窗格标题）一条规则，写在 `mods/t3-inbox/name.js`，用到它的 mod 各放一份副本：先用 Pi 会话名（`pi.session` 标签）；agent 再看有人命名过的标签名；然后是有意义的终端标题（按程序只去掉该 agent 自带的标记：Pi 的 `π - … - <目录>`、OpenCode 的 `OC | `；不是路径、不含 `user@host`、不是程序自己的名字、不只是目录名或 space 名，比如 Codex 和未命名的 Pi）；最后是程序名。
 - **agent 状态**，各处（agents 列表、标签、窗格标题、Inbox 卡片）标记一致：working：`working` 色转圈；blocked：14px 圆角 `!` 徽章，底色为 15% 不透明的 `blocked`；done：7px `done` 圆点（Inbox 里是绿色 `Done`）；idle：agents 列表里是圆环，其余位置不显示。父级连同仍在运行的子 agent 一起判断，规则写在 `mods/t3-inbox/tree.js`，用到它的 mod 各放一份副本：自己或任一子 agent blocked 即 blocked（失败结束的一轮，即终端状态 `error`，视为 blocked：`agents()` 没有这个状态，从 `terminals()` 读）；否则自己有未读的 done 即 done；否则自己或任一子 agent working 即 working；否则用自己的状态。子 agent 的 done 是父级的消息，不算它自己的。
 - **侧栏模式**：品牌栏按钮或 `cmd-shift-b`（`t3-chrome.sidebar`）对 stack `sidebar-lists` 执行 `layout.select`（`lists` / `inbox`）。显示 Inbox 时，标签栏和侧栏开关的计数里不再显示已 Settle agent 的完成圆点。
 - **Spaces**：单击切换（agent view 下改为显示该 space 的 agent，优先当前 tab 的；没有 agent 时回到 tabs。那里单独 `space.select` 不起作用，视图会停在所显示 agent 的 space），右键打开自带 `menu`，拖动排序；悬停 checkout 的头像时它变成 worktree 的折叠箭头。只在 git 可能变化时读取（新位置、命令或轮次结束、机器重新连上），窗口在前台时另有慢速兜底轮询。
