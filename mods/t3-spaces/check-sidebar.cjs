@@ -586,12 +586,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     sp.git[JSON.stringify([null, "/work/p1"])] = { ...g, linked: true, branch: "x" };
     const ids = () => [...sp.ordered().map(r => r.w.id)];
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
-    let list = sp.render(cx), parent = find(list, "space-s0");
-    assert.equal(find(parent, "space-fold-s0"), null, "the avatar stays until hovered");
-    fire(parent, "on_hover", true, cx);
     const arrow = find(sp.render(cx), "space-fold-s0");
-    assert.equal(arrow.items[0].source, "mods/workspace-chrome/chevron-down.svg", "hovered, the avatar turns into the fold arrow");
-    assert.equal(arrow.style.size, 18, "the arrow keeps the avatar's slot");
+    assert.deepEqual([arrow.items[0].source, arrow.items.length], ["mods/workspace-chrome/chevron-down.svg", 1], "a checkout shows its fold arrow at the end, as an agent parent");
+    assert.equal(arrow.style.text_color, f.theme().dim, "the arrow is dim");
+    fire(arrow, "on_hover", true, cx);
+    assert.equal(find(sp.render(cx), "space-fold-s0").items[0].style.text_color, f.theme().foreground, "hovered, it brightens");
+    fire(arrow, "on_hover", false, cx);
     let stopped = false;
     fire(arrow, "on_mouse_down:left", {}, { ...cx, stop_propagation() { stopped = true; } });
     assert.ok(stopped, "pressing the arrow neither selects nor drags the space");
@@ -600,15 +600,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(ids(), ["s0", "s2"], "folding hides the worktrees");
     assert.equal(f.calls.length, before, "folding runs no command");
     assert.equal(f.stores.get("t3-spaces").get("repos.folded"), JSON.stringify(["/r"]), "folding persists");
-    assert.equal(find(sp.render(cx), "space-fold-s0").items[0].source, "mods/workspace-chrome/chevron-right.svg");
-    fire(find(sp.render(cx), "space-s0"), "on_hover", false, cx);
-    list = sp.render(cx);
-    assert.ok(find(list, "space-s0").items.length && !find(list, "space-fold-s0"), "leaving restores the avatar");
-    const count = find(list, "space-count-s0");
-    assert.deepEqual([strings(count), count.style.text_color], [["1"], f.theme().dim], "folded, a dim count says how many");
+    const count = find(sp.render(cx), "space-fold-s0");
+    assert.equal(count.items[0].source, "mods/workspace-chrome/chevron-right.svg");
+    assert.deepEqual([count.items[1], count.style.text_color], ["1", f.theme().dim], "folded, a dim count says how many");
     fire(count, "on_click", {}, cx);
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
-    assert.equal(find(sp.render(cx), "space-count-s0"), null);
+    assert.equal(find(sp.render(cx), "space-fold-s0").items.length, 1);
     sp.git = {};
   }
   delete f.agents()[0].program.icon;

@@ -299,11 +299,10 @@ export default class Spaces extends View {
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
-    // A checkout with worktrees folds them as an agent folds its sub-agents: hovered, its
-    // avatar turns into the arrow; folded, a dim count at the end says how many and opens them.
+    // A checkout with worktrees folds them as an agent folds its sub-agents: an arrow at the
+    // end, and folded, the count; dim, brightening when hovered.
     const folded = kids > 0 && this.foldedRepos.has(g.repo);
-    const stop = (_e, cx) => cx.stop_propagation();
-    const toggle = (_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); };
+    const foldId = `space-fold-${w.id}`, lit = this.hot === foldId ? t.foreground : t.dim;
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -316,11 +315,6 @@ export default class Spaces extends View {
       .accessibility_label(w.name)
       .when(on, (el) => el.bg(t.selected))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-      .when(kids > 0, (el) => el.on_hover((over, cx) => {
-        if (over) this.hovered = w.id;
-        else if (this.hovered === w.id) this.hovered = null;
-        cx.notify();
-      }))
       .when(this.pressed === i && this.over !== i, (el) => el.opacity(0.5))
       .when(this.pressed !== null && this.over === i && this.pressed !== i, (el) => el.child(
         div().absolute().left(0).right(0).h(2).bg(t.accent)
@@ -359,17 +353,22 @@ export default class Spaces extends View {
           .items_center()
           .when(Boolean(tree), el => el.pl(20).child(h_flex().size(18).flex_none().items_center().justify_center()
             .child(svg("mods/workspace-chrome/branch.svg").size(16).text_color(t.dim))))
-          .when(!tree && kids > 0 && this.hovered === w.id, el => el.child(h_flex().id(`space-fold-${w.id}`).size(18).flex_none().items_center().justify_center()
-            .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
-            .on_mouse_down("left", stop).on_click(toggle)
-            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).text_color(t.foreground))))
-          .when(!tree && !(kids > 0 && this.hovered === w.id), el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(11).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
+          .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(11).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
           .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-          .when(folded, el => el.child(div().id(`space-count-${w.id}`).h(20).min_w(20).px(4).flex_none().flex().items_center().justify_center().rounded(4)
-            .text_size(11).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
-            .role("button").accessibility_label("Expand worktrees")
-            .on_mouse_down("left", stop).on_click(toggle).child(String(kids)))),
+          .when(kids > 0, el => el.child(div().id(foldId).h(20).min_w(20).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+            .text_size(11).text_color(lit)
+            .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
+            .on_hover((over, cx) => {
+              if (over) this.hot = foldId;
+              else if (this.hot === foldId) this.hot = null;
+              cx.notify();
+            })
+            // Pressing it neither selects nor drags the space.
+            .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+            .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
+            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().text_color(lit))
+            .when(folded, el => el.child(String(kids))))),
       );
   }
 
