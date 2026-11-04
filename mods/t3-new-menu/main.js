@@ -40,8 +40,8 @@ export default class NewMenu extends View {
 
   items() {
     const ps = panes(), cur = spaces().find(s => s.active), q = this.filter.toLowerCase();
-    return [cur, NEW, ...spaces().filter(s => s.id !== cur?.id)].filter(Boolean)
-      .filter(s => `${s.name} ${s === NEW ? "" : place(s, ps)}`.toLowerCase().includes(q));
+    return [cur, ...spaces().filter(s => s.id !== cur?.id)].filter(Boolean)
+      .filter(s => `${s.name} ${place(s, ps)}`.toLowerCase().includes(q));
   }
 
   choose(s) {
@@ -58,42 +58,50 @@ export default class NewMenu extends View {
       .when(on, el => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(pick)
-      .child(h_flex().size(20).flex_none().items_center().justify_center().child(icon))
+      .child(h_flex().size(16).flex_none().items_center().justify_center().child(icon))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).child(name))
         .when(Boolean(sub), el => el.child(div().truncate().text_size(11.5).text_color(t.dim).child(sub))))
-      .child(div().flex_none().text_size(11).text_color(t.dim).child(hint));
+      .child(div().flex_none().text_size(12).font_medium().text_color(t.muted).child(hint));
   }
 
   render() {
     const t = theme(), ps = panes(), h = home();
     const short = (p) => (p && h && p.startsWith(h) ? "~" + p.slice(h.length) : p ?? "");
     const items = this.items();
-    // ⌘1… go by space number, New space aside.
-    const bySpace = items.filter(s => s !== NEW);
-    let n = 0;
-    const rows = items.map((s, i) => {
-      if (s === NEW) return this.row("space-new", i, svg("mods/workspace-chrome/folder-plus.svg").size(16).text_color(t.muted), "New space", null, shortcut("space.new"), () => this.choose(NEW));
-      const num = ++n;
-      return this.row(`space-${s.id}`, i,
-        projectMark(s, 18, t, ps),
-        s.name, `${s.machine ?? "Local"} · ${short(place(s, ps))}`, num <= 9 ? `⌘${num}` : "", () => this.choose(s));
-    });
-    return v_flex().id("new-menu").size_full().min_h(0).p(6).gap(4).bg(t.popover).text_size(13)
+    const rows = items.map((s, i) => this.row(`space-${s.id}`, i,
+      projectMark(s, 16, t, ps),
+      s.name, [s.machine, short(place(s, ps))].filter(Boolean).join(" · "), i < 9 ? `⌘${i + 1}` : "", () => this.choose(s)));
+    const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
+    const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
+    const newKey = shortcut("space.new");
+    return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down") this.at = (this.at + 1) % items.length;
         else if (e.key === "up") this.at = (this.at + items.length - 1) % items.length;
-        else if (/^[1-9]$/.test(e.key) && e.modifiers.platform) { cx.stop_propagation(); return this.choose(bySpace[Number(e.key) - 1]); }
+        else if (/^[1-9]$/.test(e.key) && e.modifiers.platform) { cx.stop_propagation(); return this.choose(items[Number(e.key) - 1]); }
         else return;
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(36).flex_none().px(8).gap(8).items_center()
-        .child(svg("mods/workspace-chrome/search.svg").size(14).text_color(t.dim))
+      .child(h_flex().h(36).mt(6).flex_none().px(16).gap(8).items_center()
+        .child(svg("mods/workspace-chrome/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
-      .child(div().px(8).pt(4).pb(2).text_size(11).text_color(t.dim).child("Spaces"))
-      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().children(rows)
-        .when(rows.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces."))));
+      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().p(8)
+        .child(div().px(8).py(6).flex_none().text_size(12).font_medium().text_color(t.muted).child("Spaces"))
+        .children(rows)
+        .when(rows.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces."))))
+      .child(h_flex().flex_none().px(16).py(8).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
+        .child(h_flex().gap(12).items_center()
+          .child(hint("↑ ↓", "Navigate"))
+          .child(hint("Enter", "New tab"))
+          .child(hint("Esc", "Close")))
+        .child(h_flex().id("space-new").gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
+          .role("button").accessibility_label("New space").hover(s => s.bg(t.selected))
+          .on_click(() => this.choose(NEW))
+          .child(svg("mods/workspace-chrome/folder-plus.svg").size(14).text_color(t.muted))
+          .child("New space")
+          .when(Boolean(newKey), el => el.child(key(newKey)))));
   }
 }
