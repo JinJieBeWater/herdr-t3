@@ -535,11 +535,13 @@ export default class Inbox extends View {
       .role("button").accessibility_label("Clear settled agents")
       .on_click((_e, cx) => {
         cx.stop_propagation();
+        this.hot = null; // The dialog covers it, before the pointer can report leaving it.
         openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: {
           title: `Close ${doomed.length} pane${doomed.length === 1 ? "" : "s"}?`,
           detail: "This ends the terminals of your settled agents. The tab you're on stays.",
           command: { name: "t3-inbox.clear" },
         } });
+        cx.notify();
       })
       .child("Clear");
     const tail = v_flex().id("settled").flex_none()

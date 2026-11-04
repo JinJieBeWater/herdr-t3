@@ -324,8 +324,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Clear asks through Herdr's confirm dialog; only its answer closes settled panes.
     const n = f.calls.length;
     f.spaces()[0].tabs[0].active = true;
+    fire(find(inbox.render(run), "settled-clear"), "on_hover", true, run);
+    assert.equal(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "lit under the pointer");
     fire(find(inbox.render(run), "settled-clear"), "on_click", {}, run);
     assert.equal(f.calls.length, n, "the click only asks");
+    assert.notEqual(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "the dialog hides the pointer's leaving from it: it doesn't stay lit");
     const { mod, kind, props } = f.overlays.pop();
     assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"]);
     f.panes().push({ pane: "p9", tab: "b2", terminal: "t9" });
