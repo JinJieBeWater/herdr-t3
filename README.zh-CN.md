@@ -71,7 +71,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
-- 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，把可选扩展里的 `mods/pulls-review` 和 `mods/review` 换成 fork 里的（见下文）。
+- 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，用本仓库的 `extras/mods/pulls-review` 覆盖 `mods/pulls-review`，再加上 `extras/mods/review`（见下文）。
 - `cmd-]` / `cmd-[` 现在归布局自己（`t3-chrome.next` / `.prev`）：把它们加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `agent.next`。
 - 关闭标签和窗格现在会先确认：把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `tab.close` 和 `pane.close`。
 - Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
@@ -90,7 +90,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 ### pulls.review
 
-Review 栏和评审窗格，来自[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods)：Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下就在 agent 旁边的窗格里打开那份评审。按[它的 README](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods/README.zh-CN.md) 安装，然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面（见那里的第 3 步）。`scripts/sync.sh` 同步布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
+`extras/mods/pulls-review` 和 `extras/mods/review`：Review 栏和评审窗格，配合[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)（CLI 叫 `jin.review`）使用。Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下就在 agent 旁边的窗格里打开那份评审。它也单独发布为 [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review)：按[它的 README](https://github.com/JinJieBeWater/herdr-pulls-review/blob/main/README.zh-CN.md) 安装（`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`，或者把两个目录复制进 `~/.config/herdr-app/mods/`），然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面。`scripts/sync.sh` 同步布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
 
 ### 预览图里的主题和设置
 
