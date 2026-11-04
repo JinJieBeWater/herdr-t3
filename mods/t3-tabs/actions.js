@@ -52,7 +52,7 @@ export function control(view, t, stop) {
       .child(icon(main.icon).size(12)).child(div().max_w(140).truncate().child(main.name)))
     .child(div().w(1).h(14).bg(t.border))
     .child(div().id("action-more").h_full().px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
-      .role("button").accessibility_label("Actions").on_click((_e, cx) => {
+      .role("button").accessibility_label("Actions").tooltip("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
         openOverlay({ mod: "t3-tabs", kind: "popup", width: 280, height: Math.min(420, 61 + s.list.length * 32), props: { actions: "menu" } });
         cx.notify();
@@ -89,7 +89,7 @@ export function menu(view) {
     .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map((a, at) =>
       row(`action-${a.id}`, at, icon(a.icon).size(14).text_color(t.muted), a.name)
         .child(div().id(`edit-${a.id}`).size(20).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
-          .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
+          .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`).tooltip(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
           .child(svg("mods/workspace-chrome/settings.svg").size(14))))))
     .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))

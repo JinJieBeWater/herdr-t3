@@ -50,7 +50,7 @@ export default class WorkspaceChrome extends View {
             .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
           .child(div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
             .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
-            .role("button").accessibility_label("Add machine")
+            .role("button").accessibility_label("Add machine").tooltip("Add machine")
             .on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "machine-add" }); cx.notify(); })
             .child(svg("mods/workspace-chrome/server.svg").size(14))));
     }
@@ -60,13 +60,13 @@ export default class WorkspaceChrome extends View {
     return h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
       .child(div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
-        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
+        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox").tooltip(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
         .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)))
       .child(div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
-        .role("button").accessibility_label("Hide sidebar")
+        .role("button").accessibility_label("Hide sidebar").tooltip("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })

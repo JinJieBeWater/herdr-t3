@@ -470,7 +470,7 @@ export default class Inbox extends View {
       const pic = icon(a.program, 14, t.dim);
       const undo = h_flex().id(`unsettle-${a.address}`).size(20).flex_none().items_center().justify_center().rounded(4)
         .on_hover(glow(`unsettle-${a.address}`))
-        .role("button").accessibility_label("Unsettle")
+        .role("button").accessibility_label("Unsettle").tooltip("Unsettle")
         .on_mouse_down("left", sweepFrom("unsettle", a))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -570,7 +570,7 @@ export default class Inbox extends View {
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const tool = (id, label, icon, fn) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
       .hover((s) => s.bg(t.hover)).on_hover(glow(id))
-      .role("button").accessibility_label(label).on_click(fn)
+      .role("button").accessibility_label(label).tooltip(label).on_click(fn)
       .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).text_color(lit(id, t.dim)));
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
     const scoped = sp.filter((s) => scope.includes(s.id));
@@ -601,7 +601,7 @@ export default class Inbox extends View {
       })
       .trigger(h_flex().id("inbox-scope").size(26).flex_none().items_center().justify_center().rounded(6)
         .hover((s) => s.bg(t.hover)).on_hover(glow("inbox-scope"))
-        .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space")
+        .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space").tooltip("Filter by space")
         .child(scoped.length > 1
           ? h_flex().children(scoped.slice(0, 2).map((s, i) => avatar(s.id, s.name, 14).when(i > 0, (el) => el.ml(-6))))
           : scoped.length

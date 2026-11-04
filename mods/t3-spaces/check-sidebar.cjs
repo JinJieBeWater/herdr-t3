@@ -655,7 +655,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
   assert.equal(toggle.style.accessibility_label, "Show sidebar, 2 needing you");
-  assert.equal(walk(tabs.render(cx)).concat(walk(f.load("t3-agents").render(cx)), walk(f.load("t3-spaces").render(cx)), walk(f.load("t3-chrome").render(cx)), walk(f.load("t3-chrome", { footer: true }).render(cx)), walk(f.load("t3-pane", { pane: "p0" }).render(cx))).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips");
   {
     // One look across the preset: the same "needs you" mark everywhere, no scrollbars, English throughout.
     f.spaces()[0].tabs[0].status = "blocked";
@@ -764,6 +763,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // Every control says what it is. A pane's header focuses it; it's no control.
+    // As in T3, an icon alone says it on hover too, and words need no tooltip. A fold's arrow and the editor's icon picks explain themselves.
     const f = fixture(256);
     f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
     const pane = f.load("t3-pane", { pane: "p0" });
@@ -774,6 +774,9 @@ for (const width of [208, 240, 256, 320, 480]) {
       if (n.handlers.on_click && !String(n.key).startsWith("pane-head")) assert.equal(n.style.role, "button", `${n.key}: a role`);
       if (n.style.role !== "button") continue;
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
+      const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /fold|^(icon|sub|ag|card|slim)-/.test(n.key);
+      if (icon && !plain) assert.ok(n.style.tooltip, `${n.key}: an icon alone has a tooltip`);
+      if (n.items.some(c => typeof c === "string")) assert.ok(!("tooltip" in n.style), `${n.key}: words need no tooltip`);
     }
   }
   {

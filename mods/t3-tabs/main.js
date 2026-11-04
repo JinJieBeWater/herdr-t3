@@ -53,6 +53,7 @@ export default class Tabs extends View {
     return h_flex().id("sidebar-toggle").h(26).px(6).gap(8).flex_none().items_center().rounded(6)
       .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
+      .tooltip("Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stop).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
       .child(svg("mods/workspace-chrome/sidebar.svg").size(14).flex_none())
@@ -74,7 +75,7 @@ export default class Tabs extends View {
     const ps = panes(), title = namer();
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, glyph, label, action) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
+      .role("button").accessibility_label(label).tooltip(label)
       .on_mouse_down("left", stop).on_click(action).child(glyph);
     const item = (c, i) => {
       // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
@@ -116,7 +117,7 @@ export default class Tabs extends View {
         .when(status != null, el => el.child(mark(t, status)))
         // Raised: the hover fill is darker than the selected tab it sits on. The -4 keeps the tab as wide as its 12px icon made it.
         .when(c.active, el => el.child(div().id(`close-${c.id}`).size(20).mr(-4).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(this, `close-${c.id}`)).hover(s => s.bg(t.raised)).on_hover(glow(this, `close-${c.id}`))
-          .role("button").accessibility_label("Close tab")
+          .role("button").accessibility_label("Close tab").tooltip("Close tab")
           .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();

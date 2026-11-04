@@ -41,7 +41,7 @@ export default class Pane extends View {
       .rounded(6)
       // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
       .text_color(this.hot === id ? t.foreground : t.dim)
-      .role("button").accessibility_label(label)
+      .role("button").accessibility_label(label).tooltip(label)
       .hover((s) => s.bg(t.hover))
       .on_hover((on, cx) => {
         if (on) this.hot = id;

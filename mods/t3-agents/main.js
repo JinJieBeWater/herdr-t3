@@ -306,7 +306,7 @@ export default class Agents extends View {
       const pin = div().id(`pin-${a.address}`).role("button")
         .size(20).flex_none().flex().items_center().justify_center()
         .rounded(4)
-        .accessibility_label(isPinned ? "Unpin" : "Pin")
+        .accessibility_label(isPinned ? "Unpin" : "Pin").tooltip(isPinned ? "Unpin" : "Pin")
         .on_hover(glow(`pin-${a.address}`))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -418,7 +418,7 @@ export default class Agents extends View {
               div()
                 .id("ag-sort")
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
-                .role("button").accessibility_label("Sort agents")
+                .role("button").accessibility_label("Sort agents").tooltip(`Sort agents: ${sort.label}`)
                 .text_size(11)
                 .text_color(lit("ag-sort"))
                 .hover((s) => s.bg(t.hover))
