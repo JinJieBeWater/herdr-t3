@@ -1072,6 +1072,15 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(close(), "on_click", {}, cx);
     assert.equal(f.calls.length, closes, "with one, the × only asks");
     assert.deepEqual(plain(f.overlays.pop().props.command), { name: "tab.close", args: { id: "other", confirmed: true } });
+    // The dialog hides the pointer's leaving, so asking takes the tab's hover and card with it.
+    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
+    for (const ms of [150, 34]) cx.timers.filter(t => t.ms === ms && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+    assert.equal(tabCard("other").style.opacity, 1, "its card is up");
+    fire(close(), "on_click", {}, cx);
+    f.overlays.pop();
+    assert.equal(tabs.details, null, "the × closes the card");
+    assert.equal(tabs.overTab, null, "and the tab stops reading as hovered");
+    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
     f.panes().pop();
     cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
     assert.equal(find(tabs.render(cx), "details-other"), null, "not when the pointer is away, once it has faded");
@@ -1118,9 +1127,9 @@ for (const width of [208, 240, 256, 320, 480]) {
       { pane: "m", tab: "b", mod: "board" }, { pane: "p4", tab: "c", terminal: "t4" });
     Object.assign(f.shown, { tab: "a", pane: "p1" });
     cx.spawn = fn => jobs.push(fn);
-    f.load("t3-tabs");
+    const view = f.load("t3-tabs");
     cx.spawn = spawn;
-    const say = async command => { f.commands.push(command); jobs[0](); await new Promise(resolve => setImmediate(resolve)); };
+    const say = async command => { f.commands.push(command); jobs[0](cx); await new Promise(resolve => setImmediate(resolve)); };
     f.calls.length = 0;
     await say("close-tab");
     let asked = f.overlays.pop();
@@ -1135,6 +1144,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     await say("close-pane:p2");
     assert.deepEqual(plain(f.overlays.pop().props.command.args), { pane: "p2" }, "the pane header's × names its pane");
     assert.deepEqual(f.calls, [], "nothing closes before the answer");
+    Object.assign(view, { overTab: "a", details: "a" });
+    await say("close-tab");
+    f.overlays.pop();
+    assert.deepEqual([view.overTab, view.details], [null, null], "cmd-w over a hovered tab takes its card too");
     Object.assign(f.shown, { tab: "c", pane: "p4" });
     await say("close-tab");
     assert.match(f.overlays.pop().props.detail, /its running process.*space closes too/, "the last tab says its space goes too");
