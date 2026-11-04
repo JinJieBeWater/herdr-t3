@@ -763,11 +763,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.splice(0), [["layout.resize", { id: "tabs-end", px: 34 }]], "once per change");
   f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
   assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"], "the window's buttons stay last");
-  // The strip under the work column says whether the bar's controls fold, at T3's 768.
+  // The strip under the work column says whether the bar's controls fold, at 1024.
   const measure = f.load("t3-tabs", { part: "measure" });
-  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 767 }, cx);
+  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1023 }, cx);
   assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), true);
-  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 768 }, cx);
+  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1024 }, cx);
   assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false);
   fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 0 }, cx);
   measure.close();

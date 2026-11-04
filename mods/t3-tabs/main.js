@@ -75,9 +75,9 @@ export default class Tabs extends View {
 
   render() {
     // The work column's width, in a strip the bar's controls can't change: measured in the bar, their collapsing would undo itself.
-    // on_size_change reports zoomed pixels. 768 is T3's breakpoint for the same controls.
+    // on_size_change reports zoomed pixels. Past T3's 768 for the same controls: here they share the row with the tabs.
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
-      .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 768));
+      .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
