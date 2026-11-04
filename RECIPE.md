@@ -21,7 +21,7 @@ Left to right, divider 1px `border`:
   - 6px bottom inset; the shipped `workspace-status` bar is in the layout but hidden.
 - **New menu** (`t3-new-menu`, popup 520×420 at the top): pick a space for a new terminal tab (`tab.new`), or New space (`space.new`); `⌘1…` pick spaces by number.
 - **Actions menu** (`t3-tabs` with props `{ "actions": "menu" }`, a 280px popup at the pointer): one 32px row per action (icon, name, a gear on the right), a divider, then `+ Add action`.
-- **Action editor** (`t3-tabs` with props `{ "actions": "edit", "id" }`, a 440×404 dialog): Name, Command and Folder (optional) inputs; Icon (play, test, lint, configure, build, debug: lucide's play, flask-conical, list-checks, wrench, hammer, bug, as T3 Code) and Run in (Tab, Right, Down) choices; Delete (when editing), Cancel, Save (needs a name and a command; Enter in an input saves).
+- **Action editor** (`t3-tabs` with props `{ "actions": "edit", "id" }`, a 440×410 dialog): Name, Command and Folder (optional) inputs; Icon (play, test, lint, configure, build, debug: lucide's play, flask-conical, list-checks, wrench, hammer, bug, as T3 Code) and Run in (Tab, Right, Down) choices; Delete (when editing; asks through the shipped `confirm`, which answers with `t3-tabs.delete-action:<id>`), Cancel, Save (needs a name and a command; Enter in an input saves).
 
 ## How it behaves
 

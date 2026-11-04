@@ -40,7 +40,7 @@ export default class Pane extends View {
       .size(26).flex_none().flex().items_center().justify_center()
       .rounded(6)
       // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
-      .text_color(this.hot === id ? t.foreground : t.muted)
+      .text_color(this.hot === id ? t.foreground : t.dim)
       .role("button").accessibility_label(label)
       .hover((s) => s.bg(t.hover))
       .on_hover((on, cx) => {
@@ -79,15 +79,17 @@ export default class Pane extends View {
       .when(Boolean(pic), (el) => el.child(pic))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
       .child(div().flex_none().truncate().max_w(260).text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
-      .child(div().flex_1().truncate().text_color(t.dim).child(folder(p.cwd)))
+      .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
+        .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder(p.cwd)))
+        // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
+        .when(this.hovered, el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
+          .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/split-right.svg", "Split right", () => run("pane.split", { direction: "right", pane })))
+          .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane })))
+          .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane })))
+          .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => run("pane.close", { pane }))))))
       .when(st === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))
-      .when(st === "done" && !settled(p), el => el.child(div().size(7).flex_none().rounded_full().bg(t.done)))
-      .when(this.hovered, el => el.child(h_flex().flex_none().gap(4).items_center()
-        .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/split-right.svg", "Split right", () => run("pane.split", { direction: "right", pane })))
-        .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane })))
-        .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane })))
-        .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => run("pane.close", { pane })))));
+      .when(st === "done" && !settled(p), el => el.child(div().size(7).flex_none().rounded_full().bg(t.done)));
   }
 }

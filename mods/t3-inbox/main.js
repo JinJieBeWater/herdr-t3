@@ -53,9 +53,10 @@ export default class Inbox extends View {
     // The spaces shown, as T3 scopes threads to projects; none: all of them.
     this.scope = JSON.parse(localStorage.getItem("scope") ?? "[]");
     this.scopeOpen = false;
+    this.scopeAt = 0;
     this.search = InputState.new({ placeholder: "Search spaces…" });
-    this.search.on("change", (_e, cx) => cx.notify());
-    this.search.on("submit", (_e, cx) => this.pick(this.matches()[0], false, cx));
+    this.search.on("change", (_e, cx) => { this.scopeAt = 0; cx.notify(); });
+    this.search.on("submit", (_e, cx) => this.pick(this.matches()[this.scopeAt], false, cx));
     // Takes the keyboard while a row is lifted, so Esc can put it back.
     this.keys = cx.focus_handle();
     // "Working 9s" counts up only while such a card shows.
@@ -417,7 +418,7 @@ export default class Inbox extends View {
       const corner = ghost ? (verb ? badge(verb) : div())
         : swept(a) ? badge("settle")
         : offer
-        ? h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(6)
+        ? h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
           .text_size(12).text_color(lit(id, t.muted)).on_hover(glow(id))
           .role("button").accessibility_label("Settle")
           .on_mouse_down("left", sweepFrom("settle", a))
@@ -492,7 +493,8 @@ export default class Inbox extends View {
 
     // A shelf's header, folding it: label, then count and chevron at the far edge.
     const shelf = (id, label, count, open, toggle, extra) => h_flex().id(id).h(30).px(10).gap(6).flex_none().items_center()
-      .text_size(12).font_medium().text_color(t.dim)
+      .rounded(8).text_size(12).font_medium().text_color(t.dim)
+      .when(!dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
       .role("button").accessibility_label(`${open ? "Hide" : "Show"} ${label.toLowerCase()} agents`)
       .on_click((_e, cx) => {
         toggle();
@@ -573,11 +575,12 @@ export default class Inbox extends View {
       .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).text_color(lit(id, t.dim)));
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
     const scoped = sp.filter((s) => scope.includes(s.id));
-    const choice = (s) => {
+    const choice = (s, i) => {
       const on = s.id ? scope.includes(s.id) : scope.length === 0;
       // Selection is a check badge on the icon, as in T3.
-      return h_flex().id(`scope-${s.id ?? "all"}`).h(32).px(8).gap(10).flex_none().items_center().rounded(6)
-        .hover((st) => st.bg(t.hover))
+      return h_flex().id(`scope-${s.id ?? "all"}`).h(32).px(8).gap(8).flex_none().items_center().rounded(6)
+        .when(i === this.scopeAt, (el) => el.bg(t.selected))
+        .on_hover((over, cx) => { if (over && this.scopeAt !== i) { this.scopeAt = i; cx.notify(); } })
         .role("button").accessibility_label(s.name)
         .on_click((e, cx) => this.pick(s, e.modifiers.shift, cx))
         .child(div().relative().flex_none()
@@ -591,6 +594,7 @@ export default class Inbox extends View {
       .on_open_change((open, cx) => {
         this.scopeOpen = open;
         if (open) {
+          this.scopeAt = 0;
           this.search.set_value("");
           this.search.focus();
         }
@@ -606,6 +610,13 @@ export default class Inbox extends View {
             : svg("mods/t3-inbox/list-filter.svg").size(14).text_color(lit("inbox-scope", t.dim))))
       .content(v_flex().id("inbox-scope-panel").w(260).max_h(360).mt(4).p(6).gap(2).rounded(10)
         .bg(t.popover).border_1().border_color(t.border).text_size(13)
+        .on_key_down((e, cx) => {
+          const n = this.matches().length;
+          if (n === 0 || (e.key !== "down" && e.key !== "up")) return;
+          this.scopeAt = (this.scopeAt + (e.key === "down" ? 1 : n - 1)) % n;
+          cx.stop_propagation();
+          cx.notify();
+        })
         .child(h_flex().h(32).px(8).gap(8).flex_none().items_center().border_b_1().border_color(t.border)
           .child(svg("mods/workspace-chrome/search.svg").size(14).flex_none().text_color(t.dim))
           .child(Input.new(this.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
@@ -616,13 +627,14 @@ export default class Inbox extends View {
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
       .child(h_flex().id("inbox-search").flex_1().h(26).px(10).gap(8).items_center().rounded(6)
         .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("inbox-search"))
-        .role("button").accessibility_label("Search").on_click(() => run("mod.open", { name: "picker" }))
+        // Each opens over its button, before the pointer can report leaving it.
+        .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "picker" }); cx.notify(); })
         .child(svg("mods/workspace-chrome/search.svg").size(14).flex_none().text_color(lit("inbox-search", t.dim)))
         .child(div().child("Search")))
       .child(filter)
       .child(tool("inbox-new-space", "New space", "folder-plus", () => run("space.new")))
       // The layout passes its own menu; docked alone, the shipped one.
-      .child(tool("inbox-new-tab", "New tab", "square-pen", () => run("mod.open", { name: props()?.newMenu ?? "new-menu" })));
+      .child(tool("inbox-new-tab", "New tab…", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }));
 
     return v_flex().id("t3-inbox-root").relative().size_full().min_h(0).bg(t.chrome).text_size(13)
       .on_size_change((size) => { this.height = size.height; this.width = size.width; })

@@ -57,7 +57,7 @@ function fixture(width) {
   const panes = agents.map(a => ({ ...a, terminal: a.address, cwd: `/work/${a.space}` }));
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
-  const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" };
+  const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" }, commands = [];
   let hcAnswer = () => ({ code: 0 });
   const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
@@ -79,6 +79,8 @@ function fixture(width) {
       if (name === "layout.resize") slots[args.id].size = { px: args.px };
     },
     openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ({ app: {} }),
+    nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
+    keys: () => [],
   };
   function load(name, props = {}) {
     const storage = stores.get(name) ?? new Map();
@@ -96,7 +98,7 @@ function fixture(width) {
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, answerHc: fn => { hcAnswer = fn; } };
+  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, commands, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -257,8 +259,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(settings.items[0].style.size, 18);
   assert.equal(settings.style.gap, 8);
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
-  assert.deepEqual([groups[0].h, "pt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
-  assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");
+  assert.deepEqual([groups[0].h, "mt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
+  assert.deepEqual([groups[1].h, groups[1].mt], [22, 8], "later groups keep their 8px separation, outside the hover fill");
   fire(settings, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.settings", {}]);
 }
@@ -652,7 +654,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const toggle = find(bare, "sidebar-toggle");
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
-  assert.equal(toggle.style.accessibility_label, "Show sidebar, 2 need you");
+  assert.equal(toggle.style.accessibility_label, "Show sidebar, 2 needing you");
   assert.equal(walk(tabs.render(cx)).concat(walk(f.load("t3-agents").render(cx)), walk(f.load("t3-spaces").render(cx)), walk(f.load("t3-chrome").render(cx)), walk(f.load("t3-chrome", { footer: true }).render(cx)), walk(f.load("t3-pane", { pane: "p0" }).render(cx))).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips");
   {
     // One look across the preset: the same "needs you" mark everywhere, no scrollbars, English throughout.
@@ -694,6 +696,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const actions = walk(head).find(n => n.items.some(child => child?.key === "ph-r-p0"));
   assert.equal(actions.style.gap, 4);
   assert.ok("flex_none" in actions.style, "narrow panes keep the action targets at their full size");
+  assert.ok("absolute" in actions.style, "hovering a pane's header moves nothing else");
 }
 {
   // Icons: every UI glyph drawn is a file that exists.
@@ -758,6 +761,99 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(toggle(), "on_hover", true, cx);
     fire(toggle(), "on_click", {}, cx);
     assert.equal(toggle().style.text_color, rest, "the toggle goes with the sidebar, so it can't wait for the pointer to report leaving");
+  }
+  {
+    // Every control says what it is. A pane's header focuses it; it's no control.
+    const f = fixture(256);
+    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
+    const pane = f.load("t3-pane", { pane: "p0" });
+    pane.hovered = true;
+    const views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), pane, f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox"),
+      f.load("t3-tabs", { actions: "menu" }), f.load("t3-tabs", { actions: "edit", id: "a1" }), f.load("t3-agents", { sortMenu: true }), f.load("t3-new-menu")];
+    for (const view of views) for (const n of walk(view.render(cx))) {
+      if (n.handlers.on_click && !String(n.key).startsWith("pane-head")) assert.equal(n.style.role, "button", `${n.key}: a role`);
+      if (n.style.role !== "button") continue;
+      assert.ok(n.style.accessibility_label, `${n.key}: a label`);
+    }
+  }
+  {
+    // Whatever opens over its button hides the pointer's leaving from it: it doesn't stay lit.
+    const f = fixture(256), footer = f.load("t3-chrome", { footer: true }), tabs = f.load("t3-tabs"), agents = f.load("t3-agents"), inbox = f.load("t3-inbox");
+    for (const [view, id] of [[footer, "settings"], [footer, "add-machine"], [tabs, "action-add"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
+      fire(find(view.render(cx), id), "on_hover", true, cx);
+      assert.equal(view.hot, id);
+      fire(find(view.render(cx), id), "on_click", {}, cx);
+      assert.equal(view.hot, null, `${id} doesn't stay lit`);
+    }
+    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
+    fire(find(tabs.render(cx), "action-more"), "on_hover", true, cx);
+    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
+    assert.equal(tabs.hot, null, "action-more doesn't stay lit");
+  }
+  {
+    // A tab's close button is sized as the other small buttons. A tab drags as a space does, and leaving ends either.
+    const f = fixture(256), tabs = f.load("t3-tabs"), spaces = f.load("t3-spaces");
+    f.spaces()[0].active = f.spaces()[0].tabs[0].active = true;
+    f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
+    const close = find(tabs.render(cx), "close-b0").style;
+    assert.deepEqual([close.size, close.rounded, close.accessibility_label], [20, 4, "Close tab"]);
+    fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
+    fire(find(tabs.render(cx), "tab-other"), "on_mouse_move", {}, cx);
+    assert.equal(find(tabs.render(cx), "tab-b0").style.opacity, 0.5, "the dragged tab fades");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => "absolute" in n.style && n.style.w === 2), "a line shows where it lands");
+    fire(tabs.render(cx), "on_hover", false, cx);
+    assert.equal(tabs.pressed, null, "leaving the bar ends the drag");
+    assert.equal(find(tabs.render(cx), "tab-b0").style.opacity, undefined);
+    const id = `space-${f.spaces()[0].id}`;
+    fire(find(spaces.render(cx), id), "on_mouse_down:left", {}, cx);
+    fire(find(spaces.render(cx), "space-list"), "on_hover", false, cx);
+    assert.equal(spaces.pressed, null, "leaving the list ends a space's drag");
+  }
+  {
+    // Delete asks; only the dialog's answer, delivered as the app delivers it, deletes. The tab bar's copy hears it.
+    const f = fixture(256), jobs = [], spawn = cx.spawn;
+    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }, { id: "a2", name: "Test", command: "y" }] };
+    cx.spawn = fn => jobs.push(fn);
+    f.load("t3-tabs");
+    const copies = jobs.length;
+    const edit = f.load("t3-tabs", { actions: "edit", id: "a1" });
+    cx.spawn = spawn;
+    assert.equal(jobs.length, copies, "an overlay's copy doesn't listen");
+    fire(find(edit.render(cx), "action-delete"), "on_click", {}, cx);
+    const { mod, props } = f.overlays.pop();
+    assert.deepEqual([mod, props.title], ["confirm", "Delete Dev?"]);
+    assert.equal(f.state["t3-actions"].list.length, 2, "the click only asks");
+    const [target, command] = [props.command.name.slice(0, props.command.name.indexOf(".")), props.command.name.slice(props.command.name.indexOf(".") + 1)];
+    assert.equal(target, "t3-tabs");
+    f.commands.push(command);
+    jobs[0]();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(Array.from(f.state["t3-actions"].list, a => a.id), ["a2"]);
+  }
+  {
+    // Every menu goes by arrows and Enter, and says when a search finds nothing.
+    const f = fixture(256), key = (view, id, k) => fire(find(view.render(cx), id), "on_key_down", { key: k }, cx);
+    const sort = f.load("t3-agents", { sortMenu: true });
+    assert.equal(find(sort.render(cx), "sort-grouped").style.bg, f.theme().selected, "it opens on the current sort");
+    key(sort, "sort-menu", "down");
+    assert.equal(find(sort.render(cx), "sort-priority").style.bg, f.theme().selected, "down wraps to the first row");
+    key(sort, "sort-menu", "enter");
+    assert.equal(f.state["agents.sort"], "priority");
+    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
+    const menu = f.load("t3-tabs", { actions: "menu" });
+    assert.equal(find(menu.render(cx), "action-a1").style.bg, f.theme().selected);
+    key(menu, "actions-menu", "up");
+    assert.equal(find(menu.render(cx), "action-new").style.bg, f.theme().selected, "up wraps to the last row");
+    key(menu, "actions-menu", "enter");
+    assert.equal(f.overlays.pop().props.actions, "edit");
+    const inbox = f.load("t3-inbox");
+    const panel = () => find(inbox.render(cx), "inbox-scope-menu").style.content;
+    fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "down" }, cx);
+    assert.equal(inbox.scopeAt, 1);
+    assert.equal(find(panel(), "scope-all").style.bg, undefined);
+    const spaces = f.load("t3-new-menu");
+    spaces.filter = "no such space";
+    assert.ok(strings(spaces.render(cx)).includes("No matching spaces."));
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

@@ -45,12 +45,13 @@ export default class WorkspaceChrome extends View {
         .child(div().flex_1().min_w(0).truncate().child(label));
       return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(6).text_size(13)
         .child(h_flex().gap(2).items_center()
-          .child(row("settings", "settings", "Settings", () => run("app.settings")).flex_1().min_w(0)
+          // Each opens over its button, before the pointer can report leaving it.
+          .child(row("settings", "settings", "Settings", (_e, cx) => { this.hot = null; run("app.settings"); cx.notify(); }).flex_1().min_w(0)
             .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
           .child(div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
             .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
             .role("button").accessibility_label("Add machine")
-            .on_click(() => run("mod.open", { name: "machine-add" }))
+            .on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "machine-add" }); cx.notify(); })
             .child(svg("mods/workspace-chrome/server.svg").size(14))));
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the

@@ -53,7 +53,8 @@ export default class NewMenu extends View {
 
   row(id, i, icon, name, sub, hint, pick) {
     const t = theme(), on = this.at === i;
-    return h_flex().id(id).h(sub ? 46 : 34).px(10).gap(10).rounded(8).items_center().flex_none()
+    return h_flex().id(id).h(sub ? 46 : 32).px(8).gap(8).rounded(6).items_center().flex_none()
+      .role("button").accessibility_label(name)
       .when(on, el => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(pick)
@@ -78,7 +79,7 @@ export default class NewMenu extends View {
         projectMark(s, 18, t, ps),
         s.name, `${s.machine ?? "Local"} · ${short(place(s, ps))}`, num <= 9 ? `⌘${num}` : "", () => this.choose(s));
     });
-    return v_flex().id("new-menu").size_full().min_h(0).p(8).gap(4).bg(t.popover).text_size(13)
+    return v_flex().id("new-menu").size_full().min_h(0).p(6).gap(4).bg(t.popover).text_size(13)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down") this.at = (this.at + 1) % items.length;
@@ -88,10 +89,11 @@ export default class NewMenu extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(36).flex_none().px(10).gap(8).items_center()
+      .child(h_flex().h(36).flex_none().px(8).gap(8).items_center()
         .child(svg("mods/workspace-chrome/search.svg").size(14).text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
-      .child(div().px(10).pt(4).pb(2).text_size(11).text_color(t.dim).child("Spaces"))
-      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().children(rows));
+      .child(div().px(8).pt(4).pb(2).text_size(11).text_color(t.dim).child("Spaces"))
+      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().children(rows)
+        .when(rows.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces."))));
   }
 }

@@ -23,7 +23,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
   - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
 - **新建菜单**（`t3-new-menu`，520×420 弹层，位于顶部）：选一个 space 开终端标签（`tab.new`），或 New space（`space.new`）；`⌘1…` 按编号选 space。
 - **动作菜单**（`t3-tabs`，props `{ "actions": "menu" }`，280px 弹层，出现在指针处）：每个动作一行 32px（图标、名字、右侧齿轮），一条分隔线，然后是 `+ Add action`。
-- **动作编辑器**（`t3-tabs`，props `{ "actions": "edit", "id" }`，440×404 对话框）：Name、Command、Folder（可选）三个输入框；Icon（play、test、lint、configure、build、debug，即 lucide 的 play、flask-conical、list-checks、wrench、hammer、bug，和 T3 Code 一致）和 Run in（Tab、Right、Down）选项；Delete（编辑时才有）、Cancel、Save（名字和命令都要填；在输入框里按 Enter 也会保存）。
+- **动作编辑器**（`t3-tabs`，props `{ "actions": "edit", "id" }`，440×410 对话框）：Name、Command、Folder（可选）三个输入框；Icon（play、test、lint、configure、build、debug，即 lucide 的 play、flask-conical、list-checks、wrench、hammer、bug，和 T3 Code 一致）和 Run in（Tab、Right、Down）选项；Delete（编辑时才有；通过自带的 `confirm` 询问，确认后发 `t3-tabs.delete-action:<id>`）、Cancel、Save（名字和命令都要填；在输入框里按 Enter 也会保存）。
 
 ## 它怎么表现
 
