@@ -10,6 +10,9 @@ import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
+import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+
+const icon = programIcon;
 
 const BUSY = new Set(["working", "blocked"]);
 // The settled tail opens on this many, then grows by MORE.
@@ -32,12 +35,6 @@ function ago(ms, now) {
 function took(ms, now) {
   const s = Math.max(0, Math.floor((now - ms) / 1000)), m = Math.floor(s / 60);
   return s < 60 ? `${s}s` : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-// The program's icon from the app's table: a one-color glyph or a picture.
-function icon(p, size, color) {
-  if (!p?.icon) return null;
-  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
 }
 
 export default class Inbox extends View {
@@ -169,44 +166,8 @@ export default class Inbox extends View {
     return null;
   }
 
-  // As T3's tooltip group: while a card is up, or was under 400ms ago, the next opens at once.
-  detailsLive() {
-    return Boolean(this.details) || Date.now() - (this.detailsClosed ?? 0) < 400;
-  }
-
-  // 150ms to the first card, which fades in; so does the last one out. What opens at once does so unfaded, as T3's.
-  // A transition adopts the first value it sees, so a card draws clear for a frame or two before its target changes.
-  detailsFor(address, cx) {
-    this.detailsWait?.cancel();
-    this.detailsFade?.cancel();
-    if (!address) {
-      if (!this.details) return;
-      this.detailsClosed = Date.now();
-      this.detailsOut = this.details;
-      this.details = null;
-      this.detailsFade = cx.timer.after(150, (cx) => {
-        this.detailsOut = null;
-        cx.notify();
-      });
-      return;
-    }
-    const live = this.detailsLive();
-    this.detailsOut = null;
-    if (live) {
-      this.details = address;
-      this.detailsIn = true;
-      return;
-    }
-    this.detailsWait = cx.timer.after(150, (cx) => {
-      this.details = address;
-      this.detailsIn = false;
-      cx.notify();
-      this.detailsWait = cx.timer.after(34, (cx) => {
-        this.detailsIn = true;
-        cx.notify();
-      });
-    });
-  }
+  detailsLive() { return detailsLive(this); }
+  detailsFor(address, cx) { detailsFor(this, address, cx); }
 
   render(cx) {
     const t = theme(), now = Date.now();
@@ -494,19 +455,15 @@ export default class Inbox extends View {
     // a Popup hangs from its trigger's bottom left; clamped at the window's bottom the card slides up and still clears the row.
     // A control lit in the row speaks for itself instead, as T3's group lets one tooltip up at a time.
     const details = (a) => {
-      const line = (mark, text) => h_flex().gap(8).min_w(0).items_center().child(mark).child(div().min_w(0).truncate().text_color(t.foreground + "bf").child(text));
       const machine = machineOf(a), branch = branchOf(a), pic = icon(a.program, 12, t.muted);
       const up = this.details === a.address || this.detailsOut === a.address;
       return Popup.new(`details-${a.address}`, div()).absolute().top(-1).right(-1).size(1)
-        .when(up && !this.hot && !dragging && !this.sweep?.moved, (pop) => pop.content(v_flex().id(`details-card-${a.address}`).ml(4).max_w(320).p(12).gap(8).rounded(6).border(1).border_color(t.border)
-          // Solid: T3's glass blurs what's behind it, which a mod can't, and a terminal's text would show through.
-          .bg(t.chrome).shadow_xl().text_size(12).opacity(this.details === a.address && this.detailsIn ? 1 : 0).transition("opacity", MOTION)
-          .child(div().min_w(0).truncate().font_medium().text_color(t.foreground).child(title(a)))
-          .child(v_flex().pl(2).gap(6)
-            .when(Boolean(a.space_name), (el) => el.child(line(avatar(a.space, a.space_name, 12), a.space_name)))
-            .when(Boolean(machine), (el) => el.child(line(svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted), machine)))
-            .when(Boolean(branch), (el) => el.child(line(svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(t.muted), branch)))
-            .when(Boolean(pic), (el) => el.child(line(div().flex_none().opacity(0.6).child(pic), a.program.name))))));
+        .when(up && !this.hot && !dragging && !this.sweep?.moved, (pop) => pop.content(detailsCard(this, t, a.address, title(a), [
+          a.space_name && detailsLine(t, avatar(a.space, a.space_name, 12), a.space_name),
+          machine && detailsLine(t, svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted), machine),
+          branch && detailsLine(t, svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
+          pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
+        ]).ml(4)));
     };
 
     // `ghost`: the copy that follows the pointer, drawn without handlers or ids the list already uses.

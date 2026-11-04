@@ -13,6 +13,9 @@ for m in t3-agents t3-tabs t3-pane; do cp "$src/mods/t3-inbox/name.js" "$src/mod
 # t3-inbox/tip.js is the one hover label.
 for m in t3-agents t3-tabs t3-pane t3-chrome t3-spaces; do cp "$src/mods/t3-inbox/tip.js" "$src/mods/$m/"; done
 
+# t3-inbox/details.js is the one details card and its timing.
+cp "$src/mods/t3-inbox/details.js" "$src/mods/t3-tabs/"
+
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$focus/mods/t3-inbox/"
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.

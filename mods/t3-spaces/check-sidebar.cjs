@@ -91,7 +91,7 @@ function fixture(width) {
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
     // name.js, tree.js and project.js, the shared naming, status and space-mark rules, and t3-tabs' actions.js are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -1041,13 +1041,32 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
     assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
-    assert.deepEqual(strings(find(tabs.render(cx), "tip-tab-other").style.content), ["other"], "its whole name on hover");
+    // Its details, as an Inbox row's: under the tab, led by its whole name, after 150ms for the first and at once for the next.
+    const tabCard = (id) => find(tabs.render(cx), `details-${id}`)?.style.content;
+    assert.equal(tabCard("other"), undefined, "the first waits");
+    cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+    assert.equal(tabCard("other").style.opacity, 0, "drawn clear first");
+    cx.timers.filter(t => t.ms === 34 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+    assert.equal(tabCard("other").style.opacity, 1, "then it fades in");
+    assert.equal(tabCard("other").style.mt, 4);
+    assert.equal(strings(tabCard("other"))[0], "other");
+    assert.ok(strings(tabCard("other")).includes(f.spaces()[0].name), "its project");
+    assert.deepEqual([find(tabs.render(cx), "details-other").style.bottom, find(tabs.render(cx), "details-other").style.left, find(tabs.render(cx), "details-other").style.size], [0, 0, 1], "a Popup hangs from its anchor's bottom left: the tab's");
+    fire(find(tabs.render(cx), "tab-b0"), "on_hover", true, cx);
+    assert.equal(tabCard("b0").style.opacity, 1, "the next tab's opens at once");
+    fire(find(tabs.render(cx), "tab-b0"), "on_hover", false, cx);
+    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
+    fire(find(tabs.render(cx), "tab-other"), "on_mouse_down:left", { click_count: 1 }, cx);
+    assert.equal(tabCard("other"), undefined, "a press puts it away");
+    fire(find(tabs.render(cx), "tab-other"), "on_mouse_up:left", {}, cx);
+    f.calls.pop();
     assert.ok(find(tabs.render(cx), "tab-other").items.some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
     fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
     fire(close(), "on_click", {}, cx);
     assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }]);
-    assert.deepEqual(strings(find(tabs.render(cx), "tip-tab-other").style.content), [], "not when the pointer is away");
+    cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+    assert.equal(find(tabs.render(cx), "details-other"), null, "not when the pointer is away, once it has faded");
     fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_move", {}, cx);
     assert.equal(find(tabs.render(cx), "tab-b0").style.opacity, 0.5, "the dragged tab fades");

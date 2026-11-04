@@ -7,7 +7,7 @@ import { tip } from "./tip.js";
 
 const KEY = "t3-actions";
 export const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
-const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
+const RUN_IN = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
 const icon = (name) => svg(`mods/t3-tabs/action-${ICONS.includes(name) ? name : "play"}.svg`);
 
 // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
@@ -148,7 +148,7 @@ export function editorView(view) {
     .child(h_flex().gap(16)
       .child(v_flex().gap(6).child(label("Icon")).child(h_flex().gap(4).children(ICONS.map(i =>
         choice(`icon-${i}`, view.icon === i, () => { view.icon = i; }, `Icon: ${i}`, icon(i).size(14)).w(28).px(0)))))
-      .child(v_flex().gap(6).child(label("Run in")).child(h_flex().gap(4).children(PLACES.map(([p, text]) =>
+      .child(v_flex().gap(6).child(label("Run in")).child(h_flex().gap(4).children(RUN_IN.map(([p, text]) =>
         choice(`place-${p}`, view.place === p, () => { view.place = p; }, `Run in: ${text}`, text).text_size(12))))))
     .child(h_flex().mt_auto().gap(8).items_center()
       .when(Boolean(view.action), el => el.child(h_flex().id("action-delete").h(32).px(8).items_center().rounded(8).text_size(12).text_color(t.blocked)

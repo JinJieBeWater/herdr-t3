@@ -89,8 +89,8 @@ function fixture() {
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async () => ({ code: 0 }), nextCommand: () => new Promise(() => {}),
   };
-  // tree.js, project.js and tip.js, the shared status, space-mark and hover-label rules, are inlined as each mod's own copies are.
-  const tree = ["tree.js", "project.js", "tip.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  // tree.js, project.js, tip.js and details.js, the shared status, space-mark, hover-label and details rules, are inlined as each mod's own copies are.
+  const tree = ["tree.js", "project.js", "tip.js", "details.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");

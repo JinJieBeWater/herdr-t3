@@ -1,9 +1,11 @@
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex } from "gpui-base";
+import { h_flex, Popup } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props, nextCommand } from "herdr";
 import { namer } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
+import { projectMark } from "./project.js";
+import { programIcon, detailsFor, detailsLine, detailsCard } from "./details.js";
 import { control, menu, initMenu, initEditor, editorView, deleteAction, glow, lit } from "./actions.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
@@ -145,12 +147,22 @@ export default class Tabs extends View {
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
+      // Its details, as an Inbox row's: under the tab, a Popup hanging from a 1px anchor at its bottom left. Up from the hover on: a Popup must
+      // have measured its anchor before the frame a card starts to fade in. A status mark lit in the tab speaks for itself instead.
+      const pic = programIcon(program, 12, t.muted);
+      const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(0).size(1)
+        .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(detailsCard(this, t, c.id, name, [
+          space?.name && detailsLine(t, projectMark(space, 12, t, ps), space.name),
+          space?.machine && detailsLine(t, svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted), space.machine),
+          lead?.branch && detailsLine(t, svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(t.muted), lead.branch),
+          pic && program.name && detailsLine(t, div().flex_none().opacity(0.6).child(pic), program.name),
+        ]).mt(4)));
       const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
-          if (on) this.overTab = c.id;
-          else if (this.overTab === c.id) this.overTab = null;
+          if (on) { this.overTab = c.id; detailsFor(this, c.id, cx); }
+          else if (this.overTab === c.id) { this.overTab = null; detailsFor(this, null, cx); }
           cx.notify();
         })
         .when(!c.active, el => el.hover(s => s.bg(t.hover)))
@@ -161,7 +173,7 @@ export default class Tabs extends View {
             .when(this.pressed < i, line => line.right(0))
             .when(this.pressed > i, line => line.left(0)),
         ))
-        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = this.over = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = this.over = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_move((_e, cx) => {
           if (this.pressed === null || this.over === i) return;
           this.over = i;
@@ -173,7 +185,7 @@ export default class Tabs extends View {
           else run("tab.select", { id: c.id });
           cx.notify();
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
@@ -182,9 +194,9 @@ export default class Tabs extends View {
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().child(label))
-        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))));
-      // Its whole name on hover, as T3's: a tab can be cut short. On the tab, as a card's wrapper won't shrink for a name to truncate.
-      return tip(over && this.pressed === null ? `tab-${c.id}` : null, t, `tab-${c.id}`, name, tab);
+        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))))
+        .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
+      return tab;
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.

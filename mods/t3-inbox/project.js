@@ -1,6 +1,6 @@
 // A space's mark, as T3 Code's sidebar draws a project (ProjectFavicon): the project's own icon when it has
 // one, else a two-letter monogram tinted with a color its name picks. One rule, with a copy in each mod that
-// draws spaces (t3-inbox, t3-spaces, t3-new-menu).
+// draws spaces (t3-inbox, t3-spaces, t3-new-menu, t3-tabs).
 import { image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { exec, readTextFile, appHome, settings, shared, setShared } from "herdr";
