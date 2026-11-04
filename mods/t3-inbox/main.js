@@ -567,9 +567,10 @@ export default class Inbox extends View {
         .child(plan?.gap === "head-settled" ? gap("head-settled") : placeholder("settled", "Settled")))
       .children(lane("settled", rows, (a) => slim(a), 0))
       .when(this.open && put.length > this.limit, (el) => el.child(h_flex().id("settled-more").h(30).px(10).gap(8).flex_none().items_center().rounded(8)
-        .text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
+        .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("settled-more"))
         .role("button").accessibility_label("Show more settled agents")
         .on_click((_e, cx) => {
+          this.hot = null; // It may go, before the pointer can report leaving it.
           this.limit += MORE;
           cx.notify();
         })

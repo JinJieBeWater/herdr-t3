@@ -39,9 +39,15 @@ export default class Pane extends View {
       .id(id)
       .size(26).flex_none().flex().items_center().justify_center()
       .rounded(6)
-      .text_color(t.muted)
+      // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
+      .text_color(this.hot === id ? t.foreground : t.muted)
       .role("button").accessibility_label(label)
-      .hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .hover((s) => s.bg(t.hover))
+      .on_hover((on, cx) => {
+        if (on) this.hot = id;
+        else if (this.hot === id) this.hot = null;
+        cx.notify();
+      })
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();

@@ -756,5 +756,28 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(asks(), [add], "a retry doesn't forget it again");
     assert.deepEqual(Object.keys(sp.reconnecting), [], "paired, nothing's left to repair");
   }
+  {
+    // A hover style's color reaches text but never an svg: Herdr colors an icon as it builds the tree. So a button with an icon brightens by state.
+    const f = fixture(256), views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), f.load("t3-pane", { pane: "p0" }), f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox")];
+    fire(views[3].render(cx), "on_hover", true, cx); // A pane's buttons show while its header is hovered.
+    for (const view of views) for (const n of walk(view.render(cx))) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
+    const rest = f.theme().dim, bright = f.theme().foreground;
+    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[2], "tab-new"], [views[2], "action-add"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
+      const color = () => find(view.render(cx), id).style.text_color;
+      assert.equal(color(), rest, `${id} at rest`);
+      fire(find(view.render(cx), id), "on_hover", true, cx);
+      assert.equal(color(), bright, `${id} hovered`);
+      fire(find(view.render(cx), id), "on_hover", false, cx);
+      assert.equal(color(), rest, `${id} left`);
+    }
+    const pane = () => find(views[3].render(cx), "ph-x-p0");
+    fire(pane(), "on_hover", true, cx);
+    assert.equal(pane().style.text_color, bright, "a pane button too");
+    fire(pane(), "on_hover", false, cx);
+    const toggle = () => find(views[0].render(cx), "sidebar-toggle");
+    fire(toggle(), "on_hover", true, cx);
+    fire(toggle(), "on_click", {}, cx);
+    assert.equal(toggle().style.text_color, rest, "the toggle goes with the sidebar, so it can't wait for the pointer to report leaving");
+  }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

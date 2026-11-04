@@ -401,8 +401,9 @@ export default class Agents extends View {
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
                 .role("button").accessibility_label("Sort agents")
                 .text_size(11)
-                .text_color(t.dim)
-                .hover((s) => s.bg(t.hover).text_color(t.foreground))
+                .text_color(lit("ag-sort"))
+                .hover((s) => s.bg(t.hover))
+                .on_hover(glow("ag-sort"))
                 .on_click(() => openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } }))
                 .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
             ),

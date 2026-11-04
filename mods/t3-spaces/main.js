@@ -261,6 +261,15 @@ export default class Spaces extends View {
   }
 
   // The rows, under a header per machine once one isn't this computer.
+  // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
+  glow(id) {
+    return (on, cx) => {
+      if (on) this.hot = id;
+      else if (this.hot === id) this.hot = null;
+      cx.notify();
+    };
+  }
+
   grouped(t) {
     const rows = this.ordered();
     const draw = (r) => this.row(r, t);
@@ -299,12 +308,13 @@ export default class Spaces extends View {
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
             .child(repair?.busy ? "Connecting…" : "Connect"))))
         .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
-          .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover).text_color(t.foreground))
+          .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
+          .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
           .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12))))
         .child(div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
-        .text_size(13).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+        .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .on_click(() => run("space.new", { machine: m ?? "" }))
         .child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space there");
       if (rebuilt) return [head];
@@ -429,7 +439,7 @@ export default class Spaces extends View {
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
-        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).role("button").accessibility_label("New space").hover(s => s.bg(t.hover).text_color(t.foreground))
+        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === "space-new" ? t.foreground : t.dim).on_hover(this.glow("space-new")).role("button").accessibility_label("New space").hover(s => s.bg(t.hover))
           .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().id("space-list").flex_1().min_h(0).overflow_y_scroll()
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })

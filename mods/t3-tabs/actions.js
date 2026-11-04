@@ -9,6 +9,14 @@ export const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
 const icon = (name) => svg(`mods/t3-tabs/action-${ICONS.includes(name) ? name : "play"}.svg`);
 
+// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
+export const glow = (view, id) => (on, cx) => {
+  if (on) view.hot = id;
+  else if (view.hot === id) view.hot = null;
+  cx.notify();
+};
+export const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
+
 // { list: [{ id, name, command, icon, place, cwd }], last: id }
 const state = () => shared(KEY) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
@@ -25,25 +33,25 @@ export function runAction(a) {
 }
 
 // The tab bar's control: "▶ Dev | ▾", or "Add action" before there is one.
-export function control(t, stop) {
+export function control(view, t, stop) {
   const s = state(), main = primary(s);
   const box = (id) => h_flex().id(id).h(26).flex_none().items_center().rounded(6).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stop);
-  if (!main) return box("action-add").px(8).gap(6).text_color(t.dim).hover(st => st.bg(t.hover).text_color(t.foreground))
+  if (!main) return box("action-add").px(8).gap(6).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     .role("button").accessibility_label("Add action").on_click(() => editor(null))
     .child(icon("play").size(12)).child("Add action");
   return box("actions").text_color(t.muted)
-    .child(h_flex().id("action-run").h_full().px(8).gap(6).items_center().rounded_l(6).hover(st => st.bg(t.hover).text_color(t.foreground))
+    .child(h_flex().id("action-run").h_full().px(8).gap(6).items_center().rounded_l(6).text_color(lit(view, "action-run", t.muted)).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
       .child(icon(main.icon).size(12)).child(div().max_w(140).truncate().child(main.name)))
     .child(div().w(1).h(14).bg(t.border))
-    .child(div().id("action-more").h_full().px(5).flex().items_center().rounded_r(6).hover(st => st.bg(t.hover).text_color(t.foreground))
+    .child(div().id("action-more").h_full().px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more", t.muted)).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click(() => openOverlay({
         mod: "t3-tabs", kind: "popup", width: 280, height: Math.min(420, 59 + s.list.length * 32), props: { actions: "menu" },
       }))
       .child(svg("mods/workspace-chrome/chevron-down.svg").size(12)));
 }
 
-export function menu() {
+export function menu(view) {
   const t = theme(), { list } = state(), done = () => closeOverlay(props().overlay);
   const row = (id, i, label, pick) => h_flex().id(id).h(32).px(8).gap(8).rounded(6).items_center().flex_none()
     .text_color(t.foreground).hover(s => s.bg(t.hover)).on_click(() => { done(); pick(); })
@@ -51,8 +59,8 @@ export function menu() {
   return v_flex().id("actions-menu").size_full().min_h(0).p(5).bg(t.popover).text_size(13)
     .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map(a =>
       row(`action-${a.id}`, icon(a.icon).size(14).text_color(t.muted), a.name, () => runAction(a))
-        .child(div().id(`edit-${a.id}`).size(22).flex_none().flex().items_center().justify_center().rounded(5).text_color(t.dim)
-          .hover(s => s.bg(t.raised).text_color(t.foreground)).role("button").accessibility_label(`Edit ${a.name}`)
+        .child(div().id(`edit-${a.id}`).size(22).flex_none().flex().items_center().justify_center().rounded(5).text_color(lit(view, `edit-${a.id}`))
+          .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
           .child(svg("mods/workspace-chrome/settings.svg").size(13))))))
     .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))
@@ -92,7 +100,7 @@ export function editorView(view) {
     .child(h_flex().h(32).px(10).rounded(6).border(1).border_color(t.border).bg(t.input).items_center()
       .child(Input.new(input).flex_1().h_full().text_size(13).text_color(t.foreground)));
   const choice = (id, on, pick, child) => h_flex().id(id).h(28).px(8).gap(6).rounded(6).items_center().justify_center()
-    .bg(on ? t.selected : t.input).text_color(on ? t.foreground : t.dim).hover(s => s.text_color(t.foreground))
+    .bg(on ? t.selected : t.input).text_color(lit(view, id, on ? t.foreground : t.dim)).on_hover(glow(view, id))
     .on_click((_e, cx) => { pick(); cx.notify(); }).child(child);
   const button = (id, text, primary, act) => div().id(id).h(30).px(12).flex().items_center().rounded(6).text_size(13)
     .bg(primary ? (ok ? t.solid : t.raised) : t.raised).text_color(primary ? (ok ? t.solid_foreground : t.dim) : t.foreground)

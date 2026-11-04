@@ -3,7 +3,7 @@ import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
 import { namer } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
-import { control, menu, initEditor, editorView } from "./actions.js";
+import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -41,9 +41,10 @@ export default class Tabs extends View {
     const words = { blocked: "need you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
     return h_flex().id("sidebar-toggle").h(26).px(6).gap(8).flex_none().items_center().rounded(6)
-      .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+      .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
-      .on_mouse_down("left", stop).on_click(() => run("layout.toggle", { id: "sidebar" }))
+      // It goes when the sidebar shows, before the pointer can report leaving it.
+      .on_mouse_down("left", stop).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
       .child(svg("mods/workspace-chrome/sidebar.svg").size(14).flex_none())
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n)))));
   }
@@ -51,7 +52,7 @@ export default class Tabs extends View {
   render() {
     // Opened as an overlay by the actions control.
     const overlay = props()?.actions;
-    if (overlay === "menu") return menu();
+    if (overlay === "menu") return menu(this);
     if (overlay === "edit") return editorView(this);
     const t = theme();
     const space = spaces().find(p => p.active);
@@ -62,7 +63,7 @@ export default class Tabs extends View {
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const ps = panes(), title = namer();
     const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, label, action) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+    const button = (id, label, action) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .on_mouse_down("left", stop).on_click(action).child(label);
     const item = (c, i) => {
       // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
@@ -88,7 +89,7 @@ export default class Tabs extends View {
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(status != null, el => el.child(mark(t, status)))
-        .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
+        .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(lit(this, `close-${c.id}`)).on_hover(glow(this, `close-${c.id}`)).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
@@ -101,7 +102,7 @@ export default class Tabs extends View {
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
       // Actions before +, so + keeps its spot however long the action's name is.
-      .child(div().mr(4).flex_none().child(control(t, stop)))
+      .child(div().mr(4).flex_none().child(control(this, t, stop)))
       .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))

@@ -29,10 +29,17 @@ export default class WorkspaceChrome extends View {
 
   render() {
     const t = theme();
+    // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
+    const glow = (id) => (on, cx) => {
+      if (on) this.hot = id;
+      else if (this.hot === id) this.hot = null;
+      cx.notify();
+    };
+    const lit = (id, color = t.dim) => (this.hot === id ? t.foreground : color);
     if (props()?.footer) {
       const row = (id, icon, label, action) => h_flex().id(id).relative().h(30).px(8).gap(8).items_center().rounded(8)
         .role("button").accessibility_label(label)
-        .text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground))
+        .text_color(lit(id, t.muted)).hover(s => s.bg(t.hover)).on_hover(glow(id))
         .on_click(action).child(h_flex().size(18).flex_none().items_center().justify_center()
           .child(svg(`mods/t3-chrome/${icon}.svg`).size(16)))
         .child(div().flex_1().min_w(0).truncate().child(label));
@@ -41,7 +48,7 @@ export default class WorkspaceChrome extends View {
           .child(row("settings", "settings", "Settings", () => run("app.settings")).flex_1().min_w(0)
             .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
           .child(div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-            .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+            .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
             .role("button").accessibility_label("Add machine")
             .on_click(() => run("mod.open", { name: "machine-add" }))
             .child(svg("mods/workspace-chrome/server.svg").size(14))));
@@ -51,16 +58,17 @@ export default class WorkspaceChrome extends View {
     const inbox = inboxShown();
     return h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
       .child(div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-        .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+        .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
         .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)))
       .child(div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-        .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+        .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click(() => run("layout.toggle", { id: "sidebar" }))
+        // It goes with the sidebar, before the pointer can report leaving it.
+        .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
         .child(svg("mods/workspace-chrome/sidebar.svg").size(14)));
   }
 }
