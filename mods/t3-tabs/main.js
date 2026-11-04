@@ -1,8 +1,9 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
 import { namer } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
+import { control, menu, initEditor, editorView } from "./actions.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -30,6 +31,7 @@ function find(node, id) {
 export default class Tabs extends View {
   init() {
     this.pressed = null;
+    if (props()?.actions === "edit") initEditor(this);
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -47,6 +49,10 @@ export default class Tabs extends View {
   }
 
   render() {
+    // Opened as an overlay by the actions control.
+    const overlay = props()?.actions;
+    if (overlay === "menu") return menu();
+    if (overlay === "edit") return editorView(this);
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
@@ -94,6 +100,8 @@ export default class Tabs extends View {
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
+      // Actions before +, so + keeps its spot however long the action's name is.
+      .child(div().mr(4).flex_none().child(control(t, stop)))
       .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
