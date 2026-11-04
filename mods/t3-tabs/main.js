@@ -1,12 +1,11 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, nextCommand } from "herdr";
-import { namer } from "./name.js";
+import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
+import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
 import { projectMark } from "./project.js";
 import { programIcon, detailsFor, detailsLine, detailsCard } from "./details.js";
-import { control, menu, initMenu, initEditor, editorView, deleteAction, glow, lit } from "./actions.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -39,6 +38,14 @@ function fairCap(wants, room) {
   }
   return Infinity;
 }
+
+// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
+const glow = (view, id) => (on, cx) => {
+  if (on) view.hot = id;
+  else if (view.hot === id) view.hot = null;
+  cx.notify();
+};
+const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -81,16 +88,12 @@ export default class Tabs extends View {
     this.over = null;
     this.strip = 0;
     this.nameW = {};
-    const overlay = props()?.actions;
-    if (overlay === "edit") initEditor(this);
-    if (overlay === "menu") initMenu(this, cx);
-    // The tab bar's copy answers an action's delete dialog: `t3-tabs.delete-action:<id>`, and every person's way to close.
-    if (!overlay) cx.spawn(async (cx) => {
+    // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
+    if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
-        if (command.startsWith("delete-action:")) deleteAction(command.slice("delete-action:".length));
         // One at a time: a second press finds the first's pane gone.
-        else if (command === "close-tab") await this.closeTab(focused()?.tab, cx);
+        if (command === "close-tab") await this.closeTab(focused()?.tab, cx);
         else if (command === "close-pane") await this.closePane(focused()?.pane, cx);
         else if (command.startsWith("close-tab:")) await this.closeTab(command.slice("close-tab:".length), cx);
         else if (command.startsWith("close-pane:")) await this.closePane(command.slice("close-pane:".length), cx);
@@ -172,11 +175,25 @@ export default class Tabs extends View {
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), { action: "layout.toggle:sidebar" });
   }
 
+  // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
+  // on_size_change reports zoomed pixels; a layout's are logical.
+  fit(size) {
+    const id = props()?.block, px = Math.ceil(size.width / (Number(settings()?.zoom) || 1));
+    if (!id || px === this.fitted) return;
+    this.fitted = px;
+    run("layout.resize", { id, px });
+  }
+
+  // Another layout's bar shouldn't stay compact because this one was narrow when it went.
+  async close() {
+    if (props()?.part === "measure") setShared("bar.compact", false);
+  }
+
   render() {
-    // Opened as an overlay by the actions control.
-    const overlay = props()?.actions;
-    if (overlay === "menu") return menu(this);
-    if (overlay === "edit") return editorView(this);
+    // The work column's width, in a strip the bar's controls can't change: measured in the bar, their collapsing would undo itself.
+    // on_size_change reports zoomed pixels. Past T3's 768 for the same controls: here they share the row with the tabs.
+    if (props()?.part === "measure") return div().id("bar-measure").size_full()
+      .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
@@ -191,15 +208,16 @@ export default class Tabs extends View {
       .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
-      const words = every.filter(a => a.tab === c.id).map(st);
+      const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
+      const words = [...every.filter(a => a.tab === c.id).map(st), ...modWords];
       return words.includes("blocked") ? "blocked"
-        : live.some(a => a.tab === c.id && st(a) === "done") ? "done"
+        : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
     };
     const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0) : TAB_FLOOR);
     const item = (c, i) => {
       const lead = leadOf(ps.filter(p => p.tab === c.id));
-      const program = lead?.program;
+      const program = lead && programOf(lead);
       const name = nameOf(c, lead);
       const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
       // As T3's panel tabs: 24px, 12px words. The icon's slot is the close button: hovering the tab turns it to ×.
@@ -258,11 +276,19 @@ export default class Tabs extends View {
       return tab;
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
+    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
+    // however wide they are, and the window's own buttons stay last.
+    if (props()?.part === "end") return h_flex().size_full().items_center().justify_end().bg(t.chrome)
+      .child(h_flex().id("tabs-end").flex_none().pr(8).gap(4).items_center().on_size_change((size) => this.fit(size))
+        .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
+          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), "Close window", () => run("window.close")))));
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 8;
-    return h_flex().size_full().min_w(0).px(8).pl(lightsPadding).gap(4).items_center().bg(t.chrome)
+    return h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
       .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
       // Herdr reports no release outside the bar, so leaving ends a drag, as in the inbox.
       .on_hover((on, cx) => {
@@ -277,12 +303,6 @@ export default class Tabs extends View {
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
         .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })
-        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item))))
-      // Actions before +, so + keeps its spot however long the action's name is.
-      .child(div().mr(4).flex_none().child(control(this, t, stop)))
-      .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
-      .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
-        .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-        .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), "Close window", () => run("window.close"))));
+        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item))));
   }
 }

@@ -30,11 +30,11 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。显示 Inbox 时，已 Settle 的 agent 在标签和窗格标题上也不再显示 done 圆点。
 - **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签；侧栏的 New tab 先选 space（或新建一个）。不选 agent：在终端里启动。
-- **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。
+- **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。它是 [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod，随布局一起安装。
 
 ## 安装
 
-让你的 Herdr agent 添加 `herdr.dev/layouts/JinJieBeWater/herdr-t3`。手动安装：把 `layouts/herdr-t3.json`、`layouts/herdr-t3.svg` 和所有 `mods/t3-*` 复制进 `~/.config/herdr-app/`，把 `keys.json` 合并进你自己的。外观和行为见 [RECIPE.zh-CN.md](RECIPE.zh-CN.md)。
+让你的 Herdr agent 先添加 `herdr.dev/mods/JinJieBeWater/herdr-actions`，再添加 `herdr.dev/layouts/JinJieBeWater/herdr-t3`：布局的标签栏用到了这个动作 mod。手动安装：把 `layouts/herdr-t3.json`、`layouts/herdr-t3.svg` 和所有 `mods/t3-*` 复制进 `~/.config/herdr-app/`，再从 [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) 复制 `mods/herdr-actions/`；把 `keys.json` 合并进你自己的。外观和行为见 [RECIPE.zh-CN.md](RECIPE.zh-CN.md)。
 
 ## 快速上手
 
@@ -66,11 +66,12 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 
 Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装从不覆盖已有文件，只会装出一份改了名的副本（如 `t3-inbox-2`）。更新要靠覆盖：
 
-- 对你的 Herdr agent 说：「从 github.com/JinJieBeWater/herdr-t3 更新 Herdr T3：用仓库最新的文件覆盖我已安装的 `mods/t3-*` 和 `layouts/herdr-t3.*`，然后对每个 mod 跑 `herdr-app check`。」如果首次安装时因为重名改过名字，就覆盖改名后的那份。
+- 对你的 Herdr agent 说：「从 github.com/JinJieBeWater/herdr-t3 更新 Herdr T3：用仓库最新的文件覆盖我已安装的 `mods/t3-*` 和 `layouts/herdr-t3.*`，用 github.com/JinJieBeWater/herdr-actions 的覆盖 `mods/herdr-actions`，然后对每个 mod 跑 `herdr-app check`。」如果首次安装时因为重名改过名字，就覆盖改名后的那份。
 - 手动更新：把同样的文件复制过去覆盖旧的。mod 保存后自动重载，不用重启。
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
+- 动作和 Review 栏已移出 `t3-tabs`：安装 `mods/herdr-actions`（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，把可选扩展里的 `mods/pulls-review` 和 `mods/review` 换成 fork 里的（见下文）。
 - `cmd-]` / `cmd-[` 现在归布局自己（`t3-chrome.next` / `.prev`）：把它们加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `agent.next`。
 - 关闭标签和窗格现在会先确认：把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `tab.close` 和 `pane.close`。
 - Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
@@ -89,13 +90,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 ### pulls.review
 
-`extras/mods/pulls-review/` 在 [pulls.review](https://github.com/antfu/pulls.review) 里打开当前窗格所在的仓库：有未提交改动时看这些改动，否则打开 pulls.review 的默认页面（当前分支对比默认分支）。
-
-- **需要[我的 fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo) 里的 CLI**（`multi-repo` 分支）。这个 mod 运行 `pulls.review -d --pwa`：`-d` 把仓库交给一个所有仓库共用的后台服务，`--pwa` 打开已安装的 pulls.review 应用，而不是浏览器标签页。上游 pulls.review 没有这两个参数。
-- 只支持本机目录：窗格在其他机器上时会报错。
-- 安装：把 `extras/mods/pulls-review/` 复制进 `~/.config/herdr-app/mods/`，再在 `keys.json` 的 `global` 里加一个快捷键：`"cmd-shift-r": "mod.open:pulls-review"`。
-- 会运行只读的 `git status --porcelain` 和 `pulls.review`。
-- 本布局的标签栏没有对应按钮，用快捷键或命令面板打开。
+Review 栏和评审窗格，来自[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods)：Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下就在 agent 旁边的窗格里打开那份评审。按[它的 README](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods/README.zh-CN.md) 安装，然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面（见那里的第 3 步）。`scripts/sync.sh` 同步布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
 
 ### 预览图里的主题和设置
 

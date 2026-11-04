@@ -30,11 +30,11 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 - **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. While Inbox shows, a settled agent's done dot leaves the tabs and pane headers too.
 - **Slim tabs, framed panes**: 24px tabs, as T3's panel tabs; rounded panes with a 28px header (name, folder, status; split, zoom and close on hover).
 - **New**: the tab bar's `+` opens a terminal tab in the current space; the sidebar's New tab picks a space (or a new one) first. No agent picker: start agents in the terminal.
-- **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file.
+- **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file. It is the [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod, installed with the layout.
 
 ## Install
 
-Ask your Herdr agent to add `herdr.dev/layouts/JinJieBeWater/herdr-t3`. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg` and every `mods/t3-*` into `~/.config/herdr-app/`, merge `keys.json` into yours. How it should look and behave: [RECIPE.md](RECIPE.md).
+Ask your Herdr agent to add `herdr.dev/mods/JinJieBeWater/herdr-actions`, then `herdr.dev/layouts/JinJieBeWater/herdr-t3`: the layout's tab bar uses the Actions mod. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg` and every `mods/t3-*` into `~/.config/herdr-app/`, and `mods/herdr-actions/` from [herdr-actions](https://github.com/JinJieBeWater/herdr-actions); merge `keys.json` into yours. How it should look and behave: [RECIPE.md](RECIPE.md).
 
 ## Quick start
 
@@ -66,11 +66,12 @@ Tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inb
 
 Herdr doesn't update mods or layouts from others, and adding this again would install a renamed second copy (`t3-inbox-2`), since an install never overwrites. Update by overwriting instead:
 
-- Tell your Herdr agent: "Update Herdr T3 from github.com/JinJieBeWater/herdr-t3: overwrite my installed `mods/t3-*` and `layouts/herdr-t3.*` with the repo's latest, then run `herdr-app check` on each mod." If the first install renamed something because of a clash, overwrite under that name.
+- Tell your Herdr agent: "Update Herdr T3 from github.com/JinJieBeWater/herdr-t3: overwrite my installed `mods/t3-*` and `layouts/herdr-t3.*` with the repo's latest, and `mods/herdr-actions` with github.com/JinJieBeWater/herdr-actions's, then run `herdr-app check` on each mod." If the first install renamed something because of a clash, overwrite under that name.
 - By hand: copy the same files over the old ones. Mods reload by themselves on save; no restart.
 - Kept: pins, folds, sort, the Settled shelf and settled agents. They live in `data/`, `shared.json` and terminal labels, not in the mod folders. Lost: your own edits to the overwritten files, including the focus ring color; set it again after overwriting the layout.
 - `keys.json` and the extras stay as they are; compare them with the repo only if the commit log mentions them. Commits marked `!` rename things (for example `refactor!: rename the layout and theme to herdr-t3`); follow what they rename.
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
+- Actions and the Review bar moved out of `t3-tabs`: install `mods/herdr-actions` (your actions are kept: they live in `shared.json`), and for Review replace `mods/pulls-review` and `mods/review` from the extras with the fork's (below).
 - `cmd-]` / `cmd-[` are the layout's own now (`t3-chrome.next` / `.prev`): add them to your `layout:herdr-t3` section; they win over `agent.next` in `global`.
 - Closing a tab or pane asks first: add the `cmd-w`, `ctrl-alt-shift-x`, `cmd-shift-w` and `ctrl-alt-x` lines from the repo's `keys.json` to your `layout:herdr-t3` section; they win over `tab.close` and `pane.close` in `global`.
 - The agent view is removed (last in commit `a8cbcd4`): after overwriting, delete `"cmd-shift-a": "t3-tabs.view"` from `keys.json`.
@@ -89,13 +90,7 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 
 ### pulls.review
 
-`extras/mods/pulls-review/` opens the focused pane's repository in [pulls.review](https://github.com/antfu/pulls.review): its uncommitted changes when there are any, else what pulls.review opens by default (the current branch against the default branch).
-
-- **Needs the CLI from [my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)** (`multi-repo` branch). The mod runs `pulls.review -d --pwa`: `-d` hands the repo to one background server shared by every repo, `--pwa` opens the installed pulls.review app instead of a browser tab. Upstream pulls.review has neither flag.
-- Local folders only: a pane on another machine shows an error.
-- Install: copy `extras/mods/pulls-review/` into `~/.config/herdr-app/mods/`, then add a key to the `global` section of your `keys.json`: `"cmd-shift-r": "mod.open:pulls-review"`.
-- Runs read-only `git status --porcelain` and `pulls.review`.
-- This layout's tab bar has no button for it; use the key or the command palette.
+A Review bar and a review pane, from [my pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods): the bar counts what there is to review in the focused worktree (the branch's commits past the default branch, uncommitted files, commits to push and pull), and a click opens that review in a pane beside the agent. Install it as [its README](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods/README.md) says, then ask your Herdr agent to put its block in this layout's `tabs-row` row, right after `tabs` (step 3 there). `scripts/sync.sh` keeps that block when it syncs the layout. The pane's tab and header show its analysis with this layout's marks: `t3-tabs` and `t3-pane` read `shared("review.status")`.
 
 ### Theme and settings from the preview
 

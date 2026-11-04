@@ -59,11 +59,11 @@ function fixture(width) {
   const panes = agents.map(a => ({ ...a, terminal: a.address, cwd: `/work/${a.space}` }));
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
-  const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" }, commands = [], closed = [];
+  const calls = [], overlays = [], stores = new Map(), scopes = new Map(), labelled = [], shown = { agent: "child" }, commands = [], closed = [];
   // What a test may change about the window and the app: the window, the layout's root fields, the update state.
   const ui = { window: { platform: "macos" }, root: {}, updates: { app: {} } };
   let hcAnswer = () => ({ code: 0 });
-  const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
+  const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f", ansi3: "#c8a84b", ansi4: "#5f8fe0", ansi11: "#e8cf7a", ansi12: "#8fb4f2" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
     Button: { new: id => element("button").id(id) },
@@ -81,7 +81,7 @@ function fixture(width) {
     hc: (args) => { labelled.push([...args]); return Promise.resolve(hcAnswer(args)); }, notify() {},
     run: (name, args) => {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
-      if (name === "layout.resize") slots[args.id].size = { px: args.px };
+      if (name === "layout.resize" && slots[args.id]) slots[args.id].size = { px: args.px };
     },
     openOverlay: spec => overlays.push(spec), closeOverlay: id => closed.push(id), updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
@@ -92,18 +92,19 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js and project.js, the shared naming, status and space-mark rules, and t3-tabs' actions.js are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js, project.js, tip.js and details.js, the shared naming, status, space-mark, hover-label and details rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
     const context = vm.createContext({ ...env, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
     vm.runInContext(source, context, { filename: name });
+    scopes.set(name, context);
     const mod = new context.Mod();
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, commands, closed, ui, answerHc: fn => { hcAnswer = fn; } };
+  return { ...env, load, slots, state, calls, overlays, stores, scopes, labelled, shown, commands, closed, ui, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -412,6 +413,25 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Working (sub-agent)", "a read parent waiting on a sub-agent is working");
   const spins = tree => walk(tree).some(n => n.source === "mods/workspace-chrome/spinner.svg");
   assert.ok(spins(find(f.load("t3-tabs").render(cx), "tab-b0")) && spins(f.load("t3-pane", { pane: "p0" }).render(cx)), "its tab and pane header show it working");
+}
+
+{
+  // A mod pane's word marks its tab as an agent's would; a closed pane's says nothing.
+  const f = fixture(256);
+  const spins = tree => walk(tree).some(n => n.source === "mods/workspace-chrome/spinner.svg");
+  f.spaces()[0].tabs.push({ id: "bx", name: "review", named: true, active: false });
+  f.panes().push({ pane: "p9", terminal: null, mod: "review", tab: "bx", title: "review" });
+  const tab = () => find(f.load("t3-tabs").render(cx), "tab-bx");
+  assert.ok(!spins(tab()) && !strings(tab()).includes("!") && !walk(tab()).some(n => n.style.rounded_full), "nothing reported, no mark");
+  f.state["review.status"] = { bx: "working" };
+  assert.ok(spins(tab()), "a run shows the spinner");
+  f.state["review.status"] = { bx: "blocked" };
+  assert.ok(strings(tab()).includes("!"), "a failure shows the badge");
+  f.state["review.status"] = { bx: "done" };
+  assert.ok(walk(tab()).some(n => n.style.rounded_full), "a finished run shows the dot");
+  f.state["review.status"] = { bx: "working" };
+  f.panes().pop();
+  assert.ok(!spins(tab()), "its pane closed, its word is left behind");
 }
 
 {
@@ -816,8 +836,26 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.pop(), ["tab.move", { id: "b0", index: 2 }]);
   fire(find(root, "tab-other"), "on_mouse_down:right", {}, cx);
   assert.equal(f.overlays.pop().props.target.id, "other");
-  fire(find(root, "tab-new"), "on_click", {}, cx);
+  // + and the window's buttons are the bar's end, a block of their own after the other mods' controls, sized to fit.
+  assert.equal(find(root, "tab-new"), null);
+  const end = f.load("t3-tabs", { part: "end", block: "tabs-end" });
+  fire(find(end.render(cx), "tab-new"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["tab.new", {}], "the tab bar's + opens a tab in its space");
+  f.calls.length = 0;
+  fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
+  fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
+  assert.deepEqual(f.calls.splice(0), [["layout.resize", { id: "tabs-end", px: 34 }]], "once per change");
+  f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
+  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"], "the window's buttons stay last");
+  // The strip under the work column says whether the bar's controls fold, at 1024.
+  const measure = f.load("t3-tabs", { part: "measure" });
+  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1023 }, cx);
+  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), true);
+  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1024 }, cx);
+  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false);
+  fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 0 }, cx);
+  measure.close();
+  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false, "gone with its layout, it leaves no bar compact");
   fire(find(root, "close-b0"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:b0", {}], "the × goes through the tab bar's answer");
   const pane = f.load("t3-pane", { pane: "p0" });
@@ -836,7 +874,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Icons: every UI glyph drawn is a file that exists.
   const f = fixture(256);
   f.spaces()[0].tabs[0].status = "blocked";
-  const trees = [f.load("t3-tabs").render(cx), f.load("t3-agents").render(cx), f.load("t3-spaces").render(cx), f.load("t3-chrome").render(cx), f.load("t3-chrome", { footer: true }).render(cx), f.load("t3-pane", { pane: "p0" }).render(cx)].flatMap(walk);
+  const trees = [f.load("t3-tabs").render(cx), f.load("t3-tabs", { part: "end" }).render(cx), f.load("t3-agents").render(cx), f.load("t3-spaces").render(cx), f.load("t3-chrome").render(cx), f.load("t3-chrome", { footer: true }).render(cx), f.load("t3-pane", { pane: "p0" }).render(cx)].flatMap(walk);
   const glyphs = trees.filter(n => n.kind === "svg").map(n => n.source).filter(s => !s.endsWith("/spinner.svg") && s !== "icons/pi.svg");
   assert.ok(glyphs.length >= 5);
   for (const s of glyphs) {
@@ -844,10 +882,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
 }
 (async () => {
-  {
-    const f = fixture(256);
-    assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review button");
-  }
   {
     // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
     const f = fixture(256);
@@ -875,11 +909,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // A hover style's color reaches text but never an svg: Herdr colors an icon as it builds the tree. So a button with an icon brightens by state.
-    const f = fixture(256), views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), f.load("t3-pane", { pane: "p0" }), f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox")];
+    const f = fixture(256), views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), f.load("t3-pane", { pane: "p0" }), f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox"), f.load("t3-tabs", { part: "end" })];
     fire(views[3].render(cx), "on_hover", true, cx); // A pane's buttons show while its header is hovered.
     for (const view of views) for (const n of walk(view.render(cx))) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
     const rest = f.theme().dim, bright = f.theme().foreground;
-    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[2], "tab-new"], [views[2], "action-add"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
+    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[7], "tab-new"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
       const color = () => find(view.render(cx), id).style.text_color;
       assert.equal(color(), rest, `${id} at rest`);
       fire(find(view.render(cx), id), "on_hover", true, cx);
@@ -900,12 +934,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Every control says what it is. A pane's header focuses it; it's no control.
     // As in T3, an icon alone says it on hover too; words may, naming what they do. A row's own fold and the editor's icon picks explain themselves.
     const f = fixture(256);
-    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
     const pane = f.load("t3-pane", { pane: "p0" });
     pane.hovered = true;
     const views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), pane, f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox"),
-      f.load("t3-tabs", { actions: "menu" }), f.load("t3-tabs", { actions: "edit", id: "a1" }), f.load("t3-agents", { sortMenu: true }), f.load("t3-new-menu")];
-    for (const view of views) for (const n of walk(view.render(cx)).concat()) {
+      f.load("t3-tabs", { part: "end" }), f.load("t3-agents", { sortMenu: true }), f.load("t3-new-menu")];
+    for (const view of views) for (const n of walk(view.render(cx))) {
       if (n.handlers.on_click && !String(n.key).startsWith("pane-head")) assert.equal(n.style.role, "button", `${n.key}: a role`);
       if (n.style.role !== "button") continue;
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
@@ -929,17 +962,13 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // Whatever opens over its button hides the pointer's leaving from it: it doesn't stay lit.
-    const f = fixture(256), footer = f.load("t3-chrome", { footer: true }), tabs = f.load("t3-tabs"), agents = f.load("t3-agents"), inbox = f.load("t3-inbox");
-    for (const [view, id] of [[footer, "settings"], [footer, "add-machine"], [tabs, "action-add"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
+    const f = fixture(256), footer = f.load("t3-chrome", { footer: true }), agents = f.load("t3-agents"), inbox = f.load("t3-inbox");
+    for (const [view, id] of [[footer, "settings"], [footer, "add-machine"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
       fire(find(view.render(cx), id), "on_hover", true, cx);
       assert.equal(view.hot, id);
       fire(find(view.render(cx), id), "on_click", {}, cx);
       assert.equal(view.hot, null, `${id} doesn't stay lit`);
     }
-    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
-    fire(find(tabs.render(cx), "action-more"), "on_hover", true, cx);
-    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
-    assert.equal(tabs.hot, null, "action-more doesn't stay lit");
   }
   {
     // A row's details, as T3's thread card: at the row's top right, with T3's tooltip group for timing and fade.
@@ -1008,7 +1037,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // A hover label, as T3's: the label with its bound key, a dim hint, and nothing up unless the button is lit.
-    const f = fixture(256), tabs = f.load("t3-tabs"), inbox = f.load("t3-inbox");
+    const f = fixture(256), tabs = f.load("t3-tabs", { part: "end" }), inbox = f.load("t3-inbox");
     f.spaces()[0].active = true;
     const card = (view, id) => find(view.render(cx), `tip-${id}`).style.content;
     assert.deepEqual(strings(card(tabs, "tab-new")), [], "not while unlit");
@@ -1084,27 +1113,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(spaces.pressed, null, "leaving the list ends a space's drag");
   }
   {
-    // Delete asks; only the dialog's answer, delivered as the app delivers it, deletes. The tab bar's copy hears it.
-    const f = fixture(256), jobs = [], spawn = cx.spawn;
-    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }, { id: "a2", name: "Test", command: "y" }] };
-    cx.spawn = fn => jobs.push(fn);
-    f.load("t3-tabs");
-    const copies = jobs.length;
-    const edit = f.load("t3-tabs", { actions: "edit", id: "a1" });
-    cx.spawn = spawn;
-    assert.equal(jobs.length, copies, "an overlay's copy doesn't listen");
-    fire(find(edit.render(cx), "action-delete"), "on_click", {}, cx);
-    const { mod, props } = f.overlays.pop();
-    assert.deepEqual([mod, props.title], ["confirm", "Delete Dev?"]);
-    assert.equal(f.state["t3-actions"].list.length, 2, "the click only asks");
-    const [target, command] = [props.command.name.slice(0, props.command.name.indexOf(".")), props.command.name.slice(props.command.name.indexOf(".") + 1)];
-    assert.equal(target, "t3-tabs");
-    f.commands.push(command);
-    jobs[0]();
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(Array.from(f.state["t3-actions"].list, a => a.id), ["a2"]);
-  }
-  {
     // A person's close asks when it ends terminals, as T3's; only the dialog's command closes.
     const f = fixture(256), jobs = [], spawn = cx.spawn;
     f.spaces().splice(0, Infinity,
@@ -1115,7 +1123,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     Object.assign(f.shown, { tab: "a", pane: "p1" });
     cx.spawn = fn => jobs.push(fn);
     const view = f.load("t3-tabs");
+    f.load("t3-tabs", { part: "end", block: "tabs-end" });
+    f.load("t3-tabs", { part: "measure" });
     cx.spawn = spawn;
+    assert.equal(jobs.length, 1, "of the layout's three copies only the tab strip answers, or one close opens three dialogs");
     const say = async command => { f.commands.push(command); jobs[0](cx); await new Promise(resolve => setImmediate(resolve)); };
     // What `hc get` says: its own shell at the prompt, a program it started, a program that is the terminal, or no answer.
     const shell = { pid: 1, foreground: { pid: 1, name: "zsh" } }, program = { pid: 1, foreground: { pid: 2, name: "sleep" } }, own = { pid: 1, foreground: { pid: 1, name: "sleep" } };
@@ -1212,13 +1223,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(sort.render(cx), "sort-priority").style.bg, f.theme().selected, "down wraps to the first row");
     key(sort, "sort-menu", "enter");
     assert.equal(f.state["agents.sort"], "priority");
-    f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
-    const menu = f.load("t3-tabs", { actions: "menu" });
-    assert.equal(find(menu.render(cx), "action-a1").style.bg, f.theme().selected);
-    key(menu, "actions-menu", "up");
-    assert.equal(find(menu.render(cx), "action-new").style.bg, f.theme().selected, "up wraps to the last row");
-    key(menu, "actions-menu", "enter");
-    assert.equal(f.overlays.pop().props.actions, "edit");
     const inbox = f.load("t3-inbox");
     const panel = () => find(inbox.render(cx), "inbox-scope-menu").style.content;
     fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "down" }, cx);
