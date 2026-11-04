@@ -343,3 +343,93 @@ test("a space's own icon, found as T3 finds it, replaces its monogram on every c
   f.render(f.now + 59000); await new Promise((done) => setTimeout(done, 0));
   assert.equal(runs.length, 3, "found, it isn't looked for again within ten minutes");
 });
+
+// The list moves as T3's (Sidebar.motion.ts): a frame where the rows were, then let go to ease into place.
+const flyOf = (f, address) => {
+  const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith(`fly-${address}-`) ? n : n.items.map(walk).find(Boolean) ?? null;
+  return walk(f.tree);
+};
+const at = (n) => ({ id: n.key, top: n.style.top?.[0], opacity: n.style.opacity?.[0] });
+
+test("settling slides the card down into Settled and the rows under it up, then lets them go", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.add("C", "idle", 100);
+  f.mod.open = true; f.mod.listH = 600; f.render();
+  assert.deepEqual(at(flyOf(f, "B")), { id: "fly-B-0", top: 0, opacity: 1 }, "nothing moves on the first draw");
+  f.terms[0].labels.settled = "1100:0"; f.render(1100);
+  const a = at(flyOf(f, "A")), b = at(flyOf(f, "B"));
+  assert.equal(a.id, "fly-A-1", "a row that moves is a new element, first drawn where it was");
+  assert.ok(a.top < 0, "A starts up where its card was, over Settled");
+  assert.deepEqual(b, { id: "fly-B-1", top: 84, opacity: 1 }, "B starts a card lower, where it was");
+  assert.equal(at(flyOf(f, "C")).top, 84);
+  f.render(1116);
+  assert.deepEqual([at(flyOf(f, "A")), at(flyOf(f, "B"))], [{ id: "fly-A-1", top: 0, opacity: 1 }, { id: "fly-B-1", top: 0, opacity: 1 }], "then they're let go, the same elements, so Herdr eases them");
+  f.render(1200);
+  assert.equal(flyOf(f, "B").key, "fly-B-1", "a draw with nothing new moves nothing");
+});
+
+test("a new row fades in from 40px up at the top, or in place under a row that stays", () => {
+  const f = fixture(); f.add("A", "idle", 200); f.mod.listH = 600; f.render();
+  f.add("B", "idle", 300); f.add("Z", "idle", 50); f.render(1100);
+  assert.deepEqual(at(flyOf(f, "B")), { id: "fly-B-1", top: -40, opacity: 0 }, "at the top: from 40px up, clear");
+  assert.deepEqual(at(flyOf(f, "Z")), { id: "fly-Z-1", top: -84, opacity: 0 }, "under A, which moved a card down: riding with it");
+  f.render(1116);
+  assert.deepEqual([at(flyOf(f, "B")).opacity, at(flyOf(f, "Z")).top], [1, 0]);
+});
+
+test("a row that leaves fades out where it was, then goes", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.listH = 600; f.render();
+  f.rows.splice(0, 1); f.terms.splice(0, 1); f.render(1100);
+  const ghost = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("leaving-A-") ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 8], "drawn as it was, where it was");
+  assert.equal(at(flyOf(f, "B")).top, 84, "B slides up from under it");
+  f.render(1116);
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 48], "fading, 40px down: nothing above it stays");
+  f.render(1300);
+  assert.equal(ghost(), null);
+});
+
+test("a settled row's time fades out as its undo fades in, and back", () => {
+  const f = fixture(); f.add("A"); f.terms[0].labels.settled = "500:0"; f.mod.open = true;
+  f.render();
+  const corner = () => find(f.tree, "slim-corner-A"), undo = () => find(f.tree, "unsettle-A");
+  assert.deepEqual([corner().items[0].style.opacity[0], undo().style.opacity[0]], [1, 0]);
+  assert.equal(undo().handlers.on_click, undefined, "faded out, it's no button");
+  f.mod.hovered = "A"; f.render();
+  assert.deepEqual([corner().items[0].style.opacity[0], undo().style.opacity[0]], [0, 1]);
+  assert.deepEqual(JSON.parse(JSON.stringify(corner().items[0].style.transition)), ["opacity", { duration: 150, easing: "ease-out" }]);
+});
+
+test("a dropped row slides from where it was let go, and nothing moves while dragging", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.open = true; f.mod.listH = 600; f.render();
+  f.mod.drag = { from: "B", moved: true, y: 400, grab: 10, height: 82, target: { section: "settled" } };
+  f.render(1050);
+  assert.equal(flyOf(f, "B").key, "fly-B-0", "dragging: the lanes' gaps move, the rows don't fly");
+  // finish() leaves where the ghost was, in the list's terms, then the label lands.
+  f.mod.drag = null; f.mod.landed = { key: "B", y: 300 }; f.terms[1].labels.settled = "1100:0"; f.render(1100);
+  const b = flyOf(f, "B"), y = f.mod.motion.at.get("B").y;
+  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 300 - y]);
+});
+
+test("settling shows T3's undo notice over the first shelf for 5s; Undo puts them back where they were", () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); a.focused = true; f.mod.listH = 600;
+  f.render(); f.settle(); f.render(1000);
+  const note = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("undo-notice-") && n.key !== "undo-notice-undo" ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
+  assert.deepEqual([texts(note())[0], note().style.opacity[0]], ["Settled 1 agent,", 0], "a frame clear, then it fades in");
+  f.render(1016);
+  assert.equal(note().style.opacity[0], 1);
+  assert.ok(find(find(f.tree, "shelves"), "undo-notice-undo"), "over the first shelf's header, as T3 hosts it");
+  // A second settle soon after joins the same notice.
+  f.rows.find((x) => x.address === "B").focused = true; a.focused = false; f.settle(); f.render(2000);
+  assert.equal(texts(note())[0], "Settled 2 agents,");
+  f.event("undo-notice-undo", "on_click");
+  assert.deepEqual([f.mod.pending.A, f.mod.pending.B], ["", ""], "both come back, as they were: no news");
+  f.render(2016);
+  assert.equal(note().style.opacity[0], 0, "fading out");
+  f.render(2300);
+  assert.equal(note(), null);
+  // Left alone, it goes after 5s.
+  f.rows.find((x) => x.address === "A").focused = true; f.settle(); f.render(3000); f.render(3016);
+  assert.equal(note().style.opacity[0], 1);
+  f.render(8000); assert.equal(note().style.opacity[0], 0); assert.equal(find(f.tree, "undo-notice-undo"), null, "no Undo once it's going");
+  f.render(8300); assert.equal(note(), null);
+});
