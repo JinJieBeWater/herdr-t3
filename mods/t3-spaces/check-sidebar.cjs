@@ -866,6 +866,31 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
+    // A row's details, as T3's thread card: beside it, and only while the row itself is what's hovered.
+    const f = fixture(256), inbox = f.load("t3-inbox");
+    f.panes()[0].branch = "feat/x";
+    f.panes()[1].branch = "main";
+    const details = (a) => find(inbox.render(cx), `details-${a}`).style.content;
+    const row = (a) => find(inbox.render(cx), `card-${a}`);
+    assert.equal(find(inbox.render(cx), "details-t0").style.anchor, "left_center", "to the row's right, so clamping can't push it onto the row");
+    assert.deepEqual(strings(details("t0")), [], "not until hovered");
+    fire(row("t0"), "on_hover", true, cx);
+    assert.deepEqual(strings(details("t0")).slice(1), ["P", "project 0", "feat/x", "Pi"], "its mark and project, branch, program; no machine on this one");
+    assert.equal(strings(details("t0"))[0], row("t0").style.accessibility_label, "led by the title the row shows");
+    assert.deepEqual(strings(details("vps/t2")), [], "only the hovered row's");
+    inbox.hot = "machine-t0";
+    assert.deepEqual(strings(details("t0")), [], "a lit control's own label speaks instead");
+    inbox.hot = null;
+    fire(row("t0"), "on_click", {}, cx);
+    assert.deepEqual(strings(details("t0")), [], "what it opened isn't covered");
+    fire(row("t0"), "on_hover", false, cx);
+    fire(row("t0"), "on_hover", true, cx);
+    assert.ok(strings(details("t0")).length > 0, "coming back shows it again");
+    fire(row("t0"), "on_hover", false, cx);
+    fire(row("vps/t2"), "on_hover", true, cx);
+    assert.deepEqual(strings(details("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
+  }
+  {
     // A hover label, as T3's: the label with its bound key, a dim hint, and nothing up unless the button is lit.
     const f = fixture(256), tabs = f.load("t3-tabs", { part: "end" }), inbox = f.load("t3-inbox");
     f.spaces()[0].active = true;
@@ -886,7 +911,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     for (const [name, view] of Object.entries({ tabs: f.load("t3-tabs"), inbox, agents: f.load("t3-agents"), pane: f.load("t3-pane", { pane: "p0" }) })) {
       const nodes = walk(view.render(cx));
       assert.ok(nodes.some(n => n.source === "icons/pi.svg"), `${name}: the icon is there`);
-      assert.ok(!nodes.some(n => n.kind === "hovercard" && walk(n).some(c => c.source === "icons/pi.svg")), `${name}: no label on a program's icon`);
+      assert.ok(!nodes.some(n => String(n.key).startsWith("tip-") && walk(n).some(c => c.source === "icons/pi.svg")), `${name}: no label on a program's icon`);
     }
   }
   {
