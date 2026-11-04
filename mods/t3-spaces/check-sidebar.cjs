@@ -22,6 +22,8 @@ function element(kind = "div", source) {
   return proxy;
 }
 
+// Mods run in their own vm context: a plain copy compares with this one's objects.
+const plain = v => JSON.parse(JSON.stringify(v));
 // A row's laid-out children, without the absolutely placed tree lines.
 const inFlow = row => row.items.filter(n => !("absolute" in n.style));
 
@@ -57,7 +59,7 @@ function fixture(width) {
   const panes = agents.map(a => ({ ...a, terminal: a.address, cwd: `/work/${a.space}` }));
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
-  const calls = [], overlays = [], stores = new Map(), scopes = new Map(), labelled = [], shown = { agent: "child" }, commands = [];
+  const calls = [], overlays = [], stores = new Map(), scopes = new Map(), labelled = [], shown = { agent: "child" }, commands = [], closed = [];
   // What a test may change about the window and the app: the window, the layout's root fields, the update state.
   const ui = { window: { platform: "macos" }, root: {}, updates: { app: {} } };
   let hcAnswer = () => ({ code: 0 });
@@ -81,7 +83,7 @@ function fixture(width) {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
       if (name === "layout.resize" && slots[args.id]) slots[args.id].size = { px: args.px };
     },
-    openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ui.updates,
+    openOverlay: spec => overlays.push(spec), closeOverlay: id => closed.push(id), updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
     keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }],
   };
@@ -102,7 +104,7 @@ function fixture(width) {
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, scopes, labelled, shown, commands, ui, answerHc: fn => { hcAnswer = fn; } };
+  return { ...env, load, slots, state, calls, overlays, stores, scopes, labelled, shown, commands, closed, ui, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -853,7 +855,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   measure.close();
   assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false, "gone with its layout, it leaves no bar compact");
   fire(find(root, "close-b0"), "on_click", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b0" }]);
+  assert.deepEqual(plain(f.overlays.pop().props.command), { name: "tab.close", args: { id: "b0", confirmed: true } }, "the × asks");
   const pane = f.load("t3-pane", { pane: "p0" });
   pane.hovered = true;
   const head = pane.render(cx);
@@ -1093,7 +1095,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
     fire(close(), "on_click", {}, cx);
-    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }]);
+    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }], "with no terminal to lose it closes at once");
+    f.panes().push({ pane: "po", tab: "other", terminal: "to" });
+    const closes = f.calls.length;
+    fire(close(), "on_click", {}, cx);
+    assert.equal(f.calls.length, closes, "with one, the × only asks");
+    assert.deepEqual(plain(f.overlays.pop().props.command), { name: "tab.close", args: { id: "other", confirmed: true } });
+    f.panes().pop();
     cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
     assert.equal(find(tabs.render(cx), "details-other"), null, "not when the pointer is away, once it has faded");
     fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
@@ -1107,6 +1115,53 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(spaces.render(cx), id), "on_mouse_down:left", {}, cx);
     fire(find(spaces.render(cx), "space-list"), "on_hover", false, cx);
     assert.equal(spaces.pressed, null, "leaving the list ends a space's drag");
+  }
+  {
+    // A person's close asks when it ends terminals, as T3's; only the dialog's command closes.
+    const f = fixture(256), jobs = [], spawn = cx.spawn;
+    f.spaces().splice(0, Infinity,
+      { id: "s", active: true, tabs: [{ id: "a", name: "Alpha", named: true, active: true }, { id: "b", name: "Beta", named: true }] },
+      { id: "solo", tabs: [{ id: "c", name: "Solo", named: true }] });
+    f.panes().splice(0, Infinity, { pane: "p1", tab: "a", terminal: "t1" }, { pane: "p2", tab: "a", terminal: "t2" },
+      { pane: "m", tab: "b", mod: "board" }, { pane: "p4", tab: "c", terminal: "t4" });
+    Object.assign(f.shown, { tab: "a", pane: "p1" });
+    cx.spawn = fn => jobs.push(fn);
+    f.load("t3-tabs");
+    cx.spawn = spawn;
+    const say = async command => { f.commands.push(command); jobs[0](); await new Promise(resolve => setImmediate(resolve)); };
+    f.calls.length = 0;
+    await say("close-tab");
+    let asked = f.overlays.pop();
+    assert.deepEqual([asked.mod, asked.props.title], ["confirm", "Close tab?"]);
+    assert.match(asked.props.detail, /^"Alpha": this stops its 2 running processes/);
+    assert.doesNotMatch(asked.props.detail, /space closes/);
+    assert.deepEqual(plain(asked.props.command), { name: "tab.close", args: { id: "a", confirmed: true } }, "so the space's own ask can't follow");
+    await say("close-pane");
+    assert.deepEqual(f.closed.length, 1, "a second ask replaces the first");
+    asked = f.overlays.pop();
+    assert.deepEqual(plain(asked.props.command), { name: "pane.close", args: { pane: "p1" } });
+    await say("close-pane:p2");
+    assert.deepEqual(plain(f.overlays.pop().props.command.args), { pane: "p2" }, "the pane header's × names its pane");
+    assert.deepEqual(f.calls, [], "nothing closes before the answer");
+    Object.assign(f.shown, { tab: "c", pane: "p4" });
+    await say("close-tab");
+    assert.match(f.overlays.pop().props.detail, /its running process.*space closes too/, "the last tab says its space goes too");
+    assert.equal(f.overlays.length, 0);
+    f.spaces()[1].tabs[0].name = "x".repeat(41);
+    await say("close-tab");
+    assert.match(f.overlays.pop().props.detail, /^"x{40}…": this stops/, "a long name is cut, so the consequence stays in view");
+    Object.assign(f.shown, { tab: "b", pane: "m" });
+    await say("close-tab");
+    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b" }], "a tab of mods has no terminal to lose");
+    await say("close-pane");
+    assert.deepEqual(f.calls.pop(), ["pane.close", { pane: "m" }], "nor has a mod's pane");
+    await say("close-pane:p4");
+    assert.deepEqual(f.calls.pop(), ["pane.close", { pane: "p4" }], "a space's last pane closes the space, which Herdr asks about itself");
+    assert.equal(f.overlays.length, 0);
+    Object.assign(f.shown, { tab: undefined, pane: undefined });
+    f.calls.length = 0;
+    await say("close-tab"); await say("close-pane");
+    assert.deepEqual([f.calls, f.overlays.length], [[], 0], "with nothing focused, nothing to close");
   }
   {
     // cmd-] and cmd-[ (t3-chrome.next / .prev): with the Inbox showing, T3's traversal over the rows it draws, from the

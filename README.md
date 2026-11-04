@@ -51,6 +51,8 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-shift-b` | `t3-chrome.sidebar` | Switches the sidebar between Lists and Inbox |
 | `cmd-shift-s` | `t3-inbox.settle` | Settles the agent in view and moves to the next card, or brings it back if it's settled. Only while Inbox shows; a busy or pinned agent stays |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | The next or previous agent. With Inbox showing, as T3's: the rows it draws, in its order (a folded shelf only its row in view), stopping at either end. With Lists showing, Herdr's `agent.next` / `agent.prev` |
+| `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if that ends a terminal |
+| `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if that ends a terminal |
 
 What I add to the `global` section:
 
@@ -71,6 +73,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
 - Actions and the Review bar moved out of `t3-tabs`: install `mods/herdr-actions` (your actions are kept: they live in `shared.json`), and for Review replace `mods/pulls-review` and `mods/review` from the extras with the fork's (below).
 - `cmd-]` / `cmd-[` are the layout's own now (`t3-chrome.next` / `.prev`): add them to your `layout:herdr-t3` section; they win over `agent.next` in `global`.
+- Closing a tab or pane asks first: add the `cmd-w`, `ctrl-alt-shift-x`, `cmd-shift-w` and `ctrl-alt-x` lines from the repo's `keys.json` to your `layout:herdr-t3` section; they win over `tab.close` and `pane.close` in `global`.
 - The agent view is removed (last in commit `a8cbcd4`): after overwriting, delete `"cmd-shift-a": "t3-tabs.view"` from `keys.json`.
 
 ## What it runs

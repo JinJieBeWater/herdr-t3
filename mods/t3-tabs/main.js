@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props, setShared } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
@@ -56,12 +56,52 @@ function find(node, id) {
   return null;
 }
 
+// A tab nobody named reads as its lead pane: the agent in it, else the focused one.
+const leadOf = (mine) => mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
+const nameOf = (c, lead) => c.named ? c.name : lead ? namer()(lead) : "Terminal";
+
 export default class Tabs extends View {
-  init() {
+  init(_props, cx) {
     this.pressed = null;
     this.over = null;
     this.strip = 0;
     this.nameW = {};
+    // The tab bar answers every person's way to close.
+    cx.spawn(async () => {
+      for (;;) {
+        const command = await nextCommand();
+        if (command === "close-tab") this.closeTab(focused()?.tab);
+        else if (command === "close-pane") this.closePane(focused()?.pane);
+        else if (command.startsWith("close-pane:")) this.closePane(command.slice("close-pane:".length));
+      }
+    });
+  }
+
+  // As T3's confirmTerminalClose. A held cmd-w replaces the dialog rather than stacking it.
+  // The name goes in the detail, which wraps: a title would clip a long one. Cut short, it leaves the consequence in view.
+  ask(what, name, detail, command, args) {
+    if (this.asking) closeOverlay(this.asking);
+    const shown = name.length > 40 ? `${name.slice(0, 40)}…` : name;
+    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 190, props: { title: `Close ${what}?`, detail: `"${shown}": ${detail}`, command: { name: command, args } } });
+  }
+
+  // Ending terminals asks first; a tab of mods has none to lose, and Herdr still asks if it's the space's last.
+  closeTab(id) {
+    const space = spaces().find(s => s.tabs.some(c => c.id === id));
+    if (!space) return;
+    const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id), ends = mine.filter(p => p.terminal).length;
+    if (ends === 0) return run("tab.close", { id });
+    const stops = ends === 1 ? "this stops its running process and clears its history." : `this stops its ${ends} running processes and clears their histories.`;
+    this.ask("tab", nameOf(c, leadOf(mine)), stops + (space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : ""), "tab.close", { id, confirmed: true });
+  }
+
+  closePane(pane) {
+    const ps = panes(), p = ps.find(p => p.pane === pane);
+    if (!p) return;
+    const tabs = spaces().find(s => s.tabs.some(c => c.id === p.tab))?.tabs.map(c => c.id) ?? [];
+    // A space's last pane closes the space, and Herdr asks that itself.
+    if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1) return run("pane.close", { pane });
+    this.ask("pane", namer()(p), "this stops its running process and clears its history.", "pane.close", { pane });
   }
 
   // Each tab's width: its whole name while the room allows, else the longest names give way first.
@@ -134,7 +174,7 @@ export default class Tabs extends View {
     // Each agent with its sub-agents (tree.js).
     const every = agents(), all = terminals(), under = subAgents(every, all);
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
-    const ps = panes(), title = namer();
+    const ps = panes();
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
@@ -149,11 +189,9 @@ export default class Tabs extends View {
     };
     const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0) : TAB_FLOOR);
     const item = (c, i) => {
-      // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
-      const mine = ps.filter(p => p.tab === c.id);
-      const lead = mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
+      const lead = leadOf(ps.filter(p => p.tab === c.id));
       const program = lead && programOf(lead);
-      const name = c.named ? c.name : lead ? title(lead) : "Terminal";
+      const name = nameOf(c, lead);
       const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
       // As T3's panel tabs: 24px, 12px words. The icon's slot is the close button: hovering the tab turns it to ×.
       const over = this.overTab === c.id;
@@ -200,7 +238,7 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
           .role("button").accessibility_label(`Close ${name}`)
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
+          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id); })
           .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
