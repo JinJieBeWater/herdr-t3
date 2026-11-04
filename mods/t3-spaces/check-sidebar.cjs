@@ -65,6 +65,7 @@ function fixture(width) {
     Button: { new: id => element("button").id(id) },
     Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: id => element("popup").id(id) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
+    VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) }, v_virtual_list: (id, n, size, key, draw) => { const list = element("list").id(id); for (const row of draw({ start: 0, end: n }, cx)) list.child(row); return list; },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
     machines: () => [{ name: null, layout: "ready" }, { name: "vps", layout: "ready" }], focused: () => shown,
@@ -664,10 +665,13 @@ for (const width of [208, 240, 256, 320, 480]) {
 
   // New opens a terminal tab in the space picked: no agent step.
   const menu = f.load("t3-new-menu"); f.calls.length = 0;
-  menu.choose(f.spaces()[0]);
+  menu.choose(menu.items().find(item => item.space?.id === f.spaces()[0].id));
   assert.deepEqual(f.calls.splice(0), [["tab.new", { space: f.spaces()[0].id }]], "New opens a tab");
-  menu.choose(menu.items().find(s => s.id === "new"));
-  assert.deepEqual(f.calls.pop(), ["space.new", {}], "New space opens a space");
+  // Two machines: New space asks which, as T3's Add project asks for an environment.
+  fire(find(menu.render(cx), "space-new"), "on_click", {}, cx);
+  assert.deepEqual(f.calls, [], "New space asks first");
+  menu.choose(menu.items().find(item => item.machine === "vps"));
+  assert.deepEqual(f.calls.pop(), ["space.new", { machine: "vps" }], "New space opens a space there");
   f.calls.length = 0;
   {
     // The sidebar's way to a new machine, in the footer both Lists and Inbox keep.

@@ -23,7 +23,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
   - **标签栏**（40px，可拖动窗口）：当前 space 的标签，28px 胶囊（圆角 6，当前标签 `selected`）：程序图标、名字（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点；当前标签有关闭 `×`。然后是动作控件，再往右、在最右端是 26px 的 `+`（`tab.new`：在当前 space 开终端标签），位置固定不随动作名变化。动作控件是26px 描边框（圆角 6，`border`，12px `muted` 文字），里面是主动作的 12px 图标和名字（最宽 140px）、1px 分隔线和 `chevron-down`；还没有动作时显示 `dim` 色的 `▶ Add action`。Windows 上有窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
   - **窗格**（内边距 2/8，间距 8），即当前标签：圆角 8，`background` 填充，聚焦边框 2px，默认关闭（`focus.color` 为 `background`，改成 `accent` 即显示；平时的边框也是 2px，颜色同 `background`，所以聚焦时终端不会变尺寸），单个窗格也带框。每个窗格顶部有 28px 标题栏：程序图标、agent 名或终端标题（13px 中粗，聚焦时 `foreground`）、目录、状态标记，以及右分屏、下分屏、缩放/取消缩放、关闭按钮（悬停时出现）。
   - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
-- **新建菜单**（`t3-new-menu`，576×420 弹层，位于顶部）：选一个 space 开终端标签（`tab.new`）；`⌘1…` 按编号选 space。每行第二行是目录，远程 space 前面加机器名。底部 footer 放按键提示，右侧是 New space（`space.new`）。
+- **新建菜单**（`t3-new-menu`，576 宽弹层，位于顶部）：选一个 space 开终端标签（`tab.new`）；`⌘1…` 按编号选 space。当前 space 排最前，同一机器的 space 排在一起；显示 6 行后滚动，滚动跟随高亮。每行第二行是目录，远程 space 前面加服务器图标和机器名，和 T3 标记远程 thread 的方式相同。底部 footer 放按键提示，右侧是 New space（`space.new`）：有多台机器时先选机器，和 T3 的 Add project 先选 environment 相同（未就绪的机器置灰且不可选，`← Spaces` 返回）。`⌘N` 不询问，直接用当前 space 的机器。
 - **动作菜单**（`t3-tabs`，props `{ "actions": "menu" }`，280px 弹层，出现在指针处）：每个动作一行 32px（图标、名字、右侧齿轮），一条分隔线，然后是 `+ Add action`。
 - **动作编辑器**（`t3-tabs`，props `{ "actions": "edit", "id" }`，440×410 对话框）：Name、Command、Folder（可选）三个输入框；Icon（play、test、lint、configure、build、debug，即 lucide 的 play、flask-conical、list-checks、wrench、hammer、bug，和 T3 Code 一致）和 Run in（Tab、Right、Down）选项；Delete（编辑时才有；通过自带的 `confirm` 询问，确认后发 `t3-tabs.delete-action:<id>`）、Cancel、Save（名字和命令都要填；在输入框里按 Enter 也会保存）。
 
@@ -57,7 +57,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 - Settle 标签大约 0.65 秒后才出现在 `terminals()`：要保留待定值。
 - macOS 无标题栏时，侧栏隐藏或很窄，标签栏要给窗口按钮留位置（`layout().traffic_lights`）。
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。菜单和编辑器是 `t3-tabs` 自己以 overlay 打开的；`render()` 先看 `props().actions` 分支。
-- `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。
+- `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。`mods/t3-new-menu/check-new-menu.cjs` 同样检查新建菜单，可在任意位置运行。
 
 ## 完成标准
 
