@@ -47,6 +47,8 @@ Mod 名会成为布局块里的 `mod` 值、命令名 `<mod>.<command>` 和 keys
 
 ## 全量复核（2026-11-05）
 
+**决定：** 评审窗格保持 `review` 不改（目前没有撞名，`pulls-review-pane` 太长）。`herdr-actions` 放进 herdr-t3 仓库随布局发布，由 `scripts/sync.sh` 同步到单独的 herdr-actions 仓库。
+
 上面的结论基于约 8 个代表仓库。之后扫描了 `topic:herdr-mod` 和 `topic:herdr-layout` 各前 100 个结果（去掉 herdr-t3 和 herdr-t3-focus 后共 181 个仓库，179 个含 mod，639 个不同目录名），修正和补充如下：
 
 - **撞名：** `review`、`actions`、`herdr-actions`、`pulls-review`、`pulls-review-pane` 都是 0 命中；`reviewer` 2 个，含 review 的还有 `branch-review`、`commit-review`、`metro-review`、`ship-it-review` 等。所以 `review` 目前没有实际撞名，“中高”指它过于通用，而不是已有冲突。改名的理由是通用名加上 `bar.js` 的硬编码，以及现在改成本最低。

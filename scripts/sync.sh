@@ -1,9 +1,10 @@
 #!/bin/sh
-# After editing this repo: copy t3-inbox to the standalone herdr-t3-focus repo and the layout and its theme to the local Herdr App.
+# After editing this repo: copy t3-inbox and herdr-actions to their standalone repos and the layout, its mods and its theme to the local Herdr App.
 # Real copies, not symlinks: Herdr App doesn't load a mod's own SVGs through a symlink.
 set -eu
 src=$(cd "$(dirname "$0")/.." && pwd)
 focus=${HERDR_T3_FOCUS:-$src/../herdr-t3-focus}
+actions=${HERDR_ACTIONS:-$src/../herdr-actions}
 app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 
@@ -18,8 +19,9 @@ cp "$src/mods/t3-inbox/details.js" "$src/mods/t3-tabs/"
 
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$focus/mods/t3-inbox/"
-# One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.
-for d in "$src"/mods/t3-*/; do rsync -a --delete $gen "$d" "$app/mods/$(basename "$d")/"; done
+rsync -a --delete $gen "$src/mods/herdr-actions/" "$actions/mods/herdr-actions/"
+# One mod at a time: other folders in the app (yours, a test's) are left alone.
+for d in "$src"/mods/t3-*/ "$src"/mods/herdr-actions/; do rsync -a --delete $gen "$d" "$app/mods/$(basename "$d")/"; done
 # The theme picker, stack switches, your focus ring color and a Review block you added (pulls.review) live in the installed layout; keep them across syncs.
 layout="$app/layouts/herdr-t3.json"
 old=$(cat "$layout" 2>/dev/null || echo '{}')

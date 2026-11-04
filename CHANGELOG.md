@@ -6,7 +6,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ### Actions and Review, as mods of their own
 
-- Actions moved out of `t3-tabs` to the [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod, and the layout's tab bar now needs it. After updating, install `mods/herdr-actions`; your actions are kept.
+- Actions moved out of `t3-tabs` to a mod of their own, `mods/herdr-actions`, shipped with the layout and also [published alone](https://github.com/JinJieBeWater/herdr-actions) for other layouts. When updating, copy it along with `mods/t3-*`; your actions are kept.
 - The pulls.review extra left this repo for [the fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods), as a Review bar and a review pane. It is still optional: see the README's Extras.
 
 ### Visual
