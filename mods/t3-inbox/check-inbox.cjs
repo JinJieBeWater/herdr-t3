@@ -299,18 +299,18 @@ test("a card's marks sit on its third line when it has one, else on the title's"
   assert.ok(find(lineOf(f.tree, "m1/B"), "machine-m1/B"), "no third line: the title's line carries it");
 });
 
-test("a space's monogram and color are T3's for the same name", () => {
+test("a space's monogram is its first glyph, in T3's color for the same name", () => {
   const f = fixture(), run = (code) => vm.runInContext(code, f.context);
   // T3's own cases (apps/mobile/src/lib/projectIcon.test.ts), its colors as Tailwind's 400.
-  for (const [name, text, color] of [["t3code", "T3", "#2dd4bf"], ["Auto Monogram", "AM", "#a3e635"], ["blitzdiff", "BF", "#f472b6"],
-    ["uoalbumdotclub", "UB", "#9ca3af"], ["  Tagium  ", "TM", "#a3e635"], ["Café Ünïcode", "CÜ", "#e879f9"], ["web2 app", "W2", "#34d399"]]) {
+  for (const [name, text, color] of [["t3code", "T", "#2dd4bf"], ["Auto Monogram", "A", "#a3e635"], ["blitzdiff", "B", "#f472b6"],
+    ["uoalbumdotclub", "U", "#9ca3af"], ["  Tagium  ", "T", "#a3e635"], ["Café Ünïcode", "C", "#e879f9"], ["web2 app", "W", "#34d399"]]) {
     assert.deepEqual([run(`monogram(${JSON.stringify(name)})`), run(`tint(${JSON.stringify(name)}, true)`)], [text, color], name);
   }
-  assert.deepEqual([run(`monogram("智能算量")`), run(`typeSize("智", 16)`)], ["智", 8.25], "a CJK name: its first character alone, at T3's size");
+  assert.deepEqual([run(`monogram("智能算量")`), run(`monogram("~/dev")`)], ["智", "D"]);
   assert.equal(run(`monogram("~")`), "", "nothing to spell: the folder instead");
   f.add("A"); f.render();
-  const tile = holding(f.tree, "OE"), color = run('tint("One", true)');
-  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0]], [16, color + "24", color], "T3's 14% wash of the color, the card's 16px");
+  const tile = holding(f.tree, "O"), color = run('tint("One", true)');
+  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 8.25], "T3's 14% wash of the color and its type, the card's 16px");
 });
 
 test("a space's own icon, found as T3 finds it, replaces its monogram on every card", async () => {
@@ -339,7 +339,7 @@ test("a space's own icon, found as T3 finds it, replaces its monogram on every c
   f.render();
   const pic = find(f.tree, "card-A") && (function first(n) { return n?.style?.image ? n : n?.items?.map(first).find(Boolean); })(f.tree);
   assert.deepEqual([pic.style.image[0], pic.style.size[0]], [icon, 16]);
-  assert.equal(holding(f.tree, "OE"), null, "no monogram beside it");
+  assert.equal(holding(f.tree, "O"), null, "no monogram beside it");
   f.render(f.now + 59000); await new Promise((done) => setTimeout(done, 0));
   assert.equal(runs.length, 3, "found, it isn't looked for again within ten minutes");
 });

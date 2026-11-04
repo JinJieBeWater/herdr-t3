@@ -17,16 +17,11 @@ const PALETTE = [
   ["#f472b6", "#db2777"], ["#fb7185", "#e11d48"],
 ];
 
-// As T3's projectIdentity: the first glyph, then the first word's first digit, else the last word's first
-// glyph, else the first word's last. A name without letters or digits (home's "~") spells nothing.
-// Unlike T3, a wide first glyph (CJK) stands alone: two would only fit squeezed.
+// The name's first letter or digit, capitalized: one glyph, where T3 spells two (a CJK pair only fits
+// squeezed). A name without letters or digits (home's "~") spells nothing.
 function monogram(name) {
-  const words = name.normalize("NFKC").trim().match(/[\p{L}\p{N}]+/gu) ?? [];
-  if (!words.length) return "";
-  const glyphs = [...words[0]], first = glyphs[0];
-  if (WIDE.test(first)) return first;
-  const second = glyphs.slice(1).find((g) => /\p{N}/u.test(g)) ?? (words.length > 1 ? [...words.at(-1)][0] : glyphs.at(-1)) ?? first;
-  return [...`${first}${second}`.toUpperCase()].slice(0, 2).join("");
+  const first = name.normalize("NFKC").match(/[\p{L}\p{N}]/u)?.[0];
+  return first ? [...first.toUpperCase()][0] : "";
 }
 
 // As T3: the name, folded, hashed into the palette, so a name has one color everywhere.
@@ -44,14 +39,6 @@ function isDark(t) {
   return (n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114 < 128;
 }
 
-// T3 squeezes the monogram into 6 of the tile's 16 units (one glyph) or 12 (two) at 8.25. Type can't be
-// squeezed here, so it shrinks to that width instead; a lone wide glyph (CJK, about 1em) gets the 12.
-const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
-function typeSize(text, size) {
-  const glyphs = [...text], em = glyphs.reduce((n, g) => n + (WIDE.test(g) ? 1 : 0.6), 0);
-  return (Math.min(8.25, (glyphs.length > 1 || WIDE.test(text) ? 12 : 6) / em) * size) / 16;
-}
-
 // `ps`: panes(), read once by the caller (each read copies every pane).
 export function projectMark(s, size, t, ps) {
   const icon = s && projectIcon(s, ps);
@@ -61,9 +48,9 @@ export function projectMark(s, size, t, ps) {
   if (!text) return h_flex().size(size).flex_none().items_center().justify_center()
     .child(svg("mods/workspace-chrome/folder.svg").size(size * 0.875).text_color(t.dim));
   const color = tint(s.name, isDark(t));
-  // As T3's ProjectMonogram: the color on a 14% wash of itself, bold monospace.
+  // As T3's ProjectMonogram: the color on a 14% wash of itself, bold monospace at 8.25 of the tile's 16.
   return h_flex().size(size).flex_none().rounded(size / 4).bg(color + "24").items_center().justify_center()
-    .font_family(settings().font_family ?? "JetBrains Mono").font_bold().text_size(typeSize(text, size)).text_color(color)
+    .font_family(settings().font_family ?? "JetBrains Mono").font_bold().text_size((8.25 * size) / 16).text_color(color)
     .child(text);
 }
 
