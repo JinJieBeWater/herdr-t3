@@ -1,10 +1,11 @@
 // The Review bar, shown once the pulls.review extra is installed: the focused worktree's
 // uncommitted files and its commits ahead of and behind its upstream, each opening that diff.
+// Its branch icon lists what else there is to pick: a commit, or another branch.
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
 import { div, svg } from "gpui-kit";
-import { h_flex } from "gpui-base";
-import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay } from "herdr";
+import { h_flex, v_flex } from "gpui-base";
+import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay, closeOverlay, props, theme } from "herdr";
 
 // The shipped `changes` mod's lookup, except for a mod pane (below).
 function reviewLocation() {
@@ -89,10 +90,41 @@ async function readReview(cwd) {
   return review;
 }
 
+// Read on click, so the bar's 10 s poll stays as cheap as it was.
+async function readPicks(r) {
+  const log = await git(r.root, ["log", "-10", "--format=%H%x1f%s%x1f%cr", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]);
+  const commits = log.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, when] = line.split("\x1f"); return { sha, subject, when }; });
+  if (!r.baseRef) return { commits, branches: [] };
+  const refs = await git(r.root, ["for-each-ref", "--sort=-committerdate", "--count=6", `--no-merged=${r.baseRef}`, "--format=%(refname:short)", "refs/heads"]);
+  const names = refs.stdout.split("\n").filter(name => name && name !== r.branch).slice(0, 5);
+  const branches = await Promise.all(names.map(async name =>
+    ({ name, count: parseInt((await git(r.root, ["rev-list", "--count", `${r.baseRef}..${name}`])).stdout, 10) || 0 })));
+  return { commits, branches };
+}
+
+// The extra's mod.json opens it unseen; a size here would show an empty box while it works.
+const openDiff = (cwd, args) => openOverlay({ mod: "pulls-review", kind: "popup", width: 1, height: 1, frame: "none", props: { cwd, args, analyze: true } });
+
+// The branch icon's menu, this mod opened as an overlay (see main.js).
+export function reviewMenu() {
+  const t = theme(), { root, base, baseRef, commits, branches, overlay } = props();
+  const title = (text) => div().h(24).px(8).flex_none().flex().items_center().text_size(11).text_color(t.dim).child(text);
+  const row = (id, name, args, ...cells) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
+    .hover(s => s.bg(t.hover)).role("button").accessibility_label(name).on_click(() => { closeOverlay(overlay); openDiff(root, args); }).children(cells);
+  return v_flex().id("review-menu").size_full().min_h(0).p(5).bg(t.popover).text_size(13).overflow_y_scroll()
+    .when(commits.length > 0, el => el.child(title("Commits")).children(commits.map(c =>
+      row(`review-commit-${c.sha}`, `Review commit ${c.subject}`, [c.sha],
+        div().flex_none().text_color(t.dim).child(c.sha.slice(0, 7)), div().flex_1().min_w(0).truncate().child(c.subject), div().flex_none().text_size(12).text_color(t.dim).child(c.when)))))
+    .when(commits.length > 0 && branches.length > 0, el => el.child(div().h(1).mx(6).my(4).flex_none().bg(t.border)))
+    .when(branches.length > 0, el => el.child(title(`Branches vs ${base}`)).children(branches.map(b =>
+      row(`review-branch-${b.name}`, `Review branch ${b.name}, ${b.count} ahead of ${base}`, [`${baseRef}...${b.name}`],
+        div().flex_1().min_w(0).truncate().child(b.name), div().flex_none().text_size(12).text_color(t.dim).child(String(b.count))))));
+}
+
 export function reviewBar(view, t, stop) {
   // Looked up on each render, so the frame that shows another space already shows its own counts.
   const r = view.reviews?.get(JSON.stringify(reviewLocation()));
-  if (!r || !(r.unmerged || r.changed || r.ahead || r.behind)) return null;
+  if (!r) return null;
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // The accessibility label says what each count compares, which the short label can't.
   // The count carries the color; what it counts stays quiet beside it.
@@ -101,7 +133,7 @@ export function reviewBar(view, t, stop) {
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover((on, cx) => { if (on) view.reviewHover = id; else if (view.reviewHover === id) view.reviewHover = null; cx.notify(); })
     .on_mouse_down("left", stop)
-    .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args, analyze: true } }))
+    .on_click(() => openDiff(r.root, args))
     // Hovered, the label turns foreground: the count takes its bright twin (ansi + 8) to stay the lead, same hue.
     .child(div().font_medium().text_color(t[`ansi${view.reviewHover === id ? ansi + 8 : ansi}`]).child(count))
     .when(Boolean(noun), el => el.child(noun));
@@ -115,6 +147,16 @@ export function reviewBar(view, t, stop) {
   ].filter(Boolean);
   // Outlined, not filled: a fill would read as the active tab.
   return h_flex().id("pulls-review").h(26).mr(4).pr(2).flex_none().items_center().rounded(6).border(1).border_color(t.border)
-    .child(svg("mods/workspace-chrome/git-branch.svg").size(13).ml(7).mr(1).flex_none().text_color(t.dim))
+    // Stays with no counts: on a clean default branch it's the only way in.
+    .child(h_flex().id("review-pick").h_full().px(5).flex_none().items_center().rounded(5).text_color(t.dim)
+      .hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label("Pick a commit or branch to review")
+      .on_mouse_down("left", stop)
+      .on_click((_e, cx) => cx.spawn(async () => {
+        const { commits, branches } = await readPicks(r);
+        if (!commits.length && !branches.length) return;
+        const height = 10 + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + branches.length * 32 : 0);
+        openOverlay({ mod: "t3-tabs", kind: "popup", width: 400, height: Math.min(420, height), props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches } });
+      }))
+      .child(svg("mods/workspace-chrome/git-branch.svg").size(13)))
     .children(segments.flatMap((s, i) => i ? [div().w(1).h(14).mx(2).flex_none().bg(t.border), s] : [s]));
 }

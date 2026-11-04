@@ -753,7 +753,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(strings(find(bar, "review-open")), ["4", "ahead of main"], "the branch's count says what it is against");
     assert.deepEqual(strings(find(bar, "review-changes")), ["3", "uncommitted"]);
     assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
-      ["mods/workspace-chrome/git-branch.svg", "review-open", "div", "review-changes", "div", "review-ahead", "div", "review-behind"], "one outlined group: its icon, then segments with rules only between them");
+      ["review-pick", "review-open", "div", "review-changes", "div", "review-ahead", "div", "review-behind"], "one outlined group: its icon, then segments with rules only between them");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
     const countColor = id => find(tabs.render(cx), id).items[0].style.text_color;
     assert.equal(countColor("review-open"), f.theme().ansi4);
@@ -773,7 +773,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     delete f.shown.cwd;
     assert.ok(find(tabs.render(cx), "review-open"), "coming back shows the last read at once");
     show({ ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 });
-    assert.equal(find(tabs.render(cx), "pulls-review"), null, "nothing to review, no bar");
+    assert.deepEqual(find(tabs.render(cx), "pulls-review").items.map(n => n.key), ["review-pick"], "no counts: the icon stays, the way in on a clean default branch");
     show({ ...review, newer: 1, gone: true });
     assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["4", "ahead of main · merged?"], "a deleted upstream shows, not only in the label");
     assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label,
@@ -846,6 +846,41 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(toggle(), "on_hover", true, cx);
     fire(toggle(), "on_click", {}, cx);
     assert.equal(toggle().style.text_color, rest, "the toggle goes with the sidebar, so it can't wait for the pointer to report leaving");
+  }
+  {
+    // The branch icon reads on click, then its menu's rows open one commit, or one branch against the base.
+    const f = fixture(256), tabs = f.load("t3-tabs"), scope = f.scopes.get("t3-tabs"), ranges = [];
+    scope.exec = async (_command, args) => {
+      if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: "abcdef123456\x1ffix: a\x1f2 hours ago\n" }; }
+      if (args.includes("for-each-ref")) return { code: 0, stdout: "feat\nother\n" };
+      return { code: 0, stdout: "3\n" };
+    };
+    const r = { root: "/repo", branch: "feat", base: "main", baseRef: "origin/main", unmerged: 4 };
+    tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
+    let reading;
+    const run = { ...cx, spawn: fn => { reading = fn(run); } };
+    const click = async review => {
+      tabs.reviews.set(JSON.stringify(scope.reviewLocation()), review);
+      fire(find(tabs.render(cx), "review-pick"), "on_click", {}, run);
+      await reading;
+      return f.overlays.at(-1);
+    };
+    const spec = await click(r);
+    assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
+    assert.equal(JSON.stringify(spec.props.branches), JSON.stringify([{ name: "other", count: 3 }]), "the current branch isn't offered against itself");
+    assert.equal(spec.height, 10 + 24 + 32 + 9 + 24 + 32, "the popup fits its rows");
+    const menu = f.load("t3-tabs", spec.props).render(cx);
+    fire(find(menu, "review-commit-abcdef123456"), "on_click", {}, cx);
+    assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
+    assert.equal(f.overlays.at(-1).mod, "pulls-review");
+    fire(find(menu, "review-branch-other"), "on_click", {}, cx);
+    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...other");
+    await click({ ...r, branch: "main", unmerged: 0 });
+    assert.equal(ranges.at(-1), "HEAD", "on the default branch: its recent commits");
+    const before = f.overlays.length;
+    scope.exec = async () => ({ code: 128, stdout: "" });
+    await click(r);
+    assert.equal(f.overlays.length, before, "nothing to pick, no menu");
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

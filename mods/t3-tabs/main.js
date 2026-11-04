@@ -4,7 +4,7 @@ import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layo
 import { namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
-import { watchReview, reviewBar } from "./review.js";
+import { watchReview, reviewBar, reviewMenu } from "./review.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -33,7 +33,7 @@ export default class Tabs extends View {
   init(_props, cx) {
     this.pressed = null;
     if (props()?.actions === "edit") initEditor(this);
-    watchReview(this, cx);
+    if (!props()?.actions) watchReview(this, cx);
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -56,6 +56,7 @@ export default class Tabs extends View {
     const overlay = props()?.actions;
     if (overlay === "menu") return menu(this);
     if (overlay === "edit") return editorView(this);
+    if (overlay === "review") return reviewMenu();
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];

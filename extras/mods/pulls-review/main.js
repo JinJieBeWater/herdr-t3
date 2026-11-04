@@ -51,7 +51,7 @@ async function core([command, ...args]) {
 // The page the CLI opens for `args` (its pageFor), for a server that is already running.
 async function pageFor(root, args) {
   if (args[0] === "--worktree") return "/worktree";
-  if (args[0]) return browserPath(`/compare/${args[0]}`);
+  if (args[0]) return browserPath(`/${args[0].includes("...") ? "compare" : "commit"}/${args[0]}`);
   const [head, base] = await Promise.all([git(root, ["symbolic-ref", "--short", "-q", "HEAD"]),
     git(root, ["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"])]);
   const branch = head.stdout.trim(), main = base.stdout.trim().replace(/^origin\//, "");
