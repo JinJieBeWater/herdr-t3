@@ -50,12 +50,12 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | --- | --- | --- |
 | `cmd-shift-b` | `t3-chrome.sidebar` | 侧栏在 Lists 和 Inbox 之间切换 |
 | `cmd-shift-s` | `t3-inbox.settle` | Settle 当前查看的 agent 并跳到下一张卡片，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
+| `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | 下一个或上一个 agent。显示 Inbox 时照 T3：按 Inbox 画出来的行的顺序走（折叠的区只算当前查看的那一行），到两端停住。显示 Lists 时用 Herdr 的 `agent.next` / `agent.prev` |
 
 我自己加在 `global` 里的：
 
 | 快捷键 | 命令 | 作用 |
 | --- | --- | --- |
-| `cmd-]` / `cmd-[` | `agent.next` / `agent.prev` | 按 Inbox 卡片的顺序切换 agent，已 Settle 的排在最后 |
 | `cmd-p` | `mod.open:picker` | 和 Inbox 顶栏的 Search 是同一个选择器 |
 
 标签、space 和窗格沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
@@ -70,6 +70,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
 - 动作和 Review 栏已移出 `t3-tabs`：安装 `mods/herdr-actions`（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，把可选扩展里的 `mods/pulls-review` 和 `mods/review` 换成 fork 里的（见下文）。
+- `cmd-]` / `cmd-[` 现在归布局自己（`t3-chrome.next` / `.prev`）：把它们加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `agent.next`。
 - Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
 
 ## 它会运行什么
