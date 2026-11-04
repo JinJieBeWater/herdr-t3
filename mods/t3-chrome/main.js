@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { theme, run, props, updates, layout, nextCommand, shared } from "herdr";
+import { theme, run, props, updates, layout, nextCommand, shared, window, settings } from "herdr";
 import { tip } from "./tip.js";
 
 function find(node, id) {
@@ -50,39 +50,43 @@ export default class WorkspaceChrome extends View {
     };
     const lit = (id, color = t.dim) => (this.hot === id ? t.foreground : color);
     if (props()?.footer) {
-      const row = (id, icon, label, action) => h_flex().id(id).relative().h(30).px(8).gap(8).items_center().rounded(8)
+      // As T3's footer: a row of 32px icon buttons, and at its end, once Herdr has downloaded an update, its restart.
+      const ready = updates().app.ready;
+      const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
+        .text_color(lit(id)).hover(s => s.bg(t.hover)).on_hover(glow(id))
         .role("button").accessibility_label(label)
-        .text_color(lit(id, t.muted)).hover(s => s.bg(t.hover)).on_hover(glow(id))
-        .on_click(action).child(h_flex().size(18).flex_none().items_center().justify_center()
-          .child(svg(`mods/t3-chrome/${icon}.svg`).size(16)))
-        .child(div().flex_1().min_w(0).truncate().child(label));
-      return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(6).text_size(13)
-        .child(h_flex().gap(2).items_center()
-          // Each opens over its button, before the pointer can report leaving it.
-          .child(row("settings", "settings", "Settings", (_e, cx) => { this.hot = null; run("app.settings"); cx.notify(); }).flex_1().min_w(0)
-            .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
-          .child(tip(this.hot, t, "add-machine", "Add machine", div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-            .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
-            .role("button").accessibility_label("Add machine")
-            .on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "machine-add" }); cx.notify(); })
-            .child(svg("mods/workspace-chrome/server.svg").size(14)), { above: true })));
+        // Each opens over its button, before the pointer can report leaving it.
+        .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })
+        .child(glyph), { action: key, above: true });
+      return h_flex().size_full().bg(t.chrome).px(8).gap(2).items_center()
+        .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
+        .child(button("add-machine", svg("mods/workspace-chrome/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
+        .child(div().flex_1())
+        .when(Boolean(ready), el => el.child(tip(this.hot, t, "app-update", `Update ${ready} downloaded. Click to restart`, div().id("app-update").h(24).px(10).flex_none().flex().items_center()
+          .rounded_full().bg(t.accent + "26").text_size(12).font_medium().text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow("app-update"))
+          .role("button").accessibility_label(`Restart into Herdr ${ready}`)
+          .on_click(() => run("app.update")).child("Update"), { above: true })));
     }
-    // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
-    // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
+    // The sidebar toggle after the macOS window buttons, where t3-tabs puts it while the sidebar is hidden, so it stays put
+    // as T3's does; the sidebar mode at the right edge.
+    const root = layout(), w = window();
+    const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
+      ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom) : 8;
     const inbox = inboxShown();
-    return h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
-      .child(tip(this.hot, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
-        .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
-        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click(switchSidebar)
-        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)), { action: "t3-chrome.sidebar" }))
+    return h_flex().id("brand").size_full().bg(t.chrome).pl(lightsPadding).pr(10).gap(2).items_center()
       .child(tip(this.hot, t, "sidebar-toggle", "Hide sidebar", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/workspace-chrome/sidebar.svg").size(14)), { action: "layout.toggle:sidebar" }));
+        .child(svg("mods/workspace-chrome/sidebar.svg").size(14)), { action: "layout.toggle:sidebar" }))
+      .child(div().flex_1())
+      .child(tip(this.hot, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+        .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
+        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click(switchSidebar)
+        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)), { action: "t3-chrome.sidebar" }));
   }
 }

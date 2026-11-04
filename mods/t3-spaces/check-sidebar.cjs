@@ -58,6 +58,8 @@ function fixture(width) {
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
   const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" }, commands = [];
+  // What a test may change about the window and the app: the window, the layout's root fields, the update state.
+  const ui = { window: { platform: "macos" }, root: {}, updates: { app: {} } };
   let hcAnswer = () => ({ code: 0 });
   const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
@@ -70,16 +72,16 @@ function fixture(width) {
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
     machines: () => [{ name: null, layout: "ready" }, { name: "vps", layout: "ready" }], focused: () => shown,
     exec: async () => ({ code: 1, stdout: "" }), readTextFile: async () => null,
-    window: () => ({ platform: "macos" }), props: () => ({}), theme: () => theme,
+    window: () => ui.window, props: () => ({}), theme: () => theme,
     settings: () => ({ zoom: 1 }), home: () => "/home/test",
-    layout: () => ({ children: Object.values(slots) }), shared: key => state[key],
+    layout: () => ({ ...ui.root, children: Object.values(slots) }), shared: key => state[key],
     setShared: (key, value) => { state[key] = value; }, setAgentOrder() {},
     hc: (args) => { labelled.push([...args]); return Promise.resolve(hcAnswer(args)); }, notify() {},
     run: (name, args) => {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
       if (name === "layout.resize") slots[args.id].size = { px: args.px };
     },
-    openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ({ app: {} }),
+    openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
     keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }],
   };
@@ -99,7 +101,7 @@ function fixture(width) {
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, commands, answerHc: fn => { hcAnswer = fn; } };
+  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, commands, ui, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -251,14 +253,30 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual(header.items.map(n => n.key), ["tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds the sidebar switch and toggle; search is a shortcut");
+  assert.deepEqual(header.items.map(n => typeof n.key === "string" ? n.key : n.kind), ["tip-sidebar-toggle", "div", "tip-sidebar-mode"], "the toggle leads, as T3's; the sidebar switch at the end; search is a shortcut");
   assert.equal(header.style.pr + (26 - 14) / 2, 16, "the toggle's icon ends on the same line as the + and status column");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
   const footer = f.load("t3-chrome", { footer: true });
   const settings = find(footer.render(cx), "settings");
-  assert.equal(settings.items[0].style.size, 18);
-  assert.equal(settings.style.gap, 8);
+  assert.deepEqual([settings.style.size, settings.items[0].style.size, settings.style.accessibility_label], [32, 16, "Settings"], "as T3's footer: 32px icon buttons");
+  assert.equal(find(footer.render(cx), "app-update"), null, "no update, no restart");
+  f.ui.updates = { app: { ready: "0.9.1" } };
+  const update = find(footer.render(cx), "app-update");
+  assert.deepEqual(strings(update), ["Update"]);
+  fire(update, "on_click", {}, cx);
+  assert.deepEqual(f.calls.pop(), ["app.update", {}]);
+  f.ui.updates = { app: {} };
+  {
+    // The toggle stays put as the sidebar hides: the brand bar's and the tab bar's both sit after the window buttons.
+    Object.assign(f.ui, { window: { platform: "macos", titlebar: "none" }, root: { traffic_lights: [16, 13] } });
+    const brand = f.load("t3-chrome").render(cx).style.pl;
+    f.slots.sidebar.hidden = true;
+    assert.equal(f.load("t3-tabs").render(cx).style.pl, brand, "the same spot either way");
+    assert.equal(brand, 80, "past the window buttons");
+    delete f.slots.sidebar.hidden;
+    Object.assign(f.ui, { window: { platform: "macos" }, root: {} });
+  }
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
   assert.deepEqual([groups[0].h, "pt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
   assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");

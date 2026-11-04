@@ -26,7 +26,7 @@
         {
           "id": "sidebar-lists",
           "type": "stack",
-          "active": "lists",
+          "active": "inbox",
           "children": [
             {
               "id": "lists",
@@ -65,7 +65,7 @@
             }
           },
           "size": {
-            "px": 41
+            "px": 40
           }
         }
       ],
