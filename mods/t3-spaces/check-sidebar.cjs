@@ -462,6 +462,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.match(value, /^settled=\d+:/, "dropped on Settled, it's settled");
   t0.labels = { settled: value.slice(8) };
   inbox.open = true;
+  // As T3's settled rows, it leads with its project's mark, the one its card shows, not its program's icon.
+  const mark = find(root(), "slim-mark-t0");
+  assert.deepEqual(strings(mark), ["P"], "project 0's monogram");
+  assert.ok(!walk(mark).some(n => n.kind === "svg" && n.source === "icons/pi.svg"), "no program icon");
   lift("slim-t0");
   assert.ok(find(find(root(), "drag-ghost"), "ghost-slim-t0"), "a settled row lifts as its row");
   over("card-vps/t2", 10);
