@@ -67,7 +67,7 @@ function fixture(width) {
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
-    machines: () => [{ name: "vps", layout: "ready" }], focused: () => shown,
+    machines: () => [{ name: null, layout: "ready" }, { name: "vps", layout: "ready" }], focused: () => shown,
     exec: async () => ({ code: 1, stdout: "" }), readTextFile: async () => null,
     window: () => ({ platform: "macos" }), props: () => ({}), theme: () => theme,
     settings: () => ({ zoom: 1 }), home: () => "/home/test",
@@ -591,6 +591,41 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
     assert.equal(find(sp.render(cx), "space-fold-s0").items.length, 1);
     sp.git = {};
+  }
+  {
+    // A worktree away from its checkout: the model moves to the rows' order, so space keys go down the list.
+    const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces");
+    list[2].machine = null;
+    const g = { repo: "/r", linked: false, name: "project 0", branch: "main", ahead: 0, behind: 0 };
+    view.git[JSON.stringify([null, "/work/s0"])] = g;
+    view.git[JSON.stringify([null, "/work/s2"])] = { ...g, linked: true, branch: "x" };
+    const moves = () => o.calls.filter(([name]) => name === "space.move");
+    const ids = () => [...view.ordered().map(r => r.w.id)];
+    assert.deepEqual(ids(), ["s0", "s2", "s1"]);
+    assert.deepEqual(moves(), [["space.move", { id: "s2", index: 2 }]], "the worktree moves under its checkout");
+    ids();
+    assert.equal(moves().length, 1, "a move is queued once");
+    view.ordering.at -= 1000;
+    ids();
+    assert.equal(moves().length, 2, "a write that lost a sync conflict is retried");
+    list.splice(1, 0, list.splice(2, 1)[0]); // The move's echo.
+    ids();
+    assert.equal(view.ordering, null, "in order, nothing is pending");
+    view.foldedRepos.add("/r");
+    assert.deepEqual(ids(), ["s0", "s1"], "folding hides the worktree");
+    assert.equal(moves().length, 2, "folding moves nothing");
+    list.push(list.splice(1, 1)[0]);
+    assert.deepEqual(ids(), ["s0", "s1"]);
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s2", index: 2 }], "a folded worktree still keeps its place");
+    list.splice(1, 0, list.splice(2, 1)[0]);
+    view.foldedRepos.clear();
+    // A drag holds its space, not an index a move can shift under it.
+    const rows = view.render(cx);
+    fire(find(rows, "space-s1"), "on_mouse_down:left", {}, cx);
+    list.push(list.shift());
+    fire(find(rows, "space-s0"), "on_mouse_move", {}, cx);
+    fire(find(rows, "space-s0"), "on_mouse_up:left", {}, cx);
+    assert.deepEqual(o.calls.pop(), ["space.move", { id: "s1", index: 3 }]);
   }
   delete f.agents()[0].program.icon;
   ag.toggleFold("t0", cx);

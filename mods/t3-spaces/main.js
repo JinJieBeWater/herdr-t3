@@ -56,7 +56,7 @@ export default class Spaces extends View {
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
-    if (sp.some((s) => !this.shown.has(s.id))) cx.notify();
+    if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }
 
   // Places whose git could have changed: new ones (a new space, a cd), where a
@@ -228,12 +228,17 @@ export default class Spaces extends View {
     openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
   }
 
+  orderingDue(now) {
+    return this.ordering && now - this.ordering.at >= 1000
+      && this.ordering.machines.every(name => machines().some(m => m.name === name && m.layout === "ready"));
+  }
+
   // Spaces in order, each worktree space moved under its main checkout's.
   ordered() {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null })).filter((r) => this.shown.has(r.w.id));
+    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];
@@ -246,10 +251,29 @@ export default class Spaces extends View {
       placed.add(r.g.repo);
       const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
       top.kids = kids.length;
-      if (this.foldedRepos.has(r.g.repo)) continue;
-      kids.forEach((k, n) => out.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─" }));
+      const folded = this.foldedRepos.has(r.g.repo);
+      kids.forEach((k, n) => out.push({ ...k, folded, tree: n === kids.length - 1 ? "└─" : "├─" }));
     }
-    return out;
+    // space.next/prev and ctrl-N follow the model, so it keeps the rows' order, folded rows included: folding moves nothing.
+    // Simulate the batch so later indexes include earlier moves. An attempted write can lose a sync conflict: let its echo settle before retrying.
+    const order = sp.map(w => w.id);
+    const target = out.map(r => r.w.id);
+    const key = JSON.stringify([order, target, machines()]);
+    if (order.every((id, i) => id === target[i])) {
+      this.ordering = null;
+    } else if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
+      const moved = new Set();
+      this.ordering = { key, at: Date.now(), machines: [] };
+      for (let i = 0; i < out.length; i++) {
+        const from = order.indexOf(out[i].w.id);
+        if (from === i) continue;
+        run("space.move", { id: out[i].w.id, index: i + 1 });
+        moved.add(out[i].w.machine ?? null);
+        order.splice(i, 0, order.splice(from, 1)[0]);
+      }
+      this.ordering.machines = [...moved];
+    }
+    return out.filter(r => this.shown.has(r.w.id) && !r.folded);
   }
 
   toggleRepo(repo, cx) {
@@ -345,6 +369,7 @@ export default class Spaces extends View {
   }
 
   row({ w, i, g, tree, kids = 0 }, t, ps) {
+    const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const on = w.active;
     // A checkout with worktrees folds them as an agent folds its sub-agents: an arrow at the
     // end, and folded, the count; dim, brightening when hovered.
@@ -362,19 +387,19 @@ export default class Spaces extends View {
       .accessibility_label(w.name)
       .when(on, (el) => el.bg(t.selected))
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
-      .when(this.pressed === i && this.over !== i, (el) => el.opacity(0.5))
-      .when(this.pressed !== null && this.over === i && this.pressed !== i, (el) => el.child(
+      .when(this.pressed === w.id && this.over !== w.id, (el) => el.opacity(0.5))
+      .when(this.pressed !== null && this.over === w.id && this.pressed !== w.id, (el) => el.child(
         div().absolute().left(0).right(0).h(2).bg(t.accent)
-          .when(this.pressed < i, line => line.bottom(0))
-          .when(this.pressed > i, line => line.top(0)),
+          .when(fromIndex < i, line => line.bottom(0))
+          .when(fromIndex > i, line => line.top(0)),
       ))
       .on_mouse_down("left", () => {
-        this.pressed = i;
-        this.over = i;
+        this.pressed = w.id;
+        this.over = w.id;
       })
       .on_mouse_move((_e, cx) => {
-        const source = spaces()[this.pressed];
-        const over = source && (source.machine ?? null) === (w.machine ?? null) ? i : null;
+        const source = spaces().find(s => s.id === this.pressed);
+        const over = source && (source.machine ?? null) === (w.machine ?? null) ? w.id : null;
         if (this.pressed !== null && this.over !== over) {
           this.over = over;
           cx.notify();
@@ -385,8 +410,10 @@ export default class Spaces extends View {
         const over = this.over;
         this.pressed = null;
         this.over = null;
-        if (from !== null && over === i && from !== i) run("space.move", { id: spaces()[from].id, index: i + 1 });
-        else if (from === i) run("space.select", { id: w.id });
+        if (from !== null && over === w.id && from !== w.id) {
+          const index = spaces().findIndex(s => s.id === w.id);
+          if (index !== -1) run("space.move", { id: from, index: index + 1 });
+        } else if (from === w.id) run("space.select", { id: w.id });
         cx.notify();
       })
       .on_mouse_down("right", () => this.menu(w))
