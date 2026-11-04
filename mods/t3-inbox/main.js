@@ -475,8 +475,8 @@ export default class Inbox extends View {
       const up = this.details === a.address || this.detailsOut === a.address;
       return Popup.new(`details-${a.address}`, div()).absolute().top(-1).right(-1).size(1)
         .when(up && !this.hot && !dragging && !this.sweep?.moved, (pop) => pop.content(v_flex().id(`details-card-${a.address}`).ml(4).max_w(320).p(12).gap(8).rounded(6).border(1).border_color(t.border)
-          // 95%: T3's glass is clearer but blurs what's behind it, which a mod can't, and a terminal's text would show through.
-          .bg(t.chrome + "f2").shadow_xl().text_size(12).opacity(this.details === a.address && this.detailsIn ? 1 : 0).transition("opacity", MOTION)
+          // Solid: T3's glass blurs what's behind it, which a mod can't, and a terminal's text would show through.
+          .bg(t.chrome).shadow_xl().text_size(12).opacity(this.details === a.address && this.detailsIn ? 1 : 0).transition("opacity", MOTION)
           .child(div().min_w(0).truncate().font_medium().text_color(t.foreground).child(title(a)))
           .child(v_flex().pl(2).gap(6)
             .when(Boolean(a.space_name), (el) => el.child(line(avatar(a.space, a.space_name, 12), a.space_name)))
