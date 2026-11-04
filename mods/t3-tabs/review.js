@@ -114,7 +114,7 @@ export function reviewMenu() {
   return v_flex().id("review-menu").size_full().min_h(0).p(5).bg(t.popover).text_size(13).overflow_y_scroll()
     .when(commits.length > 0, el => el.child(title("Commits")).children(commits.map(c =>
       row(`review-commit-${c.sha}`, `Review commit ${c.subject}`, [c.sha],
-        div().flex_none().text_color(t.dim).child(c.sha.slice(0, 7)), div().flex_1().min_w(0).truncate().child(c.subject), div().flex_none().text_size(12).text_color(t.dim).child(c.when)))))
+        div().w(58).flex_none().text_color(t.dim).child(c.sha.slice(0, 7)), div().flex_1().min_w(0).truncate().child(c.subject), div().flex_none().text_size(12).text_color(t.dim).child(c.when.replace(/ ago$/, ""))))))
     .when(commits.length > 0 && branches.length > 0, el => el.child(div().h(1).mx(6).my(4).flex_none().bg(t.border)))
     .when(branches.length > 0, el => el.child(title(`Branches vs ${base}`)).children(branches.map(b =>
       row(`review-branch-${b.name}`, `Review branch ${b.name}, ${b.count} ahead of ${base}`, [`${baseRef}...${b.name}`],
@@ -155,7 +155,7 @@ export function reviewBar(view, t, stop) {
         const { commits, branches } = await readPicks(r);
         if (!commits.length && !branches.length) return;
         const height = 10 + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + branches.length * 32 : 0);
-        openOverlay({ mod: "t3-tabs", kind: "popup", width: 400, height: Math.min(420, height), props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches } });
+        openOverlay({ mod: "t3-tabs", kind: "popup", width: 480, height: Math.min(560, height), props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches } });
       }))
       .child(svg("mods/workspace-chrome/git-branch.svg").size(13)))
     .children(segments.flatMap((s, i) => i ? [div().w(1).h(14).mx(2).flex_none().bg(t.border), s] : [s]));
