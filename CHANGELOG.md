@@ -4,8 +4,15 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-05
 
+### Visual
+
+- Tabs are T3's panel tabs: 24px, as wide as their whole names while the room allows. Short of room the longest give way first, the active one to 240px and the rest to 144px, then the strip scrolls and keeps the active tab in view.
+- The hide-sidebar button leads the brand bar, in the spot it keeps while the sidebar is hidden, and the sidebar footer is a row of icon buttons, as T3's.
+- A new install shows the Inbox first.
+
 ### Interaction
 
+- A tab's icon turns to × on hover, and hovering a tab shows its details: the same card and timing as an Inbox row's.
 - `cmd-]` / `cmd-[` walk the Inbox as T3 does: the rows it shows, in its order, stopping at either end; a folded shelf only its row in view. Lists keep Herdr's `agent.next`. After updating, add `"cmd-]": "t3-chrome.next"` and `"cmd-[": "t3-chrome.prev"` to your `layout:herdr-t3` section in `keys.json`.
 - A sub-agent in view with no row of its own lights its parent's card, and Settle acts on it.
 - An agent you bring into view that the space filter hides widens the filter to all spaces.
@@ -15,6 +22,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 - Folding or unfolding a shelf slides its header with the rows, so cards no longer pass over it.
 - The undo notice's Undo is medium and underlines on hover, as T3's.
+- A long name in a pane header takes the header's room instead of stopping at 260px.
 
 ## 2026-11-04
 
