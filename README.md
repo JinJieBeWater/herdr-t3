@@ -86,7 +86,7 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 
 `extras/mods/pulls-review/` reviews the focused worktree with [pulls.review](https://github.com/antfu/pulls.review): its uncommitted changes when there are any, else the current branch against the default branch.
 
-With it installed, the tab bar shows a Review bar before the view toggle, with only what there is: `4 ahead of main` (the branch's commits not on the default branch), `3 uncommitted` (uncommitted files), `↑2` (commits your upstream doesn't have), `↓1` (commits from your upstream). Click one to review just that diff. It follows the focused pane, or the agent in the agent view; with the review pane focused, the terminals in its tab. The counts read your remote-tracking refs as they are: nothing is fetched for you.
+With it installed, the tab bar shows a Review bar before `+`, with only what there is: `4 ahead of main` (the branch's commits not on the default branch), `3 uncommitted` (uncommitted files), `↑2` (commits your upstream doesn't have), `↓1` (commits from your upstream). Click one to review just that diff. It follows the focused pane; with the review pane focused, the terminals in its tab. The counts read your remote-tracking refs as they are: nothing is fetched for you.
 
 Where a review opens is `open` in `extras/mods/pulls-review/config.json`:
 

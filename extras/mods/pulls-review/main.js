@@ -96,7 +96,7 @@ function herdr(root, page) {
     return;
   }
   if (inTab) return run("tab.new", { mod: PANE, props: { root, page, n } });
-  // With an agent block focused (the agent view) there is no focused pane: split the agent's own.
+  // With an agent block focused there is no focused pane: split the agent's own.
   const from = f?.pane ?? ps.find(p => p.terminal === f?.agent)?.pane;
   run("pane.split", { direction: "right", ...(from ? { pane: from } : {}), mod: PANE, props: { root, page, n } });
 }
