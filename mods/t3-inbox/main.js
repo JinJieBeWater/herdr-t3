@@ -380,7 +380,7 @@ export default class Inbox extends View {
       .child(gap(a.address))
       .child(v_flex().id(`hold-${a.address}`).flex_none()
         .when(dragging && d.from === a.address, (el) => el.overflow_hidden().opacity(0).h(plan ? 0 : d.height + spacing).transition("height", MOTION))
-        .child(fly(a, section === "settled" ? "slim" : "card", draw(a))).when(spacing > 0, (el) => el.child(div().h(spacing).flex_none())))
+        .child(fly(a.address, section === "settled" ? "slim" : "card", draw(a))).when(spacing > 0, (el) => el.child(div().h(spacing).flex_none())))
       .when(i === xs.length - 1, (el) => el.child(gap(`end-${section}`))));
     // T3's boundaries: Pinned and Active labels, shown only while dragging; the list opens room for them.
     const boundary = (id, text, section, to) => h_flex().id(id).flex_none().overflow_hidden().h(dragging ? 24 : 0)
@@ -619,28 +619,30 @@ export default class Inbox extends View {
     const zoom = Number(settings()?.zoom) || 1;
     const TOP = 32; // The top row above the list.
     const ghostTop = () => Math.max(TOP + 8 + 24, Math.min(d.y - d.grab, (this.height ?? Infinity) - d.height - 8));
-    const heightOf = (kind, a) => this.rowH[`${kind}:${a.address}`] ?? (kind === "slim" ? 30 : (this.cardH ?? 82) / zoom + 2);
+    const heightOf = (kind, key) => this.rowH[`${kind}:${key}`] ?? (kind === "slim" || kind === "marker" ? 30 : (this.cardH ?? 82) / zoom + 2);
     // Where each row sits in the list (logical px from its top, padding included): Pinned and Active from the top, the
     // shelves from the bottom once there's room, below the rest when there isn't. While dragging, with the labels,
-    // the gap and the lifted row as the lanes draw them, so a drop goes on from there.
+    // the gap and the lifted row as the lanes draw them, so a drop goes on from there. The shelves' headers, Show more
+    // and Active's empty line move with them (`m:` keys), as T3's list markers do, so nothing slides over them.
     const place = () => {
       const at = new Map(), gapH = plan?.section === "settled" ? 30 : cardH + 2;
-      const put1 = (a, kind, y) => { const h = dragging && plan && a.address === d.from ? 0 : heightOf(kind, a); at.set(a.address, { y, h, kind, a }); return h; };
+      const put1 = (a, kind, y) => { const h = dragging && plan && a.address === d.from ? 0 : heightOf(kind, a.address); at.set(a.address, { y, h, kind, a }); return h; };
+      const mark = (key, y, h = heightOf("marker", key)) => { at.set(key, { y, h, kind: "marker" }); return h; };
       let y = 8 + (dragging ? 24 : 0);
       for (const a of pinned) { if (dragging && plan?.gap === a.address) y += gapH; y += put1(a, "card", y); }
       if (dragging) y += (plan?.gap === "end-pinned" || plan?.gap === "head-pinned" ? gapH : 0) + 24;
       for (const a of out) { if (dragging && plan?.gap === a.address) y += gapH; y += put1(a, "card", y); }
-      if (!out.length) y += dragging ? 38 : 32;
+      if (!out.length) y += dragging ? 38 : mark("m:empty", y, this.rowH["marker:m:empty"] ?? 32);
       const shelf = [];
       let b = 12;
-      if (work.length) { b += 30; for (const a of busyRows) { shelf.push([a, "work", b]); b += heightOf("work", a); } }
+      if (work.length) { shelf.push(["m:working", "marker", b]); b += 30; for (const a of busyRows) { shelf.push([a, "work", b]); b += heightOf("work", a.address); } }
       if (put.length || dragging) {
-        b += 30;
+        shelf.push(["m:settled", "marker", b]); b += 30;
         for (const a of rows) { if (dragging && plan?.gap === a.address) b += gapH; shelf.push([a, "slim", b]); b += a.address === d?.from && dragging && plan ? 0 : 30; }
-        if (this.open && put.length > this.limit) b += 30;
+        if (this.open && put.length > this.limit) { shelf.push(["m:more", "marker", b]); b += 30; }
       }
       const base = Math.max(y, (this.listH ?? 0) - 8 - b);
-      for (const [a, kind, off] of shelf) put1(a, kind, base + off);
+      for (const [a, kind, off] of shelf) kind === "marker" ? mark(a, base + off) : put1(a, kind, base + off);
       return at;
     };
     {
@@ -679,15 +681,16 @@ export default class Inbox extends View {
       this.landed = null;
     }
     // A row in its wrapper, which flies: drawn first where it was (or 40px up and clear, coming in), then let go.
-    const fly = (a, kind, child) => {
-      const f = this.motion.fly[a.address];
-      return div().id(`fly-${a.address}-${this.motion.gen[a.address] ?? 0}`).flex_none().relative()
+    const fly = (key, kind, child) => {
+      const f = this.motion.fly[key];
+      return div().id(`fly-${key}-${this.motion.gen[key] ?? 0}`).flex_none().relative()
         .top(f?.top ?? 0).opacity(f?.fade ? 0 : 1).transition("top", MOTION).transition("opacity", MOTION)
-        .on_size_change((size) => { this.rowH[`${kind}:${a.address}`] = size.height / zoom + (kind === "slim" ? 0 : 2); })
+        .on_size_change((size) => { this.rowH[`${kind}:${key}`] = size.height / zoom + (kind === "card" || kind === "work" ? 2 : 0); })
         .child(child);
     };
     // A row that left, drawn inert where it was and fading out, riding as T3's clones do.
     const leaving = (x) => {
+      if (x.kind === "marker") return null;
       let drawn;
       if (!kids.has(x.key)) kids.set(x.key, []); // Gone: drawn as it was, with no sub-agents.
       try { drawn = x.kind === "slim" ? slim(x.a, true) : card(x.a, true); } catch { return null; } // Gone with too much of its state.
@@ -713,11 +716,11 @@ export default class Inbox extends View {
     const shelves = v_flex().id("shelves").relative().pt(12).flex_none()
       .when(Boolean(notice), (el) => el.child(notice))
       .when(work.length > 0, (el) => el
-        .child(shelf("working-header", "Working", work.length, this.workOpen, () => {
+        .child(fly("m:working", "marker", shelf("working-header", "Working", work.length, this.workOpen, () => {
           this.workOpen = !this.workOpen;
           localStorage.setItem("working-open", String(this.workOpen));
-        }).on_mouse_move((_e, cx) => aim(null, cx)))
-        .child(v_flex().gap(2).children(busyRows.map((a) => fly(a, "work", card(a))))));
+        }).on_mouse_move((_e, cx) => aim(null, cx))))
+        .child(v_flex().gap(2).children(busyRows.map((a) => fly(a.address, "work", card(a))))));
     // Clear closes settled agents' panes; Herdr then closes emptied tabs. The one in view stays.
     const spaceNow = sp.find((s) => s.active), tabNow = spaceNow?.tabs.find((c) => c.active)?.id;
     const doomed = put.filter((a) => a.pane && !a.focused && a.tab !== tabNow);
@@ -751,17 +754,17 @@ export default class Inbox extends View {
       })
       .child("Clear"), { above: true });
     const tail = v_flex().id("settled").flex_none()
-      .child(shelf("settled-header", "Settled", put.length, this.open, () => {
+      .child(fly("m:settled", "marker", shelf("settled-header", "Settled", put.length, this.open, () => {
         this.open = !this.open;
         this.limit = FIRST;
         localStorage.setItem("open", String(this.open));
       }, clearButton).on_mouse_move((_e, cx) => aim({ section: "settled" }, cx))
         // As T3's shelf header: brighter while anything is lifted, accent as the target.
-        .when(dragging, (el) => el.text_color(hot("settled") ? t.accent : t.foreground)))
+        .when(dragging, (el) => el.text_color(hot("settled") ? t.accent : t.foreground))))
       .when(dragging && others(rows).length === 0 && !(rows.length > 0 && !plan), (el) => el
         .child(plan?.gap === "head-settled" ? gap("head-settled") : placeholder("settled", "Settled")))
       .children(lane("settled", rows, (a) => slim(a), 0))
-      .when(this.open && put.length > this.limit, (el) => el.child(h_flex().id("settled-more").h(30).px(10).gap(8).flex_none().items_center().rounded(8)
+      .when(this.open && put.length > this.limit, (el) => el.child(fly("m:more", "marker", h_flex().id("settled-more").h(30).px(10).gap(8).flex_none().items_center().rounded(8)
         .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("settled-more"))
         .role("button").accessibility_label("Show more settled agents")
         .on_click((_e, cx) => {
@@ -770,7 +773,7 @@ export default class Inbox extends View {
           cx.notify();
         })
         .child(svg("mods/workspace-chrome/chevron-down.svg").size(12).flex_none())
-        .child(`Show ${Math.min(MORE, put.length - this.limit)} more`)));
+        .child(`Show ${Math.min(MORE, put.length - this.limit)} more`))));
 
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
@@ -881,8 +884,8 @@ export default class Inbox extends View {
         .when(dragging && others(out).length === 0 && !(out.length > 0 && !plan), (el) => el
           .child(plan?.gap === "head-active" ? gap("head-active") : placeholder("active", "Active")))
         .children(lane("active", out, (a) => card(a), 2))
-        .when(out.length === 0 && !dragging, (el) => el.child(div().px(10).py(8).text_size(12).text_color(t.dim)
-          .child(every.length ? "Nothing needs you." : "No agent status yet. Agents show up here when they report their status.")))
+        .when(out.length === 0 && !dragging, (el) => el.child(fly("m:empty", "marker", div().px(10).py(8).text_size(12).text_color(t.dim)
+          .child(every.length ? "Nothing needs you." : "No agent status yet. Agents show up here when they report their status."))))
         // While dragging, Settled shows even empty: it's where a drop settles.
         // The free space above the shelves pushes them to the bottom; a drag over it lands in Active, as T3's
         // nearest-row drop does.
