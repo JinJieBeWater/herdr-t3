@@ -45,7 +45,7 @@ function fire(node, event, ...args) {
 }
 
 const modRoot = path.dirname(__dirname);
-const cx = { notify() {}, stop_propagation() {}, spawn() {}, timer: { every() {} }, focus_handle: () => { let gone = false; return { focus() { assert.ok(!gone, "a released FocusHandle throws when used"); }, is_focused: () => false, release() { gone = true; return true; } }; } };
+const cx = { notify() {}, stop_propagation() {}, spawn() {}, timers: [], timer: { every() {}, after(ms, fn) { const t = { ms, fn, cancel() { t.gone = true; } }; cx.timers.push(t); return t; } }, focus_handle: () => { let gone = false; return { focus() { assert.ok(!gone, "a released FocusHandle throws when used"); }, is_focused: () => false, release() { gone = true; return true; } }; } };
 function fixture(width) {
   const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
   const tabs = ["local task", "second task", "remote task"].map((name, i) => ({ id: `b${i}`, name, named: true }));
@@ -63,7 +63,7 @@ function fixture(width) {
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
     Button: { new: id => element("button").id(id) },
-    Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Input: { new: () => element("input") },
+    Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: id => element("popup").id(id) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
@@ -846,29 +846,53 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(tabs.hot, null, "action-more doesn't stay lit");
   }
   {
-    // A row's details, as T3's thread card: beside it, and only while the row itself is what's hovered.
+    // A row's details, as T3's thread card: at the row's top right, with T3's tooltip group for timing.
     const f = fixture(256), inbox = f.load("t3-inbox");
     f.panes()[0].branch = "feat/x";
     f.panes()[1].branch = "main";
-    const details = (a) => find(inbox.render(cx), `details-${a}`).style.content;
+    const popup = (a) => find(inbox.render(cx), `details-${a}`);
     const row = (a) => find(inbox.render(cx), `card-${a}`);
-    assert.equal(find(inbox.render(cx), "details-t0").style.anchor, "left_center", "to the row's right, so clamping can't push it onto the row");
-    assert.deepEqual(strings(details("t0")), [], "not until hovered");
-    fire(row("t0"), "on_hover", true, cx);
-    assert.deepEqual(strings(details("t0")).slice(1), ["P", "project 0", "feat/x", "Pi"], "its mark and project, branch, program; no machine on this one");
-    assert.equal(strings(details("t0"))[0], row("t0").style.accessibility_label, "led by the title the row shows");
-    assert.deepEqual(strings(details("vps/t2")), [], "only the hovered row's");
+    const hover = (a, on) => fire(row(a), "on_hover", on, cx);
+    cx.timers.length = 0; // Other tests' hovers left theirs.
+    const waits = () => cx.timers.filter(t => t.ms === 150 && !t.gone);
+    const wait = () => { for (const t of waits()) { t.gone = true; t.fn(cx); } };
+    assert.equal(popup("t0"), null, "not until hovered");
+    hover("t0", true);
+    assert.equal(popup("t0"), null, "the first waits");
+    assert.equal(waits().length, 1);
+    hover("t0", false);
+    wait();
+    assert.equal(popup("t0"), null, "leaving first cancels it");
+    hover("t0", true);
+    wait();
+    assert.ok(row("t0").style.relative !== undefined);
+    assert.deepEqual([popup("t0").style.top, popup("t0").style.right, popup("t0").style.size], [-1, -1, 1], "its bottom left, where a Popup hangs from, is the row's top right");
+    assert.equal(popup("t0").style.content.style.ml, 4);
+    assert.deepEqual(strings(popup("t0").style.content).slice(1), ["P", "project 0", "feat/x", "Pi"], "its mark and project, branch, program; no machine on this one");
+    assert.equal(strings(popup("t0").style.content)[0], row("t0").style.accessibility_label, "led by the title the row shows");
+    // The pointer can report entering the next row before leaving this one.
+    hover("vps/t2", true);
+    assert.equal(waits().length, 0, "the next opens at once");
+    assert.equal(popup("t0"), null, "one up at a time");
+    assert.deepEqual(strings(popup("vps/t2").style.content).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
+    hover("t0", false);
+    assert.ok(popup("vps/t2"), "the late leave of the row before doesn't close it");
+    hover("vps/t2", false);
+    assert.equal(popup("vps/t2"), null, "it closes with no delay");
+    hover("t0", true);
+    assert.ok(popup("t0"), "within 400ms the next still opens at once");
     inbox.hot = "machine-t0";
-    assert.deepEqual(strings(details("t0")), [], "a lit control's own label speaks instead");
+    assert.equal(popup("t0"), null, "a lit control's own label speaks instead");
     inbox.hot = null;
+    assert.ok(popup("t0"), "and it's back with the pointer on the row");
     fire(row("t0"), "on_click", {}, cx);
-    assert.deepEqual(strings(details("t0")), [], "what it opened isn't covered");
-    fire(row("t0"), "on_hover", false, cx);
-    fire(row("t0"), "on_hover", true, cx);
-    assert.ok(strings(details("t0")).length > 0, "coming back shows it again");
-    fire(row("t0"), "on_hover", false, cx);
-    fire(row("vps/t2"), "on_hover", true, cx);
-    assert.deepEqual(strings(details("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
+    assert.equal(popup("t0"), null, "a click takes it down");
+    hover("t0", false);
+    inbox.detailsClosed = Date.now() - 400;
+    hover("t0", true);
+    assert.equal(popup("t0"), null, "past 400ms the wait is back");
+    wait();
+    assert.ok(popup("t0"));
   }
   {
     // A hover label, as T3's: the label with its bound key, a dim hint, and nothing up unless the button is lit.

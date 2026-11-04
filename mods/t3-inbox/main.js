@@ -4,7 +4,7 @@
 // sees it, and a turn ended since says there was new work even while no window watched. Looking doesn't count.
 
 import { View, div, image, svg } from "gpui-kit";
-import { v_flex, h_flex, Popover, InputState, Input, HoverCard } from "gpui-base";
+import { v_flex, h_flex, Popover, Popup, InputState, Input } from "gpui-base";
 import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, openOverlay } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
@@ -147,6 +147,19 @@ export default class Inbox extends View {
     return null;
   }
 
+  // As T3's tooltip group: 150ms to the first card; while one is up, or was under 400ms ago, the next opens at once.
+  detailsFor(address, cx) {
+    this.detailsWait?.cancel();
+    if (!address) {
+      if (this.details) this.detailsClosed = Date.now();
+      this.details = null;
+    } else if (this.details || Date.now() - (this.detailsClosed ?? 0) < 400) this.details = address;
+    else this.detailsWait = cx.timer.after(150, (cx) => {
+      this.details = address;
+      cx.notify();
+    });
+  }
+
   render(cx) {
     const t = theme(), now = Date.now();
     const every = agents(), all = terminals(), ps = panes(), sp = spaces();
@@ -206,8 +219,8 @@ export default class Inbox extends View {
 
     const title = namer();
     const hover = (a) => (on, cx) => {
-      if (on) { this.hovered = a.address; this.opened = null; }
-      else if (this.hovered === a.address) this.hovered = null;
+      if (on) { this.hovered = a.address; this.detailsFor(a.address, cx); }
+      else if (this.hovered === a.address) { this.hovered = null; this.detailsFor(null); }
       cx.notify();
     };
     // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state.
@@ -333,7 +346,8 @@ export default class Inbox extends View {
       .on_mouse_move((_e, cx) => aim({ section }, cx))
       .child(text);
     // Picked up anywhere on a row that can move (not Working, not one whose Settle is still on its way).
-    const row = (el, a) => el
+    const row = (el, a) => el.relative()
+      .when(this.details === a.address && !this.hot && !dragging && !this.sweep?.moved, (r) => r.child(details(a)))
       .on_mouse_down("left", (e) => {
         if (sectionOf(a) === "working" || this.pending[a.address] !== undefined) return;
         this.drag = { from: a.address, at: e.position, grab: e.local_position?.y ?? 0, height: e.bounds?.height ?? 0, moved: false, target: null };
@@ -348,8 +362,8 @@ export default class Inbox extends View {
     const open = (a) => (_e, cx) => {
       if (justDropped()) return;
       run("agent.focus", { terminal: a.address });
-      // Its details would sit over what it just opened, until the pointer comes back.
-      this.opened = a.address;
+      // As a T3 tooltip, a click takes its card down until the pointer comes back.
+      this.detailsFor(null);
       cx.notify();
     };
     // Says whether it moved on to another agent.
@@ -394,17 +408,16 @@ export default class Inbox extends View {
 
     const machineOf = (a) => a.address.includes("/") ? a.address.split("/")[0] : null;
     const branchOf = (a) => ps.find((p) => p.pane === a.pane)?.branch;
-    // A row's details on hover, as T3's thread card. To its right: a HoverCard doesn't flip, but clamped at the window's
-    // bottom this one still clears its row. shortcut: a window too narrow for 320px beside the sidebar pushes it over the row.
-    // While a control in the row is lit, that control's own label speaks instead.
-    const details = (a, trigger) => {
+    // A row's details, as T3's thread card: on the row's right from its top. A 1px anchor just outside its top right corner, as
+    // a Popup hangs from its trigger's bottom left; clamped at the window's bottom the card slides up and still clears the row.
+    // A control lit in the row speaks for itself instead, as T3's group lets one tooltip up at a time.
+    const details = (a) => {
       const line = (mark, text) => h_flex().gap(8).min_w(0).items_center().child(mark).child(div().min_w(0).truncate().text_color(t.foreground + "bf").child(text));
       const machine = machineOf(a), branch = branchOf(a), pic = icon(a.program, 12, t.muted);
-      const shown = !dragging && !this.sweep?.moved && !this.hot && this.hovered === a.address && this.opened !== a.address;
-      return HoverCard.new(`details-${a.address}`).anchor("left_center").open_delay(150).close_delay(0).trigger(trigger)
-        .content(!shown ? div() : v_flex().ml(4).max_w(320).p(12).gap(8).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12)
+      return Popup.new(`details-${a.address}`, div()).absolute().top(-1).right(-1).size(1)
+        .content(v_flex().ml(4).max_w(320).p(12).gap(8).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_lg().text_size(12)
           .child(div().min_w(0).truncate().font_medium().text_color(t.foreground).child(title(a)))
-          .child(v_flex().gap(6)
+          .child(v_flex().pl(2).gap(6)
             .when(Boolean(a.space_name), (el) => el.child(line(avatar(a.space, a.space_name, 12), a.space_name)))
             .when(Boolean(machine), (el) => el.child(line(svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted), machine)))
             .when(Boolean(branch), (el) => el.child(line(svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(t.muted), branch)))
@@ -454,6 +467,7 @@ export default class Inbox extends View {
             this.sweep = null;
             // The card moves away without a pointer-leave event.
             this.hovered = null;
+            this.detailsFor(null);
             settle([a], cx);
             cx.notify();
           })
@@ -468,7 +482,7 @@ export default class Inbox extends View {
               ? pill(t.ansi2, svg("mods/workspace-chrome/circle-check.svg").size(16).flex_none().text_color(t.ansi2), "Done")
               : div().id(`state-${a.address}`).flex_none().child(since(a) > 0 ? ago(since(a), now) : "");
       const base = v_flex().id(`${ghost ? "ghost-" : ""}card-${a.address}`).px(10).py(8).gap(2).flex_none().rounded(10);
-      const drawn = (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a))
+      return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a))
         .on_click(open(a)).on_size_change((size) => { this.cardH = size.height; }))
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
@@ -486,7 +500,6 @@ export default class Inbox extends View {
         .when(Boolean(meta), (el) => el.child(h_flex().gap(6).items_center().text_size(12).text_color(t.dim)
           .child(div().flex_1().min_w(0).truncate().child(meta))
           .when(Boolean(marks), (m) => m.child(marks))));
-      return ghost ? drawn : details(a, drawn);
     };
 
     // A settled row: one dim line; viewing it leaves it settled. Hovered it brightens and its time
@@ -504,19 +517,19 @@ export default class Inbox extends View {
           if (justDropped()) return;
           this.sweep = null;
           this.hovered = null;
+          this.detailsFor(null);
           unsettle(a, cx);
           cx.notify();
         })
         .child(svg("mods/t3-inbox/undo.svg").size(14).flex_none().text_color(lit(`unsettle-${a.address}`, t.muted)));
       const base = h_flex().id(`${ghost ? "ghost-" : ""}slim-${a.address}`).h(30).px(10).gap(8).flex_none().items_center().rounded(8);
-      const drawn = (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
+      return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
         .child(h_flex().id(`slim-mark-${a.address}`).size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).child(ghost ? mark : tipMark(this, t, `slim-space-${a.address}`, a.space_name, mark, { above: true })))
         .child(div().flex_1().min_w(0).truncate().text_color(bright ? t.foreground : t.muted).child(title(a)))
         .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge("unsettle")
           : over ? tip(this.hot, t, `unsettle-${a.address}`, "Unsettle", undo, { action: "t3-inbox.settle", above: true }) : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
-      return ghost ? drawn : details(a, drawn);
     };
 
     // A shelf's header, folding it: label, then count and chevron at the far edge.

@@ -74,7 +74,7 @@ function fixture() {
   };
   const env = {
     View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
-    Popover: { new: element }, HoverCard: { new: element }, Input: { new: element }, Button: { new: element },
+    Popover: { new: element }, HoverCard: { new: element }, Popup: { new: element }, Input: { new: element }, Button: { new: element },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     namer: () => (a) => a.address, Date: { now: () => f.now },
     localStorage: { getItem: (k) => f.data.get(k) ?? null, setItem: (k, v) => f.data.set(k, v) },
