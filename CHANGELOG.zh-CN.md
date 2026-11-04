@@ -4,6 +4,11 @@
 
 ## 2026-11-05
 
+### 动作和 Review 成为独立 mod
+
+- 动作移出 `t3-tabs`，成为 [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod，布局的标签栏现在依赖它。更新后安装 `mods/herdr-actions`；已有的动作会保留。
+- pulls.review 扩展移出本仓库，放到 [fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods) 里，成为 Review 栏和评审窗格。它仍是可选的，见 README 的可选扩展。
+
 ### 视觉
 
 - 标签照 T3 的面板标签：24px 高，放得下时显示完整名字。放不下时最长的先让步，当前标签降到 240px、其他降到 144px，再放不下就滚动，并保持当前标签可见。
@@ -13,6 +18,8 @@
 ### 交互
 
 - 悬停标签时，图标变成 ×，并显示标签详情：卡片和时机都与 Inbox 行一致。
+- 工作区窄于 1024px 时，动作和 Review 栏收成图标和数字。
+- mod 窗格可以给所在的标签和窗格标题栏提供标题、图标和状态；评审窗格就这样显示分析状态。
 - `cmd-]` / `cmd-[` 照 T3 在 Inbox 里走：按画出来的行的顺序，到两端停住；折叠的区只算当前查看的那一行。显示 Lists 时照旧用 Herdr 的 `agent.next`。更新后，在 `keys.json` 的 `layout:herdr-t3` 分区加上 `"cmd-]": "t3-chrome.next"` 和 `"cmd-[": "t3-chrome.prev"`。
 - 查看没有自己行的子 agent 时，点亮它父 agent 的卡片，Settle 也作用在这张卡片上。
 - 关闭标签或窗格时，里面有程序在运行就先确认，空 shell 直接关闭：包括 × 和 `cmd-w` / `cmd-shift-w`。更新后，把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区。Agent 和右键菜单的关闭不变。

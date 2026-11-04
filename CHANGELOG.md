@@ -4,6 +4,11 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-05
 
+### Actions and Review, as mods of their own
+
+- Actions moved out of `t3-tabs` to the [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod, and the layout's tab bar now needs it. After updating, install `mods/herdr-actions`; your actions are kept.
+- The pulls.review extra left this repo for [the fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods), as a Review bar and a review pane. It is still optional: see the README's Extras.
+
 ### Visual
 
 - Tabs are T3's panel tabs: 24px, as wide as their whole names while the room allows. Short of room the longest give way first, the active one to 240px and the rest to 144px, then the strip scrolls and keeps the active tab in view.
@@ -13,6 +18,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 ### Interaction
 
 - A tab's icon turns to × on hover, and hovering a tab shows its details: the same card and timing as an Inbox row's.
+- A work column under 1024px folds Actions and the Review bar to icons and counts.
+- A mod pane can give its tab and pane header a title, an icon and a status; the review pane shows its analysis that way.
 - `cmd-]` / `cmd-[` walk the Inbox as T3 does: the rows it shows, in its order, stopping at either end; a folded shelf only its row in view. Lists keep Herdr's `agent.next`. After updating, add `"cmd-]": "t3-chrome.next"` and `"cmd-[": "t3-chrome.prev"` to your `layout:herdr-t3` section in `keys.json`.
 - A sub-agent in view with no row of its own lights its parent's card, and Settle acts on it.
 - An agent you bring into view that the space filter hides widens the filter to all spaces.
