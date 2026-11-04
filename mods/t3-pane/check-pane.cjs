@@ -9,7 +9,7 @@ function element() {
     if (key in target) return target[key];
     return (...args) => {
       if (key === "when") { if (args[0]) args[1](proxy); }
-      else if (key === "child") node.items.push(args[0]);
+      else if (key === "child" || key === "trigger") node.items.push(args[0]);
       else if (key === "children") node.items.push(...args[0]);
       else if (key === "on_click") node.handlers.click = args[0];
       else if (key === "on_mouse_down") node.handlers[args[0]] = args[1];
@@ -42,13 +42,13 @@ let tab = { id: "b", name: "Release", named: true };
 let sidebar = { id: "root", children: [{ id: "sidebar-lists", active: "lists" }] };
 let props = { pane: "p2" };
 const env = {
-  View: class {}, div: element, svg: element, image: element, h_flex: element,
+  View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, HoverCard: { new: element }, keys: () => [],
   theme: () => ({}), props: () => props, panes: () => [pane, shell], home: () => "/home/me",
   terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
   run: (name, args) => calls.push([name, args]),
 };
 const cx = { notify() {}, stop_propagation() {} };
-// name.js and tree.js are inlined as the mod's own copies are.
+// name.js, tree.js and tip.js are inlined as the mod's own copies are.
 function load(...files) {
   const src = files.map((f) => fs.readFileSync(f, "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ").replace("export default class", "globalThis.Mod = class");
@@ -57,7 +57,7 @@ function load(...files) {
   const mod = new context.Mod(); mod.init(); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const header = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "main.js"));
+const header = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "main.js"));
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);
 assert.deepEqual(take(), [["pane.focus", { pane: "p2" }]]);

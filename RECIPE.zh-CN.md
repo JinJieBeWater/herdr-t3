@@ -49,6 +49,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 ## 注意
 
 - `t3-tabs` 和 `t3-chrome` 用 `find(layout(), "sidebar-lists")` 找 stack；保留节点 id `sidebar`、`sidebar-lists`、`lists`、`inbox`。
+- 悬停提示是 `mods/t3-inbox/tip.js`（用 `HoverCard` 照 T3 Code 的 tooltip 绘制：12px，标签加 `keys()` 读到的快捷键，可带一行暗色说明），各放一份副本。纯图标按钮才有，带文字的控件不加。`.tooltip()` 只收字符串，样式由外壳决定。
 - 只有品牌栏那份 `t3-chrome` 监听 `nextCommand()`；底栏那份没东西可切换。
 - 碰到 index 的 git 命令会再次唤醒目录监听：始终带上 `--no-optional-locks -c core.fsmonitor=false`。
 - Settle 标签大约 0.65 秒后才出现在 `terminals()`：要保留待定值。

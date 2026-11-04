@@ -47,6 +47,7 @@ Left to right, divider 1px `border`:
 ## Watch out
 
 - `t3-tabs` and `t3-chrome` find the stack with `find(layout(), "sidebar-lists")`; keep the node ids `sidebar`, `sidebar-lists`, `lists`, `inbox`.
+- Hover labels are `mods/t3-inbox/tip.js` (a `HoverCard` drawn as T3 Code's tooltip: 12px, the label with its bound key from `keys()`, an optional dim hint), copied to each mod that uses it. Icon-only buttons have one; controls with words don't. `.tooltip()` takes only a string in the shell's own style.
 - Only the brand bar's `t3-chrome` copy listens for `nextCommand()`; the footer copy has nothing to switch.
 - Git that touches the index wakes the folder watch again: always pass `--no-optional-locks -c core.fsmonitor=false`.
 - A settled label takes about 0.65s to show in `terminals()`: keep a pending value.
