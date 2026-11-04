@@ -51,8 +51,8 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | `cmd-shift-b` | `t3-chrome.sidebar` | 侧栏在 Lists 和 Inbox 之间切换 |
 | `cmd-shift-s` | `t3-inbox.settle` | Settle 当前查看的 agent 并跳到下一张卡片，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | 下一个或上一个 agent。显示 Inbox 时照 T3：按 Inbox 画出来的行的顺序走（折叠的区只算当前查看的那一行），到两端停住。显示 Lists 时用 Herdr 的 `agent.next` / `agent.prev` |
-| `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，会结束终端时先确认 |
-| `cmd-shift-w`、`ctrl-alt-x` | `t3-tabs.close-pane` | 关闭窗格，会结束终端时先确认 |
+| `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，里面有程序在运行时先确认 |
+| `cmd-shift-w`、`ctrl-alt-x` | `t3-tabs.close-pane` | 关闭窗格，里面有程序在运行时先确认 |
 
 我自己加在 `global` 里的：
 

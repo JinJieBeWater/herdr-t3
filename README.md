@@ -51,8 +51,8 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-shift-b` | `t3-chrome.sidebar` | Switches the sidebar between Lists and Inbox |
 | `cmd-shift-s` | `t3-inbox.settle` | Settles the agent in view and moves to the next card, or brings it back if it's settled. Only while Inbox shows; a busy or pinned agent stays |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | The next or previous agent. With Inbox showing, as T3's: the rows it draws, in its order (a folded shelf only its row in view), stopping at either end. With Lists showing, Herdr's `agent.next` / `agent.prev` |
-| `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if that ends a terminal |
-| `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if that ends a terminal |
+| `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
+| `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if a program is running in it |
 
 What I add to the `global` section:
 
