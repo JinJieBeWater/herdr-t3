@@ -2,6 +2,19 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-05
+
+### Interaction
+
+- `cmd-]` / `cmd-[` walk the Inbox as T3 does: the rows it shows, in its order, stopping at either end; a folded shelf only its row in view. Lists keep Herdr's `agent.next`. After updating, add `"cmd-]": "t3-chrome.next"` and `"cmd-[": "t3-chrome.prev"` to your `layout:herdr-t3` section in `keys.json`.
+- A sub-agent in view with no row of its own lights its parent's card, and Settle acts on it.
+- An agent you bring into view that the space filter hides widens the filter to all spaces.
+
+### Fixes
+
+- Folding or unfolding a shelf slides its header with the rows, so cards no longer pass over it.
+- The undo notice's Undo is medium and underlines on hover, as T3's.
+
 ## 2026-11-04
 
 Lots of fixes and visual polish, closer to T3 Code.

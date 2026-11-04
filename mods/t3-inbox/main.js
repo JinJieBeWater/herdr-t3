@@ -378,6 +378,10 @@ export default class Inbox extends View {
     const size = this.limit + (fromPage && plan ? 1 : 0) - (plan?.section === "settled" && from !== "settled" ? 1 : 0);
     const page = this.open ? put.slice(0, size) : [];
     const rows = [...page, ...put.filter((a) => viewing(a) && !page.includes(a))];
+    // What the next and previous keys walk (t3-chrome): the rows drawn, in order, and the one in view. Written only when
+    // it changes: every write redraws every mod.
+    const drawn = { order: [...pinned, ...out, ...busyRows, ...rows].map((a) => a.address), view: inView };
+    if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);
 
     const aim = (to, cx) => {
       if (!this.drag?.moved || JSON.stringify(this.drag.target ?? null) === JSON.stringify(to)) return;

@@ -1,6 +1,8 @@
 {
   "layout:herdr-t3": {
     "cmd-shift-b": "t3-chrome.sidebar",
-    "cmd-shift-s": "t3-inbox.settle"
+    "cmd-shift-s": "t3-inbox.settle",
+    "cmd-]": "t3-chrome.next",
+    "cmd-[": "t3-chrome.prev"
   }
 }

@@ -50,12 +50,12 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | --- | --- | --- |
 | `cmd-shift-b` | `t3-chrome.sidebar` | Switches the sidebar between Lists and Inbox |
 | `cmd-shift-s` | `t3-inbox.settle` | Settles the agent in view and moves to the next card, or brings it back if it's settled. Only while Inbox shows; a busy or pinned agent stays |
+| `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | The next or previous agent. With Inbox showing, as T3's: the rows it draws, in its order (a folded shelf only its row in view), stopping at either end. With Lists showing, Herdr's `agent.next` / `agent.prev` |
 
 What I add to the `global` section:
 
 | Key | Command | Does |
 | --- | --- | --- |
-| `cmd-]` / `cmd-[` | `agent.next` / `agent.prev` | Walks agents in the Inbox cards' order; settled ones come last |
 | `cmd-p` | `mod.open:picker` | The same picker as Inbox's Search |
 
 Tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inbox are by mouse.
@@ -69,6 +69,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - Kept: pins, folds, sort, the Settled shelf and settled agents. They live in `data/`, `shared.json` and terminal labels, not in the mod folders. Lost: your own edits to the overwritten files, including the focus ring color; set it again after overwriting the layout.
 - `keys.json` and the extras stay as they are; compare them with the repo only if the commit log mentions them. Commits marked `!` rename things (for example `refactor!: rename the layout and theme to herdr-t3`); follow what they rename.
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
+- `cmd-]` / `cmd-[` are the layout's own now (`t3-chrome.next` / `.prev`): add them to your `layout:herdr-t3` section; they win over `agent.next` in `global`.
 - The agent view is removed (last in commit `a8cbcd4`): after overwriting, delete `"cmd-shift-a": "t3-tabs.view"` from `keys.json`.
 
 ## What it runs

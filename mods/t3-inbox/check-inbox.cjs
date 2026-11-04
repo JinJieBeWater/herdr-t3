@@ -472,3 +472,15 @@ test("a sub-agent in view with no row of its own lights its parent's card, as T3
   f.mod.settleKey(f.cx);
   assert.match(f.mod.pending.A ?? "", /^\d+:/, "the settle key acts on it too");
 });
+
+test("the rows the next and previous keys walk are the ones drawn, in order, with the one in view", () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "working", 200); f.add("C", "idle", 100); f.add("W", "working", 50);
+  f.terms[2].labels.settled = "500:0"; a.focused = true; f.render();
+  assert.deepEqual(JSON.parse(JSON.stringify(f.state["t3-inbox.rows"])), { order: ["A"], view: "A" }, "folded shelves keep their rows out of the walk");
+  f.mod.workOpen = true; f.mod.open = true; f.render();
+  const rows = f.state["t3-inbox.rows"];
+  assert.deepEqual([...rows.order].sort(), ["A", "B", "C", "W"]);
+  assert.equal(rows.order[0], "A");
+  assert.equal(rows.order.at(-1), "C", "Settled last, as drawn");
+  f.render(); assert.equal(f.state["t3-inbox.rows"], rows, "unchanged, it isn't written again: every write redraws every mod");
+});

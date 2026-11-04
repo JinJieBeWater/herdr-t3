@@ -987,6 +987,30 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(Array.from(f.state["t3-actions"].list, a => a.id), ["a2"]);
   }
   {
+    // cmd-] and cmd-[ (t3-chrome.next / .prev): with the Inbox showing, T3's traversal over the rows it draws, from the
+    // one in view, stopping at either end; Lists keep Herdr's agent.next.
+    const f = fixture(256), jobs = [], spawn = cx.spawn;
+    cx.spawn = fn => jobs.push(fn);
+    f.load("t3-chrome"); f.load("t3-chrome", { footer: true });
+    cx.spawn = spawn;
+    assert.equal(jobs.length, 1, "only the brand bar's copy listens");
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    const press = async (command, rows) => {
+      f.state["t3-inbox.rows"] = rows; f.calls.length = 0; f.commands.push(command);
+      jobs[0](cx); await new Promise(resolve => setImmediate(resolve));
+      return f.calls.slice();
+    };
+    const order = ["t0", "vps/t2", "t5"];
+    assert.deepEqual(await press("next", { order, view: "vps/t2" }), [["agent.focus", { terminal: "t5" }]]);
+    assert.deepEqual(await press("prev", { order, view: "vps/t2" }), [["agent.focus", { terminal: "t0" }]]);
+    assert.deepEqual(await press("next", { order, view: "t5" }), [], "at the end it stays, as T3's");
+    assert.deepEqual(await press("prev", { order, view: "t0" }), []);
+    assert.deepEqual(await press("next", { order, view: null }), [["agent.focus", { terminal: "t0" }]], "none in view: the first");
+    assert.deepEqual(await press("prev", { order, view: null }), [["agent.focus", { terminal: "t5" }]], "or the last");
+    f.slots.lists.active = "lists";
+    assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.next", {}]], "Lists keep agent.next");
+  }
+  {
     // Every menu goes by arrows and Enter, and says when a search finds nothing.
     const f = fixture(256), key = (view, id, k) => fire(find(view.render(cx), id), "on_key_down", { key: k }, cx);
     const sort = f.load("t3-agents", { sortMenu: true });
