@@ -1,7 +1,7 @@
 // What a terminal is on, one rule for Inbox cards, the agents list, tabs and pane headers:
 // its Pi session, then (agents only) a tab someone named, then a telling terminal title, else the program.
 // A terminal with no title of its own reports its address (t9) as one: that tells nothing.
-import { terminals, spaces } from "herdr";
+import { terminals, spaces, shared } from "herdr";
 
 const clean = (s) => (s ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
 // Agents' own title marks, by program (the key their status report names): Pi's "π - <session> - <folder>",
@@ -16,6 +16,8 @@ export function namer() {
   const term = new Map(terminals().map((k) => [k.address, k]));
   const tabs = new Map(spaces().flatMap((s) => s.tabs.map((c) => [c.id, { ...c, space: s.name }])));
   return (x) => {
+    // A mod pane goes by the title its mod gives it in shared("<mod>.titles"), keyed by its tab; else its folder name.
+    if (x.mod) return shared(`${x.mod}.titles`)?.[x.tab] || x.title;
     const address = x.address ?? x.terminal;
     const tab = tabs.get(x.tab);
     // A title that only names the folder (Codex's project, Pi with no session) says what the space already does.

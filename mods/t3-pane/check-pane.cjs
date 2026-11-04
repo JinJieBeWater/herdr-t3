@@ -36,6 +36,8 @@ function texts(node, out = []) {
 const calls = [];
 const program = { name: "Pi", key: "pi", agent: true };
 const pane = { pane: "p2", terminal: "t2", tab: "b", title: "pi", cwd: "/home/me/project", program, status: "working" };
+const review = { pane: "p4", terminal: null, mod: "review-pane", tab: "b", title: "review-pane", cwd: null };
+let sharedValues = {};
 const shell = { pane: "p3", terminal: "t3", tab: "b", title: "me@mac: ~/project", cwd: "/home/me/project", program: { name: "zsh", key: "shell", shell: true }, status: null };
 let terms = [{ address: "t2", labels: {} }, { address: "t3", labels: {} }];
 let tab = { id: "b", name: "Release", named: true };
@@ -43,7 +45,7 @@ let sidebar = { id: "root", children: [{ id: "sidebar-lists", active: "lists" }]
 let props = { pane: "p2" };
 const env = {
   View: class {}, div: element, svg: element, image: element, h_flex: element,
-  theme: () => ({}), props: () => props, panes: () => [pane, shell], home: () => "/home/me",
+  theme: () => ({}), props: () => props, panes: () => [pane, shell, review], shared: (k) => sharedValues[k] ?? null, home: () => "/home/me",
   terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
   run: (name, args) => calls.push([name, args]),
 };
@@ -97,6 +99,11 @@ tab.named = true; props = { pane: "p3" };
 assert.equal(named(), "zsh");
 shell.title = "t3";
 assert.equal(named(), "zsh");
+// A mod pane: the title its mod gives itself, else its folder name.
+props = { pane: "p4" };
+assert.equal(texts(header.render())[0], "review-pane");
+sharedValues["review-pane.titles"] = { a: "review · other", b: "review · fix" };
+assert.equal(texts(header.render())[0], "review · fix");
 
 // A settled agent's done dot goes only while the inbox shows.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;
@@ -109,4 +116,4 @@ assert.equal(dots(), shown - 1);
 
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);
-console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule; a settled done dot hides under Inbox; a missing pane renders nothing.");
+console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule, a mod pane's its own title; a settled done dot hides under Inbox; a missing pane renders nothing.");
