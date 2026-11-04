@@ -14,14 +14,16 @@ for m in t3-agents t3-tabs t3-pane; do cp "$src/mods/t3-inbox/name.js" "$src/mod
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$focus/mods/t3-inbox/"
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.
 for d in "$src"/mods/t3-*/; do rsync -a --delete $gen "$d" "$app/mods/$(basename "$d")/"; done
-# The theme picker, stack switches and your focus ring color live in the installed layout; keep them across syncs.
+# The theme picker, stack switches, your focus ring color and a Review block you added (pulls.review) live in the installed layout; keep them across syncs.
 layout="$app/layouts/herdr-t3.json"
 old=$(cat "$layout" 2>/dev/null || echo '{}')
 cp "$src"/layouts/herdr-t3.* "$app/layouts/"
 jq --argjson old "$old" '[$old | .. | objects | .focus? | objects | .color][0] as $c
   | ([$old | .. | objects | select((.id | strings) and .active) | {(.id): .active}] | add // {}) as $active
+  | ([$old | .. | objects | select(.content?.mod? == "pulls-review")][0]) as $review
   | (if $old.theme then .theme = $old.theme else . end)
   | (.. | objects | select((.id | strings) and $active[.id])) |= (.active = $active[.id])
-  | (.. | objects | .focus? | objects | .color) |= ($c // .)' "$layout" > "$layout.tmp"
+  | (.. | objects | .focus? | objects | .color) |= ($c // .)
+  | (if $review then (.. | objects | select(.id? == "tabs-row") | .children) |= (.[0:1] + [$review] + .[1:]) else . end)' "$layout" > "$layout.tmp"
 mv "$layout.tmp" "$layout"
 cp "$src/extras/themes/herdr-t3.json" "$app/themes/"

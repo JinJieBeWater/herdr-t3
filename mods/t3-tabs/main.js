@@ -3,8 +3,6 @@ import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
-import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
-import { watchReview, reviewBar, reviewMenu, initReviewMenu } from "./review.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -20,6 +18,14 @@ const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg"
   : s === "blocked" ? blockedMark(t)
   : div().size(7).flex_none().rounded_full().bg(t.done);
 
+// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
+const glow = (view, id) => (on, cx) => {
+  if (on) view.hot = id;
+  else if (view.hot === id) view.hot = null;
+  cx.notify();
+};
+const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
+
 function find(node, id) {
   if (node?.id === id) return node;
   for (const child of node?.children ?? []) {
@@ -30,11 +36,8 @@ function find(node, id) {
 }
 
 export default class Tabs extends View {
-  init(_props, cx) {
+  init() {
     this.pressed = null;
-    if (props()?.actions === "edit") initEditor(this);
-    if (props()?.actions === "review") initReviewMenu(this);
-    if (!props()?.actions) watchReview(this, cx);
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -52,12 +55,16 @@ export default class Tabs extends View {
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n)))));
   }
 
+  // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
+  // on_size_change reports zoomed pixels; a layout's are logical.
+  fit(size) {
+    const id = props()?.block, px = Math.ceil(size.width / (Number(settings()?.zoom) || 1));
+    if (!id || px === this.fitted) return;
+    this.fitted = px;
+    run("layout.resize", { id, px });
+  }
+
   render() {
-    // Opened as an overlay by the actions control.
-    const overlay = props()?.actions;
-    if (overlay === "menu") return menu(this);
-    if (overlay === "edit") return editorView(this);
-    if (overlay === "review") return reviewMenu(this);
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
@@ -97,22 +104,22 @@ export default class Tabs extends View {
         .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(lit(this, `close-${c.id}`)).on_hover(glow(this, `close-${c.id}`)).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
-    const review = reviewBar(this, t, stop);
+    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
+    // however wide they are, and the window's own buttons stay last.
+    if (props()?.part === "end") return h_flex().size_full().items_center().justify_end().bg(t.chrome)
+      .child(h_flex().id("tabs-end").flex_none().pr(8).gap(4).items_center().on_size_change((size) => this.fit(size))
+        .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
+          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close")))));
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 8;
-    return h_flex().size_full().min_w(0).px(8).pl(lightsPadding).gap(4).items_center().bg(t.chrome)
+    return h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
-      .when(Boolean(review), el => el.child(review))
-      // Actions before +, so + keeps its spot however long the action's name is.
-      .child(div().mr(4).flex_none().child(control(this, t, stop)))
-      .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))
-      .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
-        .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
-        .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)));
   }
 }

@@ -76,7 +76,7 @@ function fixture(width) {
     hc: (args) => { labelled.push([...args]); return Promise.resolve(hcAnswer(args)); }, notify() {},
     run: (name, args) => {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
-      if (name === "layout.resize") slots[args.id].size = { px: args.px };
+      if (name === "layout.resize" && slots[args.id]) slots[args.id].size = { px: args.px };
     },
     openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ({ app: {} }),
   };
@@ -85,8 +85,8 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js and tree.js, the shared naming and status rules, and t3-tabs' actions.js and review.js are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "actions.js", "review.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js and tree.js, the shared naming and status rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -720,8 +720,17 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.pop(), ["tab.move", { id: "b0", index: 2 }]);
   fire(find(root, "tab-other"), "on_mouse_down:right", {}, cx);
   assert.equal(f.overlays.pop().props.target.id, "other");
-  fire(find(root, "tab-new"), "on_click", {}, cx);
+  // + and the window's buttons are the bar's end, a block of their own after the other mods' controls, sized to fit.
+  assert.equal(find(root, "tab-new"), null);
+  const end = f.load("t3-tabs", { part: "end", block: "tabs-end" });
+  fire(find(end.render(cx), "tab-new"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["tab.new", {}], "the tab bar's + opens a tab in its space");
+  f.calls.length = 0;
+  fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
+  fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
+  assert.deepEqual(f.calls.splice(0), [["layout.resize", { id: "tabs-end", px: 34 }]], "once per change");
+  f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
+  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tab-new", "minimize", "maximize", "close-window"], "the window's buttons stay last");
   fire(find(root, "close-b0"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b0" }]);
   const pane = f.load("t3-pane", { pane: "p0" });
@@ -739,7 +748,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Icons: every UI glyph drawn is a file that exists.
   const f = fixture(256);
   f.spaces()[0].tabs[0].status = "blocked";
-  const trees = [f.load("t3-tabs").render(cx), f.load("t3-agents").render(cx), f.load("t3-spaces").render(cx), f.load("t3-chrome").render(cx), f.load("t3-chrome", { footer: true }).render(cx), f.load("t3-pane", { pane: "p0" }).render(cx)].flatMap(walk);
+  const trees = [f.load("t3-tabs").render(cx), f.load("t3-tabs", { part: "end" }).render(cx), f.load("t3-agents").render(cx), f.load("t3-spaces").render(cx), f.load("t3-chrome").render(cx), f.load("t3-chrome", { footer: true }).render(cx), f.load("t3-pane", { pane: "p0" }).render(cx)].flatMap(walk);
   const glyphs = trees.filter(n => n.kind === "svg").map(n => n.source).filter(s => !s.endsWith("/spinner.svg") && s !== "icons/pi.svg");
   assert.ok(glyphs.length >= 5);
   for (const s of glyphs) {
@@ -747,72 +756,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
 }
 (async () => {
-  {
-    const f = fixture(256);
-    assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review bar before git is read");
-  }
-  {
-    // The Review bar's counts: a line per file (renamed and untracked too), the arrows from the branch headers,
-    // and the commits the branch adds to the default branch, resolved as the CLI does.
-    const f = fixture(256);
-    const tabs = f.load("t3-tabs");
-    const scope = f.scopes.get("t3-tabs");
-    let status = ["# branch.oid 1a2b", "# branch.head feat", "# branch.upstream origin/feat", "# branch.ab +2 -1",
-      "1 .M N... 100644 100644 100644 1a2b 1a2b src/a.js", "2 R. N... 100644 100644 100644 1a2b 1a2b R100 new.js\told.js", "? notes.md", ""].join("\n");
-    const refs = { "main...HEAD": "0\t4\n" }; // No origin/HEAD, no origin/main: the local main.
-    scope.exec = async (_command, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" }
-      : args.includes("symbolic-ref") ? { code: 1, stdout: "" }
-      : args.includes("rev-list") ? (refs[args.at(-1)] ? { code: 0, stdout: refs[args.at(-1)] } : { code: 128, stdout: "" })
-      : (assert.ok(args.includes("--untracked-files=all"), "a new folder counts its files, as the page it opens"), { code: 0, stdout: status });
-    const review = await scope.readReview("/repo/src");
-    const show = r => tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
-    assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", baseRef: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
-    show(review);
-    const bar = tabs.render(cx);
-    assert.deepEqual(strings(find(bar, "review-open")), ["4", "ahead of main"], "the branch's count says what it is against");
-    assert.deepEqual(strings(find(bar, "review-changes")), ["3", "uncommitted"]);
-    assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
-      ["review-pick", "review-open", "review-changes", "review-ahead", "review-behind"], "its icon, then its segments, spaced as the bar's other buttons");
-    assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
-    for (const n of walk(bar)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
-    fire(find(bar, "review-pick"), "on_hover", true, cx);
-    assert.equal(find(tabs.render(cx), "review-pick").style.text_color, f.theme().foreground, "the branch icon brightens");
-    fire(find(bar, "review-pick"), "on_hover", false, cx);
-    for (const id of ["review-open", "review-changes", "review-ahead", "review-behind"]) assert.equal(find(bar, id).items[0].style.text_color, undefined, "a count has no color of its own: color means an agent's status");
-    assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
-    assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
-    assert.equal(walk(bar).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips, like the rest of the layout");
-    f.shown.cwd = "/other";
-    assert.equal(find(tabs.render(cx), "pulls-review"), null, "another location never shows this one's counts, even before its own read");
-    delete f.shown.cwd;
-    assert.ok(find(tabs.render(cx), "review-open"), "coming back shows the last read at once");
-    show({ ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 });
-    assert.deepEqual(find(tabs.render(cx), "pulls-review").items.map(n => n.key), ["review-pick"], "no counts: the icon stays, the way in on a clean default branch");
-    show({ ...review, newer: 1, gone: true });
-    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["4", "ahead of main · merged?"], "a deleted upstream shows, not only in the label");
-    assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label,
-      "Review the branch: 4 commits on feat, not on main · main has 1 newer commit · origin/feat is gone, likely merged");
-    const full = status;
-    status = full.replace(/^# branch\.ab .*\n/m, "");
-    const lost = await scope.readReview("/repo");
-    assert.deepEqual([lost.gone, lost.ahead, lost.behind], [true, 0, 0], "an upstream without branch.ab is gone");
-    status = full.replace("origin/feat", "origin/main");
-    const tracking = await scope.readReview("/repo");
-    assert.deepEqual([tracking.ahead, tracking.behind], [0, 1], "tracking main: ↑ repeats N ahead of main, so it goes; ↓ stays");
-    // With origin/main the accessibility label names the remote ref: a fork's origin/main can lag the upstream it mirrors.
-    refs["origin/main...HEAD"] = "0\t43\n";
-    show(await scope.readReview("/repo"));
-    assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label, "Review the branch: 43 commits on feat, not on origin/main");
-    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["43", "ahead of main"], "the bar stays short: the remote ref is left to the label");
-    delete refs["origin/main...HEAD"];
-    refs["main...HEAD"] = "0\t0\n";
-    assert.equal((await scope.readReview("/repo")).unmerged, 0, "nothing past main: no Review");
-    refs["main...HEAD"] = "0\t4\n";
-    for (const head of ["(detached)", "main"]) {
-      status = full.replace("# branch.head feat", `# branch.head ${head}`);
-      assert.equal((await scope.readReview("/repo")).unmerged, 0, `on ${head} the CLI opens its ref picker: no Review`);
-    }
-  }
   {
     // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
     const f = fixture(256);
@@ -840,11 +783,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // A hover style's color reaches text but never an svg: Herdr colors an icon as it builds the tree. So a button with an icon brightens by state.
-    const f = fixture(256), views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), f.load("t3-pane", { pane: "p0" }), f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox")];
+    const f = fixture(256), views = [f.load("t3-chrome"), f.load("t3-chrome", { footer: true }), f.load("t3-tabs"), f.load("t3-pane", { pane: "p0" }), f.load("t3-spaces"), f.load("t3-agents"), f.load("t3-inbox"), f.load("t3-tabs", { part: "end" })];
     fire(views[3].render(cx), "on_hover", true, cx); // A pane's buttons show while its header is hovered.
     for (const view of views) for (const n of walk(view.render(cx))) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
     const rest = f.theme().dim, bright = f.theme().foreground;
-    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[2], "tab-new"], [views[2], "action-add"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
+    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[7], "tab-new"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
       const color = () => find(view.render(cx), id).style.text_color;
       assert.equal(color(), rest, `${id} at rest`);
       fire(find(view.render(cx), id), "on_hover", true, cx);
@@ -860,77 +803,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(toggle(), "on_hover", true, cx);
     fire(toggle(), "on_click", {}, cx);
     assert.equal(toggle().style.text_color, rest, "the toggle goes with the sidebar, so it can't wait for the pointer to report leaving");
-  }
-  {
-    // The branch icon reads on click, then its menu's rows open one commit, or one branch against the base.
-    const f = fixture(256), tabs = f.load("t3-tabs"), scope = f.scopes.get("t3-tabs"), ranges = [];
-    scope.exec = async (_command, args) => {
-      if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: "abcdef123456\x1ffix: a\x1f2 hours ago\n" }; }
-      if (args.includes("for-each-ref")) return { code: 0, stdout: "feat\nOther\n" };
-      return { code: 0, stdout: "3\n" };
-    };
-    const r = { root: "/repo", branch: "feat", base: "main", baseRef: "origin/main", unmerged: 4 };
-    tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
-    let reading;
-    const run = { ...cx, spawn: fn => { reading = fn(run); } };
-    const click = async review => {
-      tabs.reviews.set(JSON.stringify(scope.reviewLocation()), review);
-      fire(find(tabs.render(cx), "review-pick"), "on_mouse_down:left", { position: { x: 900, y: 20 } }, cx);
-      fire(find(tabs.render(cx), "review-pick"), "on_click", {}, run);
-      await reading;
-      return f.overlays.at(-1);
-    };
-    const spec = await click(r);
-    assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
-    assert.equal(JSON.stringify(spec.props.branches), JSON.stringify([{ name: "Other", count: 3 }]), "the current branch isn't offered against itself");
-    assert.equal(spec.height, 10 + 36 + 24 + 32 + 9 + 24 + 32, "the popup fits its rows");
-    assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
-    assert.equal(spec.at.x, 892);
-    assert.equal(spec.at.y, 40 * f.settings().zoom, "it hangs from the tab bar, not over the bar");
-    fire(find(tabs.render(cx), "review-open"), "on_click", {}, cx);
-    assert.equal(f.overlays.at(-1).props.analyze, true, "a count's click starts the analysis");
-    const menu = f.load("t3-tabs", spec.props).render(cx);
-    fire(find(menu, "review-commit-abcdef123456"), "on_click", {}, cx);
-    assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
-    assert.ok(!f.overlays.at(-1).props.analyze, "a menu pick doesn't");
-    assert.equal(f.overlays.at(-1).mod, "pulls-review");
-    fire(find(menu, "review-branch-Other"), "on_click", {}, cx);
-    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...Other");
-    // Search narrows both lists; Enter opens the first left.
-    const searching = f.load("t3-tabs", spec.props), inner = f.scopes.get("t3-tabs");
-    let typed = "", submit;
-    inner.InputState = { new: () => ({ on: (event, fn) => { if (event === "submit") submit = fn; }, value: () => typed, focus() {} }) };
-    inner.initReviewMenu(searching);
-    typed = "oTHER";
-    assert.equal(find(searching.render(cx), "review-commit-abcdef123456"), null, "a commit that doesn't match goes");
-    assert.ok(find(searching.render(cx), "review-branch-Other"), "matching ignores case");
-    submit();
-    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...Other", "Enter opens the only match left");
-    typed = "abcdef";
-    assert.ok(find(searching.render(cx), "review-commit-abcdef123456"), "a sha's start matches");
-    submit();
-    assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
-    typed = "nope";
-    const opened = f.overlays.length;
-    submit();
-    assert.equal(f.overlays.length, opened, "no match: Enter opens nothing");
-    await click({ ...r, branch: "main", unmerged: 0 });
-    assert.equal(ranges.at(-1), "HEAD", "on the default branch: its recent commits");
-    delete tabs.reviewPress;
-    fire(find(tabs.render(cx), "review-pick"), "on_click", {}, run);
-    await reading;
-    assert.equal(f.overlays.at(-1).at, undefined, "a click with no press opens at the pointer");
-    const before = f.overlays.length;
-    scope.exec = async () => ({ code: 128, stdout: "" });
-    await click(r);
-    assert.equal(f.overlays.length, before, "nothing to pick, no menu");
-    f.state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "true" }] };
-    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
-    assert.equal(f.overlays.at(-1).at, undefined, "the Actions menu too: a click with no press opens at the pointer");
-    fire(find(tabs.render(cx), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
-    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
-    assert.equal(f.overlays.at(-1).at.x, 992);
-    assert.equal(f.overlays.at(-1).at.y, 40 * f.settings().zoom, "the Actions menu hangs from the tab bar as the Review menu does");
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });
