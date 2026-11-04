@@ -5,7 +5,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, InputState, Input } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout } from "herdr";
+import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, openOverlay } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
@@ -62,10 +62,12 @@ export default class Inbox extends View {
     cx.timer.every(1000, (cx) => { if (this.ticking) cx.notify(); });
     // The cards' times (5m, 2h) move on by the minute, as T3's do.
     cx.timer.every(60000, (cx) => cx.notify());
-    // `t3-inbox.settle` (cmd-shift-s in keys.json): see settleKey in render.
+    // `t3-inbox.settle` (cmd-shift-s in keys.json): see settleKey in render. `t3-inbox.clear`: Clear's confirm dialog.
     cx.spawn(async (cx) => {
       for (;;) {
-        if (await nextCommand() === "settle") this.settleKey?.(cx);
+        const command = await nextCommand();
+        if (command === "settle") this.settleKey?.(cx);
+        else if (command === "clear") this.clearSettled?.();
         cx.notify();
       }
     });
@@ -513,24 +515,9 @@ export default class Inbox extends View {
     // Clear closes settled agents' panes; Herdr then closes emptied tabs. The one in view stays.
     const spaceNow = sp.find((s) => s.active), tabNow = spaceNow?.tabs.find((c) => c.active)?.id;
     const doomed = put.filter((a) => a.pane && !a.focused && a.tab !== tabNow);
-    // With nothing to clear the button goes, and a gone element hears no pointer-leave: drop its ask and hover.
-    if (doomed.length === 0) {
-      this.clearing = false;
-      if (this.hot === "settled-clear") this.hot = null;
-    }
-    // The ask ends a moment after the pointer leaves the button, or after 3s if the pointer never came (keyboard).
-    const unask = (ms, cx) => {
-      this.unask?.cancel();
-      this.unask = ms > 0 ? cx.timer.after(ms, (cx) => { this.clearing = false; cx.notify(); }) : null;
-    };
-    const clear = (cx) => {
-      if (!this.clearing) {
-        this.clearing = true;
-        unask(this.hot === "settled-clear" ? 0 : 3000, cx);
-        return;
-      }
-      this.clearing = false;
-      unask(0, cx);
+    // With nothing to clear the button goes, and a gone element hears no pointer-leave: drop its hover.
+    if (doomed.length === 0 && this.hot === "settled-clear") this.hot = null;
+    this.clearSettled = () => {
       const gone = new Set(doomed.map((a) => a.pane));
       for (const id of new Set(doomed.map((a) => a.space))) {
         const s = sp.find((s) => s.id === id), tabs = s?.tabs.map((c) => c.id) ?? [];
@@ -544,19 +531,17 @@ export default class Inbox extends View {
       if (tabNow) { run("space.select", { id: spaceNow.id }); run("tab.select", { id: tabNow }); }
     };
     const clearButton = doomed.length > 0 && h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
-      .text_color(this.clearing ? t.blocked : lit("settled-clear", t.dim)).on_hover((on, cx) => {
-        if (this.clearing) unask(on ? 0 : 400, cx);
-        glow("settled-clear")(on, cx);
-      })
-      .role("button").accessibility_label(this.clearing ? `Close ${doomed.length} settled agents` : "Clear settled agents")
-      .on_click((e, cx) => {
+      .text_color(lit("settled-clear", t.dim)).on_hover(glow("settled-clear"))
+      .role("button").accessibility_label("Clear settled agents")
+      .on_click((_e, cx) => {
         cx.stop_propagation();
-        // A double-click only asks: the second click of it never answers.
-        if (this.clearing && e.click_count > 1) return;
-        clear(cx);
-        cx.notify();
+        openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: {
+          title: `Close ${doomed.length} pane${doomed.length === 1 ? "" : "s"}?`,
+          detail: "This ends the terminals of your settled agents. The tab you're on stays.",
+          command: { name: "t3-inbox.clear" },
+        } });
       })
-      .child(this.clearing ? `Clear ${doomed.length}?` : "Clear");
+      .child("Clear");
     const tail = v_flex().id("settled").flex_none()
       .child(shelf("settled-header", "Settled", put.length, this.open, () => {
         this.open = !this.open;

@@ -321,46 +321,23 @@ for (const width of [208, 240, 256, 320, 480]) {
     t0.focused = true; remote.focused = false;
   }
   {
-    // Clear asks once on the button, then closes settled panes; a space left empty closes whole.
-    // A fake timer: `due` is the pending revert and its delay, null once cancelled or run.
-    let due = null;
-    const later = { ...run, timer: { after(ms, fn) { const task = { ms, fn, cancel() { if (due === task) due = null; } }; return (due = task); } } };
-    const tick = () => { const { fn } = due; due = null; fn(later); };
-    const label = () => strings(find(inbox.render(later), "settled-clear"));
+    // Clear asks through Herdr's confirm dialog; only its answer closes settled panes.
     const n = f.calls.length;
     f.spaces()[0].tabs[0].active = true;
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
-    assert.equal(f.calls.length, n, "the first click only asks");
-    assert.deepEqual(label(), ["Clear 1?"]);
-    assert.equal(due.ms, 3000, "asked without the pointer (keyboard), the ask ends on its own");
-    tick();
-    assert.deepEqual(label(), ["Clear"]);
-    fire(find(inbox.render(later), "settled-clear"), "on_hover", true, later);
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
-    assert.equal(due, null, "under the pointer the ask stays");
-    fire(find(inbox.render(later), "settled-clear"), "on_hover", false, later);
-    assert.equal(due.ms, 400, "leaving the button ends the ask shortly");
-    fire(find(inbox.render(later), "settled-clear"), "on_hover", true, later);
-    assert.equal(due, null, "coming back in time keeps it");
-    assert.deepEqual(label(), ["Clear 1?"]);
-    fire(find(inbox.render(later), "settled-clear"), "on_click", { click_count: 2 }, later);
-    assert.equal(f.calls.length, n, "a double-click's second click doesn't clear");
-    assert.deepEqual(label(), ["Clear 1?"]);
+    fire(find(inbox.render(run), "settled-clear"), "on_click", {}, run);
+    assert.equal(f.calls.length, n, "the click only asks");
+    const { mod, kind, props } = f.overlays.pop();
+    assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"]);
     f.panes().push({ pane: "p9", tab: "b2", terminal: "t9" });
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
+    inbox.render(run); inbox.clearSettled();
     assert.deepEqual(f.calls.splice(n), [["pane.close", { pane: "p2" }], ["space.select", { id: "s0" }], ["tab.select", { id: "b0" }]], "another pane keeps the space");
     f.panes().pop();
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
+    inbox.render(run); inbox.clearSettled();
     assert.deepEqual(f.calls.splice(n), [["tab.new", { space: "s2", folder: "/work/s2" }], ["pane.close", { pane: "p2" }],
       ["space.select", { id: "s0" }], ["tab.select", { id: "b0" }]], "an emptied space keeps a fresh shell tab where its terminal was, not where the space began");
-    fire(find(inbox.render(later), "settled-clear"), "on_click", {}, later);
-    assert.equal(due, null, "asked under the pointer: no timer");
     remote.focused = true;
-    assert.equal(find(inbox.render(later), "settled-clear"), null, "the agent in view is never cleared");
+    assert.equal(find(inbox.render(run), "settled-clear"), null, "the agent in view is never cleared");
     remote.focused = false;
-    assert.deepEqual(label(), ["Clear"], "a button that went away under the pointer comes back unasked");
-    assert.equal(f.calls.length, n);
   }
   remote.focused = true;
   inbox.render(run);
