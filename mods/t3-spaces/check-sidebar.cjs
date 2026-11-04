@@ -943,7 +943,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     for (const [name, view] of Object.entries({ tabs: f.load("t3-tabs"), inbox, agents: f.load("t3-agents"), pane: f.load("t3-pane", { pane: "p0" }) })) {
       const nodes = walk(view.render(cx));
       assert.ok(nodes.some(n => n.source === "icons/pi.svg"), `${name}: the icon is there`);
-      assert.ok(!nodes.some(n => String(n.key).startsWith("tip-") && walk(n).some(c => c.source === "icons/pi.svg")), `${name}: no label on a program's icon`);
+      // A label whose trigger is the icon alone; a tab's, with its name, is the tab's.
+      assert.ok(!nodes.some(n => String(n.key).startsWith("tip-") && strings(n.items[0]).length === 0 && walk(n).some(c => c.source === "icons/pi.svg")), `${name}: no label on a program's icon`);
     }
   }
   {
@@ -960,13 +961,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
     assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
+    assert.deepEqual(strings(find(tabs.render(cx), "tip-tab-other").style.content), ["other"], "its whole name on hover");
+    assert.ok(find(tabs.render(cx), "tab-other").items.some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
     fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
     fire(close(), "on_click", {}, cx);
     assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }]);
-    fire(find(tabs.render(cx), "title-other"), "on_hover", true, cx);
-    assert.deepEqual(strings(find(tabs.render(cx), "tip-title-other").style.content), ["other"], "its whole name on hover");
-    fire(find(tabs.render(cx), "title-other"), "on_hover", false, cx);
+    assert.deepEqual(strings(find(tabs.render(cx), "tip-tab-other").style.content), [], "not when the pointer is away");
     fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_move", {}, cx);
     assert.equal(find(tabs.render(cx), "tab-b0").style.opacity, 0.5, "the dragged tab fades");

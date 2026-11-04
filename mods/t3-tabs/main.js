@@ -94,7 +94,7 @@ export default class Tabs extends View {
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
-      return h_flex().id(`tab-${c.id}`).relative().h(24).max_w(144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).max_w(144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
@@ -127,10 +127,10 @@ export default class Tabs extends View {
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
           .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
-        // Its whole name on hover, as T3's: a tab is cut at 144px.
-        .child(tip(this.hot, t, `title-${c.id}`, name, div().id(`title-${c.id}`).min_w(0).truncate().on_hover(glow(this, `title-${c.id}`))
-          .child(c.zoomed ? `${name} Z` : name)).min_w(0))
+        .child(div().min_w(0).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))));
+      // Its whole name on hover, as T3's: a tab is cut at 144px. On the tab, as a card's wrapper won't shrink for a name to truncate.
+      return tip(over && this.pressed === null ? `tab-${c.id}` : null, t, `tab-${c.id}`, name, tab);
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
