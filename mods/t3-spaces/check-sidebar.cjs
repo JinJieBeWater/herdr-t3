@@ -65,6 +65,7 @@ function fixture(width) {
     Button: { new: id => element("button").id(id) },
     Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: id => element("popup").id(id) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
+    VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) }, v_virtual_list: (id, n, size, key, draw) => { const list = element("list").id(id); for (const row of draw({ start: 0, end: n }, cx)) list.child(row); return list; },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
     machines: () => [{ name: null, layout: "ready" }, { name: "vps", layout: "ready" }], focused: () => shown,
@@ -300,9 +301,17 @@ for (const width of [208, 240, 256, 320, 480]) {
   child.status = "idle";
   assert.deepEqual(strings(find(inbox.render(run), "working-header")), ["Working", "1"], "a working tree moves down to Working");
   fire(find(inbox.render(run), "card-t0"), "on_hover", true, run);
-  assert.equal(find(inbox.render(run), "settle-t0"), null, "a working tree can't be settled");
+  // Settle sits in the corner faded out, fading in over the state when it's offered (T3's group-hover crossfade).
+  const hidden = find(inbox.render(run), "settle-t0"), labels = f.labelled.length;
+  assert.ok(hidden.style.opacity === 0 && !("role" in hidden.style) && !hidden.handlers.on_click && !hidden.handlers["on_mouse_down:left"], "a working tree can't be settled: faded, its button takes no press");
+  assert.equal(f.labelled.length, labels);
+  assert.deepEqual(JSON.parse(JSON.stringify(hidden.style.transition)), ["opacity", { duration: 150, easing: "ease-out" }]);
+  assert.equal(find(find(inbox.render(run), "card-t0"), "state-t0").style.opacity ?? 1, 1);
   remote.status = "done"; k.turn = 4;
   fire(find(inbox.render(run), "card-vps/t2"), "on_hover", true, run);
+  const offered = inbox.render(run);
+  assert.equal(find(offered, "settle-vps/t2").style.opacity, 1);
+  assert.equal(walk(find(offered, "corner-vps/t2")).find(n => n.style.opacity === 0 && walk(n).some(c => c.key === "state-vps/t2" || strings(c).length)) != null, true, "the state fades out under it");
   fire(find(inbox.render(run), "settle-vps/t2"), "on_click", {}, run);
   const [, , value] = f.labelled.pop();
   assert.match(value, /^settled=\d+:4$/, "the label keeps when and the turn it was settled at");
@@ -684,10 +693,13 @@ for (const width of [208, 240, 256, 320, 480]) {
 
   // New opens a terminal tab in the space picked: no agent step.
   const menu = f.load("t3-new-menu"); f.calls.length = 0;
-  menu.choose(f.spaces()[0]);
+  menu.choose(menu.items().find(item => item.space?.id === f.spaces()[0].id));
   assert.deepEqual(f.calls.splice(0), [["tab.new", { space: f.spaces()[0].id }]], "New opens a tab");
-  menu.choose(menu.items().find(s => s.id === "new"));
-  assert.deepEqual(f.calls.pop(), ["space.new", {}], "New space opens a space");
+  // Two machines: New space asks which, as T3's Add project asks for an environment.
+  fire(find(menu.render(cx), "space-new"), "on_click", {}, cx);
+  assert.deepEqual(f.calls, [], "New space asks first");
+  menu.choose(menu.items().find(item => item.machine === "vps"));
+  assert.deepEqual(f.calls.pop(), ["space.new", { machine: "vps" }], "New space opens a space there");
   f.calls.length = 0;
   {
     // The sidebar's way to a new machine, in the footer both Lists and Inbox keep.
