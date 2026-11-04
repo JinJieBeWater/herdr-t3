@@ -435,3 +435,16 @@ test("settling shows T3's undo notice over the first shelf for 5s; Undo puts the
   f.render(8000); assert.equal(note().style.opacity[0], 0); assert.equal(find(f.tree, "undo-notice-undo"), null, "no Undo once it's going");
   f.render(8300); assert.equal(note(), null);
 });
+
+test("folding Working slides its header down with the list, as T3's markers move, so nothing passes over it", () => {
+  const f = fixture(), a = f.add("A", "working", 300); f.add("B", "working", 200); f.add("C", "idle", 100); a.focused = true;
+  f.terms[2].labels.settled = "500:0"; f.mod.workOpen = true; f.mod.open = true; f.mod.listH = 600; f.render();
+  f.mod.workOpen = false; f.render(1100);
+  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -84, opacity: 1 }, "the header starts where it was, a card higher");
+  assert.equal(flyOf(f, "m:settled").key, "fly-m:settled-0", "Settled sits at the bottom: it doesn't move");
+  assert.ok(find(f.tree, "working-header"), "the header's own element is inside its wrapper");
+  f.render(1116);
+  assert.equal(at(flyOf(f, "m:working")).top, 0);
+  f.mod.workOpen = true; f.render(1300);
+  assert.equal(at(flyOf(f, "m:working")).top, 84, "unfolding, it goes back up from where it was");
+});
