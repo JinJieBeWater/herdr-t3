@@ -59,7 +59,7 @@ function fixture(width) {
   const state = { "agents.sort": "grouped" };
   const calls = [], overlays = [], stores = new Map(), scopes = new Map(), labelled = [], shown = { agent: "child" };
   let hcAnswer = () => ({ code: 0 });
-  const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
+  const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f", ansi3: "#c8a84b", ansi4: "#5f8fe0", ansi11: "#e8cf7a", ansi12: "#8fb4f2" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
     Button: { new: id => element("button").id(id) },
@@ -755,6 +755,16 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
       ["mods/workspace-chrome/git-branch.svg", "review-open", "div", "review-changes", "div", "review-ahead", "div", "review-behind"], "one outlined group: its icon, then segments with rules only between them");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
+    const countColor = id => find(tabs.render(cx), id).items[0].style.text_color;
+    assert.equal(countColor("review-open"), f.theme().ansi4);
+    fire(find(bar, "review-open"), "on_hover", true, cx);
+    assert.equal(countColor("review-open"), f.theme().ansi12, "hovered, the count takes its bright twin");
+    fire(find(bar, "review-changes"), "on_hover", true, cx);
+    fire(find(bar, "review-open"), "on_hover", false, cx);
+    assert.equal(countColor("review-changes"), f.theme().ansi11, "the old segment's late leave doesn't clear the new one");
+    assert.equal(countColor("review-open"), f.theme().ansi4);
+    fire(find(bar, "review-changes"), "on_hover", false, cx);
+    assert.equal(countColor("review-changes"), f.theme().ansi3);
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
     assert.equal(walk(bar).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips, like the rest of the layout");
