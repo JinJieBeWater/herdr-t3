@@ -1,7 +1,7 @@
 // New: pick the space (or a new one) and open a terminal tab there.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, spaces, panes, run, closeOverlay, props, window, keys, shared, home, layout } from "herdr";
+import { theme, spaces, panes, run, closeOverlay, props, window, keys, shared, home } from "herdr";
 
 function shortcut(name) {
   const k = keys().find(b => b.section === "global" && b.action === name);
@@ -28,15 +28,6 @@ function place(s, ps) {
 }
 const NEW = { id: "new", name: "New space" };
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
-
 export default class NewMenu extends View {
   init() {
     this.at = 0;
@@ -56,8 +47,6 @@ export default class NewMenu extends View {
   choose(s) {
     if (!s) return;
     closeOverlay(props().overlay);
-    // Opening a tab means seeing it: the agent view would keep it out of sight.
-    if (find(layout(), "view")?.active === "agent") run("layout.select", { stack: "view", child: "main" });
     if (s === NEW) run("space.new");
     else run("tab.new", { space: s.id });
   }

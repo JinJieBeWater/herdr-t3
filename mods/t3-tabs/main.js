@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, agents, terminals, focused, run, openOverlay, theme, window, layout, settings, nextCommand } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings } from "herdr";
 import { namer } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 
@@ -18,10 +18,6 @@ const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg"
   : s === "blocked" ? blockedMark(t)
   : div().size(7).flex_none().rounded_full().bg(t.done);
 
-// The work area is a stack in the layout: the active tab ("main"), or one agent full size ("agent").
-const agentView = () => find(layout(), "view")?.active === "agent";
-const switchView = () => run("layout.select", { stack: "view", child: agentView() ? "main" : "agent" });
-
 function find(node, id) {
   if (node?.id === id) return node;
   for (const child of node?.children ?? []) {
@@ -32,15 +28,8 @@ function find(node, id) {
 }
 
 export default class Tabs extends View {
-  init(_props, cx) {
+  init() {
     this.pressed = null;
-    // `t3-tabs.view` (cmd-shift-a in keys.json) switches between the tabs and the agent view.
-    cx.spawn(async (cx) => {
-      for (;;) {
-        if (await nextCommand() === "view" && find(layout(), "view")) switchView();
-        cx.notify();
-      }
-    });
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -57,21 +46,6 @@ export default class Tabs extends View {
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n)))));
   }
 
-  // In the agent view tabs mean nothing: the bar names the agent shown instead.
-  agentBar(t, title, live, st) {
-    const shown = focused()?.agent;
-    const a = agents().find(x => x.address === shown);
-    if (!a) return div().id("agent-bar").flex_1().px(8).text_size(13).text_color(t.dim).child("No agent");
-    const p = a.program;
-    const s = st(a);
-    const news = s !== "done" || live.some(x => x.address === a.address);
-    return h_flex().id("agent-bar").flex_1().min_w(0).h(28).px(8).gap(8).items_center().text_size(13)
-      .when(Boolean(p?.icon), el => el.child(p.tint ? svg(p.icon).size(14).text_color(t.muted) : image(p.icon).size(14)))
-      .child(div().flex_none().max_w(320).truncate().text_color(t.foreground).child(title(a)))
-      .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(a.space_name ?? ""))
-      .when(["working", "blocked", "done"].includes(s) && news, el => el.child(mark(t, s)));
-  }
-
   render() {
     const t = theme();
     const space = spaces().find(p => p.active);
@@ -81,23 +55,6 @@ export default class Tabs extends View {
     const every = agents(), all = terminals(), under = subAgents(every, all);
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const ps = panes(), title = namer();
-    // The agent view keeps the keyboard on its agent, so a split or new tab would land unseen.
-    // A new shell or mod pane in this space brings the tabs back, focused; a new agent's (often an agent
-    // spawning one) doesn't take the view, the lists show it. Focus moved by keys follows the same split.
-    const f = focused();
-    const fresh = this.known ? ps.filter(p => !this.known.has(p.pane)) : [];
-    this.known = new Set(ps.map(p => p.pane));
-    const isAgent = (p) => p.status != null || Boolean(p.program?.agent);
-    const here = new Set(spaces().find(s => s.id === f?.space)?.tabs.map(c => c.id) ?? []);
-    const moved = f?.pane && this.lastPane && f.pane !== this.lastPane ? ps.find(p => p.pane === f.pane) : null;
-    if (f?.pane) this.lastPane = f.pane;
-    if (agentView()) {
-      const plain = fresh.find(p => here.has(p.tab) && !isAgent(p)) ?? (moved && !isAgent(moved) ? moved : null);
-      if (plain) {
-        run("layout.select", { stack: "view", child: "main" });
-        run("pane.focus", { pane: plain.pane });
-      } else if (moved && f.agent !== moved.terminal) run("agent.focus", { terminal: moved.terminal });
-    }
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, label, action) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
       .on_mouse_down("left", stop).on_click(action).child(label);
@@ -134,12 +91,9 @@ export default class Tabs extends View {
       : 8;
     return h_flex().size_full().min_w(0).px(8).pl(lightsPadding).gap(4).items_center().bg(t.chrome)
       .on_mouse_up("left", () => { this.pressed = null; })
-      .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? (agentView() ? "agent.prev" : "tab.prev") : (agentView() ? "agent.next" : "tab.next")); })
+      .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
-      .child(agentView() ? this.agentBar(t, title, live, st)
-        : h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
-      .when(Boolean(find(root, "view")), el => el.child(button("view-toggle", svg(`mods/workspace-chrome/${agentView() ? "layers" : "square"}.svg`).size(14), switchView)
-        .role("button").accessibility_label(agentView() ? "Show tabs" : "Show one agent")))
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
       .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), () => run("tab.new")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))

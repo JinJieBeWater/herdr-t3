@@ -324,7 +324,6 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        // agent.focus, not pane.focus: in tabs it focuses the pane, and it picks what the agent view shows.
         .on_click(() => run("agent.focus", { terminal: a.address }))
         .child(h_flex().id(`agent-fold-${a.address}`).size(18).flex_none().items_center().justify_center()
           .when(subs.length > 0, el => el.accessibility_label(this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {

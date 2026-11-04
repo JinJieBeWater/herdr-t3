@@ -218,14 +218,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(space, "on_mouse_down:left", {}, cx);
   fire(space, "on_mouse_up:left", {}, cx);
   assert.deepEqual(f.calls.pop(), ["space.select", { id: "s0" }]);
-  // In the agent view a space shows its agent, or the tabs when it has none.
-  f.slots.view = { id: "view", active: "agent" };
-  for (const id of ["space-s2", "space-s1"]) {
-    fire(find(st, id), "on_mouse_down:left", {}, cx);
-    fire(find(st, id), "on_mouse_up:left", {}, cx);
-  }
-  assert.deepEqual(f.calls.splice(-3), [["agent.focus", { terminal: "vps/t2" }], ["layout.select", { stack: "view", child: "main" }], ["space.select", { id: "s1" }]]);
-  delete f.slots.view;
   fire(find(st, "space-s2"), "on_mouse_down:right", {}, cx);
   assert.deepEqual(JSON.parse(JSON.stringify(f.overlays.pop().props.target)), { id: "s2" });
   fire(find(at, "ag-sort"), "on_click", {}, cx);
@@ -639,45 +631,13 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(strings(find(f.load("t3-tabs").render(cx), "tab-b0")).includes("mine"), "an unnamed tab reads as its agent's session");
   assert.ok(strings(f.load("t3-pane", { pane: "p0" }).render(cx)).includes("mine"), "its pane header reads the same");
 
-  // The agent view: a "view" stack in the layout; the bar names the agent shown instead of listing tabs.
-  assert.equal(find(f.load("t3-tabs").render(cx), "view-toggle"), null, "no view stack, no toggle");
-  f.slots.view = { id: "view", active: "main" };
-  fire(find(f.load("t3-tabs").render(cx), "view-toggle"), "on_click", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "view", child: "agent" }]);
-  f.slots.view.active = "agent"; f.shown.agent = "t0";
-  const bar = f.load("t3-tabs").render(cx);
-  assert.ok(!find(bar, "tab-b0") && strings(find(bar, "agent-bar")).includes("mine"), "the agent view names its agent, no tabs");
-  fire(find(bar, "view-toggle"), "on_click", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "view", child: "main" }]);
-
-  // The agent view keeps the keyboard on its agent: a new shell here brings the tabs back, focused on it;
-  // a new agent pane doesn't take the view; focus moved by keys to an agent pane shows that agent.
-  f.slots.view.active = "agent"; f.shown.pane = "p0"; f.shown.space = "s0"; f.shown.agent = "t0";
-  const watch = f.load("t3-tabs"); watch.render(cx);
-  f.calls.length = 0;
-  f.panes().push({ pane: "p8", terminal: "t8", tab: "b0", title: "pi", program: { key: "pi", name: "Pi", agent: true }, status: null });
-  watch.render(cx);
-  assert.equal(f.calls.length, 0, "a new agent pane doesn't take the view");
-  f.panes().push({ pane: "p9", terminal: "t9", tab: "b0", title: "zsh", program: { key: "shell", name: "zsh", shell: true }, status: null });
-  watch.render(cx);
-  assert.deepEqual(f.calls.splice(0), [["layout.select", { stack: "view", child: "main" }], ["pane.focus", { pane: "p9" }]], "a new shell leaves the agent view, focused");
-  f.panes().push({ pane: "p7", terminal: "t7", tab: "b2", title: "zsh", program: { key: "shell", name: "zsh", shell: true }, status: null });
-  watch.render(cx);
-  assert.equal(f.calls.length, 0, "another space's new shell doesn't");
-  f.shown.pane = "p2"; watch.render(cx);
-  assert.deepEqual(f.calls.pop(), ["agent.focus", { terminal: "vps/t2" }], "focus moved to an agent pane shows it");
-  watch.render(cx);
-  assert.equal(f.calls.length, 0, "only changes act");
-  f.panes().splice(-3); delete f.shown.pane; delete f.shown.space;
-
-  // New leaves the agent view, then opens a terminal tab in the space picked: no agent step.
+  // New opens a terminal tab in the space picked: no agent step.
   const menu = f.load("t3-new-menu"); f.calls.length = 0;
   menu.choose(f.spaces()[0]);
-  assert.deepEqual(f.calls.splice(0), [["layout.select", { stack: "view", child: "main" }], ["tab.new", { space: f.spaces()[0].id }]], "New leaves the agent view and opens a tab");
+  assert.deepEqual(f.calls.splice(0), [["tab.new", { space: f.spaces()[0].id }]], "New opens a tab");
   menu.choose(menu.items().find(s => s.id === "new"));
   assert.deepEqual(f.calls.pop(), ["space.new", {}], "New space opens a space");
   f.calls.length = 0;
-  delete f.slots.view;
   assert.equal(find(root, "sidebar-toggle"), null, "with the sidebar shown its own header has the toggle");
   f.slots.sidebar.hidden = true;
   const bare = tabs.render(cx);

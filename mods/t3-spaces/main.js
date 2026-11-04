@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, agents, machines, panes, layout, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window } from "herdr";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
@@ -16,25 +16,6 @@ function place(s, ps) {
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
-// The agent view keeps the space of the agent it shows, so space.select alone changes nothing there:
-// show this space's agent (its active tab's first), or the tabs when it has none.
-function select(s) {
-  if (find(layout(), "view")?.active === "agent") {
-    const tab = s.tabs.find((c) => c.active)?.id, mine = agents().filter((a) => a.space === s.id);
-    const a = mine.find((a) => a.tab === tab) ?? mine[0];
-    if (a) return run("agent.focus", { terminal: a.address });
-    run("layout.select", { stack: "view", child: "main" });
-  }
-  run("space.select", { id: s.id });
-}
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
@@ -339,7 +320,7 @@ export default class Spaces extends View {
         this.pressed = null;
         this.over = null;
         if (from !== null && over === i && from !== i) run("space.move", { id: spaces()[from].id, index: i + 1 });
-        else if (from === i) select(w);
+        else if (from === i) run("space.select", { id: w.id });
         cx.notify();
       })
       .on_mouse_down("right", () => this.menu(w))
