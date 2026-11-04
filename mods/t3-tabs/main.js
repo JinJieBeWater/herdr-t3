@@ -56,11 +56,13 @@ export default class Tabs extends View {
   stripAt(shown) {
     const room = this.room ?? 0, width = (c) => this.tabW[c.id] ?? 0, i = shown.findIndex(c => c.active);
     const key = `${shown[i]?.id}:${i}:${room}`;
+    if (shown[i]?.id !== this.activeId) { this.wasActive = this.activeId; this.activeId = shown[i]?.id; }
     if (i >= 0 && room > 0 && key !== this.revealed && shown.every(width)) {
       this.revealed = key;
       const left = shown.slice(0, i).reduce((sum, c) => sum + width(c) + TAB_GAP, 0), right = left + width(shown[i]);
       if (left < this.strip) this.strip = left;
-      else if (right > this.strip + room) this.strip = right - room;
+      // Wider than the room, its start shows: that's where its icon and the name begin.
+      else if (right > this.strip + room) this.strip = Math.min(left, right - room);
     }
     const all = shown.reduce((sum, c) => sum + width(c) + TAB_GAP, -TAB_GAP);
     this.strip = Math.max(0, Math.min(this.strip, all - room));
@@ -110,14 +112,19 @@ export default class Tabs extends View {
       const status = words.includes("blocked") ? "blocked"
         : live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
-      // As T3's panel tabs: 24px, 12px words, 144px at most. The icon's slot is the close button: hovering the tab turns it to ×.
+      // As T3's panel tabs: 24px, 12px words, 144px at most; the active one, past T3, 240px, to read more of its name without a hover. The icon's slot is the close button: hovering the tab turns it to ×.
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
-      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).max_w(144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).max_w(c.active ? 240 : 144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
-        .on_size_change((size, cx) => { this.tabW[c.id] = size.width / settings().zoom; cx.notify(); })
+        // A tab changes width as it's picked or left, a frame after the strip moved for it: place the strip again.
+        .on_size_change((size, cx) => {
+          this.tabW[c.id] = size.width / settings().zoom;
+          if (c.active || c.id === this.wasActive) this.revealed = null;
+          cx.notify();
+        })
         .on_hover((on, cx) => {
           if (on) this.overTab = c.id;
           else if (this.overTab === c.id) this.overTab = null;
@@ -150,7 +157,7 @@ export default class Tabs extends View {
           .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
         .child(div().min_w(0).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))));
-      // Its whole name on hover, as T3's: a tab is cut at 144px. On the tab, as a card's wrapper won't shrink for a name to truncate.
+      // Its whole name on hover, as T3's: a tab is cut short. On the tab, as a card's wrapper won't shrink for a name to truncate.
       return tip(over && this.pressed === null ? `tab-${c.id}` : null, t, `tab-${c.id}`, name, tab);
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();

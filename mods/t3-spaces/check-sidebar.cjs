@@ -693,6 +693,23 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(at(), 162, "a swipe stops at the last tab");
     wheel(10000, 0);
     assert.equal(at(), 0, "and at the first");
+    // Picked, a tab widens a frame later: the strip moves again for its real width, and for the old one's narrowing.
+    pick("a");
+    assert.equal(at(), 0);
+    pick("d");
+    assert.equal(at(), 162);
+    fire(find(view.render(cx), "tab-d"), "on_size_change", { width: 240 }, cx);
+    assert.equal(at(), 302, "the widened tab's end is in view");
+    pick("c");
+    fire(find(view.render(cx), "tab-c"), "on_size_change", { width: 240 }, cx);
+    fire(find(view.render(cx), "tab-d"), "on_size_change", { width: 100 }, cx);
+    assert.equal(at(), 208, "its start lands at the left edge, by the real widths");
+    fire(find(view.render(cx), "tab-a"), "on_size_change", { width: 120 }, cx);
+    assert.equal(at(), 208, "another tab's width doesn't move the strip");
+    for (const [id, width] of [["a", 100], ["c", 100]]) fire(find(view.render(cx), `tab-${id}`), "on_size_change", { width }, cx);
+    pick("b");
+    room(60);
+    assert.equal(at(), 104, "a tab wider than the room shows its start");
     room(1000);
     pick("d");
     assert.equal(at(), 0, "with room for every tab the strip stays put");
@@ -988,6 +1005,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
     const tab = find(tabs.render(cx), "tab-other").style;
     assert.deepEqual([tab.h, tab.text_size, tab.max_w, tab.pl, tab.gap], [24, 12, 144, 6, 2]);
+    assert.equal(find(tabs.render(cx), "tab-b0").style.max_w, 240, "the active tab reads more of its name");
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg", "at rest it's the tab's icon, a terminal's when it has no program");
