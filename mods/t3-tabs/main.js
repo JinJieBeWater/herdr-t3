@@ -117,7 +117,7 @@ export default class Tabs extends View {
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .when(Boolean(program?.icon), el => el.child(tipMark(this, t, `program-${c.id}`, program.name, program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14))))
+        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(status != null, el => el.child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status))))
         // Raised: the hover fill is darker than the selected tab it sits on. The -4 keeps the tab as wide as its 12px icon made it.

@@ -329,7 +329,7 @@ export default class Spaces extends View {
             .hover(s => s.text_color(t.foreground)).on_hover(this.glow(`machine-connect-${m}`))
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
-            .child(repair?.busy ? "Connecting…" : "Connect"), { hint: "It was rebuilt or replaced: this reaches the new one" }))))
+            .child(repair?.busy ? "Connecting…" : "Connect")))))
         .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
           .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
           .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))

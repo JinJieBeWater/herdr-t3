@@ -197,7 +197,7 @@ export default class Agents extends View {
         l === "├" || l === "└" ? div().absolute().left(16.25 + 20 * j).top(-4).h(19).w(9.75).border_l(1.5).border_b(1.5).rounded_bl(6).border_color(t.input) : null,
       ].filter(Boolean)))
       .child(h_flex().size(18).flex_none().items_center().justify_center()
-        .when(Boolean(pic), el => el.child(tipMark(this, t, `sub-program-${k.address}`, k.program?.name, pic))))
+        .when(Boolean(pic), el => el.child(pic)))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
         .child(div().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(name)))
       .child(this.status(t, { status: st }, "", `sub-status-${k.address}`));
@@ -349,8 +349,7 @@ export default class Agents extends View {
           .when(subs.length > 0, el => el.role("button").accessibility_label(this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {
             cx.stop_propagation();
             this.toggleFold(a.address, cx);
-          })).when(Boolean(pic), el => el.child(tipMark(this, t, `program-${a.address}`,
-            subs.length > 0 ? (this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents") : a.program?.name, pic))))
+          })).when(Boolean(pic), el => el.child(pic)))
         .child(h_flex().flex_1().min_w(0).gap(8).items_center()
           .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(name))
           .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
