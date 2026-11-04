@@ -418,6 +418,8 @@ test("settling shows T3's undo notice over the first shelf for 5s; Undo puts the
   f.render(1016);
   assert.equal(note().style.opacity[0], 1);
   assert.ok(find(find(f.tree, "shelves"), "undo-notice-undo"), "over the first shelf's header, as T3 hosts it");
+  const undo = find(f.tree, "undo-notice-undo");
+  assert.ok("font_medium" in undo.style && "hover" in undo.style, "as T3's InlineButton: medium, underlined on hover");
   // A second settle soon after joins the same notice.
   f.rows.find((x) => x.address === "B").focused = true; a.focused = false; f.settle(); f.render(2000);
   assert.equal(texts(note())[0], "Settled 2 agents,");
