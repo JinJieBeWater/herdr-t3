@@ -878,53 +878,69 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
-    // A row's details, as T3's thread card: at the row's top right, with T3's tooltip group for timing.
+    // A row's details, as T3's thread card: at the row's top right, with T3's tooltip group for timing and fade.
     const f = fixture(256), inbox = f.load("t3-inbox");
     f.panes()[0].branch = "feat/x";
     f.panes()[1].branch = "main";
-    const popup = (a) => find(inbox.render(cx), `details-${a}`);
+    const anchor = (a) => find(inbox.render(cx), `details-${a}`);
+    const card = (a) => anchor(a)?.style.content;
     const row = (a) => find(inbox.render(cx), `card-${a}`);
     const hover = (a, on) => fire(row(a), "on_hover", on, cx);
     cx.timers.length = 0; // Other tests' hovers left theirs.
-    const waits = () => cx.timers.filter(t => t.ms === 150 && !t.gone);
-    const wait = () => { for (const t of waits()) { t.gone = true; t.fn(cx); } };
-    assert.equal(popup("t0"), null, "not until hovered");
+    const due = (ms) => cx.timers.filter(t => t.ms === ms && !t.gone);
+    const pass = (ms) => { for (const t of due(ms)) { t.gone = true; t.fn(cx); } };
+    assert.equal(anchor("t0"), null, "nothing until hovered");
     hover("t0", true);
-    assert.equal(popup("t0"), null, "the first waits");
-    assert.equal(waits().length, 1);
+    assert.deepEqual([anchor("t0").style.top, anchor("t0").style.right, anchor("t0").style.size], [-1, -1, 1], "its bottom left, where a Popup hangs from, is the row's top right");
+    assert.equal(card("t0"), undefined, "the first waits, its anchor already measured");
+    assert.equal(due(150).length, 1);
     hover("t0", false);
-    wait();
-    assert.equal(popup("t0"), null, "leaving first cancels it");
+    assert.equal(due(150).length, 0, "leaving first cancels it");
+    assert.equal(anchor("t0"), null);
     hover("t0", true);
-    wait();
+    pass(150);
+    assert.equal(card("t0").style.opacity, 0, "drawn clear first: a transition adopts the first value it sees");
+    assert.ok(card("t0").key && "transition" in card("t0").style, "and it needs an id to sample by");
+    pass(34);
+    assert.equal(card("t0").style.opacity, 1, "then it fades in");
+    assert.equal(card("t0").style.ml, 4);
     assert.ok(row("t0").style.relative !== undefined);
-    assert.deepEqual([popup("t0").style.top, popup("t0").style.right, popup("t0").style.size], [-1, -1, 1], "its bottom left, where a Popup hangs from, is the row's top right");
-    assert.equal(popup("t0").style.content.style.ml, 4);
-    assert.deepEqual(strings(popup("t0").style.content).slice(1), ["P", "project 0", "feat/x", "Pi"], "its mark and project, branch, program; no machine on this one");
-    assert.equal(strings(popup("t0").style.content)[0], row("t0").style.accessibility_label, "led by the title the row shows");
+    assert.deepEqual(strings(card("t0")).slice(1), ["P", "project 0", "feat/x", "Pi"], "its mark and project, branch, program; no machine on this one");
+    assert.equal(strings(card("t0"))[0], row("t0").style.accessibility_label, "led by the title the row shows");
     // The pointer can report entering the next row before leaving this one.
     hover("vps/t2", true);
-    assert.equal(waits().length, 0, "the next opens at once");
-    assert.equal(popup("t0"), null, "one up at a time");
-    assert.deepEqual(strings(popup("vps/t2").style.content).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
+    assert.equal(due(150).length, 0, "the next opens at once");
+    assert.equal(card("t0"), undefined, "one up at a time");
+    assert.equal(card("vps/t2").style.opacity, 1, "unfaded");
+    assert.deepEqual(strings(card("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
+    assert.equal(find(inbox.render(cx), "tip-machine-vps/t2").style.open_delay, 0, "a control's label in the row opens at once too");
     hover("t0", false);
-    assert.ok(popup("vps/t2"), "the late leave of the row before doesn't close it");
+    assert.ok(card("vps/t2"), "the late leave of the row before doesn't close it");
     hover("vps/t2", false);
-    assert.equal(popup("vps/t2"), null, "it closes with no delay");
+    assert.equal(card("vps/t2").style.opacity, 0, "the last one fades out");
+    assert.equal(due(150).length, 1);
+    pass(150);
+    assert.equal(anchor("vps/t2"), null, "then it's gone");
     hover("t0", true);
-    assert.ok(popup("t0"), "within 400ms the next still opens at once");
+    assert.equal(card("t0").style.opacity, 1, "within 400ms the next still opens at once");
     inbox.hot = "machine-t0";
-    assert.equal(popup("t0"), null, "a lit control's own label speaks instead");
+    assert.equal(card("t0"), undefined, "a lit control's own label speaks instead");
     inbox.hot = null;
-    assert.ok(popup("t0"), "and it's back with the pointer on the row");
+    assert.ok(card("t0"), "and it's back with the pointer on the row");
     fire(row("t0"), "on_click", {}, cx);
-    assert.equal(popup("t0"), null, "a click takes it down");
+    assert.equal(card("t0").style.opacity, 0, "a click takes it down");
+    pass(150);
+    assert.equal(card("t0"), undefined);
     hover("t0", false);
     inbox.detailsClosed = Date.now() - 400;
+    assert.equal(find(inbox.render(cx), "tip-machine-vps/t2").style.open_delay, 150, "past 400ms a label waits again");
     hover("t0", true);
-    assert.equal(popup("t0"), null, "past 400ms the wait is back");
-    wait();
-    assert.ok(popup("t0"));
+    assert.equal(card("t0"), undefined, "and so does the card");
+    pass(150);
+    assert.equal(card("t0").style.opacity, 0);
+    hover("t0", false);
+    hover("t0", true);
+    assert.equal(card("t0").style.opacity, 1, "coming back while it fades out lifts it again");
   }
   {
     // A hover label, as T3's: the label with its bound key, a dim hint, and nothing up unless the button is lit.
