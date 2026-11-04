@@ -11,6 +11,9 @@ const OWN = {
   opencode: (s) => s.replace(/^OC \| /, ""),
 };
 
+// What a pane runs, for its icon: its program, or for a mod pane what its mod gives in shared("<mod>.program") ({ icon, tint }).
+export const programOf = (x) => x.mod ? shared(`${x.mod}.program`) ?? null : x.program;
+
 // Snapshot once per render; the returned function takes an agent or a pane (status set = an agent).
 export function namer() {
   const term = new Map(terminals().map((k) => [k.address, k]));

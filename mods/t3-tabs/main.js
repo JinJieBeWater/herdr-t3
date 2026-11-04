@@ -1,7 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
-import { namer } from "./name.js";
+import { namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
 import { watchReview, reviewBar } from "./review.js";
@@ -71,7 +71,7 @@ export default class Tabs extends View {
       // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
       const mine = ps.filter(p => p.tab === c.id);
       const lead = mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
-      const program = lead?.program;
+      const program = lead && programOf(lead);
       const name = c.named ? c.name : lead ? title(lead) : "Terminal";
       // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
       const words = every.filter(a => a.tab === c.id).map(st);
