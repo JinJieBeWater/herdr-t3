@@ -910,6 +910,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     scope.exec = async () => ({ code: 128, stdout: "" });
     await click(r);
     assert.equal(f.overlays.length, before, "nothing to pick, no menu");
+    f.state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "true" }] };
+    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
+    assert.equal(f.overlays.at(-1).at, undefined, "the Actions menu too: a click with no press opens at the pointer");
+    fire(find(tabs.render(cx), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
+    fire(find(tabs.render(cx), "action-more"), "on_click", {}, cx);
+    assert.equal(f.overlays.at(-1).at.x, 992);
+    assert.equal(f.overlays.at(-1).at.y, 40 * f.settings().zoom, "the Actions menu hangs from the tab bar as the Review menu does");
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

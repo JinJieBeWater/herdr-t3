@@ -2,7 +2,7 @@
 // The tab bar draws the control; the menu and the editor are this mod opened as overlays.
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces } from "herdr";
+import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings } from "herdr";
 
 const KEY = "t3-actions";
 export const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
@@ -21,6 +21,10 @@ export const lit = (view, id, color = theme().dim) => (view.hot === id ? theme()
 const state = () => shared(KEY) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
 const editor = (id) => openOverlay({ mod: "t3-tabs", kind: "dialog", width: 440, height: 404, props: { actions: "edit", id } });
+
+// A menu hangs from the tab bar under the click, not on the pointer, where it would cover the bar; the app keeps it in the window.
+// With no press to read (assistive tech clicks without one), the app's default: the pointer.
+export const underBar = (press) => press && { x: press.x - 8, y: 40 * settings().zoom };
 
 export function runAction(a) {
   setShared(KEY, { ...state(), last: a.id });
@@ -46,8 +50,9 @@ export function control(view, t, stop) {
     .child(div().w(1).h(14).bg(t.border))
     .child(div().id("action-more").h_full().px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more", t.muted)).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click(() => openOverlay({
-        mod: "t3-tabs", kind: "popup", width: 280, height: Math.min(420, 59 + s.list.length * 32), props: { actions: "menu" },
+        mod: "t3-tabs", kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 59 + s.list.length * 32), props: { actions: "menu" },
       }))
+      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
       .child(svg("mods/workspace-chrome/chevron-down.svg").size(12)));
 }
 

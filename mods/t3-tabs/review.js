@@ -5,7 +5,8 @@
 
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay, closeOverlay, props, theme, settings } from "herdr";
+import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay, closeOverlay, props, theme } from "herdr";
+import { underBar } from "./actions.js";
 
 // The shipped `changes` mod's lookup, except for a mod pane (below).
 function reviewLocation() {
@@ -185,10 +186,7 @@ export function reviewBar(view, t, stop) {
         const { commits, branches } = await readPicks(r);
         if (!commits.length && !branches.length) return;
         const height = Math.min(480, 10 + 36 + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + branches.length * 32 : 0));
-        // Hanging from the tab bar under the click, not on the pointer, where it would cover the bar; the app keeps it in the window.
-        // With no press to read (assistive tech clicks without one), the app's default: the pointer.
-        const at = view.reviewPress && { x: view.reviewPress.x - 8, y: 40 * settings().zoom };
-        openOverlay({ mod: "t3-tabs", kind: "popup", at, width: 480, height, props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches, height } });
+        openOverlay({ mod: "t3-tabs", kind: "popup", at: underBar(view.reviewPress), width: 480, height, props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches, height } });
       }))
       .child(svg("mods/workspace-chrome/git-branch.svg").size(12)))
     .children(segments.flatMap(s => [div().w(1).h(14).flex_none().bg(t.border), s]));
