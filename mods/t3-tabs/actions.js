@@ -40,19 +40,19 @@ export function runAction(a) {
 export function control(view, t, stop) {
   const s = state(), main = primary(s);
   const box = (id) => h_flex().id(id).h(26).flex_none().items_center().rounded(6).text_size(12).on_mouse_down("left", stop);
-  if (!main) return box("action-add").px(8).gap(6).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
+  if (!main) return box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     .role("button").accessibility_label("Add action").on_click(() => editor(null))
-    .child(icon("play").size(12)).child("Add action");
-  return box("actions").gap(4).text_color(t.muted)
-    .child(h_flex().id("action-run").h_full().px(8).gap(6).items_center().rounded(6).text_color(lit(view, "action-run", t.muted)).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
+    .child(icon("play").size(14)).child("Add action");
+  return box("actions").gap(4).text_color(t.dim)
+    .child(h_flex().id("action-run").h_full().px(8).gap(8).items_center().rounded(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
-      .child(icon(main.icon).size(12)).child(div().max_w(140).truncate().child(main.name)))
-    .child(div().id("action-more").h_full().px(5).flex().items_center().rounded(6).text_color(lit(view, "action-more", t.muted)).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
+      .child(icon(main.icon).size(14)).child(div().max_w(140).truncate().child(main.name)))
+    .child(div().id("action-more").size(26).flex().items_center().justify_center().rounded(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click(() => openOverlay({
         mod: "t3-tabs", kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 59 + s.list.length * 32), props: { actions: "menu" },
       }))
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
-      .child(svg("mods/workspace-chrome/chevron-down.svg").size(12)));
+      .child(svg("mods/workspace-chrome/chevron-down.svg").size(14)));
 }
 
 export function menu(view) {
