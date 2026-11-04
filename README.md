@@ -97,6 +97,8 @@ Where a review opens is `open` in `extras/mods/pulls-review/config.json`:
 
 With the fork (`"herdr"`, `"pwa"`, `"browser"`), a click on a count also starts the diff's AI analysis, or follows the one already running. A pick from the branch icon's menu doesn't.
 
+In `"herdr"` mode the pane's tab and header show its analysis with an agent's marks: a spinner while it runs; if it ended while you were on another tab, a dot when it finished or `!` when it failed, until you look. It isn't an agent, so it stays out of the agents list and Inbox.
+
 1. Install one pulls.review CLI on Herdr's `PATH`: `bun add --global jin.review` for the fork ([my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo), which installs next to `pulls.review`; one background server for every repo, stopped with `jin.review --stop`), or `bun add --global pulls.review` for `"official"`.
 2. Copy `extras/mods/pulls-review/` (and, for `"herdr"`, `extras/mods/review/`) into `~/.config/herdr-app/mods/` and set `open` in its `config.json`. The Review bar opens it; there's no key to bind.
 3. For the pane's analysis, pick a local agent once, with the gear in the pane's header or in the browser's review settings (`jin.review -d`): the daemon keeps that choice.

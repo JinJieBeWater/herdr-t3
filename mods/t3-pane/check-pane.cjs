@@ -108,6 +108,15 @@ assert.equal(texts(header.render())[0], "review · fix");
 sharedValues["review-pane.program"] = { icon: "mods/review-pane/logo.svg", tint: false };
 images.length = 0; header.render();
 assert.deepEqual(images, ["mods/review-pane/logo.svg"]);
+// Its status, the word its mod gives for its tab, with an agent's marks; another tab's isn't its own.
+const bare = header.render().items.length;
+sharedValues["review-pane.status"] = { a: "working" };
+assert.equal(header.render().items.length, bare);
+for (const word of ["working", "blocked", "done"]) {
+  sharedValues["review-pane.status"] = { b: word };
+  assert.equal(header.render().items.length, bare + 1, word);
+}
+delete sharedValues["review-pane.status"];
 
 // A settled agent's done dot goes only while the inbox shows.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;

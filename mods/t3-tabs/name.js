@@ -14,6 +14,9 @@ const OWN = {
 // What a pane runs, for its icon: its program, or for a mod pane what its mod gives in shared("<mod>.program") ({ icon, tint }).
 export const programOf = (x) => x.mod ? shared(`${x.mod}.program`) ?? null : x.program;
 
+// What a mod pane reports of its tab in shared("<mod>.status"), as the word an agent would.
+export const modStatus = (x) => shared(`${x.mod}.status`)?.[x.tab] ?? null;
+
 // Snapshot once per render; the returned function takes an agent or a pane (status set = an agent).
 export function namer() {
   const term = new Map(terminals().map((k) => [k.address, k]));

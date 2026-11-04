@@ -75,6 +75,7 @@ const element = (named = null) => {
 };
 const press = (id) => { handlers.get(`${id}.on_click`)({}, cx); drawn.clear(); pane.render(cx); };
 const store = new Map(), sharedStore = new Map();
+let shownTab = "b";
 const calls = [], bodies = [], routes = [], puts = [], browsed = [];
 // A text field's state: its value, and its submit and blur handlers.
 const field = { text: "", events: {}, value() { return this.text; }, set_value(v) { this.text = v; }, on(event, h) { this.events[event] = h; return true; } };
@@ -88,6 +89,7 @@ const env = {
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => calls.push(["scroll", i]) }) },
   TextView: { markdown: element },
   panes: () => [{ pane: "p9", mod: "review", tab: "b", zoomed: false }], focused: () => ({ tab: "b" }),
+  spaces: () => [{ active: true, tabs: [{ id: shownTab, active: true }] }],
   props: () => ({ root: "/repo", page: "/branch/fix", n: 1 }),
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
@@ -190,6 +192,36 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(!drawn.has("review-status-panel"));
   pane.key({ keystroke: "escape" }, cx);
   assert.ok(pane.popup !== "status");
+  // Its tab and pane header show the word an agent would: a run from the click, then how it ended until the tab is looked at.
+  const word = () => sharedStore.get("review.status")?.b ?? null;
+  const ended = (analysis) => { pane.review.analysis = { state: "running", agent: true }; pane.report(); pane.review.analysis = { agent: true, ...analysis }; pane.report(); };
+  const finished = { state: "current" }, failed = { state: "current", error: "boom" };
+  shownTab = "other"; pane.startingUntil = Date.now() + 1000; pane.review.analysis = { state: "current", agent: true }; pane.report();
+  assert.equal(word(), "working", "from the click, before the run exists");
+  pane.startingUntil = Date.now() - 1; pane.report();
+  assert.equal(word(), null, "a start that never came isn't a finished run");
+  ended(finished);
+  assert.equal(word(), "done");
+  const written = sharedStore.get("review.status"); pane.report();
+  assert.equal(sharedStore.get("review.status"), written, "no change, no write: every write redraws every mod");
+  shownTab = "b"; pane.render(cx);
+  assert.equal(word(), null, "looking at the tab reads it");
+  shownTab = "other"; ended(failed);
+  assert.equal(word(), "blocked");
+  ended(finished);
+  assert.equal(word(), "done", "the next run's end replaces it");
+  shownTab = "b"; ended(failed);
+  assert.equal(word(), null, "ended in view, there's no news");
+  assert.equal(analyzeButton().text, "Analysis failed", "and the pane's button keeps the failure");
+  // Tabs without a review pane drop out; a second pane's word stays, and writing yours doesn't reorder it into a loop.
+  const onePane = mainScope.panes;
+  mainScope.panes = () => [{ pane: "p9", mod: "review", tab: "b" }, { pane: "p8", mod: "review", tab: "c" }];
+  sharedStore.set("review.status", { gone: "working", c: "working" }); pane.report();
+  assert.deepEqual(plain(sharedStore.get("review.status")), { c: "working" });
+  const kept = sharedStore.get("review.status"); pane.report();
+  assert.equal(sharedStore.get("review.status"), kept);
+  mainScope.panes = onePane; sharedStore.delete("review.status");
+  pane.review.analysis = { state: "current", agent: true }; pane.report();
   // Wide, as the app at `lg`: the groups as tabs by default, and beside the diffs an aside with the files of the group at
   // the list's top; the group with subgroups heads the row. The settings choose the sidebar instead, kept.
   drawn.clear(); pane.render(cx);
@@ -603,6 +635,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.open("/commit/c1", cx); await settle();
   reply({ rows: [] }); await settle();
   assert.ok(!pane.full.has(first) && pane.analyzeError === null && pane.startingUntil === 0);
+  // Leaving a page mid-run isn't that run finishing.
+  shownTab = "other"; pane.apply({ ...pane.review, analysis: { state: "running", agent: true } }); pane.report();
+  assert.equal(word(), "working");
+  pane.open("/commit/c2", cx); pane.report();
+  assert.equal(word(), null);
+  await settle(); shownTab = "b";
   mainScope.review = daemon; pane.open(home, cx); await settle();
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();

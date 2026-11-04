@@ -405,6 +405,25 @@ for (const width of [208, 240, 256, 320, 480]) {
 }
 
 {
+  // A mod pane's word marks its tab as an agent's would; a closed pane's says nothing.
+  const f = fixture(256);
+  const spins = tree => walk(tree).some(n => n.source === "mods/workspace-chrome/spinner.svg");
+  f.spaces()[0].tabs.push({ id: "bx", name: "review", named: true, active: false });
+  f.panes().push({ pane: "p9", terminal: null, mod: "review", tab: "bx", title: "review" });
+  const tab = () => find(f.load("t3-tabs").render(cx), "tab-bx");
+  assert.ok(!spins(tab()) && !strings(tab()).includes("!") && !tab().items.some(n => n.style.rounded_full), "nothing reported, no mark");
+  f.state["review.status"] = { bx: "working" };
+  assert.ok(spins(tab()), "a run shows the spinner");
+  f.state["review.status"] = { bx: "blocked" };
+  assert.ok(strings(tab()).includes("!"), "a failure shows the badge");
+  f.state["review.status"] = { bx: "done" };
+  assert.ok(tab().items.some(n => n.style.rounded_full), "a finished run shows the dot");
+  f.state["review.status"] = { bx: "working" };
+  f.panes().pop();
+  assert.ok(!spins(tab()), "its pane closed, its word is left behind");
+}
+
+{
   // Dragging, as T3's sidebar: labels and gaps open only while a row is lifted; Pinned pins and reorders,
   // Active unpins and unsettles, Settled settles; empty sections take drops; Esc, leaving, or a row
   // vanishing put it back; Working never lifts; a sweep from Settle or undo takes a run of rows along.

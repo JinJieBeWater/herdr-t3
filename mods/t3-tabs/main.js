@@ -1,7 +1,7 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
-import { namer, programOf } from "./name.js";
+import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { control, menu, initEditor, editorView, glow, lit } from "./actions.js";
 import { watchReview, reviewBar, reviewMenu, initReviewMenu } from "./review.js";
@@ -76,9 +76,10 @@ export default class Tabs extends View {
       const program = lead && programOf(lead);
       const name = c.named ? c.name : lead ? title(lead) : "Terminal";
       // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
-      const words = every.filter(a => a.tab === c.id).map(st);
+      const modWords = mine.filter(p => p.mod).map(p => modStatus(p));
+      const words = [...every.filter(a => a.tab === c.id).map(st), ...modWords];
       const status = words.includes("blocked") ? "blocked"
-        : live.some(a => a.tab === c.id && st(a) === "done") ? "done"
+        : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
       return h_flex().id(`tab-${c.id}`).h(28).px(8).gap(8).rounded(6).items_center().flex_none().text_size(13)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active ? t.foreground : t.muted)

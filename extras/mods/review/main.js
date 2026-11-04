@@ -5,7 +5,7 @@
 
 import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
-import { exec, focused, panes, props, settings, setShared, shared, theme, watchFolder, window as appWindow } from "herdr";
+import { exec, focused, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
 import { request, review } from "./daemon.js";
 import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel } from "./rows.js";
 
@@ -168,6 +168,7 @@ export default class ReviewPane extends View {
   open(page, cx) {
     if (page === this.page) return;
     this.page = page; this.review = null; this.error = null; this.analyzeError = null; this.startingUntil = 0; this.full.clear(); this.groupKey = null; this.current = null; this.headerHidden = false;
+    this.wasRunning = false; this.news = null;
     this.remember(); this.version++;
     this.load(cx);
   }
@@ -216,6 +217,7 @@ export default class ReviewPane extends View {
       } catch (e) { if (root === this.root && page === this.page) this.error = e?.message ?? String(e); }
       finally {
         this.loading = false;
+        this.report();
         cx.notify();
         if (this.again) { this.again = false; this.load(cx); }
       }
@@ -244,7 +246,7 @@ export default class ReviewPane extends View {
     const { root, page } = this;
     // shortcut: 10 s is a guess at the slowest start, and a start that fails says nothing; replace it once the worktree server answers when it has started.
     this.startingUntil = Date.now() + 10000; this.analyzeError = null;
-    cx.timer.after(10000, (cx) => cx.notify());
+    cx.timer.after(10000, (cx) => { this.report(); cx.notify(); });
     cx.notify();
     cx.spawn(async (cx) => {
       try { await review(root, "/api/review/analyze", { page, force }); }
@@ -256,6 +258,22 @@ export default class ReviewPane extends View {
 
   // A run going, as the app's from the click: the daemon answers before the worktree server has started it, and a read until then finds none.
   analyzing() { return this.review?.analysis.state === "running" || Date.now() < this.startingUntil; }
+
+  // What its tab and pane header show (t3's name.js), as the word an agent would report: a run going, then how it ended
+  // until the tab is looked at. In the pane, the button keeps a failure.
+  // shortcut: shared outlives the app and a pane starts only when shown, so after a restart a tab not yet shown can keep its spinner until it is; a heartbeat would fix it.
+  report() {
+    const a = this.review?.analysis, real = a?.state === "running", mine = panes().filter(p => p.mod === PANE);
+    if (!mine.some(p => p.tab === this.tab)) return;
+    if (this.wasRunning && !real) this.news = this.analyzeError ?? a?.error ? "blocked" : "done";
+    this.wasRunning = real;
+    if (this.analyzing() || spaces().some(s => s.active && s.tabs.some(c => c.id === this.tab && c.active))) this.news = null;
+    const word = this.analyzing() ? "working" : this.news ?? null, all = shared(`${PANE}.status`) ?? {};
+    const live = Object.entries(all).filter(([tab]) => tab !== this.tab && mine.some(p => p.tab === tab));
+    // Every write redraws every mod: only a change, and tabs without a review pane drop out.
+    if ((all[this.tab] ?? null) === word && live.length === Object.keys(all).length - (this.tab in all ? 1 : 0)) return;
+    setShared(`${PANE}.status`, Object.fromEntries(word ? [...live, [this.tab, word]] : live));
+  }
 
   // The settings panel reads the daemon's agents and shared settings each time it opens: the browser may have changed them.
   loadSettings(cx) {
@@ -647,6 +665,7 @@ export default class ReviewPane extends View {
     if (mine.some(p => p.tab === this.tab) && (titles[this.tab] !== title || Object.keys(live).length !== Object.keys(titles).length)) setShared(`${PANE}.titles`, { ...live, [this.tab]: title });
     // Its icon in pane headers and tabs (t3's name.js): pulls.review's own logo.
     if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/logo.svg`) setShared(`${PANE}.program`, { icon: `mods/${PANE}/logo.svg`, tint: false });
+    this.report();
     // A later open in this tab: another page, maybe another worktree.
     const request = shared(PANE);
     if (request && request.tab === this.tab && request.n > this.handled) {
