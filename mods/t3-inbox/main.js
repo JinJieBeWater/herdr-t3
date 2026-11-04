@@ -472,7 +472,8 @@ export default class Inbox extends View {
     // becomes a bare undo arrow, as in T3.
     const slim = (a, ghost) => {
       const on = a.focused, over = !dragging && !this.sweep?.moved && this.hovered === a.address, bright = on || over || ghost || swept(a);
-      const pic = icon(a.program, 14, t.dim);
+      // As T3's settled rows: its project's mark, not its program's.
+      const mark = avatar(a.space, a.space_name, 16);
       const undo = h_flex().id(`unsettle-${a.address}`).size(20).flex_none().items_center().justify_center().rounded(4)
         .on_hover(glow(`unsettle-${a.address}`))
         .role("button").accessibility_label("Unsettle")
@@ -490,7 +491,7 @@ export default class Inbox extends View {
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
-        .child(h_flex().size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).when(Boolean(pic), (el) => el.child(ghost ? pic : tipMark(this, t, `slim-program-${a.address}`, a.program?.name, pic, { above: true }))))
+        .child(h_flex().id(`slim-mark-${a.address}`).size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).child(ghost ? mark : tipMark(this, t, `slim-space-${a.address}`, a.space_name, mark, { above: true })))
         .child(div().flex_1().min_w(0).truncate().text_color(bright ? t.foreground : t.muted).child(title(a)))
         .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge("unsettle")
           : over ? tip(this.hot, t, `unsettle-${a.address}`, "Unsettle", undo, { action: "t3-inbox.settle", above: true }) : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
