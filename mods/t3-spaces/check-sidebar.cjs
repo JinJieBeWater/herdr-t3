@@ -755,6 +755,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
       ["review-pick", "review-open", "review-changes", "review-ahead", "review-behind"], "its icon, then its segments, spaced as the bar's other buttons");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
+    for (const n of walk(bar)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
+    fire(find(bar, "review-pick"), "on_hover", true, cx);
+    assert.equal(find(tabs.render(cx), "review-pick").style.text_color, f.theme().foreground, "the branch icon brightens");
+    fire(find(bar, "review-pick"), "on_hover", false, cx);
     for (const id of ["review-open", "review-changes", "review-ahead", "review-behind"]) assert.equal(find(bar, id).items[0].style.text_color, undefined, "a count has no color of its own: color means an agent's status");
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");

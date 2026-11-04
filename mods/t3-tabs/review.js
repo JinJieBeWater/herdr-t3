@@ -6,7 +6,7 @@
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay, closeOverlay, props, theme } from "herdr";
-import { underBar } from "./actions.js";
+import { underBar, glow, lit } from "./actions.js";
 
 // The shipped `changes` mod's lookup, except for a mod pane (below).
 function reviewLocation() {
@@ -175,8 +175,8 @@ export function reviewBar(view, t, stop) {
   // No outline or fill at rest, as the bar's other buttons: a fill would read as the active tab. The wider margin keeps it one group.
   return h_flex().id("pulls-review").h(26).mr(8).gap(4).flex_none().items_center().on_mouse_down("left", stop)
     // Stays with no counts: on a clean default branch it's the only way in.
-    .child(h_flex().id("review-pick").size(26).flex_none().items_center().justify_center().rounded(6).text_color(t.dim)
-      .hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label("Pick a commit or branch to review")
+    .child(h_flex().id("review-pick").size(26).flex_none().items_center().justify_center().rounded(6).text_color(lit(view, "review-pick"))
+      .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Pick a commit or branch to review")
       .on_mouse_down("left", (e, cx) => { view.reviewPress = e.position; stop(e, cx); })
       .on_click((_e, cx) => cx.spawn(async () => {
         const { commits, branches } = await readPicks(r);
