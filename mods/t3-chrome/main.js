@@ -37,8 +37,14 @@ export default class WorkspaceChrome extends View {
           .child(svg(`mods/t3-chrome/${icon}.svg`).size(16)))
         .child(div().flex_1().min_w(0).truncate().child(label));
       return v_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(8).pt(4).pb(6).text_size(13)
-        .child(row("settings", "settings", "Settings", () => run("app.settings"))
-          .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))));
+        .child(h_flex().gap(2).items_center()
+          .child(row("settings", "settings", "Settings", () => run("app.settings")).flex_1().min_w(0)
+            .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
+          .child(div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+            .text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
+            .role("button").accessibility_label("Add machine")
+            .on_click(() => run("mod.open", { name: "machine-add" }))
+            .child(svg("mods/workspace-chrome/server.svg").size(14))));
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.

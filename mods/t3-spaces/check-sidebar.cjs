@@ -58,6 +58,7 @@ function fixture(width) {
   const slots = { sidebar: { id: "sidebar", size: { px: width } }, spaces: { id: "spaces", size: { px: 90 } } };
   const state = { "agents.sort": "grouped" };
   const calls = [], overlays = [], stores = new Map(), labelled = [], shown = { agent: "child" };
+  let hcAnswer = () => ({ code: 0 });
   const theme = new Proxy({ selected: "#2c2c2f", hover: "#202024", working: "#6b93ff", blocked: "#f0a33a", done: "#ececf0", muted: "#a9a9b4", foreground: "#f4f4f6", dim: "#77777f" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
@@ -72,7 +73,7 @@ function fixture(width) {
     settings: () => ({ zoom: 1 }), home: () => "/home/test",
     layout: () => ({ children: Object.values(slots) }), shared: key => state[key],
     setShared: (key, value) => { state[key] = value; }, setAgentOrder() {},
-    hc: (args) => { labelled.push([...args]); return Promise.resolve({ code: 0 }); }, notify() {},
+    hc: (args) => { labelled.push([...args]); return Promise.resolve(hcAnswer(args)); }, notify() {},
     run: (name, args) => {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
       if (name === "layout.resize") slots[args.id].size = { px: args.px };
@@ -95,7 +96,7 @@ function fixture(width) {
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown };
+  return { ...env, load, slots, state, calls, overlays, stores, labelled, shown, answerHc: fn => { hcAnswer = fn; } };
 }
 
 for (const width of [208, 240, 256, 320, 480]) {
@@ -280,6 +281,15 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(f.load("t3-spaces").render(cx), "spaces-heading").items[0].style.text_color, f.theme().muted);
 }
 
+{
+  // A card from another machine says so as T3's does: a server mark before its program, the machine named on hover.
+  const f = fixture(256), root = f.load("t3-inbox").render(cx);
+  const card = find(root, "card-vps/t2"), mark = find(card, "machine-vps/t2");
+  assert.equal(mark.style.tooltip, "vps");
+  assert.ok(walk(mark).some(n => n.source === "mods/workspace-chrome/server.svg"));
+  assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
+  assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
+}
 {
   // The inbox: Working holds busy trees; Settle is by hand, undone by new work, never by looking.
   const f = fixture(256), inbox = f.load("t3-inbox"), run = { ...cx, spawn: fn => { fn(run); } };
@@ -638,6 +648,23 @@ for (const width of [208, 240, 256, 320, 480]) {
   menu.choose(menu.items().find(s => s.id === "new"));
   assert.deepEqual(f.calls.pop(), ["space.new", {}], "New space opens a space");
   f.calls.length = 0;
+  {
+    // The sidebar's way to a new machine, in the footer both Lists and Inbox keep.
+    const f = fixture(256);
+    const add = find(f.load("t3-chrome", { footer: true }).render(cx), "add-machine");
+    assert.equal(add.style.accessibility_label, "Add machine");
+    fire(add, "on_click", {}, cx);
+    assert.deepEqual(f.calls.pop(), ["mod.open", { name: "machine-add" }]);
+  }
+  {
+    // "+" on a machine's header names that machine, this computer included: without one the focused space's machine wins.
+    const f = fixture(256), sp = f.load("t3-spaces");
+    sp.machines = [{ name: "vps", state: "connected" }];
+    fire(find(sp.render(cx), "machine-add-local"), "on_click", {}, cx);
+    assert.deepEqual(f.calls.pop(), ["space.new", { machine: "" }]);
+    fire(find(sp.render(cx), "machine-add-vps"), "on_click", {}, cx);
+    assert.deepEqual(f.calls.pop(), ["space.new", { machine: "vps" }]);
+  }
   assert.equal(find(root, "sidebar-toggle"), null, "with the sidebar shown its own header has the toggle");
   f.slots.sidebar.hidden = true;
   const bare = tabs.render(cx);
@@ -646,7 +673,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
   assert.equal(toggle.style.accessibility_label, "Show sidebar, 2 need you");
-  assert.equal(walk(tabs.render(cx)).concat(walk(f.load("t3-agents").render(cx)), walk(f.load("t3-spaces").render(cx)), walk(f.load("t3-chrome").render(cx)), walk(f.load("t3-pane", { pane: "p0" }).render(cx))).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips");
+  assert.equal(walk(tabs.render(cx)).concat(walk(f.load("t3-agents").render(cx)), walk(f.load("t3-spaces").render(cx)), walk(f.load("t3-chrome").render(cx)), walk(f.load("t3-chrome", { footer: true }).render(cx)), walk(f.load("t3-pane", { pane: "p0" }).render(cx))).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips");
   {
     // One look across the preset: the same "needs you" mark everywhere, no scrollbars, English throughout.
     f.spaces()[0].tabs[0].status = "blocked";
@@ -703,6 +730,31 @@ for (const width of [208, 240, 256, 320, 480]) {
   {
     const f = fixture(256);
     assert.equal(find(f.load("t3-tabs").render(cx), "pulls-review"), null, "no review button");
+  }
+  {
+    // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
+    const f = fixture(256);
+    let done;
+    const run = { ...cx, spawn: fn => { done = fn(run); } };
+    const sp = f.load("t3-spaces"), vps = { name: "vps", target: "me@vps:2222", session: "main", state: "unreachable", why: 'a different core answers there ("c2")' };
+    sp.machines = [{ ...vps, why: "connection refused" }];
+    assert.equal(find(sp.render(run), "machine-connect-vps"), null, "only a different core offers Connect");
+    assert.ok(find(sp.render(run), "space-s2"), "a machine that's merely away keeps its spaces");
+    sp.machines = [vps];
+    assert.equal(find(sp.render(run), "space-s2"), null, "a rebuilt machine's old spaces aren't offered");
+    assert.ok(!("tooltip" in find(sp.render(run), "machine-connect-vps").style), "Connect says itself, no hover tooltip");
+    const asks = () => f.labelled.splice(0).filter(a => a[1] !== "ls");
+    const add = ["machine", "add", "me@vps:2222", "--name", "vps", "--session", "main", "--json"];
+    f.answerHc(a => a[1] === "add" ? { code: 1, stdout: '{"error":{"message":"no route"}}' } : { code: 0, stdout: '{"machines":[]}' });
+    fire(find(sp.render(run), "machine-connect-vps"), "on_click", {}, run);
+    await done;
+    assert.deepEqual(asks(), [["machine", "rm", "vps", "--json"], add]);
+    assert.ok(strings(find(sp.render(run), "machine-vps")).includes("no route"), "it stays listed, saying why, though the machine is forgotten");
+    f.answerHc(() => ({ code: 0, stdout: '{"machines":[]}' }));
+    fire(find(sp.render(run), "machine-connect-vps"), "on_click", {}, run);
+    await done;
+    assert.deepEqual(asks(), [add], "a retry doesn't forget it again");
+    assert.deepEqual(Object.keys(sp.reconnecting), [], "paired, nothing's left to repair");
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });
