@@ -750,8 +750,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", baseRef: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
     show(review);
     const bar = tabs.render(cx);
-    assert.deepEqual(strings(find(bar, "review-open")), ["4 commits vs main"], "the branch's count names its unit and what it is against");
-    assert.deepEqual(strings(find(bar, "review-changes")), ["3 files uncommitted"]);
+    assert.deepEqual(strings(find(bar, "review-open")), ["4", "ahead of main"], "the branch's count says what it is against");
+    assert.deepEqual(strings(find(bar, "review-changes")), ["3", "uncommitted"]);
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
@@ -771,11 +771,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([lost.gone, lost.ahead, lost.behind], [true, 0, 0], "an upstream without branch.ab is gone");
     status = full.replace("origin/feat", "origin/main");
     const tracking = await scope.readReview("/repo");
-    assert.deepEqual([tracking.ahead, tracking.behind], [0, 1], "tracking main: ↑ repeats N commits vs main, so it goes; ↓ stays");
-    // With origin/main the label names the remote ref: a fork's origin/main can lag the upstream it mirrors.
+    assert.deepEqual([tracking.ahead, tracking.behind], [0, 1], "tracking main: ↑ repeats N ahead of main, so it goes; ↓ stays");
+    // With origin/main the accessibility label names the remote ref: a fork's origin/main can lag the upstream it mirrors.
     refs["origin/main...HEAD"] = "0\t43\n";
     show(await scope.readReview("/repo"));
-    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["43 commits vs origin/main"]);
+    assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label, "Review the branch: 43 commits on feat, not on origin/main");
+    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["43", "ahead of main"], "the bar stays short: the remote ref is left to the label");
     delete refs["origin/main...HEAD"];
     refs["main...HEAD"] = "0\t0\n";
     assert.equal((await scope.readReview("/repo")).unmerged, 0, "nothing past main: no Review");

@@ -74,13 +74,13 @@ async function readReview(cwd) {
   for (const ref of names.flatMap(name => [`origin/${name}`, name])) {
     const count = await git(root, ["rev-list", "--left-right", "--count", `${ref}...HEAD`]);
     if (count.code !== 0) continue; // No such ref.
-    // `base` is the branch name; `baseRef` is what was compared, shown so a fork's stale origin/main reads as itself.
+    // `base` is the branch name; `baseRef` is what was compared, named in the label so a fork's stale origin/main reads as itself.
     review.base = ref.replace(/^origin\//, "");
     review.baseRef = ref;
     // On the default branch or a detached HEAD the CLI opens its ref picker instead: nothing to show.
     if (review.branch !== review.base && review.branch !== "(detached)") {
       [review.newer, review.unmerged] = count.stdout.trim().split(/\s+/).map(n => parseInt(n, 10) || 0);
-      // A branch tracking the default branch: its ↑ is the same commits as N commits vs base.
+      // A branch tracking the default branch: its ↑ is the same commits as N ahead of base.
       if (review.upstream === `origin/${review.base}`) review.ahead = 0;
     }
     break;
@@ -94,15 +94,17 @@ export function reviewBar(view, t, stop) {
   if (!r || !(r.unmerged || r.changed || r.ahead || r.behind)) return null;
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // The accessibility label says what each count compares, which the short label can't.
-  const item = (id, label, color, name, args) => div().id(id).h(26).px(6).flex_none().flex().items_center().rounded(6)
-    .text_size(12).text_color(color).hover(s => s.bg(t.hover)).role("button").accessibility_label(name)
+  // The count carries the color; what it counts stays quiet beside it.
+  const item = (id, count, noun, color, name, args) => h_flex().id(id).h(26).px(6).gap(4).flex_none().items_center().rounded(6)
+    .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label(name)
     .on_mouse_down("left", stop)
     .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args, analyze: true } }))
-    .child(label);
+    .child(div().font_medium().text_color(color).child(count))
+    .when(Boolean(noun), el => el.child(noun));
   return h_flex().id("pulls-review").flex_none().items_center()
-    .when(r.unmerged > 0, el => el.child(item("review-open", `${n(r.unmerged, "commit")} vs ${r.baseRef}`, t.foreground, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
+    .when(r.unmerged > 0, el => el.child(item("review-open", String(r.unmerged), `ahead of ${r.base}`, t.ansi4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
       + (r.newer ? ` · ${r.baseRef} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), [])))
-    .when(r.changed > 0, el => el.child(item("review-changes", `${n(r.changed, "file")} uncommitted`, t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"])))
-    .when(r.ahead > 0, el => el.child(item("review-ahead", `↑${r.ahead}`, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`])))
-    .when(r.behind > 0, el => el.child(item("review-behind", `↓${r.behind}`, t.ansi1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`])));
+    .when(r.changed > 0, el => el.child(item("review-changes", String(r.changed), "uncommitted", t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"])))
+    .when(r.ahead > 0, el => el.child(item("review-ahead", `↑${r.ahead}`, null, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`])))
+    .when(r.behind > 0, el => el.child(item("review-behind", `↓${r.behind}`, null, t.ansi1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`])));
 }
