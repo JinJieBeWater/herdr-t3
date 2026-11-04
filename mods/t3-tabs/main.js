@@ -3,7 +3,7 @@ import { h_flex } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
-import { tip } from "./tip.js";
+import { tip, tipMark } from "./tip.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -18,6 +18,8 @@ const blockedMark = (t) => div().size(14).flex_none().rounded(4).bg(t.blocked + 
 const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
   : s === "blocked" ? blockedMark(t)
   : div().size(7).flex_none().rounded_full().bg(t.done);
+
+const WORDS = { working: "Working", blocked: "Needs you", done: "Done" };
 
 // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
 const glow = (view, id) => (on, cx) => {
@@ -115,9 +117,9 @@ export default class Tabs extends View {
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
+        .when(Boolean(program?.icon), el => el.child(tipMark(this, t, `program-${c.id}`, program.name, program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14))))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .when(status != null, el => el.child(mark(t, status)))
+        .when(status != null, el => el.child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status))))
         // Raised: the hover fill is darker than the selected tab it sits on. The -4 keeps the tab as wide as its 12px icon made it.
         .when(c.active, el => el.child(tip(this.hot, t, `close-${c.id}`, "Close tab", div().id(`close-${c.id}`).size(20).mr(-4).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(this, `close-${c.id}`)).hover(s => s.bg(t.raised)).on_hover(glow(this, `close-${c.id}`))
           .role("button").accessibility_label("Close tab")

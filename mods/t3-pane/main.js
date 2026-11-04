@@ -9,7 +9,7 @@ import { h_flex } from "gpui-base";
 import { panes, terminals, agents, props, run, theme, home, layout } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
-import { tip } from "./tip.js";
+import { tip, tipMark } from "./tip.js";
 
 function icon(p, size, color) {
   if (!p?.icon) return null;
@@ -77,7 +77,7 @@ export default class Pane extends View {
       .text_size(13)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
-      .when(Boolean(pic), (el) => el.child(pic))
+      .when(Boolean(pic), (el) => el.child(tipMark(this, t, `ph-program-${pane}`, programOf(p)?.name, pic)))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
       .child(div().flex_none().truncate().max_w(260).text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
@@ -88,9 +88,9 @@ export default class Pane extends View {
           .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane }), "pane.split:down"))
           .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane }), "pane.zoom"))
           .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => run("pane.close", { pane }), "pane.close")))))
-      .when(st === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
+      .when(st === "working", el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))))
       // The same marks as the agents list and tabs.
-      .when(st === "blocked", el => el.child(div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))
-      .when(st === "done" && !settled(p), el => el.child(div().size(7).flex_none().rounded_full().bg(t.done)));
+      .when(st === "blocked", el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!"))))
+      .when(st === "done" && !settled(p), el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))));
   }
 }

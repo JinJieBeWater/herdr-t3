@@ -6,7 +6,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
-import { tip } from "./tip.js";
+import { tip, tipMark } from "./tip.js";
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
@@ -197,13 +197,13 @@ export default class Agents extends View {
         l === "├" || l === "└" ? div().absolute().left(16.25 + 20 * j).top(-4).h(19).w(9.75).border_l(1.5).border_b(1.5).rounded_bl(6).border_color(t.input) : null,
       ].filter(Boolean)))
       .child(h_flex().size(18).flex_none().items_center().justify_center()
-        .when(Boolean(pic), el => el.child(pic)))
+        .when(Boolean(pic), el => el.child(tipMark(this, t, `sub-program-${k.address}`, k.program?.name, pic))))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
         .child(div().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(name)))
-      .child(this.status(t, { status: st }).id(`sub-status-${k.address}`));
+      .child(this.status(t, { status: st }, "", `sub-status-${k.address}`));
   }
 
-  status(t, a, note = "") {
+  status(t, a, note = "", id) {
     const color = t[a.status] ?? t.dim;
     let mark;
     if (a.status === "working") mark = svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
@@ -212,8 +212,9 @@ export default class Agents extends View {
     else if (a.status === "idle") mark = div().size(7).mx(3.5).flex_none().rounded_full().border(1.5).border_color(t.idle ?? t.dim);
     else mark = div().size(7).mx(3.5).flex_none().rounded_full().bg(a.status === "done" ? color : t.dim + "00");
     const label = (SECTION[RANK[a.status]] ?? "Unknown") + note;
-    return h_flex().size(20).flex_none().items_center().justify_end()
+    const el = h_flex().size(20).flex_none().items_center().justify_end()
       .role("status").accessibility_label(label).child(mark);
+    return id ? tipMark(this, t, `${id}-mark`, label, el.id(id)) : el;
   }
 
   render(cx) {
@@ -265,7 +266,7 @@ export default class Agents extends View {
     // carries any hidden child's urgency.
     const fold = (a, subs) => {
       const open = !this.isFolded(a.address), id = `fold-${a.address}`;
-      return div()
+      return tip(this.hot, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", div()
         .id(id)
         .h(20).min_w(20).flex_none()
         .px(4)
@@ -283,7 +284,7 @@ export default class Agents extends View {
           this.toggleFold(a.address, cx);
         })
         .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11).flex_none().text_color(lit(id)))
-        .when(!open, (el) => el.child(String(subs.length)));
+        .when(!open, (el) => el.child(String(subs.length))));
     };
 
     // A row's detail is what the agent is on, as the inbox, tabs and pane headers name it.
@@ -348,7 +349,8 @@ export default class Agents extends View {
           .when(subs.length > 0, el => el.role("button").accessibility_label(this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {
             cx.stop_propagation();
             this.toggleFold(a.address, cx);
-          })).when(Boolean(pic), el => el.child(pic)))
+          })).when(Boolean(pic), el => el.child(tipMark(this, t, `program-${a.address}`,
+            subs.length > 0 ? (this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents") : a.program?.name, pic))))
         .child(h_flex().flex_1().min_w(0).gap(8).items_center()
           .child(div().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(name))
           .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
@@ -358,7 +360,7 @@ export default class Agents extends View {
           // The time and the pin share one slot at least the pin's width, so hovering moves nothing else.
           .child(this.hovered === a.address ? tip(this.hot, t, `pin-${a.address}`, isPinned ? "Unpin" : "Pin", pin)
             : h_flex().id(`when-${a.address}`).min_w(20).flex_none().justify_end().text_size(11).text_color(t.dim).when(Boolean(when), el => el.child(duration(now - when))))
-          .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "").id(`status-${a.address}`)));
+          .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "", `status-${a.address}`)));
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
