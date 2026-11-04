@@ -95,7 +95,7 @@ Where a review opens is `open` in `extras/mods/pulls-review/config.json`:
 - `"browser"`: the fork in the browser (`jin.review -d`).
 - `"official"`: the `pulls.review` CLI. Each worktree gets its own server, which herdr-core keeps running in the background (`hc ls --label pulls-review.root=<folder>`; stop one with `hc kill <address>`). The first open signs the browser in; later ones open a new tab on the same server.
 
-With the fork (`"herdr"`, `"pwa"`, `"browser"`), a click also starts the diff's AI analysis, or follows the one already running.
+With the fork (`"herdr"`, `"pwa"`, `"browser"`), a click on a count also starts the diff's AI analysis, or follows the one already running. A pick from the branch icon's menu doesn't.
 
 1. Install one pulls.review CLI on Herdr's `PATH`: `bun add --global jin.review` for the fork ([my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo), which installs next to `pulls.review`; one background server for every repo, stopped with `jin.review --stop`), or `bun add --global pulls.review` for `"official"`.
 2. Copy `extras/mods/pulls-review/` (and, for `"herdr"`, `extras/mods/review/`) into `~/.config/herdr-app/mods/` and set `open` in its `config.json`. The Review bar opens it; there's no key to bind.
