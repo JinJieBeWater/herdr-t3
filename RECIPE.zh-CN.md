@@ -59,6 +59,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 - 碰到 index 的 git 命令会再次唤醒目录监听：始终带上 `--no-optional-locks -c core.fsmonitor=false`。
 - Settle 标签大约 0.65 秒后才出现在 `terminals()`：要保留待定值。
 - macOS 无标题栏时，侧栏隐藏或很窄，标签栏要给窗口按钮留位置（`layout().traffic_lights`）。
+- 标签条让当前标签保持可见，移动量最小，和 T3 的 `scrollIntoView({ inline: "nearest" })` 一样。Herdr 的滚动容器不能由脚本移动，所以 `tab-scroll` 负责裁剪，`tab-strip` 用 `.ml()` 偏移；每个标签用 `on_size_change` 上报宽度。只在当前标签或可用宽度变化时才移动，所以横向滑开的标签不会被拉回；滚轮仍然用来切换标签。
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。菜单和编辑器是 `t3-tabs` 自己以 overlay 打开的；`render()` 先看 `props().actions` 分支。
 - `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。`mods/t3-new-menu/check-new-menu.cjs` 同样检查新建菜单，可在任意位置运行。
 

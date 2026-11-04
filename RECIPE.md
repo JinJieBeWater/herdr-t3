@@ -57,6 +57,7 @@ Left to right, divider 1px `border`:
 - Git that touches the index wakes the folder watch again: always pass `--no-optional-locks -c core.fsmonitor=false`.
 - A settled label takes about 0.65s to show in `terminals()`: keep a pending value.
 - On macOS with no title bar, the tabs leave room for the window buttons when the sidebar is hidden or narrow (`layout().traffic_lights`).
+- The tab strip keeps the active tab in view with the least move, as T3's `scrollIntoView({ inline: "nearest" })`. Herdr's scroll areas can't be moved from a script, so `tab-scroll` clips and `tab-strip` is offset with `.ml()`; each tab reports its width with `on_size_change`. It moves only when the active tab or the room changes, so a sideways swipe isn't pulled back; the wheel still walks the tabs.
 - Actions run through `sh -c`: your shell's aliases and functions aren't there (write `zsh -ic '…'` in the command for them), and plain Windows has no `sh`. The menu and editor are `t3-tabs` itself opened as an overlay; `render()` branches on `props().actions` first.
 - `mods/t3-spaces/check-sidebar.cjs` and `mods/t3-pane/check-pane.cjs` load the mods in a fake `herdr`; run them with `node` from an installed home, since they look for the shipped icons there. `mods/t3-new-menu/check-new-menu.cjs` does the same for the New menu, from anywhere.
 

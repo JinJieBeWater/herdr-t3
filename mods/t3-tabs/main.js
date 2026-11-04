@@ -21,6 +21,7 @@ const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg"
   : div().size(7).flex_none().rounded_full().bg(t.done);
 
 const WORDS = { working: "Working", blocked: "Needs you", done: "Done" };
+const TAB_GAP = 4;
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -35,6 +36,8 @@ export default class Tabs extends View {
   init(_props, cx) {
     this.pressed = null;
     this.over = null;
+    this.strip = 0;
+    this.tabW = {};
     const overlay = props()?.actions;
     if (overlay === "edit") initEditor(this);
     if (overlay === "menu") initMenu(this, cx);
@@ -45,6 +48,23 @@ export default class Tabs extends View {
         if (command.startsWith("delete-action:")) deleteAction(command.slice("delete-action:".length));
       }
     });
+  }
+
+  // Where the tab strip sits: the active tab in view with the least move, as T3's scrollIntoView({ inline: "nearest" }).
+  // Herdr's scroll areas can't be moved from a script, so the strip is a clipped row this offsets itself.
+  // Only when the active tab or the room changes: a swipe to another tab isn't pulled back.
+  stripAt(shown) {
+    const room = this.room ?? 0, width = (c) => this.tabW[c.id] ?? 0, i = shown.findIndex(c => c.active);
+    const key = `${shown[i]?.id}:${i}:${room}`;
+    if (i >= 0 && room > 0 && key !== this.revealed && shown.every(width)) {
+      this.revealed = key;
+      const left = shown.slice(0, i).reduce((sum, c) => sum + width(c) + TAB_GAP, 0), right = left + width(shown[i]);
+      if (left < this.strip) this.strip = left;
+      else if (right > this.strip + room) this.strip = right - room;
+    }
+    const all = shown.reduce((sum, c) => sum + width(c) + TAB_GAP, -TAB_GAP);
+    this.strip = Math.max(0, Math.min(this.strip, all - room));
+    return this.strip;
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
@@ -97,6 +117,7 @@ export default class Tabs extends View {
       const tab = h_flex().id(`tab-${c.id}`).relative().h(24).max_w(144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
+        .on_size_change((size, cx) => { this.tabW[c.id] = size.width / settings().zoom; cx.notify(); })
         .on_hover((on, cx) => {
           if (on) this.overTab = c.id;
           else if (this.overTab === c.id) this.overTab = null;
@@ -145,9 +166,14 @@ export default class Tabs extends View {
         this.pressed = this.over = null;
         cx.notify();
       })
-      .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
+      .on_scroll_wheel((e, cx) => {
+        if (Math.abs(e.delta.x) > Math.abs(e.delta.y)) { this.strip -= e.delta.x / settings().zoom; cx.notify(); }
+        else if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next");
+      })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(4).overflow_x_scroll().children(shown.map(item)))
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
+        .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })
+        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown)).children(shown.map(item))))
       // Actions before +, so + keeps its spot however long the action's name is.
       .child(div().mr(4).flex_none().child(control(this, t, stop)))
       .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))

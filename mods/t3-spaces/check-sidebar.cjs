@@ -664,7 +664,40 @@ for (const width of [208, 240, 256, 320, 480]) {
   const tabs = f.load("t3-tabs"), root = tabs.render(cx);
   assert.equal(find(root, "tab-b0").hoverStyle.bg, undefined);
   assert.equal(find(root, "tab-other").hoverStyle.bg, f.theme().hover);
-  assert.equal(find(root, "tab-scroll").style.gap, 4);
+  assert.equal(find(root, "tab-strip").style.gap, 4);
+  // A tab out of the strip's room comes into view with the least move, and a swipe away isn't pulled back.
+  {
+    const strip = f.spaces()[0].tabs, kept = strip.splice(0), view = f.load("t3-tabs");
+    strip.push(...["a", "b", "c", "d"].map(id => ({ id, name: id, active: id === "a" })));
+    const at = () => Math.abs(find(view.render(cx), "tab-strip").style.ml);
+    const pick = (id) => strip.forEach(c => { c.active = c.id === id; });
+    const room = (width) => fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width }, cx);
+    const wheel = (x, y) => fire(view.render(cx), "on_scroll_wheel", { delta: { x, y } }, cx);
+    for (const c of strip) fire(find(view.render(cx), `tab-${c.id}`), "on_size_change", { width: 100 }, cx);
+    room(250);
+    assert.equal(at(), 0, "the first tab is at its place");
+    pick("d");
+    assert.equal(at(), 162, "the last tab lands at the right edge: 4 tabs, 3 gaps, 250 of room");
+    pick("b");
+    assert.equal(at(), 104, "an earlier tab lands at the left edge");
+    pick("c");
+    assert.equal(at(), 104, "one already in view doesn't move the strip");
+    wheel(-30, 0);
+    assert.equal(at(), 134, "a swipe moves the strip");
+    assert.equal(at(), 134, "and the next render doesn't pull it back");
+    f.calls.length = 0;
+    wheel(0, 3);
+    assert.deepEqual(f.calls.splice(0), [["tab.prev", {}]], "the wheel still walks the tabs");
+    assert.equal(at(), 134);
+    wheel(-10000, 0);
+    assert.equal(at(), 162, "a swipe stops at the last tab");
+    wheel(10000, 0);
+    assert.equal(at(), 0, "and at the first");
+    room(1000);
+    pick("d");
+    assert.equal(at(), 0, "with room for every tab the strip stays put");
+    strip.splice(0, strip.length, ...kept);
+  }
   // A tab nobody named reads as its agent, the name its pane header and inbox card show.
   Object.assign(first, { name: "1", named: false });
   f.terminals().find(k => k.address === "t0").labels = { "pi.session": "mine" };
