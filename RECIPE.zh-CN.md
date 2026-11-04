@@ -44,7 +44,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 
 ## 由什么构成
 
-- `layouts/herdr-t3.json`：根为 `row` → `sidebar` 列 [`brand` 块 `t3-chrome`；`sidebar-lists` stack [`lists` 列 [`spaces` `t3-spaces`、`agents` `t3-agents`]、`inbox` `t3-inbox`，props `{ "newMenu": "t3-new-menu" }`]；`sidebar-footer` `t3-chrome`，props `{ "footer": true }`]，以及 `work` 列 [`tabs-row` 行（40px，`"resizable": false`，`chrome`）[`tabs` `t3-tabs`、`actions` `herdr-actions`，props `{ "block": "actions" }`、`tabs-end` `t3-tabs`，props `{ "part": "end", "block": "tabs-end" }`]；`work-body` 行 [`main` `{ "tab": "active", "pane": { "header": { "content": { "mod": "t3-pane" } } } }`]；`work-bottom-inset`；`status` `workspace-status`，隐藏]。预览图：`layouts/herdr-t3.svg`。
+- `layouts/herdr-t3.json`：根为 `row` → `sidebar` 列 [`brand` 块 `t3-chrome`；`sidebar-lists` stack [`lists` 列 [`spaces` `t3-spaces`、`agents` `t3-agents`]、`inbox` `t3-inbox`，props `{ "newMenu": "t3-new-menu" }`]；`sidebar-footer` `t3-chrome`，props `{ "footer": true }`]，以及 `work` 列 [`tabs-row` 行（40px，`"resizable": false`，`chrome`）[`tabs` `t3-tabs`、`actions` `herdr-actions`，props `{ "block": "actions" }`、`tabs-end` `t3-tabs`，props `{ "part": "end", "block": "tabs-end" }`]；`work-body` 行 [`main` `{ "tab": "active", "pane": { "header": { "content": { "mod": "t3-pane" } } } }`]；`work-bottom-inset` 行 6px [`bar-measure` `t3-tabs`，props `{ "part": "measure" }`]；`status` `workspace-status`，隐藏]。预览图：`layouts/herdr-t3.svg`。
 - Mods：`t3-chrome`、`t3-spaces`、`t3-agents`、`t3-tabs`、`t3-pane`、`t3-new-menu` 分别改自 Herdr 自带的 `workspace-chrome`、`spaces`、`agents`、`tabs`、`pane`、`new-menu`；`t3-inbox` 是新写的。`herdr-actions` 是单独的 mod，随布局一起安装。原样使用的自带 mod：`workspace-status`、`picker`、`menu`，以及 `mods/workspace-chrome/` 下的图标和 `mods/pane/close.svg`。
 - `keys.json`：`layout:herdr-t3` → `cmd-shift-b`：`t3-chrome.sidebar`，`cmd-shift-s`：`t3-inbox.settle`（只在 Inbox 显示时生效）。
 - 运行的程序：`t3-spaces` 运行只读的 `git status` / `git rev-parse`（不加可选锁、不用 fsmonitor）和 `hc machine ls --json`，点重装机器的 Connect 时运行 `hc machine rm` 和 `hc machine add`；`t3-inbox` 运行 `hc label <agent> settled=<ms>:<turn>`；为 space 标记，`t3-spaces`、`t3-inbox`、`t3-new-menu` 运行 `git rev-parse --show-toplevel`、`sh -c` 文件检测和 `base64`（在 space 的机器上）。
@@ -57,6 +57,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 - 碰到 index 的 git 命令会再次唤醒目录监听：始终带上 `--no-optional-locks -c core.fsmonitor=false`。
 - Settle 标签大约 0.65 秒后才出现在 `terminals()`：要保留待定值。
 - macOS 无标题栏时，侧栏隐藏或很窄，标签栏要给窗口按钮留位置（`layout().traffic_lights`）。
+- 窄窗口：`bar-measure`（`t3-tabs`，`part: "measure"`）放在 `work-bottom-inset` 里，工作列宽度小于 768 逻辑像素（T3 的断点）时把 `shared("bar.compact")` 设为 true，动作控件和 Review 栏随之去掉文字。放在这里测，是因为这条的宽度不受标签栏影响；测标签区的话，控件一收起标签区就变宽，又会展开。
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。
 - `herdr-actions` 和标签栏末尾（`t3-tabs`，`part: "end"`）自己调整所在块的宽度：`run("layout.resize", { id: props().block, px })`，宽度取 `on_size_change` 的值除以 `settings().zoom`（它报的是乘过缩放的像素）。`tabs-row` 要保持不可拖动，否则拖动会和它们抢宽度。布局引用了没安装的 mod 时，`herdr-app status` 会报 `no mod folder`：先装 herdr-actions。
 - `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。 `mods/t3-new-menu/check-new-menu.cjs` 同样检查新建菜单，可在任意位置运行。

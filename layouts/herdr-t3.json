@@ -133,7 +133,9 @@
         {
           "id": "work-bottom-inset",
           "type": "row",
-          "children": [],
+          "children": [
+            { "id": "bar-measure", "type": "block", "size": { "weight": 1 }, "content": { "mod": "t3-tabs", "props": { "part": "measure" } } }
+          ],
           "size": { "px": 6 }
         },
         {

@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, theme, window, layout, settings, props, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
@@ -68,7 +68,16 @@ export default class Tabs extends View {
     run("layout.resize", { id, px });
   }
 
+  // Another layout's bar shouldn't stay compact because this one was narrow when it went.
+  async close() {
+    if (props()?.part === "measure") setShared("bar.compact", false);
+  }
+
   render() {
+    // The work column's width, in a strip the bar's controls can't change: measured in the bar, their collapsing would undo itself.
+    // on_size_change reports zoomed pixels. 768 is T3's breakpoint for the same controls.
+    if (props()?.part === "measure") return div().id("bar-measure").size_full()
+      .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 768));
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
