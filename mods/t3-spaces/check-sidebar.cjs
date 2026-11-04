@@ -259,8 +259,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(settings.items[0].style.size, 18);
   assert.equal(settings.style.gap, 8);
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
-  assert.deepEqual([groups[0].h, "mt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
-  assert.deepEqual([groups[1].h, groups[1].mt], [22, 8], "later groups keep their 8px separation, outside the hover fill");
+  assert.deepEqual([groups[0].h, "pt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
+  assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");
   fire(settings, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.settings", {}]);
 }

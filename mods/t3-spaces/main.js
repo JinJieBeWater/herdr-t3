@@ -287,8 +287,8 @@ export default class Spaces extends View {
       const rebuilt = this.rebuilt(machine) || !!repair;
       const folded = this.folded.has(m);
       // Drawn as the agents list's group headers: the first under the heading, later ones 8px apart.
-      const head = h_flex().id(`machine-${m ?? "local"}`).when(i > 0, el => el.mt(8)).h(22).flex_none().px(8).gap(4).items_center().rounded(6)
-        .text_size(11).font_medium().text_color(t.dim).hover(s => s.bg(t.hover))
+      const head = h_flex().id(`machine-${m ?? "local"}`).when(i > 0, el => el.pt(8)).h(i > 0 ? 30 : 22).flex_none().px(8).gap(4).items_center()
+        .text_size(11).font_medium().text_color(t.dim)
         .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`)
         .on_click((_e, cx) => {
           folded ? this.folded.delete(m) : this.folded.add(m);
@@ -308,14 +308,14 @@ export default class Spaces extends View {
         .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
           .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
           .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
-          .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/folder-plus.svg").size(14))))
+          .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12))))
         .child(div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
         .on_click(() => run("space.new", { machine: m ?? "" }))
-        .child(svg("mods/workspace-chrome/folder-plus.svg").size(14)).child("New space here");
+        .child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space here");
       if (rebuilt) return [head];
       return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
     });
@@ -428,7 +428,7 @@ export default class Spaces extends View {
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === "space-new" ? t.foreground : t.dim).on_hover(this.glow("space-new")).role("button").accessibility_label("New space").hover(s => s.bg(t.hover))
-          .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/folder-plus.svg").size(14))))
+          .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().id("space-list").flex_1().min_h(0).overflow_y_scroll()
         .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
         // Herdr reports no release outside the sidebar, so leaving ends a drag, as in the inbox.

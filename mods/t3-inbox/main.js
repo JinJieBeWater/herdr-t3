@@ -493,8 +493,7 @@ export default class Inbox extends View {
 
     // A shelf's header, folding it: label, then count and chevron at the far edge.
     const shelf = (id, label, count, open, toggle, extra) => h_flex().id(id).h(30).px(10).gap(6).flex_none().items_center()
-      .rounded(8).text_size(12).font_medium().text_color(t.dim)
-      .when(!dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
+      .text_size(12).font_medium().text_color(t.dim)
       .role("button").accessibility_label(`${open ? "Hide" : "Show"} ${label.toLowerCase()} agents`)
       .on_click((_e, cx) => {
         toggle();
