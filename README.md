@@ -30,11 +30,11 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 - **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. While Inbox shows, a settled agent's done dot leaves the tabs and pane headers too.
 - **Slim tabs, framed panes**: 28px pill tabs; rounded panes with a 28px header (name, folder, status; split, zoom and close on hover).
 - **New**: the tab bar's `+` opens a terminal tab in the current space; the sidebar's New tab picks a space (or a new one) first. No agent picker: start agents in the terminal.
-- **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file.
+- **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file. It is the [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod, installed with the layout.
 
 ## Install
 
-Ask your Herdr agent to add `herdr.dev/layouts/JinJieBeWater/herdr-t3`. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg` and every `mods/t3-*` into `~/.config/herdr-app/`, merge `keys.json` into yours. How it should look and behave: [RECIPE.md](RECIPE.md).
+Ask your Herdr agent to add `herdr.dev/mods/JinJieBeWater/herdr-actions`, then `herdr.dev/layouts/JinJieBeWater/herdr-t3`: the layout's tab bar uses the Actions mod. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg` and every `mods/t3-*` into `~/.config/herdr-app/`, and `mods/herdr-actions/` from [herdr-actions](https://github.com/JinJieBeWater/herdr-actions); merge `keys.json` into yours. How it should look and behave: [RECIPE.md](RECIPE.md).
 
 ## Quick start
 
@@ -64,11 +64,12 @@ Tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inb
 
 Herdr doesn't update mods or layouts from others, and adding this again would install a renamed second copy (`t3-inbox-2`), since an install never overwrites. Update by overwriting instead:
 
-- Tell your Herdr agent: "Update Herdr T3 from github.com/JinJieBeWater/herdr-t3: overwrite my installed `mods/t3-*` and `layouts/herdr-t3.*` with the repo's latest, then run `herdr-app check` on each mod." If the first install renamed something because of a clash, overwrite under that name.
+- Tell your Herdr agent: "Update Herdr T3 from github.com/JinJieBeWater/herdr-t3: overwrite my installed `mods/t3-*` and `layouts/herdr-t3.*` with the repo's latest, and `mods/herdr-actions` with github.com/JinJieBeWater/herdr-actions's, then run `herdr-app check` on each mod." If the first install renamed something because of a clash, overwrite under that name.
 - By hand: copy the same files over the old ones. Mods reload by themselves on save; no restart.
 - Kept: pins, folds, sort, the Settled shelf and settled agents. They live in `data/`, `shared.json` and terminal labels, not in the mod folders. Lost: your own edits to the overwritten files, including the focus ring color; set it again after overwriting the layout.
 - `keys.json` and the extras stay as they are; compare them with the repo only if the commit log mentions them. Commits marked `!` rename things (for example `refactor!: rename the layout and theme to herdr-t3`); follow what they rename.
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
+- Actions and the Review bar moved out of `t3-tabs`: install `mods/herdr-actions` (your actions are kept: they live in `shared.json`), and for Review replace `mods/pulls-review` and `mods/review` from the extras with the fork's (below).
 - The agent view is removed (last in commit `a8cbcd4`): after overwriting, delete `"cmd-shift-a": "t3-tabs.view"` from `keys.json`.
 
 ## What it runs
@@ -84,27 +85,7 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 
 ### pulls.review
 
-`extras/mods/pulls-review/` reviews the focused worktree with [pulls.review](https://github.com/antfu/pulls.review): its uncommitted changes when there are any, else the current branch against the default branch.
-
-With it installed, the tab bar shows a Review bar before `+`, with only what there is: `4 ahead of main` (the branch's commits not on the default branch, with `· merged?` once its upstream is gone), `3 uncommitted` (uncommitted files), `↑2` (commits your upstream doesn't have), `↓1` (commits from your upstream). Click one to review just that diff. Click the branch icon to search and pick something else: a commit of this branch (on the default branch, a recent one), or another local branch against the default branch. The icon stays when there are no counts. It follows the focused pane; with the review pane focused, the terminals in its tab. The counts read your remote-tracking refs as they are: nothing is fetched for you.
-
-Where a review opens is `open` in `extras/mods/pulls-review/config.json`:
-
-- `"herdr"` (the default): in a pane split off beside the agent (`extras/mods/review/`; zoom it with Herdr's zoom key for more room), or, with Open in set to Tab in the pane's gear, in a tab of its own, named for what it reviews (`review · fix vs origin/main`). Another click in the same tab (with Tab, the same space) opens the new diff in that pane. It shows the groups (the AI analysis, else rule-based ones), each group's summary, its files with their notes and highlighted diffs, unified or split, a whole file around its hunks, one commit at a time and reviewed marks, shared with the browser. An analysis runs with the local agent picked when you press Analyze; as the app never starts one by itself, analyzing on open is off until you turn it on, and even then an analysis of an older version waits for Re-analyze. As in the app, the analysis's state is the Analyze button's: while it runs or once it fails, the button opens what it's doing or why it failed. The gear in the pane's header turns that on, picks the agent and its model (from its list or typed in) and the language the analysis writes in (the system's by default, as in the app; shared with the browser), and sets the view: unified or split, files as a tree or a list, groups as tabs or a sidebar, and where the next review opens: a pane or a tab. As in the app, from 1024px a column beside the diff holds the header and files of the group scrolled to, and the groups are tabs over the diff (one row, scrolling sideways when they don't fit) unless the sidebar is picked; narrower, there's no file column, the groups are always tabs, and the header with the tabs slides away after a long scroll down and comes back on any scroll up. A group's title and summary show only at the top of its diffs, scrolling away with them. The button left of the gear, as the app's, expands or collapses every file, or collapses the reviewed ones or the tests; marking a file reviewed collapses it and unmarking opens it again. Split falls back to unified where the diff is under 640px; narrower still, the header's text buttons turn to icons. Keys in the pane: `j`/`k` next and previous file, `r` reviewed, `f` whole file, `c` collapse, `s` unified or split. Needs the fork, `jin.review` 0.3.4-fork.2 or later.
-- `"pwa"`: the fork's installed jin.review app (`jin.review -d --pwa`). Install the app first: run `jin.review -d` once, open the page in Chrome, install it as an app and allow it to open `web+pullsreview` links.
-- `"browser"`: the fork in the browser (`jin.review -d`).
-- `"official"`: the `pulls.review` CLI. Each worktree gets its own server, which herdr-core keeps running in the background (`hc ls --label pulls-review.root=<folder>`; stop one with `hc kill <address>`). The first open signs the browser in; later ones open a new tab on the same server.
-
-With the fork (`"herdr"`, `"pwa"`, `"browser"`), a click on a count also starts the diff's AI analysis, or follows the one already running. A pick from the branch icon's menu doesn't.
-
-In `"herdr"` mode the pane's tab and header show its analysis with an agent's marks: a spinner while it runs; if it ended while you were on another tab, a dot when it finished or `!` when it failed, until you look. It isn't an agent, so it stays out of the agents list and Inbox.
-
-1. Install one pulls.review CLI on Herdr's `PATH`: `bun add --global jin.review` for the fork ([my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo), which installs next to `pulls.review`; one background server for every repo, stopped with `jin.review --stop`), or `bun add --global pulls.review` for `"official"`.
-2. Copy `extras/mods/pulls-review/` (and, for `"herdr"`, `extras/mods/review/`) into `~/.config/herdr-app/mods/` and set `open` in its `config.json`. The Review bar opens it; there's no key to bind.
-3. For the pane's analysis, pick a local agent once, with the gear in the pane's header or in the browser's review settings (`jin.review -d`): the daemon keeps that choice.
-
-- Local folders only: a pane on another machine shows an error.
-- Runs read-only git (`git status`, `git rev-parse`, `git symbolic-ref`) and `pulls.review` or `jin.review`; the pane talks to the jin.review daemon on `127.0.0.1` with the session it keeps in `~/.pulls.review`, and starts it when it isn't running.
+A Review bar and a review pane, from [my pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods): the bar counts what there is to review in the focused worktree (the branch's commits past the default branch, uncommitted files, commits to push and pull), and a click opens that review in a pane beside the agent. Install it as [its README](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods/README.md) says, then ask your Herdr agent to put its block in this layout's `tabs-row` row, right after `tabs` (step 3 there). `scripts/sync.sh` keeps that block when it syncs the layout. The pane's tab and header show its analysis with this layout's marks: `t3-tabs` and `t3-pane` read `shared("review.status")`.
 
 ### Theme and settings from the preview
 

@@ -30,11 +30,11 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。显示 Inbox 时，已 Settle 的 agent 在标签和窗格标题上也不再显示 done 圆点。
 - **窄标签、带框窗格**：28px 胶囊标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签；侧栏的 New tab 先选 space（或新建一个）。不选 agent：在终端里启动。
-- **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。
+- **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。它是 [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod，随布局一起安装。
 
 ## 安装
 
-让你的 Herdr agent 添加 `herdr.dev/layouts/JinJieBeWater/herdr-t3`。手动安装：把 `layouts/herdr-t3.json`、`layouts/herdr-t3.svg` 和所有 `mods/t3-*` 复制进 `~/.config/herdr-app/`，把 `keys.json` 合并进你自己的。外观和行为见 [RECIPE.zh-CN.md](RECIPE.zh-CN.md)。
+让你的 Herdr agent 先添加 `herdr.dev/mods/JinJieBeWater/herdr-actions`，再添加 `herdr.dev/layouts/JinJieBeWater/herdr-t3`：布局的标签栏用到了这个动作 mod。手动安装：把 `layouts/herdr-t3.json`、`layouts/herdr-t3.svg` 和所有 `mods/t3-*` 复制进 `~/.config/herdr-app/`，再从 [herdr-actions](https://github.com/JinJieBeWater/herdr-actions) 复制 `mods/herdr-actions/`；把 `keys.json` 合并进你自己的。外观和行为见 [RECIPE.zh-CN.md](RECIPE.zh-CN.md)。
 
 ## 快速上手
 
@@ -64,11 +64,12 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 
 Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装从不覆盖已有文件，只会装出一份改了名的副本（如 `t3-inbox-2`）。更新要靠覆盖：
 
-- 对你的 Herdr agent 说：「从 github.com/JinJieBeWater/herdr-t3 更新 Herdr T3：用仓库最新的文件覆盖我已安装的 `mods/t3-*` 和 `layouts/herdr-t3.*`，然后对每个 mod 跑 `herdr-app check`。」如果首次安装时因为重名改过名字，就覆盖改名后的那份。
+- 对你的 Herdr agent 说：「从 github.com/JinJieBeWater/herdr-t3 更新 Herdr T3：用仓库最新的文件覆盖我已安装的 `mods/t3-*` 和 `layouts/herdr-t3.*`，用 github.com/JinJieBeWater/herdr-actions 的覆盖 `mods/herdr-actions`，然后对每个 mod 跑 `herdr-app check`。」如果首次安装时因为重名改过名字，就覆盖改名后的那份。
 - 手动更新：把同样的文件复制过去覆盖旧的。mod 保存后自动重载，不用重启。
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
+- 动作和 Review 栏已移出 `t3-tabs`：安装 `mods/herdr-actions`（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，把可选扩展里的 `mods/pulls-review` 和 `mods/review` 换成 fork 里的（见下文）。
 - Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
 
 ## 它会运行什么
@@ -84,27 +85,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 ### pulls.review
 
-`extras/mods/pulls-review/` 用 [pulls.review](https://github.com/antfu/pulls.review) 评审当前焦点所在的工作树：有未提交改动时看这些改动，否则看当前分支对比默认分支。
-
-安装后，标签栏在 `+` 前出现 Review 栏，只显示有的内容：`4 ahead of main`（当前分支上默认分支没有的提交；上游分支已删除时附带 `· merged?`）、`3 uncommitted`（未提交的文件数）、`↑2`（上游还没有的提交）、`↓1`（上游新增的提交）。点击只看那一份 diff。点击分支图标可以搜索并选别的：当前分支的某个提交（在默认分支上是最近的提交），或者其他本地分支与默认分支的对比。没有计数时图标也会保留。它跟随当前焦点窗格；焦点在评审窗格上时，跟随同一标签页里的终端。这些计数读取现有的远程跟踪引用，不会替你 fetch。
-
-评审在哪里打开，由 `extras/mods/pulls-review/config.json` 里的 `open` 决定：
-
-- `"herdr"`（默认）：在 agent 旁边分出一个窗格打开（`extras/mods/review/`；需要更大空间时按 Herdr 的 zoom 键放大）；在齿轮里把 Open in 设为 Tab 时，改为单独开一个标签页，标签名写明在评审什么（`review · fix vs origin/main`）。在同一个标签页（Tab 模式下是同一个 space）再点一次，会在这个窗格里换成新的 diff。窗格里有：分组（有 AI 分析时用它，否则用规则分组）、每组的摘要、组内文件及其注释和带语法高亮的 diff（统一或分栏）、围绕改动显示整个文件、逐个 commit 查看，以及和浏览器共用的已看标记。点 Analyze 时用选好的本地 agent 分析；和网页端一样不会自己开始分析，打开时自动分析默认关闭，开启后遇到针对旧版本的分析也会等你点 Re-analyze。和网页端一样，分析状态显示在 Analyze 按钮上：分析中或失败时，点按钮查看进度或失败原因。窗格顶栏的齿轮里可以开启自动分析、选 agent 和模型（从列表里选或自己填）、选分析用的语言（默认跟随系统，和网页端一致，与浏览器共用），也可以设置视图：统一或分栏、文件用树状或列表、分组用标签或侧栏，以及下次评审在窗格还是标签页打开。和网页端一样：窗格宽于 1024px 时，diff 左边有一列，显示滚动到的分组的标题和文件，分组默认是 diff 上方的一排标签（只占一行，放不下时左右滚动），可在齿轮里换成侧栏；窄于 1024px 时没有文件列，分组固定为标签，并且向下连续滚动一段后顶栏和标签会收起，往上滚就回来。分组的标题和摘要只在 diff 顶部显示，往下滚就跟着消失。齿轮左边的按钮和网页端一样，可以一次展开或折叠全部文件，或只折叠已看文件、测试文件；标记已看会折叠该文件，取消标记会重新展开。diff 区窄于 640px 时分栏自动退回统一视图；再窄一些，顶栏的文字按钮变成图标。窗格快捷键：`j`/`k` 下一个、上一个文件，`r` 标记已看，`f` 整个文件，`c` 折叠，`s` 切换统一或分栏。需要 fork 的 `jin.review` 0.3.4-fork.2 或更新版本。
-- `"pwa"`：在已安装的 jin.review 应用里打开（`jin.review -d --pwa`）。先安装应用：运行一次 `jin.review -d`，在 Chrome 打开该页面，安装为应用，并允许它打开 `web+pullsreview` 链接。
-- `"browser"`：用 fork 在浏览器里打开（`jin.review -d`）。
-- `"official"`：`pulls.review` CLI。每个工作树一个服务，由 herdr-core 在后台托管（`hc ls --label pulls-review.root=<目录>` 查看，`hc kill <address>` 停止）。第一次打开时浏览器完成登录，之后在同一个服务上打开新标签页。
-
-用 fork 时（`"herdr"`、`"pwa"`、`"browser"`），点击计数还会开始这份 diff 的 AI 分析；已有分析在跑就直接接上。从分支图标菜单里选的不会。
-
-`"herdr"` 模式下，窗格所在的标签和窗格标题栏用 agent 的标记显示分析状态：运行中转圈；如果结束时你在别的标签，完成显示圆点、失败显示 `!`，看过后消失。它不是 agent，所以不进 agents 列表和 Inbox。
-
-1. 在 Herdr 的 `PATH` 里装一种 pulls.review CLI：fork 用 `bun add --global jin.review`（[我的 fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)，可与 `pulls.review` 同时安装；所有仓库共用一个后台服务，用 `jin.review --stop` 停止），`"official"` 用 `bun add --global pulls.review`。
-2. 把 `extras/mods/pulls-review/`（用 `"herdr"` 时再加 `extras/mods/review/`）复制进 `~/.config/herdr-app/mods/`，在它的 `config.json` 里设置 `open`。通过 Review 栏打开，不用绑快捷键。
-3. 要在窗格里分析，先选一次本地 agent：用窗格顶栏的齿轮，或浏览器里的评审设置（`jin.review -d`），daemon 会记住这个选择。
-
-- 只支持本机目录：窗格在其他机器上时会报错。
-- 会运行只读的 git（`git status`、`git rev-parse`、`git symbolic-ref`）和 `pulls.review` 或 `jin.review`；评审窗格通过 `~/.pulls.review` 里保存的会话访问 `127.0.0.1` 上的 jin.review daemon，daemon 没在运行时会启动它。
+Review 栏和评审窗格，来自[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods)：Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下就在 agent 旁边的窗格里打开那份评审。按[它的 README](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods/README.zh-CN.md) 安装，然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面（见那里的第 3 步）。`scripts/sync.sh` 同步布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
 
 ### 预览图里的主题和设置
 
