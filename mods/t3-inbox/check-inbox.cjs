@@ -448,3 +448,27 @@ test("folding Working slides its header down with the list, as T3's markers move
   f.mod.workOpen = true; f.render(1300);
   assert.equal(at(flyOf(f, "m:working")).top, 84, "unfolding, it goes back up from where it was");
 });
+
+test("an agent brought into view that the space filter hides widens it, as T3's route reveal; a filter you pick stays", () => {
+  const f = fixture(), a = f.add("A", "idle", 300), b = f.add("B", "idle", 200); b.space = "s2"; b.space_name = "Two";
+  a.focused = true; f.mod.scope = ["s1"]; f.render();
+  assert.deepEqual(f.active(), ["A"]);
+  a.focused = false; b.focused = true; f.render(1100);
+  assert.deepEqual([[...f.mod.scope], f.data.get("scope")], [[], "[]"], "kept: the filter is all spaces now");
+  assert.ok(f.active().includes("B"));
+  f.mod.pick({ id: "s1" }, false, f.cx); f.render(1200);
+  assert.deepEqual([...f.mod.scope], ["s1"], "picked while B is in view, the filter holds");
+  // A fresh inbox (a reload) leaves the filter as it was, as T3's mount doesn't widen.
+  const g = fixture(), c = g.add("C", "idle"); c.space = "s2"; c.focused = true; g.mod.scope = ["s1"]; g.render();
+  assert.deepEqual([...g.mod.scope], ["s1"]);
+});
+
+test("a sub-agent in view with no row of its own lights its parent's card, as T3's", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200);
+  f.terms.push({ address: "c1", parent: "A", state: "live", status: "idle", labels: {} });
+  f.context.focused = () => ({ terminal: "c1" }); f.render();
+  assert.ok("bg" in find(f.tree, "card-A").style, "A is the row in view");
+  assert.ok(!("bg" in find(f.tree, "card-B").style));
+  f.mod.settleKey(f.cx);
+  assert.match(f.mod.pending.A ?? "", /^\d+:/, "the settle key acts on it too");
+});

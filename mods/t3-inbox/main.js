@@ -211,6 +211,26 @@ export default class Inbox extends View {
   render(cx) {
     const t = theme(), now = Date.now();
     const every = agents(), all = terminals(), ps = panes(), sp = spaces();
+    // The row in view: the focused agent's, or for a sub-agent with no row of its own (shown in a block, a peek), its
+    // nearest listed ancestor's, as T3's resolveSidebarRowThreadId lights the parent of an open sub-agent.
+    const inView = (() => {
+      const own = every.find((a) => a.focused);
+      if (own) return own.address;
+      const f = focused(), byAddress = new Map(all.map((k) => [k.address, k])), seen = new Set();
+      let k = byAddress.get(f?.agent ?? f?.terminal);
+      while (k && !every.some((a) => a.address === k.address) && !seen.has(k.address)) { seen.add(k.address); k = byAddress.get(k.parent); }
+      return k && every.some((a) => a.address === k.address) ? k.address : null;
+    })();
+    // Read live on the agent itself, so a key or click right after focus moves goes by where it is now.
+    const stoodIn = inView !== null && !every.some((a) => a.focused);
+    const viewing = (a) => a.focused || (stoodIn && a.address === inView);
+    // As T3's route reveal: an agent brought into view from elsewhere (a key, the picker, its pane) that the space
+    // filter hides widens the filter to every space, kept. Not on the first draw, and a filter you pick isn't undone.
+    if (this.inView !== undefined && inView && inView !== this.inView && this.scope.length) {
+      const a = every.find((x) => x.address === inView);
+      if (a && !this.scope.includes(a.space)) { this.scope = []; localStorage.setItem("scope", "[]"); this.limit = FIRST; }
+    }
+    this.inView = inView;
     // A space that's gone reads as all; its id stays stored, so the scope returns with it.
     const scope = this.scope.filter((id) => sp.some((s) => s.id === id));
     const list = scope.length ? every.filter((a) => scope.includes(a.space)) : every;
@@ -260,7 +280,7 @@ export default class Inbox extends View {
     const work = rest.filter((a) => !settledAt(a) && working(a)).sort((x, y) => begun(y) - begun(x) || byAddress(x, y));
     const put = rest.filter(settledAt).sort((x, y) => settledAt(y)[0] - settledAt(x)[0] || byAddress(x, y));
     // Shelves fold by default on this screen; the one in view stays out even folded or past the page, so it's never lost.
-    const busyRows = this.workOpen ? work : work.filter((a) => a.focused);
+    const busyRows = this.workOpen ? work : work.filter(viewing);
     // agent.next goes as the list reads. Only while this list shows: the agents list (t3-agents) sets its own.
     const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
     if (find(layout())?.active !== "lists") setAgentOrder([...pinned, ...out, ...work, ...put].map((a) => a.address));
@@ -292,7 +312,7 @@ export default class Inbox extends View {
       for (const a of xs) this.setSettled(a.address, `${Date.now()}:${term.get(a.address)?.turn ?? 0}`, cx);
       // Undone, they're back where they were: no news, as T3 restores a thread.
       if (xs.length) this.remember("Settled", xs.length, (cx) => { for (const a of xs) this.setSettled(a.address, "", cx); }, cx);
-      const cards = [...pinned, ...out, ...busyRows], i = cards.findIndex((a) => a.focused);
+      const cards = [...pinned, ...out, ...busyRows], i = cards.findIndex(viewing);
       if (i < 0 || !xs.includes(cards[i])) return false;
       const next = [...cards.slice(i + 1), ...cards.slice(0, i)].find((a) => !xs.includes(a));
       if (next) run("agent.focus", { terminal: next.address });
@@ -300,7 +320,7 @@ export default class Inbox extends View {
     };
     // The settle key: the agent in view, as its card's Settle (finished, unpinned) or its settled row's undo.
     this.settleKey = (cx) => {
-      const a = every.find((a) => a.focused);
+      const a = every.find(viewing);
       if (!a) return;
       if (settledAt(a)) unsettle(a, cx);
       else if (!busy(a) && !pins.includes(a.address)) settle([a], cx);
@@ -357,7 +377,7 @@ export default class Inbox extends View {
     const fromPage = from === "settled" && put.indexOf(lifted) < this.limit;
     const size = this.limit + (fromPage && plan ? 1 : 0) - (plan?.section === "settled" && from !== "settled" ? 1 : 0);
     const page = this.open ? put.slice(0, size) : [];
-    const rows = [...page, ...put.filter((a) => a.focused && !page.includes(a))];
+    const rows = [...page, ...put.filter((a) => viewing(a) && !page.includes(a))];
 
     const aim = (to, cx) => {
       if (!this.drag?.moved || JSON.stringify(this.drag.target ?? null) === JSON.stringify(to)) return;
@@ -487,7 +507,7 @@ export default class Inbox extends View {
 
     // `ghost`: the copy that follows the pointer, drawn without handlers or ids the list already uses.
     const card = (a, ghost) => {
-      const st = state(a), on = a.focused;
+      const st = state(a), on = viewing(a);
       const machine = machineOf(a), branch = branchOf(a);
       const going = (kids.get(a.address) ?? []).filter((s) => s === "working").length;
       const meta = [branch, going ? `${going} sub-agent${going > 1 ? "s" : ""} working` : null].filter(Boolean).join(" · ");
@@ -569,7 +589,7 @@ export default class Inbox extends View {
     // A settled row: one dim line; viewing it leaves it settled. Hovered it brightens and its time
     // becomes a bare undo arrow, as in T3.
     const slim = (a, ghost) => {
-      const on = a.focused, over = !dragging && !this.sweep?.moved && this.hovered === a.address, bright = on || over || ghost || swept(a);
+      const on = viewing(a), over = !dragging && !this.sweep?.moved && this.hovered === a.address, bright = on || over || ghost || swept(a);
       // As T3's settled rows: its project's mark, not its program's.
       const mark = avatar(a.space, a.space_name, 16);
       const undo = h_flex().id(`unsettle-${a.address}`).size(20).flex_none().items_center().justify_center().rounded(4)
@@ -723,7 +743,7 @@ export default class Inbox extends View {
         .child(v_flex().gap(2).children(busyRows.map((a) => fly(a.address, "work", card(a))))));
     // Clear closes settled agents' panes; Herdr then closes emptied tabs. The one in view stays.
     const spaceNow = sp.find((s) => s.active), tabNow = spaceNow?.tabs.find((c) => c.active)?.id;
-    const doomed = put.filter((a) => a.pane && !a.focused && a.tab !== tabNow);
+    const doomed = put.filter((a) => a.pane && !viewing(a) && a.tab !== tabNow);
     // With nothing to clear the button goes, and a gone element hears no pointer-leave: drop its hover.
     if (doomed.length === 0 && this.hot === "settled-clear") this.hot = null;
     this.clearSettled = () => {
