@@ -53,7 +53,7 @@ export default class WorkspaceChrome extends View {
             .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
             .role("button").accessibility_label("Add machine")
             .on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "machine-add" }); cx.notify(); })
-            .child(svg("mods/workspace-chrome/server.svg").size(14)))));
+            .child(svg("mods/workspace-chrome/server.svg").size(14)), { above: true })));
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.

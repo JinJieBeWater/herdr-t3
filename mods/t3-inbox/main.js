@@ -9,7 +9,7 @@ import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shar
 import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { tip } from "./tip.js";
+import { tip, tipMark } from "./tip.js";
 
 const BUSY = new Set(["working", "blocked"]);
 // The settled tail opens on this many, then grows by MORE.
@@ -407,7 +407,7 @@ export default class Inbox extends View {
             .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim));
           return el.child(ghost ? server : tip(this.hot, t, `machine-${a.address}`, machine, server));
         })
-        .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
+        .when(Boolean(pic), (el) => el.child(ghost ? div().flex_none().opacity(0.6).child(pic) : tipMark(this, t, `program-${a.address}`, a.program?.name, div().opacity(0.6).child(pic)))) : null;
       // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
       const offer = over && !busy(a) && !pins.includes(a.address);
       const id = `settle-${a.address}`;
@@ -422,7 +422,7 @@ export default class Inbox extends View {
       const corner = ghost ? (verb ? badge(verb) : div())
         : swept(a) ? badge("settle")
         : offer
-        ? h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
+        ? tip(this.hot, t, id, "Settle", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
           .text_size(12).text_color(lit(id, t.muted)).on_hover(glow(id))
           .role("button").accessibility_label("Settle")
           .on_mouse_down("left", sweepFrom("settle", a))
@@ -437,7 +437,7 @@ export default class Inbox extends View {
             cx.notify();
           })
           .child(svg("mods/workspace-chrome/check.svg").size(12).flex_none().text_color(lit(id, t.muted)))
-          .child("Settle")
+          .child("Settle"), { action: "t3-inbox.settle", hint: "It comes back when there's new work" })
         : running(a)
           ? pill(t.working, svg("mods/workspace-chrome/spinner.svg").size(16).flex_none().text_color(t.working).spin(900),
             "Working", started(a) > 0 && started(a) < Infinity ? took(started(a), now) : null)
@@ -454,7 +454,8 @@ export default class Inbox extends View {
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
           .child(avatar(a.space, a.space_name, 16))
           // Lifted, a pin keeps its glyph only while it stays among the pins.
-          .when(pins.includes(a.address) && (!ghost || plan?.section === "pinned" || !plan), (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(12).flex_none().text_color(t.dim)))
+          .when(pins.includes(a.address) && (!ghost || plan?.section === "pinned" || !plan), (el) => el.child(ghost ? svg("mods/workspace-chrome/pin.svg").size(12).flex_none().text_color(t.dim)
+            : tipMark(this, t, `pinned-${a.address}`, "Pinned", svg("mods/workspace-chrome/pin.svg").size(12).text_color(t.dim))))
           .child(div().flex_1().min_w(0).truncate().child(a.space_name ?? ""))
           .child(corner))
         .child(h_flex().gap(8).items_center()
@@ -489,10 +490,10 @@ export default class Inbox extends View {
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
-        .child(h_flex().size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).when(Boolean(pic), (el) => el.child(pic)))
+        .child(h_flex().size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).when(Boolean(pic), (el) => el.child(ghost ? pic : tipMark(this, t, `slim-program-${a.address}`, a.program?.name, pic, { above: true }))))
         .child(div().flex_1().min_w(0).truncate().text_color(bright ? t.foreground : t.muted).child(title(a)))
         .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge("unsettle")
-          : over ? tip(this.hot, t, `unsettle-${a.address}`, "Unsettle", undo, { action: "t3-inbox.settle" }) : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
+          : over ? tip(this.hot, t, `unsettle-${a.address}`, "Unsettle", undo, { action: "t3-inbox.settle", above: true }) : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
     };
 
     // A shelf's header, folding it: label, then count and chevron at the far edge.
@@ -535,7 +536,7 @@ export default class Inbox extends View {
       // tab.new shows the new tab; go back to where the person was.
       if (tabNow) { run("space.select", { id: spaceNow.id }); run("tab.select", { id: tabNow }); }
     };
-    const clearButton = doomed.length > 0 && h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
+    const clearButton = doomed.length > 0 && tip(this.hot, t, "settled-clear", "Clear settled agents", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
       .text_color(lit("settled-clear", t.dim)).on_hover(glow("settled-clear"))
       .role("button").accessibility_label("Clear settled agents")
       .on_click((_e, cx) => {
@@ -548,7 +549,7 @@ export default class Inbox extends View {
         } });
         cx.notify();
       })
-      .child("Clear");
+      .child("Clear"), { hint: "Closes their panes, after asking", above: true });
     const tail = v_flex().id("settled").flex_none()
       .child(shelf("settled-header", "Settled", put.length, this.open, () => {
         this.open = !this.open;

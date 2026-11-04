@@ -7,7 +7,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window } from "herdr";
 import { projectMark, tint } from "./project.js";
-import { tip } from "./tip.js";
+import { tip, tipMark } from "./tip.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
@@ -325,16 +325,16 @@ export default class Spaces extends View {
         .when(!connected && !rebuilt, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
         .when(rebuilt, el => el.child(h_flex().flex_none().gap(3).items_center()
           .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
-          .child(div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
-            .hover(s => s.text_color(t.foreground))
+          .child(tip(this.hot, t, `machine-connect-${m}`, `Connect ${m}`, div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
+            .hover(s => s.text_color(t.foreground)).on_hover(this.glow(`machine-connect-${m}`))
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
-            .child(repair?.busy ? "Connecting…" : "Connect"))))
+            .child(repair?.busy ? "Connecting…" : "Connect"), { hint: "It was rebuilt or replaced: this reaches the new one" }))))
         .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
           .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
           .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
           .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)), { action: "space.new" })))
-        .child(div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim))
+        .child(tipMark(this, t, `machine-state-${m ?? "local"}`, connected ? "Connected" : (machine?.state ?? "asleep").replace(/_/g, " ").replace(/^./, c => c.toUpperCase()), div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim)))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
@@ -349,7 +349,8 @@ export default class Spaces extends View {
   // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
   // branch goes when the name already says it (a worktree is named after its branch),
   // and master/main go: nearly every space is on one.
-  gitTail(g, tree, name, t) {
+  gitTail(g, tree, name, t, id) {
+    const n = (count, what) => `${count} commit${count === 1 ? "" : "s"} to ${what}`;
     const raw = g.branch ?? "detached";
     const same = (a) => a.toLowerCase() === name.toLowerCase();
     const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
@@ -364,8 +365,8 @@ export default class Spaces extends View {
       .text_size(11)
       .text_color(t.dim)
       .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
-      .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
-      .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
+      .when(g.ahead > 0, (el) => el.child(tipMark(this, t, `ahead-${id}`, n(g.ahead, "push"), div().text_color(t.ansi2).child(`\u2191${g.ahead}`))))
+      .when(g.behind > 0, (el) => el.child(tipMark(this, t, `behind-${id}`, n(g.behind, "pull"), div().text_color(t.ansi1).child(`\u2193${g.behind}`))));
   }
 
   row({ w, i, g, tree, kids = 0 }, t, ps) {
@@ -429,8 +430,8 @@ export default class Spaces extends View {
             .child(svg("mods/workspace-chrome/branch.svg").size(16).text_color(t.dim))))
           .when(!tree, el => el.child(projectMark(w, 18, t, ps)))
           .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
-          .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-          .when(kids > 0, el => el.child(div().id(foldId).h(20).min_w(20).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+          .child(g ? this.gitTail(g, tree, w.name, t, w.id) : div().flex_1())
+          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", div().id(foldId).h(20).min_w(20).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
             .text_size(11).text_color(lit)
             .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
             .on_hover((over, cx) => {
@@ -442,7 +443,7 @@ export default class Spaces extends View {
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
             .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().text_color(lit))
-            .when(folded, el => el.child(String(kids))))),
+            .when(folded, el => el.child(String(kids)))))),
       );
   }
 

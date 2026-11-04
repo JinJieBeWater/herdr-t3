@@ -156,7 +156,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(at, "controls-t0").style.gap, 4);
   for (const id of ["status-t0", "status-vps/t2", "sub-status-child", "sub-status-grandchild"]) assert.equal(find(at, id).style.size, 20);
   assert.equal(find(agent, "pin-t0"), null, "hidden pin has no click target");
-  assert.deepEqual(find(at, "controls-t0").items.map(n => n.key), ["fold-t0", "when-t0", "status-t0"], "a parent shows its fold arrow and time before the status, as the shipped list");
+  assert.deepEqual(find(at, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "a parent shows its fold arrow and time before the status, as the shipped list");
   assert.equal(find(at, "fold-t0").items[0].source, "mods/workspace-chrome/chevron-down.svg");
   assert.deepEqual(strings(find(at, "when-t0")), ["<1m"], "time in its state, as the shipped list");
   fire(agent, "on_hover", true, cx);
@@ -168,7 +168,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(hoveredTree, "pin-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].style.text_color, f.theme().foreground, "hovered, the pin brightens");
   fire(find(hoveredTree, "pin-t0"), "on_hover", false, cx);
-  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["fold-t0", "tip-pin-t0", "status-t0"], "pin takes the time's slot, the status stays, as the shipped list");
+  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "tip-pin-t0", "tip-status-t0-mark"], "pin takes the time's slot, the status stays, as the shipped list");
   assert.equal(find(at, "when-t0").style.min_w, 20, "the time's slot is the pin's width, so hovering moves nothing");
   fire(find(hoveredTree, "ag-t0"), "on_hover", false, cx);
   assert.ok(find(ag.render(cx), "when-t0") && !find(ag.render(cx), "pin-t0"), "leaving restores the time");
@@ -377,7 +377,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const drawn = inbox.render(cx);
   assert.ok(strings(find(drawn, "state-t0")).includes("Done") && strings(drawn).includes("1 sub-agent working"), "an unread reply isn't hidden by a working sub-agent");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Done");
-  assert.ok(find(f.load("t3-tabs").render(cx), "tab-b0").items.some(n => n.style.rounded_full), "its tab shows the done dot");
+  assert.ok(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), "its tab shows the done dot");
   f.agents()[0].status = "idle"; f.panes()[0].status = "idle";
   assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "read, the run goes on from its start");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Working (sub-agent)", "a read parent waiting on a sub-agent is working");
@@ -798,7 +798,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // Every control says what it is. A pane's header focuses it; it's no control.
-    // As in T3, an icon alone says it on hover too, and words need no tooltip. A fold's arrow and the editor's icon picks explain themselves.
+    // As in T3, an icon alone says it on hover too, and words need no tooltip unless there's more to say than they do. A row's own fold and the editor's icon picks explain themselves.
     const f = fixture(256);
     f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
     const pane = f.load("t3-pane", { pane: "p0" });
@@ -811,10 +811,22 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
       assert.ok(!("tooltip" in n.style), `${n.key}: the shell's tooltip isn't T3's`);
       const tipped = walk(view.render(cx)).some(c => c.kind === "hovercard" && c.items.some(i => i.key === n.key));
-      const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /fold|^(icon|sub|ag|card|slim)-/.test(n.key);
+      const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /agent-fold|^(icon|sub|ag|card|slim)-/.test(n.key);
       if (icon && !plain) assert.ok(tipped, `${n.key}: an icon alone has a hover label`);
-      if (n.items.some(c => typeof c === "string") && !/^(minimize|maximize)/.test(n.key)) assert.ok(!tipped, `${n.key}: words need no hover label`);
+      if (n.items.some(c => typeof c === "string") && !/^(minimize|maximize|settle-|settled-clear|machine-connect|fold-)/.test(n.key)) assert.ok(!tipped, `${n.key}: words need no hover label`);
     }
+  }
+  {
+    // A mark with no words says what it is on hover; what sits at the window's bottom opens upward, as a HoverCard doesn't flip.
+    const f = fixture(256), ag = f.load("t3-agents"), footer = f.load("t3-chrome", { footer: true });
+    const mark = () => find(ag.render(cx), "tip-status-t0-mark");
+    assert.equal(strings(mark().style.content).length, 0, "its card waits for the hover");
+    fire(find(ag.render(cx), "status-t0-mark"), "on_hover", true, cx);
+    assert.ok(strings(mark().style.content).length > 0);
+    assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, strings(mark().style.content)[0]);
+    fire(find(ag.render(cx), "status-t0-mark"), "on_hover", false, cx);
+    assert.equal(strings(mark().style.content).length, 0);
+    assert.equal(find(footer.render(cx), "tip-add-machine").style.anchor, "bottom_center");
   }
   {
     // Whatever opens over its button hides the pointer's leaving from it: it doesn't stay lit.
