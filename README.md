@@ -57,7 +57,6 @@ What I add to the `global` section:
 | --- | --- | --- |
 | `cmd-]` / `cmd-[` | `agent.next` / `agent.prev` | Walks agents in the Inbox cards' order; settled ones come last |
 | `cmd-p` | `mod.open:picker` | The same picker as Inbox's Search |
-| `cmd-shift-r` | `mod.open:pulls-review` | Review the focused repo (needs the pulls.review extra) |
 
 Tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inbox are by mouse.
 

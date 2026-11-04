@@ -57,7 +57,6 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | --- | --- | --- |
 | `cmd-]` / `cmd-[` | `agent.next` / `agent.prev` | 按 Inbox 卡片的顺序切换 agent，已 Settle 的排在最后 |
 | `cmd-p` | `mod.open:picker` | 和 Inbox 顶栏的 Search 是同一个选择器 |
-| `cmd-shift-r` | `mod.open:pulls-review` | 审阅当前仓库（需要 pulls.review 扩展） |
 
 标签、space 和窗格沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
 
