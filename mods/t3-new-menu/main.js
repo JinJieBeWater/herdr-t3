@@ -1,7 +1,8 @@
 // New: pick the space (or a new one) and open a terminal tab there.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, spaces, panes, run, closeOverlay, props, window, keys, shared, home } from "herdr";
+import { theme, spaces, panes, run, closeOverlay, props, window, keys, home } from "herdr";
+import { projectMark } from "./project.js";
 
 function shortcut(name) {
   const k = keys().find(b => b.section === "global" && b.action === name);
@@ -20,8 +21,7 @@ function shortcut(name) {
   }).join(" ");
 }
 
-// Space avatars and where a space is now, as t3-spaces draws and says them.
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+// Where a space is now, as t3-spaces says it.
 function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
@@ -53,7 +53,8 @@ export default class NewMenu extends View {
 
   row(id, i, icon, name, sub, hint, pick) {
     const t = theme(), on = this.at === i;
-    return h_flex().id(id).h(sub ? 46 : 34).px(10).gap(10).rounded(8).items_center().flex_none()
+    return h_flex().id(id).h(sub ? 46 : 32).px(8).gap(8).rounded(6).items_center().flex_none()
+      .role("button").accessibility_label(name)
       .when(on, el => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(pick)
@@ -67,20 +68,18 @@ export default class NewMenu extends View {
   render() {
     const t = theme(), ps = panes(), h = home();
     const short = (p) => (p && h && p.startsWith(h) ? "~" + p.slice(h.length) : p ?? "");
-    const colors = shared("space.colors") ?? {};
     const items = this.items();
     // ⌘1… go by space number, New space aside.
     const bySpace = items.filter(s => s !== NEW);
     let n = 0;
     const rows = items.map((s, i) => {
       if (s === NEW) return this.row("space-new", i, svg("mods/workspace-chrome/folder-plus.svg").size(16).text_color(t.muted), "New space", null, shortcut("space.new"), () => this.choose(NEW));
-      const color = colors[s.id] ?? "ansi6", fill = color.startsWith("#") ? color : MARK[color] ?? t[color];
       const num = ++n;
       return this.row(`space-${s.id}`, i,
-        h_flex().size(18).rounded(5).bg(fill).items_center().justify_center().text_size(11).font_bold().text_color("#ffffff").child([...s.name][0]?.toUpperCase() ?? "?"),
+        projectMark(s, 18, t, ps),
         s.name, `${s.machine ?? "Local"} · ${short(place(s, ps))}`, num <= 9 ? `⌘${num}` : "", () => this.choose(s));
     });
-    return v_flex().id("new-menu").size_full().min_h(0).p(8).gap(4).bg(t.popover).text_size(13)
+    return v_flex().id("new-menu").size_full().min_h(0).p(6).gap(4).bg(t.popover).text_size(13)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down") this.at = (this.at + 1) % items.length;
@@ -90,10 +89,11 @@ export default class NewMenu extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(36).flex_none().px(10).gap(8).items_center()
+      .child(h_flex().h(36).flex_none().px(8).gap(8).items_center()
         .child(svg("mods/workspace-chrome/search.svg").size(14).text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
-      .child(div().px(10).pt(4).pb(2).text_size(11).text_color(t.dim).child("Spaces"))
-      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().children(rows));
+      .child(div().px(8).pt(4).pb(2).text_size(11).text_color(t.dim).child("Spaces"))
+      .child(v_flex().id("new-spaces").flex_1().min_h(0).overflow_y_scroll().children(rows)
+        .when(rows.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces."))));
   }
 }

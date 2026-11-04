@@ -31,8 +31,14 @@ function duration(ms) {
 }
 
 export default class Agents extends View {
-  init(_props) {
-    if (props()?.sortMenu) return;
+  init(_props, cx) {
+    if (props()?.sortMenu) {
+      // It takes the keyboard, as the shipped menu does.
+      this.at = SORTS.indexOf(sortOf());
+      this.keys = cx.focus_handle();
+      this.keys.focus();
+      return;
+    }
     this.folded = JSON.parse(localStorage.getItem("folded") ?? "{}");
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
@@ -110,26 +116,38 @@ export default class Agents extends View {
 
   sortMenu(t) {
     const on = sortOf().id;
+    const choose = (s) => {
+      setShared("agents.sort", s.id);
+      closeOverlay(props().overlay);
+    };
     return v_flex()
+      .id("sort-menu")
       .w_full()
-      .p(4)
+      .p(6)
       .bg(t.popover)
       .text_size(13)
+      .track_focus(this.keys).on_key_down((e, cx) => {
+        if (e.key === "down") this.at = (this.at + 1) % SORTS.length;
+        else if (e.key === "up") this.at = (this.at + SORTS.length - 1) % SORTS.length;
+        else if (e.key === "enter") choose(SORTS[this.at]);
+        else if (e.key === "escape") closeOverlay(props().overlay);
+        else return;
+        cx.stop_propagation();
+        cx.notify();
+      })
       .child(div().px(8).pt(4).pb(8).text_size(11).text_color(t.dim).child("Sort agents"))
-      .children(SORTS.map((s) => h_flex()
+      .children(SORTS.map((s, i) => h_flex()
         .id(`sort-${s.id}`)
-        .h(30)
+        .h(32)
         .px(8)
         .gap(8)
-        .rounded(8)
+        .rounded(6)
         .items_center()
         .text_color(t.foreground)
-        .when(s.id === on, el => el.bg(t.selected))
-        .when(s.id !== on, el => el.hover(s => s.bg(t.hover)))
-        .on_click(() => {
-          setShared("agents.sort", s.id);
-          closeOverlay(props().overlay);
-        })
+        .role("button").accessibility_label(s.label)
+        .when(i === this.at, el => el.bg(t.selected))
+        .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
+        .on_click(() => choose(s))
         .child(svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().child(s.label))
         .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
@@ -288,7 +306,7 @@ export default class Agents extends View {
       const pin = div().id(`pin-${a.address}`).role("button")
         .size(20).flex_none().flex().items_center().justify_center()
         .rounded(4)
-        .accessibility_label(isPinned ? "Unpin" : "Pin")
+        .accessibility_label(isPinned ? "Unpin" : "Pin").tooltip(isPinned ? "Unpin" : "Pin")
         .on_hover(glow(`pin-${a.address}`))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -326,7 +344,7 @@ export default class Agents extends View {
         })
         .on_click(() => run("agent.focus", { terminal: a.address }))
         .child(h_flex().id(`agent-fold-${a.address}`).size(18).flex_none().items_center().justify_center()
-          .when(subs.length > 0, el => el.accessibility_label(this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {
+          .when(subs.length > 0, el => el.role("button").accessibility_label(this.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {
             cx.stop_propagation();
             this.toggleFold(a.address, cx);
           })).when(Boolean(pic), el => el.child(pic)))
@@ -368,6 +386,7 @@ export default class Agents extends View {
         .items_center()
         .text_size(11)
         .font_medium()
+        .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
         .on_click((_e, cx) => this.toggleFold(g.id, cx, initial))
         .child(div().min_w(0).truncate().text_color(g.status ? t[g.status] : t.dim).child(g.label))
         .when(byPriority || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
@@ -399,12 +418,16 @@ export default class Agents extends View {
               div()
                 .id("ag-sort")
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
-                .role("button").accessibility_label("Sort agents")
+                .role("button").accessibility_label("Sort agents").tooltip(`Sort agents: ${sort.label}`)
                 .text_size(11)
                 .text_color(lit("ag-sort"))
                 .hover((s) => s.bg(t.hover))
                 .on_hover(glow("ag-sort"))
-                .on_click(() => openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } }))
+                .on_click((_e, cx) => {
+                  this.hot = null; // The menu covers it, before the pointer can report leaving it.
+                  openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });
+                  cx.notify();
+                })
                 .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
             ),
       )

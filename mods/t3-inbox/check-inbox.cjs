@@ -58,7 +58,7 @@ function lineOf(node, text) {
 }
 
 function fixture() {
-  const f = { now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [] };
+  const f = { now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {} };
   const cx = {
     notify() { f.notified = true; }, stop_propagation() {},
     focus_handle: () => ({ focus() { f.keys = true; } }),
@@ -73,7 +73,7 @@ function fixture() {
     },
   };
   const env = {
-    View: class {}, div: element, image: element, svg: element, v_flex: element, h_flex: element,
+    View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
     Popover: { new: element }, Input: { new: element }, Button: { new: element },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     namer: () => (a) => a.address, Date: { now: () => f.now },
@@ -83,18 +83,20 @@ function fixture() {
     focused: () => ({ agent: f.rows.find((a) => a.focused)?.address }),
     theme: () => ({}), settings: () => ({}), props: () => ({}),
     layout: () => ({ id: "sidebar-lists", active: f.mode }),
-    shared: (k) => k === "agents.pins" ? f.pins : null,
-    setShared: (k, v) => { if (k === "agents.pins") f.pins = Array.from(v); },
+    shared: (k) => k === "agents.pins" ? f.pins : f.state[k] ?? null,
+    setShared: (k, v) => { if (k === "agents.pins") f.pins = Array.from(v); else f.state[k] = v; },
     setAgentOrder: (xs) => { f.order = Array.from(xs); },
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async () => ({ code: 0 }), nextCommand: () => new Promise(() => {}),
   };
-  // tree.js, the shared status rule, is inlined as each mod's own copy is.
-  const tree = fs.readFileSync(path.join(__dirname, "tree.js"), "utf8").replace(/export (function|const) /g, "$1 ");
+  // tree.js and project.js, the shared status and space-mark rules, are inlined as each mod's own copies are.
+  const tree = ["tree.js", "project.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+    .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
   const context = vm.createContext(env);
   vm.runInContext(src, context, { filename: "t3-inbox/main.js" });
+  f.context = context;
   f.mod = new context.Mod(); f.mod.init({}, cx);
   f.loadAgents = () => {
     const src = tree + fs.readFileSync(path.join(__dirname, "../t3-agents/main.js"), "utf8")
@@ -295,4 +297,49 @@ test("a card's marks sit on its third line when it has one, else on the title's"
   assert.equal(find(lineOf(f.tree, "m1/A"), "machine-m1/A"), null, "the title keeps its whole line");
   assert.ok(find(lineOf(f.tree, "dev"), "machine-m1/A"), "the branch line carries the mark");
   assert.ok(find(lineOf(f.tree, "m1/B"), "machine-m1/B"), "no third line: the title's line carries it");
+});
+
+test("a space's monogram is its first glyph, in T3's color for the same name", () => {
+  const f = fixture(), run = (code) => vm.runInContext(code, f.context);
+  // T3's own cases (apps/mobile/src/lib/projectIcon.test.ts), its colors as Tailwind's 400.
+  for (const [name, text, color] of [["t3code", "T", "#2dd4bf"], ["Auto Monogram", "A", "#a3e635"], ["blitzdiff", "B", "#f472b6"],
+    ["uoalbumdotclub", "U", "#9ca3af"], ["  Tagium  ", "T", "#a3e635"], ["Café Ünïcode", "C", "#e879f9"], ["web2 app", "W", "#34d399"]]) {
+    assert.deepEqual([run(`monogram(${JSON.stringify(name)})`), run(`tint(${JSON.stringify(name)}, true)`)], [text, color], name);
+  }
+  assert.deepEqual([run(`monogram("智能算量")`), run(`monogram("~/dev")`)], ["智", "D"]);
+  assert.equal(run(`monogram("~")`), "", "nothing to spell: the folder instead");
+  f.add("A"); f.render();
+  const tile = holding(f.tree, "O"), color = run('tint("One", true)');
+  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 10.24], "T3's 14% wash of the color, the card's 16px, type as before");
+});
+
+test("a space's own icon, found as T3 finds it, replaces its monogram on every card", async () => {
+  const f = fixture(), runs = [], written = [];
+  // Its terminal is down in the repo: the icon is the repo's, as T3's is its project root's.
+  f.env.spaces = () => [{ id: "s1", name: "One", folder: "", machine: "vps", tabs: [{ id: "b1" }] }];
+  f.env.panes = () => [{ pane: "A", tab: "b1", cwd: "/w/one/src" }];
+  Object.assign(f.context, {
+    Buffer, createHash: require("node:crypto").createHash, appHome: () => "/app",
+    fs: { exists: async () => false, mkdir: async () => {}, writeFile: async (p, b) => written.push([p, Buffer.from(b).toString()]) },
+    readTextFile: async (p) => p === "/w/one/index.html" ? `<link href="/brand/logo.svg" rel="icon">` : null,
+    exec: async (cmd, args, opts) => {
+      if (cmd === "git") return opts.cwd === "/w/one/src" ? { code: 0, stdout: "/w/one\n" } : { code: 128, stdout: "" };
+      runs.push([args.slice(3), opts]);
+      if (args[1].startsWith("base64")) return { code: 0, stdout: Buffer.from("<svg/>").toString("base64").replace(/(.{4})/g, "$1\n") };
+      return { code: 0, stdout: args.includes("brand/logo.svg") ? "brand/logo.svg" : "" };
+    },
+  });
+  f.add("A"); f.render();
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(runs[0][0][0], "favicon.svg", "the well-known places first, in T3's order");
+  assert.deepEqual([...runs[1][0]], ["public/brand/logo.svg", "brand/logo.svg"], "then the page's link, public/ first");
+  assert.deepEqual({ ...runs[1][1] }, { cwd: "/w/one", on: "vps" }, "looked for on the space's own machine");
+  const [[at, bytes]] = written, icon = at.slice("/app/".length);
+  assert.match(icon, /^cache\/t3-icons\/[0-9a-f]{16}\.svg$/); assert.equal(bytes, "<svg/>");
+  f.render();
+  const pic = find(f.tree, "card-A") && (function first(n) { return n?.style?.image ? n : n?.items?.map(first).find(Boolean); })(f.tree);
+  assert.deepEqual([pic.style.image[0], pic.style.size[0]], [icon, 16]);
+  assert.equal(holding(f.tree, "O"), null, "no monogram beside it");
+  f.render(f.now + 59000); await new Promise((done) => setTimeout(done, 0));
+  assert.equal(runs.length, 3, "found, it isn't looked for again within ten minutes");
 });

@@ -76,6 +76,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 
 - `t3-spaces`: read-only `git status` / `git rev-parse` in your spaces' folders, watches those repos for changes (`watchFolder`), and `hc machine ls --json`. Clicking Connect on a rebuilt machine runs `hc machine rm` and `hc machine add`.
 - `t3-inbox`: `hc label <agent> settled=<ms>:<turn>` when an agent is settled or unsettled.
+- `t3-spaces`, `t3-inbox`, `t3-new-menu`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
 
 No network requests.
 
