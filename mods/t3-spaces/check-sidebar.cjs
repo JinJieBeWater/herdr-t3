@@ -873,9 +873,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
     assert.equal(spec.at.x, 892);
     assert.equal(spec.at.y, 40 * f.settings().zoom, "it hangs from the tab bar, not over the bar");
+    fire(find(tabs.render(cx), "review-open"), "on_click", {}, cx);
+    assert.equal(f.overlays.at(-1).props.analyze, true, "a count's click starts the analysis");
     const menu = f.load("t3-tabs", spec.props).render(cx);
     fire(find(menu, "review-commit-abcdef123456"), "on_click", {}, cx);
     assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
+    assert.ok(!f.overlays.at(-1).props.analyze, "a menu pick doesn't");
     assert.equal(f.overlays.at(-1).mod, "pulls-review");
     fire(find(menu, "review-branch-Other"), "on_click", {}, cx);
     assert.equal(String(f.overlays.at(-1).props.args), "origin/main...Other");
@@ -899,6 +902,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.overlays.length, opened, "no match: Enter opens nothing");
     await click({ ...r, branch: "main", unmerged: 0 });
     assert.equal(ranges.at(-1), "HEAD", "on the default branch: its recent commits");
+    delete tabs.reviewPress;
+    fire(find(tabs.render(cx), "review-pick"), "on_click", {}, run);
+    await reading;
+    assert.equal(f.overlays.at(-1).at, undefined, "a click with no press opens at the pointer");
     const before = f.overlays.length;
     scope.exec = async () => ({ code: 128, stdout: "" });
     await click(r);

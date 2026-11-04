@@ -104,9 +104,10 @@ async function readPicks(r) {
 }
 
 // The extra's mod.json opens it unseen; a size here would show an empty box while it works.
-const openDiff = (cwd, args) => openOverlay({ mod: "pulls-review", kind: "popup", width: 1, height: 1, frame: "none", props: { cwd, args, analyze: true } });
+const openDiff = (cwd, args, analyze) => openOverlay({ mod: "pulls-review", kind: "popup", width: 1, height: 1, frame: "none", props: { cwd, args, analyze } });
 
 const branchArgs = (b) => [`${props().baseRef}...${b.name}`];
+// No analysis here: browsing the menu's commits mustn't start and bill one per click.
 const openPick = (args) => { closeOverlay(props().overlay); openDiff(props().root, args); };
 
 function reviewMatches(view) {
@@ -162,7 +163,7 @@ export function reviewBar(view, t, stop) {
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover((on, cx) => { if (on) view.reviewHover = id; else if (view.reviewHover === id) view.reviewHover = null; cx.notify(); })
     .on_mouse_down("left", stop)
-    .on_click(() => openDiff(r.root, args))
+    .on_click(() => openDiff(r.root, args, true))
     // Hovered, the label turns foreground: the count takes its bright twin (ansi + 8) to stay the lead, same hue.
     .child(div().font_medium().text_color(t[`ansi${view.reviewHover === id ? ansi + 8 : ansi}`]).child(count))
     .when(Boolean(noun), el => el.child(noun));
@@ -185,7 +186,8 @@ export function reviewBar(view, t, stop) {
         if (!commits.length && !branches.length) return;
         const height = Math.min(480, 10 + 36 + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + branches.length * 32 : 0));
         // Hanging from the tab bar under the click, not on the pointer, where it would cover the bar; the app keeps it in the window.
-        const at = { x: view.reviewPress.x - 8, y: 40 * settings().zoom };
+        // With no press to read (assistive tech clicks without one), the app's default: the pointer.
+        const at = view.reviewPress && { x: view.reviewPress.x - 8, y: 40 * settings().zoom };
         openOverlay({ mod: "t3-tabs", kind: "popup", at, width: 480, height, props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches, height } });
       }))
       .child(svg("mods/workspace-chrome/git-branch.svg").size(13)))
