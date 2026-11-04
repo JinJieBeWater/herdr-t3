@@ -802,7 +802,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   {
     // Every control says what it is. A pane's header focuses it; it's no control.
-    // As in T3, an icon alone says it on hover too, and words need no tooltip unless there's more to say than they do. A row's own fold and the editor's icon picks explain themselves.
+    // As in T3, an icon alone says it on hover too; words may, naming what they do. A row's own fold and the editor's icon picks explain themselves.
     const f = fixture(256);
     f.state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }] };
     const pane = f.load("t3-pane", { pane: "p0" });
@@ -817,7 +817,6 @@ for (const width of [208, 240, 256, 320, 480]) {
       const tipped = walk(view.render(cx)).some(c => c.kind === "hovercard" && c.items.some(i => i.key === n.key));
       const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /agent-fold|^(icon|sub|ag|card|slim)-/.test(n.key);
       if (icon && !plain) assert.ok(tipped, `${n.key}: an icon alone has a hover label`);
-      if (n.items.some(c => typeof c === "string") && !/^(minimize|maximize|settle-|settled-clear|machine-connect|fold-)/.test(n.key)) assert.ok(!tipped, `${n.key}: words need no hover label`);
     }
   }
   {
@@ -857,9 +856,18 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(card(tabs, "tab-new").style.text_size, 12);
     fire(find(tabs.render(cx), "tab-new"), "on_click", {}, cx);
     fire(find(inbox.render(cx), "inbox-new-tab"), "on_hover", true, cx);
-    assert.deepEqual(strings(card(inbox, "inbox-new-tab")), ["New tab", "Pick its space first"]);
+    assert.deepEqual(strings(card(inbox, "inbox-new-tab")), ["New tab"], "a label names its control; what opens says the rest");
     fire(find(inbox.render(cx), "inbox-new-tab"), "on_click", {}, cx);
     assert.deepEqual(strings(card(inbox, "inbox-new-tab")), [], "what opens over it takes its label down");
+    inbox.hot = "inbox-scope";
+    assert.deepEqual(strings(card(inbox, "inbox-scope")), ["Filter by space", "Shift+click to pick several"], "a second line only for what can't be seen");
+    // A program's icon has no label of its own, as T3's rows.
+    f.panes()[0].program = f.agents()[0].program;
+    for (const [name, view] of Object.entries({ tabs: f.load("t3-tabs"), inbox, agents: f.load("t3-agents"), pane: f.load("t3-pane", { pane: "p0" }) })) {
+      const nodes = walk(view.render(cx));
+      assert.ok(nodes.some(n => n.source === "icons/pi.svg"), `${name}: the icon is there`);
+      assert.ok(!nodes.some(n => n.kind === "hovercard" && walk(n).some(c => c.source === "icons/pi.svg")), `${name}: no label on a program's icon`);
+    }
   }
   {
     // A tab's close button is sized as the other small buttons. A tab drags as a space does, and leaving ends either.

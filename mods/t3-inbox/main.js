@@ -407,7 +407,7 @@ export default class Inbox extends View {
             .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim));
           return el.child(ghost ? server : tip(this.hot, t, `machine-${a.address}`, machine, server));
         })
-        .when(Boolean(pic), (el) => el.child(ghost ? div().flex_none().opacity(0.6).child(pic) : tipMark(this, t, `program-${a.address}`, a.program?.name, div().opacity(0.6).child(pic)))) : null;
+        .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
       // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
       const offer = over && !busy(a) && !pins.includes(a.address);
       const id = `settle-${a.address}`;
@@ -422,7 +422,7 @@ export default class Inbox extends View {
       const corner = ghost ? (verb ? badge(verb) : div())
         : swept(a) ? badge("settle")
         : offer
-        ? tip(this.hot, t, id, "Settle", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
+        ? tip(this.hot, t, id, "Settle agent", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
           .text_size(12).text_color(lit(id, t.muted)).on_hover(glow(id))
           .role("button").accessibility_label("Settle")
           .on_mouse_down("left", sweepFrom("settle", a))
@@ -437,7 +437,7 @@ export default class Inbox extends View {
             cx.notify();
           })
           .child(svg("mods/workspace-chrome/check.svg").size(12).flex_none().text_color(lit(id, t.muted)))
-          .child("Settle"), { action: "t3-inbox.settle", hint: "It comes back when there's new work" })
+          .child("Settle"), { action: "t3-inbox.settle" })
         : running(a)
           ? pill(t.working, svg("mods/workspace-chrome/spinner.svg").size(16).flex_none().text_color(t.working).spin(900),
             "Working", started(a) > 0 && started(a) < Infinity ? took(started(a), now) : null)
@@ -454,8 +454,7 @@ export default class Inbox extends View {
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
           .child(avatar(a.space, a.space_name, 16))
           // Lifted, a pin keeps its glyph only while it stays among the pins.
-          .when(pins.includes(a.address) && (!ghost || plan?.section === "pinned" || !plan), (el) => el.child(ghost ? svg("mods/workspace-chrome/pin.svg").size(12).flex_none().text_color(t.dim)
-            : tipMark(this, t, `pinned-${a.address}`, "Pinned", svg("mods/workspace-chrome/pin.svg").size(12).text_color(t.dim))))
+          .when(pins.includes(a.address) && (!ghost || plan?.section === "pinned" || !plan), (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(12).flex_none().text_color(t.dim)))
           .child(div().flex_1().min_w(0).truncate().child(a.space_name ?? ""))
           .child(corner))
         .child(h_flex().gap(8).items_center()
@@ -550,7 +549,7 @@ export default class Inbox extends View {
         } });
         cx.notify();
       })
-      .child("Clear"), { hint: "Closes their panes, after asking", above: true });
+      .child("Clear"), { above: true });
     const tail = v_flex().id("settled").flex_none()
       .child(shelf("settled-header", "Settled", put.length, this.open, () => {
         this.open = !this.open;
@@ -639,7 +638,7 @@ export default class Inbox extends View {
       .child(tip(this.scopeOpen ? null : this.hot, t, "inbox-scope", "Filter by space", filter, { hint: "Shift+click to pick several" }))
       .child(tool("inbox-new-space", "New space", "folder-plus", () => run("space.new"), { action: "space.new" }))
       // The layout passes its own menu; docked alone, the shipped one.
-      .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }, { hint: "Pick its space first" }));
+      .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }));
 
     return v_flex().id("t3-inbox-root").relative().size_full().min_h(0).bg(t.chrome).text_size(13)
       .on_size_change((size) => { this.height = size.height; this.width = size.width; })

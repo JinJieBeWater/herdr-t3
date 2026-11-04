@@ -77,7 +77,7 @@ export default class Pane extends View {
       .text_size(13)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
-      .when(Boolean(pic), (el) => el.child(tipMark(this, t, `ph-program-${pane}`, p.program?.name, pic)))
+      .when(Boolean(pic), (el) => el.child(pic))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
       .child(div().flex_none().truncate().max_w(260).text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
