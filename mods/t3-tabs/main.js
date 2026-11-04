@@ -70,6 +70,18 @@ async function atPrompt(terminal) {
   } catch { return false; }
 }
 
+// The confirm dialog's title doesn't wrap: a long name is cut to what fits, a wide (CJK) character counting twice.
+// shortcut: counts characters rather than measuring them, upgrade if a name of wide Latin letters still clips.
+function fit(name, room = 30) {
+  let used = 0, out = "";
+  for (const ch of name) {
+    used += ch.codePointAt(0) > 0x2e7f ? 2 : 1;
+    if (used > room) return out.trimEnd() + "…";
+    out += ch;
+  }
+  return out;
+}
+
 export default class Tabs extends View {
   init(_props, cx) {
     this.pressed = null;
@@ -89,16 +101,14 @@ export default class Tabs extends View {
     });
   }
 
-  // As T3's confirmTerminalClose. A held cmd-w replaces the dialog rather than stacking it.
-  // The name goes in the detail, which wraps: a title would clip a long one. Cut short, it leaves the consequence in view.
+  // As T3's confirmTerminalClose: `Close terminal "Pi"?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
   ask(what, name, detail, command, args, cx) {
     // The dialog hides the pointer's leaving, and the × stops the press that would close the card.
     this.overTab = null;
     detailsFor(this, null, cx);
     cx.notify();
     if (this.asking) closeOverlay(this.asking);
-    const shown = name.length > 40 ? `${name.slice(0, 40)}…` : name;
-    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 190, props: { title: `Close ${what}?`, detail: `"${shown}": ${detail}`, command: { name: command, args } } });
+    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title: `Close ${what} "${fit(name)}"?`, detail, command: { name: command, args } } });
   }
 
   // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
@@ -108,7 +118,7 @@ export default class Tabs extends View {
     const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id);
     const ends = (await Promise.all(mine.filter(p => p.terminal).map(p => atPrompt(p.terminal)))).filter(empty => !empty).length;
     if (ends === 0) return run("tab.close", { id });
-    const stops = ends === 1 ? "this stops its running process and clears its history." : `this stops its ${ends} running processes and clears their histories.`;
+    const stops = ends === 1 ? "This stops its running process and clears its history." : `This stops its ${ends} running processes and clears their histories.`;
     this.ask("tab", nameOf(c, leadOf(mine)), stops + (space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : ""), "tab.close", { id, confirmed: true }, cx);
   }
 
@@ -118,7 +128,7 @@ export default class Tabs extends View {
     const tabs = spaces().find(s => s.tabs.some(c => c.id === p.tab))?.tabs.map(c => c.id) ?? [];
     // A space's last pane closes the space, and Herdr asks that itself.
     if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1 || await atPrompt(p.terminal)) return run("pane.close", { pane });
-    this.ask("pane", namer()(p), "this stops its running process and clears its history.", "pane.close", { pane }, cx);
+    this.ask("pane", namer()(p), "This stops its running process and clears its history.", "pane.close", { pane }, cx);
   }
 
   // Each tab's width: its whole name while the room allows, else the longest names give way first.

@@ -1135,8 +1135,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.calls.length = 0;
     await say("close-tab");
     let asked = f.overlays.pop();
-    assert.deepEqual([asked.mod, asked.props.title], ["confirm", "Close tab?"]);
-    assert.match(asked.props.detail, /^"Alpha": this stops its 2 running processes/);
+    assert.deepEqual([asked.mod, asked.props.title], ["confirm", 'Close tab "Alpha"?'], "the name in the title, as T3's");
+    assert.match(asked.props.detail, /^This stops its 2 running processes/);
     assert.doesNotMatch(asked.props.detail, /space closes/);
     assert.deepEqual(plain(asked.props.command), { name: "tab.close", args: { id: "a", confirmed: true } }, "so the space's own ask can't follow");
     await say("close-pane");
@@ -1156,7 +1156,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.overlays.length, 0);
     f.spaces()[1].tabs[0].name = "x".repeat(41);
     await say("close-tab");
-    assert.match(f.overlays.pop().props.detail, /^"x{40}…": this stops/, "a long name is cut, so the consequence stays in view");
+    assert.equal(f.overlays.pop().props.title, `Close tab "${"x".repeat(30)}…"?`, "a long name is cut to fit the title, which doesn't wrap");
+    f.spaces()[1].tabs[0].name = "feat(herdr-t3): 关闭标签与窗格二次确认";
+    await say("close-tab");
+    assert.equal(f.overlays.pop().props.title, 'Close tab "feat(herdr-t3): 关闭标签与窗格…"?', "a wide character counts twice");
     Object.assign(f.shown, { tab: "b", pane: "m" });
     await say("close-tab");
     assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b" }], "a tab of mods has no terminal to lose");
@@ -1175,7 +1178,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.overlays.length, 0);
     fg = t => t === "t1" ? program : shell;
     await say("close-tab:a");
-    assert.match(f.overlays.pop().props.detail, /this stops its running process and/, "only what's running counts");
+    assert.match(f.overlays.pop().props.detail, /This stops its running process and/, "only what's running counts");
     fg = () => own;
     await say("close-pane:p1");
     assert.equal(f.overlays.pop().props.command.name, "pane.close", "a program that is the terminal is no prompt");
