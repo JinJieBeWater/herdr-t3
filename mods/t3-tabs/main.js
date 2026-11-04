@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
@@ -60,19 +60,31 @@ function find(node, id) {
 const leadOf = (mine) => mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
 const nameOf = (c, lead) => c.named ? c.name : lead ? namer()(lead) : "Terminal";
 
+// A pane is empty when its own shell holds the foreground. No answer counts as busy: better to ask.
+// shortcut: a shell's background jobs read as empty, upgrade if Herdr ever reports them.
+const SHELL = /^-?(zsh|bash|fish|sh|dash|ksh|tcsh|nu)$/;
+async function atPrompt(terminal) {
+  try {
+    const k = JSON.parse((await hc(["get", terminal, "--json"])).stdout);
+    return k.foreground?.pid === k.pid && SHELL.test(k.foreground.name);
+  } catch { return false; }
+}
+
 export default class Tabs extends View {
   init(_props, cx) {
     this.pressed = null;
     this.over = null;
     this.strip = 0;
     this.nameW = {};
-    // The tab bar answers every person's way to close.
-    cx.spawn(async (cx) => {
+    // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
+    if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
-        if (command === "close-tab") this.closeTab(focused()?.tab, cx);
-        else if (command === "close-pane") this.closePane(focused()?.pane, cx);
-        else if (command.startsWith("close-pane:")) this.closePane(command.slice("close-pane:".length), cx);
+        // One at a time: a second press finds the first's pane gone.
+        if (command === "close-tab") await this.closeTab(focused()?.tab, cx);
+        else if (command === "close-pane") await this.closePane(focused()?.pane, cx);
+        else if (command.startsWith("close-tab:")) await this.closeTab(command.slice("close-tab:".length), cx);
+        else if (command.startsWith("close-pane:")) await this.closePane(command.slice("close-pane:".length), cx);
       }
     });
   }
@@ -89,22 +101,23 @@ export default class Tabs extends View {
     this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 190, props: { title: `Close ${what}?`, detail: `"${shown}": ${detail}`, command: { name: command, args } } });
   }
 
-  // Ending terminals asks first; a tab of mods has none to lose, and Herdr still asks if it's the space's last.
-  closeTab(id, cx) {
+  // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
+  async closeTab(id, cx) {
     const space = spaces().find(s => s.tabs.some(c => c.id === id));
     if (!space) return;
-    const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id), ends = mine.filter(p => p.terminal).length;
+    const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id);
+    const ends = (await Promise.all(mine.filter(p => p.terminal).map(p => atPrompt(p.terminal)))).filter(empty => !empty).length;
     if (ends === 0) return run("tab.close", { id });
     const stops = ends === 1 ? "this stops its running process and clears its history." : `this stops its ${ends} running processes and clears their histories.`;
     this.ask("tab", nameOf(c, leadOf(mine)), stops + (space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : ""), "tab.close", { id, confirmed: true }, cx);
   }
 
-  closePane(pane, cx) {
+  async closePane(pane, cx) {
     const ps = panes(), p = ps.find(p => p.pane === pane);
     if (!p) return;
     const tabs = spaces().find(s => s.tabs.some(c => c.id === p.tab))?.tabs.map(c => c.id) ?? [];
     // A space's last pane closes the space, and Herdr asks that itself.
-    if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1) return run("pane.close", { pane });
+    if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1 || await atPrompt(p.terminal)) return run("pane.close", { pane });
     this.ask("pane", namer()(p), "this stops its running process and clears its history.", "pane.close", { pane }, cx);
   }
 
@@ -242,7 +255,7 @@ export default class Tabs extends View {
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
           .role("button").accessibility_label(`Close ${name}`)
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); this.closeTab(c.id, cx); })
+          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
           .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)

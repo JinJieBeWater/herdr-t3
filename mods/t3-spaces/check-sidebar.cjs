@@ -857,7 +857,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   measure.close();
   assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false, "gone with its layout, it leaves no bar compact");
   fire(find(root, "close-b0"), "on_click", {}, cx);
-  assert.deepEqual(plain(f.overlays.pop().props.command), { name: "tab.close", args: { id: "b0", confirmed: true } }, "the × asks");
+  assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:b0", {}], "the × goes through the tab bar's answer");
   const pane = f.load("t3-pane", { pane: "p0" });
   pane.hovered = true;
   const head = pane.render(cx);
@@ -1097,22 +1097,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
     fire(close(), "on_click", {}, cx);
-    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }], "with no terminal to lose it closes at once");
-    f.panes().push({ pane: "po", tab: "other", terminal: "to" });
-    const closes = f.calls.length;
-    fire(close(), "on_click", {}, cx);
-    assert.equal(f.calls.length, closes, "with one, the × only asks");
-    assert.deepEqual(plain(f.overlays.pop().props.command), { name: "tab.close", args: { id: "other", confirmed: true } });
-    // The dialog hides the pointer's leaving, so asking takes the tab's hover and card with it.
-    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
-    for (const ms of [150, 34]) cx.timers.filter(t => t.ms === ms && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
-    assert.equal(tabCard("other").style.opacity, 1, "its card is up");
-    fire(close(), "on_click", {}, cx);
-    f.overlays.pop();
-    assert.equal(tabs.details, null, "the × closes the card");
-    assert.equal(tabs.overTab, null, "and the tab stops reading as hovered");
-    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
-    f.panes().pop();
+    assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:other", {}], "the × goes through the tab bar's answer");
     cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
     assert.equal(find(tabs.render(cx), "details-other"), null, "not when the pointer is away, once it has faded");
     fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
@@ -1138,8 +1123,15 @@ for (const width of [208, 240, 256, 320, 480]) {
     Object.assign(f.shown, { tab: "a", pane: "p1" });
     cx.spawn = fn => jobs.push(fn);
     const view = f.load("t3-tabs");
+    f.load("t3-tabs", { part: "end", block: "tabs-end" });
+    f.load("t3-tabs", { part: "measure" });
     cx.spawn = spawn;
+    assert.equal(jobs.length, 1, "of the layout's three copies only the tab strip answers, or one close opens three dialogs");
     const say = async command => { f.commands.push(command); jobs[0](cx); await new Promise(resolve => setImmediate(resolve)); };
+    // What `hc get` says: its own shell at the prompt, a program it started, a program that is the terminal, or no answer.
+    const shell = { pid: 1, foreground: { pid: 1, name: "zsh" } }, program = { pid: 1, foreground: { pid: 2, name: "sleep" } }, own = { pid: 1, foreground: { pid: 1, name: "sleep" } };
+    let fg = () => program;
+    f.answerHc(args => ({ code: 0, stdout: JSON.stringify(fg(args[1])) }));
     f.calls.length = 0;
     await say("close-tab");
     let asked = f.overlays.pop();
@@ -1173,6 +1165,23 @@ for (const width of [208, 240, 256, 320, 480]) {
     await say("close-pane:p4");
     assert.deepEqual(f.calls.pop(), ["pane.close", { pane: "p4" }], "a space's last pane closes the space, which Herdr asks about itself");
     assert.equal(f.overlays.length, 0);
+    // Empty panes have nothing to lose: nothing asks, and the same goes for a tab of them.
+    f.calls.length = 0;
+    fg = () => shell;
+    await say("close-pane:p1");
+    assert.deepEqual(f.calls.pop(), ["pane.close", { pane: "p1" }], "a shell at its prompt closes at once");
+    await say("close-tab:a");
+    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "a" }], "and so does a tab of them");
+    assert.equal(f.overlays.length, 0);
+    fg = t => t === "t1" ? program : shell;
+    await say("close-tab:a");
+    assert.match(f.overlays.pop().props.detail, /this stops its running process and/, "only what's running counts");
+    fg = () => own;
+    await say("close-pane:p1");
+    assert.equal(f.overlays.pop().props.command.name, "pane.close", "a program that is the terminal is no prompt");
+    fg = () => { throw new Error("no answer"); };
+    await say("close-pane:p1");
+    assert.equal(f.overlays.pop().props.command.name, "pane.close", "no answer asks");
     Object.assign(f.shown, { tab: undefined, pane: undefined });
     f.calls.length = 0;
     await say("close-tab"); await say("close-pane");
