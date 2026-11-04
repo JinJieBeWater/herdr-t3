@@ -2,9 +2,8 @@
 // starts the daemon if needed, then reviews its uncommitted changes when there are
 // any, else what pulls.review opens by default. Bound in keys.json as `mod.open:pulls-review`.
 
-import { View } from "gpui-kit";
-import { h_flex } from "gpui-base";
-import { spaces, panes, focused, exec, notify, props, closeOverlay, theme } from "herdr";
+import { View, div } from "gpui-kit";
+import { spaces, panes, focused, exec, notify, props, closeOverlay } from "herdr";
 
 // Same lookup as the shipped `changes` mod.
 function location() {
@@ -33,8 +32,8 @@ export default class PullsReview extends View {
     });
   }
 
+  // Nothing to see: the overlay only carries the work, and closes itself when it's done.
   render() {
-    const t = theme();
-    return h_flex().size_full().px(14).items_center().bg(t.popover).text_color(t.muted).text_size(13).child("Opening pulls.review…");
+    return div();
   }
 }
