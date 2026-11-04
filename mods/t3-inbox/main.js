@@ -8,10 +8,9 @@ import { v_flex, h_flex, Popover, InputState, Input } from "gpui-base";
 import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
+import { projectMark } from "./project.js";
 
 const BUSY = new Set(["working", "blocked"]);
-// Space avatar colors, as the Herdr T3 layout's t3-spaces draws them (shared "space.colors").
-const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 // The settled tail opens on this many, then grows by MORE.
 const FIRST = 10, MORE = 25;
 // A run that stops stays on the Working shelf this long (ms), as in T3: a quick continuation doesn't move it twice.
@@ -214,13 +213,8 @@ export default class Inbox extends View {
       cx.notify();
     };
     const lit = (id, color) => (this.hot === id ? t.foreground : color);
-    // A space's avatar, as t3-spaces draws it.
-    const avatar = (id, name, size) => {
-      const color = (shared("space.colors") ?? {})[id] ?? "ansi6";
-      return h_flex().size(size).flex_none().rounded(4).bg(color.startsWith("#") ? color : MARK[color] ?? t[color])
-        .items_center().justify_center().text_size(size * 0.64).font_bold().text_color("#ffffff")
-        .child([...(name ?? "")][0]?.toUpperCase() ?? "?");
-    };
+    // A space's mark, as t3-spaces draws it.
+    const avatar = (id, name, size) => projectMark(sp.find((s) => s.id === id) ?? { name: name ?? "" }, size, t, ps);
     // Brought back, it's news again: the top of the list.
     const unsettle = (a, cx) => {
       this.setSettled(a.address, "", cx);
@@ -451,7 +445,7 @@ export default class Inbox extends View {
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
-          .child(avatar(a.space, a.space_name, 14))
+          .child(avatar(a.space, a.space_name, 16))
           // Lifted, a pin keeps its glyph only while it stays among the pins.
           .when(pins.includes(a.address) && (!ghost || plan?.section === "pinned" || !plan), (el) => el.child(svg("mods/workspace-chrome/pin.svg").size(12).flex_none().text_color(t.dim)))
           .child(div().flex_1().min_w(0).truncate().child(a.space_name ?? ""))

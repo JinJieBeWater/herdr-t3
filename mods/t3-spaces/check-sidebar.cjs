@@ -68,7 +68,7 @@ function fixture(width) {
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
     machines: () => [{ name: "vps", layout: "ready" }], focused: () => shown,
-    exec: async () => ({ code: 1, stdout: "" }),
+    exec: async () => ({ code: 1, stdout: "" }), readTextFile: async () => null,
     window: () => ({ platform: "macos" }), props: () => ({}), theme: () => theme,
     settings: () => ({ zoom: 1 }), home: () => "/home/test",
     layout: () => ({ children: Object.values(slots) }), shared: key => state[key],
@@ -85,8 +85,8 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js and tree.js, the shared naming and status rules, and t3-tabs' actions.js are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js and project.js, the shared naming, status and space-mark rules, and t3-tabs' actions.js are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "actions.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
