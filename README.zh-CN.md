@@ -98,7 +98,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 用 fork 时（`"herdr"`、`"pwa"`、`"browser"`），点击还会开始这份 diff 的 AI 分析；已有分析在跑就直接接上。
 
 1. 在 Herdr 的 `PATH` 里装一种 pulls.review CLI：fork 用 `bun add --global jin.review`（[我的 fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)，可与 `pulls.review` 同时安装；所有仓库共用一个后台服务，用 `jin.review --stop` 停止），`"official"` 用 `bun add --global pulls.review`。
-2. 把 `extras/mods/pulls-review/`（用 `"herdr"` 时再加 `extras/mods/review/`）复制进 `~/.config/herdr-app/mods/`，在它的 `config.json` 里设置 `open`，再在 `keys.json` 的 `global` 里加一个快捷键：`"cmd-shift-r": "mod.open:pulls-review"`。
+2. 把 `extras/mods/pulls-review/`（用 `"herdr"` 时再加 `extras/mods/review/`）复制进 `~/.config/herdr-app/mods/`，在它的 `config.json` 里设置 `open`。通过 Review 栏打开，不用绑快捷键。
 3. 要在窗格里分析，先选一次本地 agent：用窗格顶栏的齿轮，或浏览器里的评审设置（`jin.review -d`），daemon 会记住这个选择。
 
 - 只支持本机目录：窗格在其他机器上时会报错。

@@ -98,7 +98,7 @@ Where a review opens is `open` in `extras/mods/pulls-review/config.json`:
 With the fork (`"herdr"`, `"pwa"`, `"browser"`), a click also starts the diff's AI analysis, or follows the one already running.
 
 1. Install one pulls.review CLI on Herdr's `PATH`: `bun add --global jin.review` for the fork ([my fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo), which installs next to `pulls.review`; one background server for every repo, stopped with `jin.review --stop`), or `bun add --global pulls.review` for `"official"`.
-2. Copy `extras/mods/pulls-review/` (and, for `"herdr"`, `extras/mods/review/`) into `~/.config/herdr-app/mods/`, set `open` in its `config.json`, and add a key to the `global` section of your `keys.json`: `"cmd-shift-r": "mod.open:pulls-review"`.
+2. Copy `extras/mods/pulls-review/` (and, for `"herdr"`, `extras/mods/review/`) into `~/.config/herdr-app/mods/` and set `open` in its `config.json`. The Review bar opens it; there's no key to bind.
 3. For the pane's analysis, pick a local agent once, with the gear in the pane's header or in the browser's review settings (`jin.review -d`): the daemon keeps that choice.
 
 - Local folders only: a pane on another machine shows an error.

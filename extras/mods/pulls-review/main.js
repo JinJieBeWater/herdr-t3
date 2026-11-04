@@ -1,6 +1,6 @@
 // Opens the focused pane's worktree in pulls.review: its uncommitted changes when there are
-// any, else what pulls.review opens by default. Bound in keys.json as `mod.open:pulls-review`;
-// t3-tabs' Review bar opens it with `{ cwd, args, analyze }` for one diff, analyzed by AI in the fork.
+// any, else what pulls.review opens by default. t3-tabs' Review bar opens it, with
+// `{ cwd, args, analyze }` for one diff, analyzed by AI in the fork.
 // With the fork in "herdr" mode the review opens beside the agent, in the review mod.
 
 import { View, div } from "gpui-kit";
