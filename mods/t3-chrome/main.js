@@ -1,6 +1,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, run, props, updates, layout, nextCommand } from "herdr";
+import { tip } from "./tip.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -48,28 +49,28 @@ export default class WorkspaceChrome extends View {
           // Each opens over its button, before the pointer can report leaving it.
           .child(row("settings", "settings", "Settings", (_e, cx) => { this.hot = null; run("app.settings"); cx.notify(); }).flex_1().min_w(0)
             .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
-          .child(div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+          .child(tip(this.hot, t, "add-machine", "Add machine", div().id("add-machine").size(26).flex_none().flex().items_center().justify_center().rounded(6)
             .text_color(lit("add-machine")).hover(s => s.bg(t.hover)).on_hover(glow("add-machine"))
-            .role("button").accessibility_label("Add machine").tooltip("Add machine")
+            .role("button").accessibility_label("Add machine")
             .on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "machine-add" }); cx.notify(); })
-            .child(svg("mods/workspace-chrome/server.svg").size(14))));
+            .child(svg("mods/workspace-chrome/server.svg").size(14)))));
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
     const inbox = inboxShown();
     return h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
-      .child(div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+      .child(tip(this.hot, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
-        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox").tooltip(inbox ? "Show lists" : "Show inbox")
+        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
-        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)))
-      .child(div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)), { action: "t3-chrome.sidebar" }))
+      .child(tip(this.hot, t, "sidebar-toggle", "Hide sidebar", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
-        .role("button").accessibility_label("Hide sidebar").tooltip("Hide sidebar")
+        .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/workspace-chrome/sidebar.svg").size(14)));
+        .child(svg("mods/workspace-chrome/sidebar.svg").size(14)), { action: "layout.toggle:sidebar" }));
   }
 }

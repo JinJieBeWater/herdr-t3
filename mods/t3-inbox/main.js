@@ -9,6 +9,7 @@ import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shar
 import { namer } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
+import { tip } from "./tip.js";
 
 const BUSY = new Set(["working", "blocked"]);
 // The settled tail opens on this many, then grows by MORE.
@@ -401,8 +402,11 @@ export default class Inbox extends View {
       const leads = on || ghost || st === "blocked" || st === "done";
       const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
         // Another machine's agent, as in T3: a server mark before its program, the machine named on hover.
-        .when(Boolean(machine), (el) => el.child(div().when(!ghost, (m) => m.id(`machine-${a.address}`).tooltip(machine).accessibility_label(`On ${machine}`))
-          .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim))))
+        .when(Boolean(machine), (el) => {
+          const server = div().when(!ghost, (m) => m.id(`machine-${a.address}`).on_hover(glow(`machine-${a.address}`)).accessibility_label(`On ${machine}`))
+            .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim));
+          return el.child(ghost ? server : tip(this.hot, t, `machine-${a.address}`, machine, server));
+        })
         .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
       // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
       const offer = over && !busy(a) && !pins.includes(a.address);
@@ -470,7 +474,7 @@ export default class Inbox extends View {
       const pic = icon(a.program, 14, t.dim);
       const undo = h_flex().id(`unsettle-${a.address}`).size(20).flex_none().items_center().justify_center().rounded(4)
         .on_hover(glow(`unsettle-${a.address}`))
-        .role("button").accessibility_label("Unsettle").tooltip("Unsettle")
+        .role("button").accessibility_label("Unsettle")
         .on_mouse_down("left", sweepFrom("unsettle", a))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -488,7 +492,7 @@ export default class Inbox extends View {
         .child(h_flex().size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.5).when(Boolean(pic), (el) => el.child(pic)))
         .child(div().flex_1().min_w(0).truncate().text_color(bright ? t.foreground : t.muted).child(title(a)))
         .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge("unsettle")
-          : over ? undo : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
+          : over ? tip(this.hot, t, `unsettle-${a.address}`, "Unsettle", undo, { action: "t3-inbox.settle" }) : div().flex_none().text_size(12).text_color(t.dim).child(ago(settledAt(a)[0], now)));
     };
 
     // A shelf's header, folding it: label, then count and chevron at the far edge.
@@ -568,10 +572,10 @@ export default class Inbox extends View {
         .child(`Show ${Math.min(MORE, put.length - this.limit)} more`)));
 
     // T3's top row: search on the left, then the space filter, new space and new tab.
-    const tool = (id, label, icon, fn) => div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
+    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
       .hover((s) => s.bg(t.hover)).on_hover(glow(id))
-      .role("button").accessibility_label(label).tooltip(label).on_click(fn)
-      .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).text_color(lit(id, t.dim)));
+      .role("button").accessibility_label(label).on_click(fn)
+      .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).text_color(lit(id, t.dim))), more);
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
     const scoped = sp.filter((s) => scope.includes(s.id));
     const choice = (s, i) => {
@@ -601,7 +605,7 @@ export default class Inbox extends View {
       })
       .trigger(h_flex().id("inbox-scope").size(26).flex_none().items_center().justify_center().rounded(6)
         .hover((s) => s.bg(t.hover)).on_hover(glow("inbox-scope"))
-        .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space").tooltip("Filter by space")
+        .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space")
         .child(scoped.length > 1
           ? h_flex().children(scoped.slice(0, 2).map((s, i) => avatar(s.id, s.name, 14).when(i > 0, (el) => el.ml(-6))))
           : scoped.length
@@ -630,10 +634,10 @@ export default class Inbox extends View {
         .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: "picker" }); cx.notify(); })
         .child(svg("mods/workspace-chrome/search.svg").size(14).flex_none().text_color(lit("inbox-search", t.dim)))
         .child(div().child("Search")))
-      .child(filter)
-      .child(tool("inbox-new-space", "New space", "folder-plus", () => run("space.new")))
+      .child(tip(this.scopeOpen ? null : this.hot, t, "inbox-scope", "Filter by space", filter, { hint: "Shift+click to pick several" }))
+      .child(tool("inbox-new-space", "New space", "folder-plus", () => run("space.new"), { action: "space.new" }))
       // The layout passes its own menu; docked alone, the shipped one.
-      .child(tool("inbox-new-tab", "New tab…", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }));
+      .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }, { hint: "Pick its space first" }));
 
     return v_flex().id("t3-inbox-root").relative().size_full().min_h(0).bg(t.chrome).text_size(13)
       .on_size_change((size) => { this.height = size.height; this.width = size.width; })

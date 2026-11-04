@@ -9,6 +9,7 @@ import { h_flex } from "gpui-base";
 import { panes, terminals, agents, props, run, theme, home, layout } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
+import { tip } from "./tip.js";
 
 function icon(p, size, color) {
   if (!p?.icon) return null;
@@ -34,14 +35,14 @@ export default class Pane extends View {
     return panes().find((p) => p.pane === props()?.pane);
   }
 
-  button(t, id, icon, label, action) {
-    return div()
+  button(t, id, icon, label, action, key) {
+    return tip(this.hot, t, id, label, div()
       .id(id)
       .size(26).flex_none().flex().items_center().justify_center()
       .rounded(6)
       // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
       .text_color(this.hot === id ? t.foreground : t.dim)
-      .role("button").accessibility_label(label).tooltip(label)
+      .role("button").accessibility_label(label)
       .hover((s) => s.bg(t.hover))
       .on_hover((on, cx) => {
         if (on) this.hot = id;
@@ -53,7 +54,7 @@ export default class Pane extends View {
         cx.stop_propagation();
         action();
       })
-      .child(svg(icon).size(14));
+      .child(svg(icon).size(14)), { action: key });
   }
 
   render(cx) {
@@ -83,10 +84,10 @@ export default class Pane extends View {
         .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
         .when(this.hovered, el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
-          .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/split-right.svg", "Split right", () => run("pane.split", { direction: "right", pane })))
-          .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane })))
-          .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane })))
-          .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => run("pane.close", { pane }))))))
+          .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/split-right.svg", "Split right", () => run("pane.split", { direction: "right", pane }), "pane.split:right"))
+          .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane }), "pane.split:down"))
+          .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane }), "pane.zoom"))
+          .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => run("pane.close", { pane }), "pane.close")))))
       .when(st === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))

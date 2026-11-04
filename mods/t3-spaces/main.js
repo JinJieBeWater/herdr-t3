@@ -7,6 +7,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window } from "herdr";
 import { projectMark, tint } from "./project.js";
+import { tip } from "./tip.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
@@ -305,10 +306,10 @@ export default class Spaces extends View {
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
             .child(repair?.busy ? "Connecting…" : "Connect"))))
-        .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
+        .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
           .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
-          .role("button").accessibility_label("New space here").tooltip("New space here").hover(s => s.bg(t.hover))
-          .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12))))
+          .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
+          .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)), { action: "space.new" })))
         .child(div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim))
         .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
@@ -427,8 +428,8 @@ export default class Spaces extends View {
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
-        .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === "space-new" ? t.foreground : t.dim).on_hover(this.glow("space-new")).role("button").accessibility_label("New space").tooltip("New space").hover(s => s.bg(t.hover))
-          .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
+        .child(tip(this.hot, t, "space-new", "New space", div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === "space-new" ? t.foreground : t.dim).on_hover(this.glow("space-new")).role("button").accessibility_label("New space").hover(s => s.bg(t.hover))
+          .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14)), { action: "space.new" })))
       .child(v_flex().id("space-list").flex_1().min_h(0).overflow_y_scroll()
         .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
         // Herdr reports no release outside the sidebar, so leaving ends a drag, as in the inbox.

@@ -6,6 +6,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
+import { tip } from "./tip.js";
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
@@ -306,7 +307,7 @@ export default class Agents extends View {
       const pin = div().id(`pin-${a.address}`).role("button")
         .size(20).flex_none().flex().items_center().justify_center()
         .rounded(4)
-        .accessibility_label(isPinned ? "Unpin" : "Pin").tooltip(isPinned ? "Unpin" : "Pin")
+        .accessibility_label(isPinned ? "Unpin" : "Pin")
         .on_hover(glow(`pin-${a.address}`))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -355,7 +356,7 @@ export default class Agents extends View {
         .child(h_flex().id(`controls-${a.address}`).flex_none().items_center().gap(4)
           .when(subs.length > 0, el => el.child(fold(a, subs)))
           // The time and the pin share one slot at least the pin's width, so hovering moves nothing else.
-          .child(this.hovered === a.address ? pin
+          .child(this.hovered === a.address ? tip(this.hot, t, `pin-${a.address}`, isPinned ? "Unpin" : "Pin", pin)
             : h_flex().id(`when-${a.address}`).min_w(20).flex_none().justify_end().text_size(11).text_color(t.dim).when(Boolean(when), el => el.child(duration(now - when))))
           .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "").id(`status-${a.address}`)));
     };
@@ -415,10 +416,10 @@ export default class Agents extends View {
             .justify_between()
             .child(div().text_size(12).font_medium().text_color(t.muted).child("Agents"))
             .child(
-              div()
+              tip(this.hot, t, "ag-sort", `Sort agents: ${sort.label}`, div()
                 .id("ag-sort")
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
-                .role("button").accessibility_label("Sort agents").tooltip(`Sort agents: ${sort.label}`)
+                .role("button").accessibility_label("Sort agents")
                 .text_size(11)
                 .text_color(lit("ag-sort"))
                 .hover((s) => s.bg(t.hover))
@@ -428,7 +429,7 @@ export default class Agents extends View {
                   openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });
                   cx.notify();
                 })
-                .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
+                .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14))),
             ),
       )
       .when(list.length === 0, (el) =>

@@ -74,11 +74,11 @@ function fixture() {
   };
   const env = {
     View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
-    Popover: { new: element }, Input: { new: element }, Button: { new: element },
+    Popover: { new: element }, HoverCard: { new: element }, Input: { new: element }, Button: { new: element },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     namer: () => (a) => a.address, Date: { now: () => f.now },
     localStorage: { getItem: (k) => f.data.get(k) ?? null, setItem: (k, v) => f.data.set(k, v) },
-    agents: () => f.rows, terminals: () => f.terms, panes: () => [],
+    keys: () => [], agents: () => f.rows, terminals: () => f.terms, panes: () => [],
     spaces: () => [{ id: "s1", name: "One", tabs: [] }, { id: "s2", name: "Two", tabs: [] }],
     focused: () => ({ agent: f.rows.find((a) => a.focused)?.address }),
     theme: () => ({}), settings: () => ({}), props: () => ({}),
@@ -89,8 +89,8 @@ function fixture() {
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async () => ({ code: 0 }), nextCommand: () => new Promise(() => {}),
   };
-  // tree.js and project.js, the shared status and space-mark rules, are inlined as each mod's own copies are.
-  const tree = ["tree.js", "project.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  // tree.js, project.js and tip.js, the shared status, space-mark and hover-label rules, are inlined as each mod's own copies are.
+  const tree = ["tree.js", "project.js", "tip.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");

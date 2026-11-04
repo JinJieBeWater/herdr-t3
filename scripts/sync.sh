@@ -10,6 +10,9 @@ gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 # t3-inbox/name.js and tree.js are the one naming and status rules; a mod can't import outside its folder, so each gets a copy.
 for m in t3-agents t3-tabs t3-pane; do cp "$src/mods/t3-inbox/name.js" "$src/mods/t3-inbox/tree.js" "$src/mods/$m/"; done
 
+# t3-inbox/tip.js is the one hover label.
+for m in t3-agents t3-tabs t3-pane t3-chrome t3-spaces; do cp "$src/mods/t3-inbox/tip.js" "$src/mods/$m/"; done
+
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$focus/mods/t3-inbox/"
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.

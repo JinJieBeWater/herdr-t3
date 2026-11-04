@@ -9,7 +9,7 @@ function element(kind = "div", source) {
     if (key in target) return target[key];
     return (...args) => {
       if (key === "when") { if (args[0]) args[1](proxy); }
-      else if (key === "child") node.items.push(args[0]);
+      else if (key === "child" || (key === "trigger" && kind === "hovercard")) node.items.push(args[0]);
       else if (key === "children") node.items.push(...args[0]);
       else if (key === "on_mouse_down" || key === "on_mouse_up") node.handlers[`${key}:${args[0]}`] = args[1];
       else if (key.startsWith("on_")) node.handlers[key] = args[0];
@@ -63,7 +63,7 @@ function fixture(width) {
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
     Button: { new: id => element("button").id(id) },
-    Popover: { new: id => element("popover").id(id) }, Input: { new: () => element("input") },
+    Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
@@ -80,15 +80,15 @@ function fixture(width) {
     },
     openOverlay: spec => overlays.push(spec), closeOverlay() {}, updates: () => ({ app: {} }),
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
-    keys: () => [],
+    keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }],
   };
   function load(name, props = {}) {
     const storage = stores.get(name) ?? new Map();
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js and project.js, the shared naming, status and space-mark rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js, project.js and tip.js, the shared naming, status, space-mark and hover-label rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "tip.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -169,7 +169,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(hoveredTree, "pin-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].style.text_color, f.theme().foreground, "hovered, the pin brightens");
   fire(find(hoveredTree, "pin-t0"), "on_hover", false, cx);
-  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["fold-t0", "pin-t0", "status-t0"], "pin takes the time's slot, the status stays, as the shipped list");
+  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["fold-t0", "tip-pin-t0", "status-t0"], "pin takes the time's slot, the status stays, as the shipped list");
   assert.equal(find(at, "when-t0").style.min_w, 20, "the time's slot is the pin's width, so hovering moves nothing");
   fire(find(hoveredTree, "ag-t0"), "on_hover", false, cx);
   assert.ok(find(ag.render(cx), "when-t0") && !find(ag.render(cx), "pin-t0"), "leaving restores the time");
@@ -251,7 +251,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual(header.items.map(n => n.key), ["sidebar-mode", "sidebar-toggle"], "the header holds the sidebar switch and toggle; search is a shortcut");
+  assert.deepEqual(header.items.map(n => n.key), ["tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds the sidebar switch and toggle; search is a shortcut");
   assert.equal(header.style.pr + (26 - 14) / 2, 16, "the toggle's icon ends on the same line as the + and status column");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
@@ -288,7 +288,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // A card from another machine says so as T3's does: a server mark before its program, the machine named on hover.
   const f = fixture(256), root = f.load("t3-inbox").render(cx);
   const card = find(root, "card-vps/t2"), mark = find(card, "machine-vps/t2");
-  assert.equal(mark.style.tooltip, "vps");
+  assert.ok(strings(find(root, "tip-machine-vps/t2")).includes("vps") === false && find(root, "tip-machine-vps/t2"), "its card waits for the hover");
   assert.ok(walk(mark).some(n => n.source === "mods/workspace-chrome/server.svg"));
   assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
@@ -670,7 +670,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(root, "sidebar-toggle"), null, "with the sidebar shown its own header has the toggle");
   f.slots.sidebar.hidden = true;
   const bare = tabs.render(cx);
-  assert.deepEqual(bare.items.slice(0, 2).map(n => n.key), ["sidebar-toggle", "tab-scroll"], "hidden, the toggle sits first, after the window buttons");
+  assert.deepEqual(bare.items.slice(0, 2).map(n => n.key), ["tip-sidebar-toggle", "tab-scroll"], "hidden, the toggle sits first, after the window buttons");
   const toggle = find(bare, "sidebar-toggle");
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
@@ -711,7 +711,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
   assert.deepEqual(f.calls.splice(0), [["layout.resize", { id: "tabs-end", px: 34 }]], "once per change");
   f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
-  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tab-new", "minimize", "maximize", "close-window"], "the window's buttons stay last");
+  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"], "the window's buttons stay last");
   fire(find(root, "close-b0"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b0" }]);
   const pane = f.load("t3-pane", { pane: "p0" });
@@ -721,7 +721,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const open = f.load("t3-agents");
   for (const tree of [tabs.render(cx), head, open.render(cx)]) assert.equal(spinner(tree).style.text_color, f.theme().working);
   for (const id of ["ph-r-p0", "ph-d-p0", "ph-z-p0", "ph-x-p0"]) assert.equal(find(head, id).style.size, 26);
-  const actions = walk(head).find(n => n.items.some(child => child?.key === "ph-r-p0"));
+  const actions = walk(head).find(n => n.items.some(child => child?.key === "tip-ph-r-p0"));
   assert.equal(actions.style.gap, 4);
   assert.ok("flex_none" in actions.style, "narrow panes keep the action targets at their full size");
   assert.ok("absolute" in actions.style, "hovering a pane's header moves nothing else");
@@ -798,9 +798,11 @@ for (const width of [208, 240, 256, 320, 480]) {
       if (n.handlers.on_click && !String(n.key).startsWith("pane-head")) assert.equal(n.style.role, "button", `${n.key}: a role`);
       if (n.style.role !== "button") continue;
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
+      assert.ok(!("tooltip" in n.style), `${n.key}: the shell's tooltip isn't T3's`);
+      const tipped = walk(view.render(cx)).some(c => c.kind === "hovercard" && c.items.some(i => i.key === n.key));
       const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /fold|^(icon|sub|ag|card|slim)-/.test(n.key);
-      if (icon && !plain) assert.ok(n.style.tooltip, `${n.key}: an icon alone has a tooltip`);
-      if (n.items.some(c => typeof c === "string")) assert.ok(!("tooltip" in n.style), `${n.key}: words need no tooltip`);
+      if (icon && !plain) assert.ok(tipped, `${n.key}: an icon alone has a hover label`);
+      if (n.items.some(c => typeof c === "string") && !/^(minimize|maximize)/.test(n.key)) assert.ok(!tipped, `${n.key}: words need no hover label`);
     }
   }
   {
@@ -812,6 +814,21 @@ for (const width of [208, 240, 256, 320, 480]) {
       fire(find(view.render(cx), id), "on_click", {}, cx);
       assert.equal(view.hot, null, `${id} doesn't stay lit`);
     }
+  }
+  {
+    // A hover label, as T3's: the label with its bound key, a dim hint, and nothing up unless the button is lit.
+    const f = fixture(256), tabs = f.load("t3-tabs", { part: "end" }), inbox = f.load("t3-inbox");
+    f.spaces()[0].active = true;
+    const card = (view, id) => find(view.render(cx), `tip-${id}`).style.content;
+    assert.deepEqual(strings(card(tabs, "tab-new")), [], "not while unlit");
+    fire(find(tabs.render(cx), "tab-new"), "on_hover", true, cx);
+    assert.deepEqual(strings(card(tabs, "tab-new")), ["New tab (⌘T)"]);
+    assert.equal(card(tabs, "tab-new").style.text_size, 12);
+    fire(find(tabs.render(cx), "tab-new"), "on_click", {}, cx);
+    fire(find(inbox.render(cx), "inbox-new-tab"), "on_hover", true, cx);
+    assert.deepEqual(strings(card(inbox, "inbox-new-tab")), ["New tab", "Pick its space first"]);
+    fire(find(inbox.render(cx), "inbox-new-tab"), "on_click", {}, cx);
+    assert.deepEqual(strings(card(inbox, "inbox-new-tab")), [], "what opens over it takes its label down");
   }
   {
     // A tab's close button is sized as the other small buttons. A tab drags as a space does, and leaving ends either.
