@@ -8,6 +8,18 @@
 
 只想要 Settle 侧栏？它也单独发布了一份：[herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus)。
 
+## 理念
+
+**节约人类的注意力。**
+
+agent 可以越开越多，人的注意力却不会跟着变多。Herdr T3 的整个设计都围绕这一点。
+
+> It's so nice to have 14 threads running and zero visible. Why let working threads get in the way of things that need your attention?
+>
+> —— [Theo](https://x.com/theo/status/2114131018575962496)
+
+Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
+
 ## 功能
 
 - **两种侧栏，一键切换**（`cmd-shift-b`）：Lists，或 Inbox。

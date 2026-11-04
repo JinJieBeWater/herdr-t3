@@ -8,6 +8,18 @@ A [T3 Code](https://github.com/pingdotgg/t3code)-like layout for Herdr App: List
 
 Only want the Settle sidebar? It is also published alone: [herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus).
 
+## Philosophy
+
+**Save human attention.**
+
+You can keep adding agents, but your attention doesn't grow with them. Everything in Herdr T3 is designed around this.
+
+> It's so nice to have 14 threads running and zero visible. Why let working threads get in the way of things that need your attention?
+>
+> — [Theo](https://x.com/theo/status/2114131018575962496)
+
+The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
+
 ## Features
 
 - **Two sidebars, one key apart** (`cmd-shift-b`): Lists, or Inbox.
