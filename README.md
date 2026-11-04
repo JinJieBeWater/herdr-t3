@@ -6,7 +6,7 @@ A [T3 Code](https://github.com/pingdotgg/t3code)-like layout for Herdr App: List
 
 ![Herdr T3](preview.png)
 
-Only want the Settle sidebar? It is also published alone: [herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus).
+Only want the Settle sidebar? It is also published alone: [herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox).
 
 ## Philosophy
 
@@ -114,6 +114,6 @@ Herdr doesn't ship [Maple Mono NF CN](https://github.com/subframe7536/maple-font
 
 ## More
 
-- [herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus): this layout's Inbox sidebar as a standalone mod.
+- [herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox): this layout's Inbox sidebar as a standalone mod.
 - [herdling](https://github.com/JinJieBeWater/herdling): a macOS menu bar companion for Herdr.
 - [pi-stuff](https://github.com/JinJieBeWater/pi-stuff): my Pi extensions and skills.

@@ -14,7 +14,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
   - **品牌栏**（40px，可拖动窗口）：同 T3，26px 的隐藏侧栏按钮在最左，紧跟 macOS 窗口按钮，和侧栏隐藏时标签栏里的开关同一个位置，所以不会跳动；最右是 26px 的侧栏模式按钮（`circle-check` 图标：显示 Inbox；`layers`：显示 Lists）。
   - **列表**，二选一（stack）：
     - **Lists**：Spaces 和 Agents，1:1 分割（各至少 90px）。Spaces：每个 space 的标记（见下）；worktree 折叠在其主 checkout 下，带树线；机器多于一台时按机器分组；名字后面只显示不寻常的 git 信息（`repo · branch ↑2 ↓1`，省略 `main` / `master`）。Agents：按 space 分组或按优先级（排序菜单），置顶的在 `Pinned` 组，子 agent 带树线缩进在父级下；14px 状态标记靠右。
-    - **Inbox**：T3 侧栏。需要你的 agent 显示为卡片，底部是折叠的 Working 和 Settled 收纳区。Active 按回到你手上的时间排，Working 按本轮开始时间，Settled 按 Settle 时间，同时间按 address；停止工作的 agent 在 Working 多留 2 秒（blocked 立即离开，置顶或已 Settle 的不留），之后排到 Active 顶部；马上续跑、等你处理后再继续，都不挪位；查看卡片不改变顺序（见 `mods/t3-inbox`；[单独 mod 的 recipe](https://github.com/JinJieBeWater/herdr-t3-focus/blob/main/RECIPE.zh-CN.md) 有完整说明）。
+    - **Inbox**：T3 侧栏。需要你的 agent 显示为卡片，底部是折叠的 Working 和 Settled 收纳区。Active 按回到你手上的时间排，Working 按本轮开始时间，Settled 按 Settle 时间，同时间按 address；停止工作的 agent 在 Working 多留 2 秒（blocked 立即离开，置顶或已 Settle 的不留），之后排到 Active 顶部；马上续跑、等你处理后再继续，都不挪位；查看卡片不改变顺序（见 `mods/t3-inbox`；[单独 mod 的 recipe](https://github.com/JinJieBeWater/herdr-t3-inbox/blob/main/RECIPE.zh-CN.md) 有完整说明）。
       - 卡片：同 T3，当前查看、需要你处理或已完成时标题突出（`foreground`，medium），其余退后（`muted`，normal）；悬停只提亮颜色。程序图标（60% 透明度）和远程机器标记放在第三行行尾，没有第三行时放在标题行行尾。
       - 已 Settle 的行：同 T3，一行 30px，行首是项目的 16px 标记（和卡片的头像一样，未点亮时半透明），然后是标题和 Settle 后经过的时间；悬停时时间换成撤销箭头。
       - 卡片和已 Settle 行的详情：同 T3 的线程卡片，用 `Popup` 挂在行右侧 4px、和行顶部对齐：标题，然后是项目、其他机器的名字、分支和程序，12px，最宽 320px。时序同 T3 的 tooltip 分组：第一张等 150ms；有卡片开着或刚关不到 400ms 时，下一张和行内控件的提示都立即出现；关闭没有延迟。第一张和最后一张有 150ms 淡入淡出，立即出现的没有。实色底加 `shadow_xl`：T3 的玻璃效果靠背景模糊，mod 做不到。行内控件点亮、拖动或点击这一行时隐藏。

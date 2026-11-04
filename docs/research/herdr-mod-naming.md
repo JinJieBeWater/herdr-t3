@@ -47,7 +47,7 @@ Mod 名会成为布局块里的 `mod` 值、命令名 `<mod>.<command>` 和 keys
 
 ## 全量复核（2026-11-05）
 
-**决定：** 评审窗格保持 `review` 不改（目前没有撞名，`pulls-review-pane` 太长）。`herdr-actions` 放进 herdr-t3 仓库随布局发布，由 `scripts/sync.sh` 同步到单独的仓库。之后它改名为 mod `t3-actions`、仓库 `herdr-t3-actions`，取代上面“保留 `herdr-actions`”的建议：发布前没有用户，改名不需要迁移；它和 herdr-t3-focus 里的 `t3-inbox` 同一套规则，也和保存动作的 shared key 同名。改名前扫描了 184 个仓库（含 fork）的 715 个 mod 目录，没有撞名。
+**决定：** 评审窗格保持 `review` 不改（目前没有撞名，`pulls-review-pane` 太长）。`herdr-actions` 放进 herdr-t3 仓库随布局发布，由 `scripts/sync.sh` 同步到单独的仓库。之后它改名为 mod `t3-actions`、仓库 `herdr-t3-actions`，取代上面“保留 `herdr-actions`”的建议：发布前没有用户，改名不需要迁移；它和 herdr-t3-focus 里的 `t3-inbox` 同一套规则，也和保存动作的 shared key 同名。改名前扫描了 184 个仓库（含 fork）的 715 个 mod 目录，没有撞名。随后 herdr-t3-focus 也改名为 herdr-t3-inbox，仓库名和 mod 名一致。
 
 上面的结论基于约 8 个代表仓库。之后扫描了 `topic:herdr-mod` 和 `topic:herdr-layout` 各前 100 个结果（去掉 herdr-t3 和 herdr-t3-focus 后共 181 个仓库，179 个含 mod，639 个不同目录名），修正和补充如下：
 

@@ -3,7 +3,7 @@
 # Real copies, not symlinks: Herdr App doesn't load a mod's own SVGs through a symlink.
 set -eu
 src=$(cd "$(dirname "$0")/.." && pwd)
-focus=${HERDR_T3_FOCUS:-$src/../herdr-t3-focus}
+inbox=${HERDR_T3_INBOX:-$src/../herdr-t3-inbox}
 actions=${HERDR_T3_ACTIONS:-$src/../herdr-t3-actions}
 app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
@@ -18,7 +18,7 @@ for m in t3-agents t3-tabs t3-pane t3-chrome t3-spaces; do cp "$src/mods/t3-inbo
 cp "$src/mods/t3-inbox/details.js" "$src/mods/t3-tabs/"
 
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
-rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$focus/mods/t3-inbox/"
+rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$inbox/mods/t3-inbox/"
 rsync -a --delete $gen "$src/mods/t3-actions/" "$actions/mods/t3-actions/"
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.
 for d in "$src"/mods/t3-*/; do rsync -a --delete $gen "$d" "$app/mods/$(basename "$d")/"; done

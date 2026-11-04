@@ -6,7 +6,7 @@
 
 ![Herdr T3](preview.png)
 
-只想要 Settle 侧栏？它也单独发布了一份：[herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus)。
+只想要 Settle 侧栏？它也单独发布了一份：[herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox)。
 
 ## 理念
 
@@ -114,6 +114,6 @@ Herdr 不自带 [Maple Mono NF CN](https://github.com/subframe7536/maple-font)�
 
 ## 更多
 
-- [herdr-t3-focus](https://github.com/JinJieBeWater/herdr-t3-focus)：本布局的 Inbox 侧栏，单独作为 mod 发布。
+- [herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox)：本布局的 Inbox 侧栏，单独作为 mod 发布。
 - [herdling](https://github.com/JinJieBeWater/herdling)：Herdr 的 macOS 菜单栏伴侣。
 - [pi-stuff](https://github.com/JinJieBeWater/pi-stuff)：我写的 Pi 扩展和 Skills。
