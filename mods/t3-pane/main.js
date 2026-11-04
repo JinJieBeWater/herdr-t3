@@ -79,7 +79,7 @@ export default class Pane extends View {
       .on_click(() => run("pane.focus", { pane }))
       .when(Boolean(pic), (el) => el.child(pic))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
-      .child(div().flex_none().truncate().max_w(260).text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
+      .child(div().min_w(0).truncate().text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
         .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
