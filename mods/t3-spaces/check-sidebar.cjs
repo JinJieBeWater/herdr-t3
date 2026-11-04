@@ -752,6 +752,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     const bar = tabs.render(cx);
     assert.deepEqual(strings(find(bar, "review-open")), ["4", "ahead of main"], "the branch's count says what it is against");
     assert.deepEqual(strings(find(bar, "review-changes")), ["3", "uncommitted"]);
+    assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
+      ["mods/workspace-chrome/git-branch.svg", "review-open", "div", "review-changes", "div", "review-ahead", "div", "review-behind"], "one outlined group: its icon, then segments with rules only between them");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");

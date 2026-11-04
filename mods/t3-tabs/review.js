@@ -2,7 +2,7 @@
 // uncommitted files and its commits ahead of and behind its upstream, each opening that diff.
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
-import { div } from "gpui-kit";
+import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, focused, exec, appHome, readTextFile, watchFolder, window, openOverlay } from "herdr";
 
@@ -96,17 +96,22 @@ export function reviewBar(view, t, stop) {
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // The accessibility label says what each count compares, which the short label can't.
   // The count carries the color; what it counts stays quiet beside it.
-  const item = (id, count, noun, color, name, args) => h_flex().id(id).h(26).px(6).gap(4).flex_none().items_center().rounded(6)
+  const item = (id, count, noun, color, name, args) => h_flex().id(id).h_full().px(6).gap(4).flex_none().items_center().rounded(5)
     .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label(name)
     .on_mouse_down("left", stop)
     .on_click(() => openOverlay({ mod: "pulls-review", kind: "popup", at: "top", offset: 40, width: 320, height: 44, props: { cwd: r.root, args, analyze: true } }))
     .child(div().font_medium().text_color(color).child(count))
     .when(Boolean(noun), el => el.child(noun));
-  return h_flex().id("pulls-review").flex_none().items_center()
+  const segments = [
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
-    .when(r.unmerged > 0, el => el.child(item("review-open", String(r.unmerged), `ahead of ${r.base}${r.gone ? " · merged?" : ""}`, t.ansi4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
-      + (r.newer ? ` · ${r.baseRef} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), [])))
-    .when(r.changed > 0, el => el.child(item("review-changes", String(r.changed), "uncommitted", t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"])))
-    .when(r.ahead > 0, el => el.child(item("review-ahead", `↑${r.ahead}`, null, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`])))
-    .when(r.behind > 0, el => el.child(item("review-behind", `↓${r.behind}`, null, t.ansi1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`])));
+    r.unmerged > 0 && item("review-open", String(r.unmerged), `ahead of ${r.base}${r.gone ? " · merged?" : ""}`, t.ansi4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
+      + (r.newer ? ` · ${r.baseRef} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), []),
+    r.changed > 0 && item("review-changes", String(r.changed), "uncommitted", t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"]),
+    r.ahead > 0 && item("review-ahead", `↑${r.ahead}`, null, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`]),
+    r.behind > 0 && item("review-behind", `↓${r.behind}`, null, t.ansi1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`]),
+  ].filter(Boolean);
+  // Outlined, not filled: a fill would read as the active tab.
+  return h_flex().id("pulls-review").h(26).mr(4).flex_none().items_center().rounded(6).border(1).border_color(t.border)
+    .child(svg("mods/workspace-chrome/git-branch.svg").size(13).ml(7).mr(1).flex_none().text_color(t.dim))
+    .children(segments.flatMap((s, i) => i ? [div().w(1).h(14).flex_none().bg(t.border), s] : [s]));
 }
