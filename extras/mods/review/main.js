@@ -147,13 +147,14 @@ export default class ReviewPane extends View {
       this.saveLlm({ agentModel: hit?.id ?? typed }, cx);
     });
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.listHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
+    this.startingUntil = 0;
     this.marks = 0; this.marking = 0;
     this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.auto = new Set(); this.asked = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
     this.load(cx);
     // While a run goes the pane follows it; otherwise the folder watch and a slow timer catch new diffs.
-    cx.timer.every(1500, (cx) => { if (this.review?.analysis.state === "running") this.load(cx, true); });
+    cx.timer.every(1500, (cx) => { if (this.analyzing()) this.load(cx, true); });
     cx.timer.every(15000, (cx) => this.load(cx));
     // Scrolling redraws only the list. What the rest shows of where it is - the aside's group, the files and groups in view,
     // as the app's scroll spy marks them - is checked here and redrawn when it moved.
@@ -166,7 +167,7 @@ export default class ReviewPane extends View {
 
   open(page, cx) {
     if (page === this.page) return;
-    this.page = page; this.review = null; this.error = null; this.analyzeError = null; this.full.clear(); this.groupKey = null; this.current = null; this.headerHidden = false;
+    this.page = page; this.review = null; this.error = null; this.analyzeError = null; this.startingUntil = 0; this.full.clear(); this.groupKey = null; this.current = null; this.headerHidden = false;
     this.remember(); this.version++;
     this.load(cx);
   }
@@ -232,6 +233,7 @@ export default class ReviewPane extends View {
     for (const file of r.files) if (!file.hunks && old.get(file.path)?.sha === file.sha) file.hunks = old.get(file.path).hunks;
     for (const path of this.full.keys()) if (old.get(path)?.sha !== r.files.find(file => file.path === path)?.sha) this.full.delete(path);
     this.review = r;
+    if (r.analysis.state === "running") this.startingUntil = 0;
     // The diff's commits, for stepping through them while one is shown on its own (its page lists only itself).
     if (this.page === this.base) this.baseCommits = r.commits;
     if (!r.groups.some(g => g.key === this.groupKey)) this.groupKey = r.groups[0]?.key ?? null;
@@ -240,13 +242,20 @@ export default class ReviewPane extends View {
 
   analyze(cx, force) {
     const { root, page } = this;
+    // shortcut: 10 s is a guess at the slowest start, and a start that fails says nothing; replace it once the worktree server answers when it has started.
+    this.startingUntil = Date.now() + 10000; this.analyzeError = null;
+    cx.timer.after(10000, (cx) => cx.notify());
+    cx.notify();
     cx.spawn(async (cx) => {
-      try { await review(root, "/api/review/analyze", { page, force }); this.analyzeError = null; }
-      catch (e) { this.analyzeError = e?.message ?? String(e); }
+      try { await review(root, "/api/review/analyze", { page, force }); }
+      catch (e) { this.startingUntil = 0; this.analyzeError = e?.message ?? String(e); }
       cx.notify();
       this.load(cx);
     });
   }
+
+  // A run going, as the app's from the click: the daemon answers before the worktree server has started it, and a read until then finds none.
+  analyzing() { return this.review?.analysis.state === "running" || Date.now() < this.startingUntil; }
 
   // The settings panel reads the daemon's agents and shared settings each time it opens: the browser may have changed them.
   loadSettings(cx) {
@@ -470,7 +479,7 @@ export default class ReviewPane extends View {
 
   // Running or failed: what the status shows; with neither, as the app's dialog, it isn't shown.
   analysisStatus() {
-    const a = this.review?.analysis, running = a?.state === "running";
+    const a = this.review?.analysis, running = this.analyzing();
     return { running, error: this.analyzeError ?? (running ? null : a?.error) };
   }
 
@@ -512,6 +521,8 @@ export default class ReviewPane extends View {
 
   toggleFull(file, cx) {
     if (!this.canFull(file)) return;
+    // As the app's button, disabled while the file loads: a click would cancel it, and its answer would open it again.
+    if (this.full.has(file.path) && !this.full.get(file.path)) return;
     if (this.full.has(file.path)) { this.full.delete(file.path); this.version++; cx.notify(); return; }
     this.full.set(file.path, null);
     const { root, page } = this;
@@ -682,7 +693,9 @@ export default class ReviewPane extends View {
         .child(div().flex_1().min_w(0).child(this.error))
         .child(this.button(t, "retry", "Retry", () => this.load(cx)))))
       .child(!this.review
-        ? div().flex_1().p(12).text_color(t.dim).child(this.error ? "" : "Loading the review…")
+        // As the app's FeedbackLoading.
+        ? div().flex_1().py(48).when(!this.error, el => el.child(h_flex().gap(8).items_center().justify_center().text_color(t.dim).role("status")
+          .child(svg(`${PH}/spinner-duotone.svg`).size(14).flex_none().spin(900)).child("Loading the review…")))
         // The divider drags; Herdr keeps the width under the group's id (renamed when the default changes, to take it).
         // As the app's group sidebar: w-64, at least 192, at most 40% of the page.
         : sidebar ? h_resizable("review-sidebar-width").flex_1().min_h(0)
@@ -772,7 +785,7 @@ export default class ReviewPane extends View {
       // As the app's DiffAnalyzeButton, the analysis's state is the button's: running or failed, it opens the status; without
       // an agent, the settings. An analysis of an older version (the app has none) says so after its Re-analyze.
       const analyze = !a.agent ? { text: "Set up agent", lead: `${PH}/key-duotone.svg`, primary: true, run: (cx) => this.togglePopup("settings", cx) }
-        : a.state === "running" ? { text: "Analyzing…", lead: `${PH}/spinner-duotone.svg`, spin: true, run: (cx) => this.togglePopup("status", cx) }
+        : this.analyzing() ? { text: "Analyzing…", lead: `${PH}/spinner-duotone.svg`, spin: true, run: (cx) => this.togglePopup("status", cx) }
         : error ? { text: "Analysis failed", lead: `${PH}/warning-circle-duotone.svg`, color: "ansi1", run: (cx) => this.togglePopup("status", cx) }
         : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${PH}/sparkle-duotone.svg`, primary: a.state === "none", note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => this.analyze(cx, a.state === "current") };
       buttons.push({ id: "analyze", ...analyze, ...compact && { text: null, icon: analyze.lead, label: analyze.text } });
@@ -1216,7 +1229,7 @@ export default class ReviewPane extends View {
           .when(f.isBinary, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("binary")))
           .child(this.fileStatus(f.status))
           .child(h_flex().flex_none().gap(4)
-            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/workspace-chrome/file-text.svg").size(14).text_color(full ? t.accent : t.dim))))
+            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/workspace-chrome/file-text.svg").size(14).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
             .child(slot().child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).text_color(t.dim))));
       }
       case "group":
@@ -1245,7 +1258,8 @@ export default class ReviewPane extends View {
             .when(Boolean(item.last), el => el.border_b(1).border_color(t.border));
       }
       case "empty":
-        return div().w_full().h(item.size).pl(codeInset(this.splitShown())).pr(12).flex().items_center().text_color(t.dim).child(item.text);
+        return div().w_full().h(item.size).pl(codeInset(this.splitShown())).pr(12).gap(8).flex().items_center().text_color(t.dim)
+          .when(Boolean(item.loading), el => el.child(svg(`${PH}/spinner-duotone.svg`).size(14).flex_none().spin(900))).child(item.text);
       case "pair":
         return h_flex().w_full().h(item.size)
           .child(this.code(t, item.line.left, [item.line.left?.old], Math.min(this.shift[0], this.sideMax(0))))

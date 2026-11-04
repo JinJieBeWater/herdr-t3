@@ -122,7 +122,7 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
     for (const [i, note] of own.entries()) push({ key: `n:${path}:f${i}`, kind: "note", note, last: i === own.length - 1 }, noteHeight(note.text, width, false));
     const hunks = full.get(path) ? [{ header: null, rows: full.get(path) }] : file.hunks;
     if (!hunks) {
-      push({ key: `e:${path}`, kind: "empty", text: "Loading…" }, ROW);
+      push({ key: `e:${path}`, kind: "empty", text: "Loading…", loading: true }, ROW);
       return;
     }
     if (!hunks.length) {

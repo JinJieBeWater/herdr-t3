@@ -175,6 +175,16 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   routes.length = 0; press("rerun");
   assert.ok(pane.popup !== "status" && routes.includes("/api/review/analyze"));
   await new Promise(setImmediate);
+  // As the app, running from the click: the daemon answers before the run exists, and the read after it finds none.
+  assert.equal(pane.review.analysis.state, "current");
+  assert.equal(analyzeButton().text, "Analyzing…");
+  // A run seen ends the wait; no run within it, the button says what the daemon does again.
+  pane.apply({ ...pane.review, analysis: { state: "running", agent: true } });
+  assert.equal(pane.startingUntil, 0);
+  pane.startingUntil = Date.now() + 1000; pane.review.analysis = { state: "current", agent: true };
+  assert.equal(analyzeButton().text, "Analyzing…");
+  pane.startingUntil = Date.now() - 1;
+  assert.equal(analyzeButton().text, "Re-analyze");
   // A finished run has no status: the panel isn't shown, even left open.
   pane.popup = "status"; pane.review.analysis = { state: "current", agent: true }; drawn.clear(); pane.render(cx);
   assert.ok(!drawn.has("review-status-panel"));
@@ -576,15 +586,23 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.load(cx); await settle();
   assert.equal(target().reviewed, !was);
   release(); await settle(); await settle();
+  // A start the daemon refuses ends the wait and says why.
+  mainScope.review = (root, route, body) => route === "/api/review/analyze" ? Promise.reject(new Error("no agent")) : daemon(root, route, body);
+  pane.analyze(cx, false); await settle();
+  assert.ok(pane.startingUntil === 0 && pane.analyzeError === "no agent");
   // Another diff opened meanwhile takes neither the old one's whole file nor its analysis failure.
   let reply;
   mainScope.review = (root, route, body) => route === "/api/review/file" ? new Promise(r => { reply = r; }) : daemon(root, route, body);
   const home = pane.page;
   pane.full.delete(first); pane.toggleFull(target(), cx); pane.analyzeError = "boom";
+  // As the app's button, disabled while it loads: another press doesn't cancel it.
+  pane.toggleFull(target(), cx);
+  assert.ok(pane.full.has(first));
+  pane.startingUntil = Date.now() + 1000;
   // The whole file comes back after the other diff has loaded.
   pane.open("/commit/c1", cx); await settle();
   reply({ rows: [] }); await settle();
-  assert.ok(!pane.full.has(first) && pane.analyzeError === null);
+  assert.ok(!pane.full.has(first) && pane.analyzeError === null && pane.startingUntil === 0);
   mainScope.review = daemon; pane.open(home, cx); await settle();
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
