@@ -755,16 +755,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
       ["review-pick", "review-open", "review-changes", "review-ahead", "review-behind"], "its icon, then its segments, spaced as the bar's other buttons");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
-    const countColor = id => find(tabs.render(cx), id).items[0].style.text_color;
-    assert.equal(countColor("review-open"), f.theme().ansi4);
-    fire(find(bar, "review-open"), "on_hover", true, cx);
-    assert.equal(countColor("review-open"), f.theme().ansi12, "hovered, the count takes its bright twin");
-    fire(find(bar, "review-changes"), "on_hover", true, cx);
-    fire(find(bar, "review-open"), "on_hover", false, cx);
-    assert.equal(countColor("review-changes"), f.theme().ansi11, "the old segment's late leave doesn't clear the new one");
-    assert.equal(countColor("review-open"), f.theme().ansi4);
-    fire(find(bar, "review-changes"), "on_hover", false, cx);
-    assert.equal(countColor("review-changes"), f.theme().ansi3);
+    for (const id of ["review-open", "review-changes", "review-ahead", "review-behind"]) assert.equal(find(bar, id).items[0].style.text_color, undefined, "a count has no color of its own: color means an agent's status");
     assert.equal(find(bar, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
     assert.equal(find(bar, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
     assert.equal(walk(bar).filter(n => "tooltip" in n.style).length, 0, "no hover tooltips, like the rest of the layout");
