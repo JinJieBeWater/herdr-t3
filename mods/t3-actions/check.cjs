@@ -1,4 +1,4 @@
-// node mods/herdr-actions/check.cjs: main.js runs on inert elements, every view reached without a window.
+// node mods/t3-actions/check.cjs: main.js runs on inert elements, every view reached without a window.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -67,7 +67,7 @@ assert.equal(find(bar.render(), "action-add").style.text_color, theme.dim);
 fire(find(bar.render(), "action-add"), "on_hover", true, cx);
 assert.equal(find(bar.render(), "action-add").style.text_color, theme.foreground, "its icon brightens with its text");
 fire(find(bar.render(), "action-add"), "on_click", {}, cx);
-assert.deepEqual(plain(overlays.at(-1)), { mod: "herdr-actions", kind: "dialog", width: 440, height: 410, props: { actions: "edit", id: null } });
+assert.deepEqual(plain(overlays.at(-1)), { mod: "t3-actions", kind: "dialog", width: 440, height: 410, props: { actions: "edit", id: null } });
 
 // Some: "▶ Dev | ▾" in one outline, a rule between.
 state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "bun dev" }, { id: "b", name: "Test", command: "bun test", place: "right", cwd: "~/x" }] };
@@ -83,7 +83,7 @@ assert.equal(overlays.at(-1).at, undefined);
 fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 40 * zoom });
-assert.equal(overlays.at(-1).mod, "herdr-actions");
+assert.equal(overlays.at(-1).mod, "t3-actions");
 
 // The menu: a row runs its action and makes it the one ▶ runs; a gear edits it.
 const menu = load({ actions: "menu" });
@@ -162,7 +162,7 @@ delete state["bar.compact"];
   assert.deepEqual([mod, props.title], ["confirm", "Delete Dev?"]);
   assert.equal(state["t3-actions"].list.length, 2, "the click only asks");
   const dot = props.command.name.indexOf(".");
-  assert.equal(props.command.name.slice(0, dot), "herdr-actions");
+  assert.equal(props.command.name.slice(0, dot), "t3-actions");
   commands.push(props.command.name.slice(dot + 1));
   jobs[0]();
   await new Promise((resolve) => setImmediate(resolve));

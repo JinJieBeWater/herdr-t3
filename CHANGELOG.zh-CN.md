@@ -6,7 +6,7 @@
 
 ### 动作和 Review 成为独立 mod
 
-- 动作移出 `t3-tabs`，成为单独的 mod `mods/herdr-actions`，随布局一起提供，也[单独发布](https://github.com/JinJieBeWater/herdr-actions)给其他布局用。更新时把它和 `mods/t3-*` 一起复制；已有的动作会保留。
+- 动作移出 `t3-tabs`，成为单独的 mod `mods/t3-actions`，随布局一起提供，也[单独发布](https://github.com/JinJieBeWater/herdr-t3-actions)给其他布局用。它属于更新时要覆盖的 `mods/t3-*`；已有的动作会保留。
 - pulls.review 扩展移出本仓库，放到 [fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo/mods) 里，成为 Review 栏和评审窗格。它仍是可选的，见 README 的可选扩展。
 
 ### 视觉

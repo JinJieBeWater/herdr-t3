@@ -89,7 +89,7 @@
           "background": "chrome",
           "children": [
             { "id": "tabs", "type": "block", "size": { "weight": 1 }, "window_drag": true, "content": { "mod": "t3-tabs" } },
-            { "id": "actions", "type": "block", "size": { "px": 112 }, "window_drag": true, "content": { "mod": "herdr-actions", "props": { "block": "actions" } } },
+            { "id": "actions", "type": "block", "size": { "px": 112 }, "window_drag": true, "content": { "mod": "t3-actions", "props": { "block": "actions" } } },
             { "id": "tabs-end", "type": "block", "size": { "px": 34 }, "window_drag": true, "content": { "mod": "t3-tabs", "props": { "part": "end", "block": "tabs-end" } } }
           ]
         },

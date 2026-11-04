@@ -4,8 +4,8 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, HoverCard } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
 
-const MOD = "herdr-actions";
-// Named for the layout it began in (Herdr T3): another name would lose everyone's saved actions.
+const MOD = "t3-actions";
+// Where everyone's saved actions live: another key would lose them, whatever the mod is called.
 const KEY = "t3-actions";
 const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
@@ -183,7 +183,7 @@ export default class Actions extends View {
     const overlay = props()?.actions;
     if (overlay === "edit") initEditor(this);
     if (overlay === "menu") initMenu(this, cx);
-    // The bar's copy answers Delete's dialog: `herdr-actions.delete-action:<id>`.
+    // The bar's copy answers Delete's dialog: `t3-actions.delete-action:<id>`.
     if (!overlay) cx.spawn(async () => {
       for (;;) {
         const command = await nextCommand();
