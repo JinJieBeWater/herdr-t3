@@ -523,7 +523,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.labelled.splice(0).map(([, a, v]) => [a, v.split("=")[0]]).sort(), [["t0", "settled"], ["vps/t2", "settled"]], "letting go settles every marked row");
   fire(settleButton, "on_click", {}, run);
   assert.equal(f.labelled.length, 0, "the button's click after a sweep doesn't settle again");
-  for (const k of [t0, f.terminals().find(k => k.address === "vps/t2")]) k.labels = { settled: `${Date.now()}:0` };
+  // As core writes them back: the label the settle set, else the row stays pending and won't lift (its stamp is ms).
+  for (const k of [t0, f.terminals().find(k => k.address === "vps/t2")]) k.labels = { settled: inbox.pending[k.address] ?? `${Date.now()}:0` };
 
   const n = f.labelled.length;
   lift("slim-vps/t2"); over("active");
@@ -536,6 +537,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   release();
   const before = f.calls.length;
   lift("slim-vps/t2"); over("active");
+  assert.ok(find(root(), "drag-ghost"), "the drag is under way before its row leaves");
   const gone = f.agents().splice(1, 1)[0];
   assert.equal(find(root(), "drag-ghost"), null, "a row that leaves the list ends the drag");
   f.agents().push(gone);
