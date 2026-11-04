@@ -701,11 +701,11 @@ export default class Inbox extends View {
     const notice = n && h_flex().id(`undo-notice-${n.gen}`).absolute().left(0).right(0).top(-12).h(24).px(10).gap(4).items_center()
       .bg(t.chrome).text_size(11).text_color(t.dim).opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })
       .child(div().min_w(0).truncate().child(`${n.action} ${n.count} agent${n.count === 1 ? "" : "s"},`))
-      .when(n.live, (el) => el.child(div().id("undo-notice-undo").flex_none().text_color(lit("undo-notice-undo", t.foreground)).on_hover(glow("undo-notice-undo"))
+      // As T3's InlineButton: medium, foreground, underlined on hover.
+      .when(n.live, (el) => el.child(div().id("undo-notice-undo").flex_none().font_medium().text_color(t.foreground).hover((s) => s.underline())
         .role("button").accessibility_label("Undo")
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          this.hot = null; // It goes before the pointer can report leaving it.
           for (const undo of n.undos) undo(cx);
           this.forget(cx);
         })
