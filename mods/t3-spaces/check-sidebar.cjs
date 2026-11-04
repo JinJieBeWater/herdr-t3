@@ -372,7 +372,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   f.spaces()[0].tabs[0].status = "done"; f.agents()[0].status = "done";
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
-  assert.equal(find(f.load("t3-tabs").render(cx), "tab-b0").items.some(n => n.style.rounded_full), false, "no done dot for a settled agent's tab");
+  assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "no done dot for a settled agent's tab");
 }
 
 {
@@ -827,7 +827,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
       assert.ok(!("tooltip" in n.style), `${n.key}: the shell's tooltip isn't T3's`);
       const tipped = walk(view.render(cx)).some(c => c.kind === "hovercard" && c.items.some(i => i.key === n.key));
-      const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /agent-fold|^(icon|sub|ag|card|slim)-/.test(n.key);
+      const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /agent-fold|^(icon|sub|ag|card|slim|close-b|close-o)/.test(n.key);
       if (icon && !plain) assert.ok(tipped, `${n.key}: an icon alone has a hover label`);
     }
   }
@@ -947,12 +947,26 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
-    // A tab's close button is sized as the other small buttons. A tab drags as a space does, and leaving ends either.
+    // A tab as T3's panel tab: 24px, 12px, 144px at most; its icon's slot closes it, a × while the tab is hovered.
+    // A tab drags as a space does, and leaving ends either.
     const f = fixture(256), tabs = f.load("t3-tabs"), spaces = f.load("t3-spaces");
     f.spaces()[0].active = f.spaces()[0].tabs[0].active = true;
     f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
-    const close = find(tabs.render(cx), "close-b0").style;
-    assert.deepEqual([close.size, close.rounded, close.accessibility_label], [20, 4, "Close tab"]);
+    const tab = find(tabs.render(cx), "tab-other").style;
+    assert.deepEqual([tab.h, tab.text_size, tab.max_w, tab.pl, tab.gap], [24, 12, 144, 6, 2]);
+    const close = () => find(tabs.render(cx), "close-other");
+    assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
+    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg", "at rest it's the tab's icon, a terminal's when it has no program");
+    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
+    assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
+    assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
+    fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
+    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
+    fire(close(), "on_click", {}, cx);
+    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "other" }]);
+    fire(find(tabs.render(cx), "title-other"), "on_hover", true, cx);
+    assert.deepEqual(strings(find(tabs.render(cx), "tip-title-other").style.content), ["other"], "its whole name on hover");
+    fire(find(tabs.render(cx), "title-other"), "on_hover", false, cx);
     fire(find(tabs.render(cx), "tab-b0"), "on_mouse_down:left", { click_count: 1 }, cx);
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_move", {}, cx);
     assert.equal(find(tabs.render(cx), "tab-b0").style.opacity, 0.5, "the dragged tab fades");

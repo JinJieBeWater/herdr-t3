@@ -90,9 +90,18 @@ export default class Tabs extends View {
       const status = words.includes("blocked") ? "blocked"
         : live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
-      return h_flex().id(`tab-${c.id}`).relative().h(28).px(8).gap(8).rounded(6).items_center().flex_none().text_size(13)
-        .bg(c.active ? t.selected : t.chrome).text_color(c.active ? t.foreground : t.muted)
+      // As T3's panel tabs: 24px, 12px words, 144px at most. The icon's slot is the close button: hovering the tab turns it to ×.
+      const over = this.overTab === c.id;
+      const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
+        : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
+      return h_flex().id(`tab-${c.id}`).relative().h(24).max_w(144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+        .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
+        .on_hover((on, cx) => {
+          if (on) this.overTab = c.id;
+          else if (this.overTab === c.id) this.overTab = null;
+          cx.notify();
+        })
         .when(!c.active, el => el.hover(s => s.bg(t.hover)))
         // Dragged as a space is: the source fades, a line shows where it lands.
         .when(this.pressed === i && this.over !== i, el => el.opacity(0.5))
@@ -114,13 +123,14 @@ export default class Tabs extends View {
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
-        .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
-        .when(status != null, el => el.child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status))))
-        // Raised: the hover fill is darker than the selected tab it sits on. The -4 keeps the tab as wide as its 12px icon made it.
-        .when(c.active, el => el.child(tip(this.hot, t, `close-${c.id}`, "Close tab", div().id(`close-${c.id}`).size(20).mr(-4).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(this, `close-${c.id}`)).hover(s => s.bg(t.raised)).on_hover(glow(this, `close-${c.id}`))
-          .role("button").accessibility_label("Close tab")
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12)), { action: "tab.close" })));
+        .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
+          .role("button").accessibility_label(`Close ${name}`)
+          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
+          .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
+        // Its whole name on hover, as T3's: a tab is cut at 144px.
+        .child(tip(this.hot, t, `title-${c.id}`, name, div().id(`title-${c.id}`).min_w(0).truncate().on_hover(glow(this, `title-${c.id}`))
+          .child(c.zoomed ? `${name} Z` : name)).min_w(0))
+        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
