@@ -763,6 +763,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     show({ ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 });
     assert.equal(find(tabs.render(cx), "pulls-review"), null, "nothing to review, no bar");
     show({ ...review, newer: 1, gone: true });
+    assert.deepEqual(strings(find(tabs.render(cx), "review-open")), ["4", "ahead of main · merged?"], "a deleted upstream shows, not only in the label");
     assert.equal(find(tabs.render(cx), "review-open").style.accessibility_label,
       "Review the branch: 4 commits on feat, not on main · main has 1 newer commit · origin/feat is gone, likely merged");
     const full = status;

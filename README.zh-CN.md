@@ -86,7 +86,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 `extras/mods/pulls-review/` 用 [pulls.review](https://github.com/antfu/pulls.review) 评审当前焦点所在的工作树：有未提交改动时看这些改动，否则看当前分支对比默认分支。
 
-安装后，标签栏在 `+` 前出现 Review 栏，只显示有的内容：`4 ahead of main`（当前分支上默认分支没有的提交）、`3 uncommitted`（未提交的文件数）、`↑2`（上游还没有的提交）、`↓1`（上游新增的提交）。点击只看那一份 diff。它跟随当前焦点窗格；焦点在评审窗格上时，跟随同一标签页里的终端。这些计数读取现有的远程跟踪引用，不会替你 fetch。
+安装后，标签栏在 `+` 前出现 Review 栏，只显示有的内容：`4 ahead of main`（当前分支上默认分支没有的提交；上游分支已删除时附带 `· merged?`）、`3 uncommitted`（未提交的文件数）、`↑2`（上游还没有的提交）、`↓1`（上游新增的提交）。点击只看那一份 diff。它跟随当前焦点窗格；焦点在评审窗格上时，跟随同一标签页里的终端。这些计数读取现有的远程跟踪引用，不会替你 fetch。
 
 评审在哪里打开，由 `extras/mods/pulls-review/config.json` 里的 `open` 决定：
 

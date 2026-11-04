@@ -103,7 +103,8 @@ export function reviewBar(view, t, stop) {
     .child(div().font_medium().text_color(color).child(count))
     .when(Boolean(noun), el => el.child(noun));
   return h_flex().id("pulls-review").flex_none().items_center()
-    .when(r.unmerged > 0, el => el.child(item("review-open", String(r.unmerged), `ahead of ${r.base}`, t.ansi4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
+    // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
+    .when(r.unmerged > 0, el => el.child(item("review-open", String(r.unmerged), `ahead of ${r.base}${r.gone ? " · merged?" : ""}`, t.ansi4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
       + (r.newer ? ` · ${r.baseRef} has ${n(r.newer, "newer commit")}` : "") + (r.gone ? ` · ${r.upstream} is gone, likely merged` : ""), [])))
     .when(r.changed > 0, el => el.child(item("review-changes", String(r.changed), "uncommitted", t.ansi3, `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"])))
     .when(r.ahead > 0, el => el.child(item("review-ahead", `↑${r.ahead}`, null, t.ansi2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`])))
