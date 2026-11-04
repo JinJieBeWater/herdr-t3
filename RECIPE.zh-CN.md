@@ -18,10 +18,10 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
   - **底栏**（41px，上边框）：一行 Settings；App 更新就绪时带一个 6px `accent` 圆点。
 - **工作区**：
   - **标签栏**（40px，可拖动窗口）：当前 space 的标签，28px 胶囊（圆角 6，当前标签 `selected`）：程序图标、名字（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点；当前标签有关闭 `×`。然后是 26px 的视图切换按钮（`square` 图标：只看一个 agent；`layers`：显示标签）和 `+`（`tab.new`：在当前 space 开终端标签）。Agent 模式下胶囊换成一条 agent 栏：程序图标、agent 名（`foreground`）、所在 space（`dim`）、状态标记。Windows 上有窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
-  - **工作主体**（内边距 2/8，间距 8），二选一（stack）：
+  - **工作主体**（内边距 8，间距 8），二选一（stack）：
     - **窗格**，即当前标签：圆角 8，`background` 填充，聚焦边框 2px，默认关闭（`focus.color` 为 `background`，改成 `accent` 即显示；平时的边框也是 2px，颜色同 `background`，所以聚焦时终端不会变尺寸），单个窗格也带框。每个窗格顶部有 28px 标题栏：程序图标、agent 名或终端标题（13px 中粗，聚焦时 `foreground`）、目录、状态标记，以及右分屏、下分屏、缩放/取消缩放、关闭按钮（悬停时出现）。
     - **Agent 模式**：一个 agent 的终端铺满显示，`background` 填充，圆角 8，无标题栏。
-  - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
+  - 布局里有自带的 `workspace-status` 状态栏，但隐藏。
 - **新建菜单**（`t3-new-menu`，520×420 弹层，位于顶部）：选一个 space 开终端标签（`tab.new`），或 New space（`space.new`）；`⌘1…` 按编号选 space。
 
 ## 它怎么表现

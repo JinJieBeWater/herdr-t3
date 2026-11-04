@@ -136,14 +136,8 @@
               ]
             }
           ],
-          "padding": [2, 8],
+          "padding": [8, 8],
           "gap": 8
-        },
-        {
-          "id": "work-bottom-inset",
-          "type": "row",
-          "children": [],
-          "size": { "px": 6 }
         },
         {
           "id": "status",

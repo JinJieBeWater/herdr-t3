@@ -16,10 +16,10 @@ Left to right, divider 1px `border`:
   - **Footer** (41px, top border): a Settings row, with a 6px `accent` dot when an app update is ready.
 - **Work column**:
   - **Tabs** (40px, drags the window): the active space's tabs as 28px pills (radius 6, `selected` when active), program icon, name (a tab nobody named reads as its agent, else its focused pane, by the naming rule below), a spinner when working, `!` badge when blocked, a 7px `done` dot when done and unseen; close `×` on the active one. Then a 26px view toggle (`square` icon: show one agent; `layers`: show tabs) and `+` (`tab.new`: a terminal tab in the active space). In the agent view the pills give way to an agent bar: program icon, the agent's name (`foreground`), its space (`dim`), its state mark. Window buttons on Windows. With the sidebar hidden, a sidebar toggle at the left also counts agents: blocked, working, done.
-  - **Work body** (padding 2/8, gap 8), one of two (a stack):
+  - **Work body** (padding 8, gap 8), one of two (a stack):
     - **Panes**, the active tab: radius 8, `background` fill, a 2px focus ring, off by default (`focus.color` is `background`; set it to `accent` to show it. The border is the same 2px in `background`, so focusing doesn't resize the terminal), even a lone pane framed. Each has a 28px header on top: program icon, agent name or terminal title (13px medium, `foreground` when focused), folder, state mark, and buttons split right, split down, zoom/unzoom, close (shown on hover).
     - **Agent view**: one agent's terminal full size, `background` fill, radius 8, no header.
-  - 6px bottom inset; the shipped `workspace-status` bar is in the layout but hidden.
+  - The shipped `workspace-status` bar is in the layout but hidden.
 - **New menu** (`t3-new-menu`, popup 520×420 at the top): pick a space for a new terminal tab (`tab.new`), or New space (`space.new`); `⌘1…` pick spaces by number.
 
 ## How it behaves
