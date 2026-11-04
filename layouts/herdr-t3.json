@@ -146,6 +146,7 @@
           "content": { "mod": "workspace-status" }
         }
       ],
+      "background": "chrome",
       "resizable": false
     }
   ],

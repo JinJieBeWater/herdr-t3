@@ -15,6 +15,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 - Tabs are T3's panel tabs: 24px, as wide as their whole names while the room allows. Short of room the longest give way first, the active one to 240px and the rest to 144px, then the strip scrolls and keeps the active tab in view.
 - The hide-sidebar button leads the brand bar, in the spot it keeps while the sidebar is hidden, and the sidebar footer is a row of icon buttons, as T3's.
 - A new install shows the Inbox first.
+- The panes sit on `chrome`, the same as the tab bar: in a theme whose `canvas` differs, a 2px strip no longer shows above them. Herdr T3's own theme looks the same.
 
 ### Interaction
 
