@@ -21,6 +21,21 @@ const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg"
 
 const WORDS = { working: "Working", blocked: "Needs you", done: "Done" };
 const TAB_GAP = 4;
+// A tab's name gives way to T3's 144px at most, the active one's to 240px; past that the strip scrolls.
+const TAB_FLOOR = 144, TAB_ACTIVE = 240;
+// A tab around its name: padding, the icon's slot and the gaps; a status mark's slot on top.
+const TAB_CHROME = 33, TAB_MARK = 18;
+
+// The widest a tab may be for `wants` to fill `room`: the shorter keep all they want, the longest share what's left.
+function fairCap(wants, room) {
+  const sorted = [...wants].sort((a, b) => a - b);
+  for (let i = 0; i < sorted.length; i++) {
+    const share = room / (sorted.length - i);
+    if (sorted[i] > share) return share;
+    room -= sorted[i];
+  }
+  return Infinity;
+}
 
 // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
 const glow = (view, id) => (on, cx) => {
@@ -44,17 +59,27 @@ export default class Tabs extends View {
     this.pressed = null;
     this.over = null;
     this.strip = 0;
-    this.tabW = {};
+    this.nameW = {};
+  }
+
+  // Each tab's width: its whole name while the room allows, else the longest names give way first.
+  tabWidths(shown, want) {
+    const room = (this.room ?? 0) - TAB_GAP * (shown.length - 1), active = shown.find(c => c.active);
+    let cap = fairCap(shown.map(want), room), held = active && want(active);
+    if (active && held > cap) {
+      held = Math.min(held, Math.max(cap, TAB_ACTIVE));
+      cap = fairCap(shown.filter(c => c !== active).map(want), room - held);
+    }
+    return new Map(shown.map(c => [c.id, c === active ? held : Math.min(want(c), Math.max(cap, TAB_FLOOR))]));
   }
 
   // Where the tab strip sits: the active tab in view with the least move, as T3's scrollIntoView({ inline: "nearest" }).
   // Herdr's scroll areas can't be moved from a script, so the strip is a clipped row this offsets itself.
   // Only when the active tab or the room changes: a swipe to another tab isn't pulled back.
-  stripAt(shown) {
-    const room = this.room ?? 0, width = (c) => this.tabW[c.id] ?? 0, i = shown.findIndex(c => c.active);
-    const key = `${shown[i]?.id}:${i}:${room}`;
-    if (shown[i]?.id !== this.activeId) { this.wasActive = this.activeId; this.activeId = shown[i]?.id; }
-    if (i >= 0 && room > 0 && key !== this.revealed && shown.every(width)) {
+  stripAt(shown, widths) {
+    const room = this.room ?? 0, i = shown.findIndex(c => c.active), width = (c) => widths.get(c.id);
+    const key = `${shown[i]?.id}:${i}:${room}:${i >= 0 ? width(shown[i]) : 0}`;
+    if (i >= 0 && room > 0 && key !== this.revealed && shown.every(c => this.nameW[c.id])) {
       this.revealed = key;
       const left = shown.slice(0, i).reduce((sum, c) => sum + width(c) + TAB_GAP, 0), right = left + width(shown[i]);
       if (left < this.strip) this.strip = left;
@@ -72,7 +97,7 @@ export default class Tabs extends View {
     const counts = ["blocked", "working", "done"].map(s => [s, live.filter(a => st(a) === s).length]).filter(([, n]) => n > 0);
     const words = { blocked: "needing you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
-    return tip(this.hot, t, "sidebar-toggle", "Show sidebar", h_flex().id("sidebar-toggle").h(26).px(6).gap(8).flex_none().items_center().rounded(6)
+    return tip(this.hot, t, "sidebar-toggle", "Show sidebar", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
       .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
@@ -109,34 +134,32 @@ export default class Tabs extends View {
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const ps = panes(), title = namer();
     const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
       .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key });
+    // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
+    const statusOf = (c) => {
+      const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
+      const words = [...every.filter(a => a.tab === c.id).map(st), ...modWords];
+      return words.includes("blocked") ? "blocked"
+        : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
+        : words.includes("working") ? "working" : null;
+    };
+    const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0) : TAB_FLOOR);
     const item = (c, i) => {
       // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
       const mine = ps.filter(p => p.tab === c.id);
       const lead = mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
       const program = lead && programOf(lead);
       const name = c.named ? c.name : lead ? title(lead) : "Terminal";
-      // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
-      const modWords = mine.filter(p => p.mod).map(p => modStatus(p));
-      const words = [...every.filter(a => a.tab === c.id).map(st), ...modWords];
-      const status = words.includes("blocked") ? "blocked"
-        : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
-        : words.includes("working") ? "working" : null;
-      // As T3's panel tabs: 24px, 12px words, 144px at most; the active one, past T3, 240px, to read more of its name without a hover. The icon's slot is the close button: hovering the tab turns it to ×.
+      const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
+      // As T3's panel tabs: 24px, 12px words. The icon's slot is the close button: hovering the tab turns it to ×.
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
-      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).max_w(c.active ? 240 : 144).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
-        // A tab changes width as it's picked or left, a frame after the strip moved for it: place the strip again.
-        .on_size_change((size, cx) => {
-          this.tabW[c.id] = size.width / settings().zoom;
-          if (c.active || c.id === this.wasActive) this.revealed = null;
-          cx.notify();
-        })
         .on_hover((on, cx) => {
           if (on) this.overTab = c.id;
           else if (this.overTab === c.id) this.overTab = null;
@@ -167,9 +190,12 @@ export default class Tabs extends View {
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
           .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
-        .child(div().min_w(0).truncate().child(c.zoomed ? `${name} Z` : name))
+        // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
+        .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
+          .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
+        .child(div().flex_1().min_w(0).truncate().child(label))
         .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))));
-      // Its whole name on hover, as T3's: a tab is cut short. On the tab, as a card's wrapper won't shrink for a name to truncate.
+      // Its whole name on hover, as T3's: a tab can be cut short. On the tab, as a card's wrapper won't shrink for a name to truncate.
       return tip(over && this.pressed === null ? `tab-${c.id}` : null, t, `tab-${c.id}`, name, tab);
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
@@ -200,6 +226,6 @@ export default class Tabs extends View {
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
         .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })
-        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown)).children(shown.map(item))));
+        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item))));
   }
 }

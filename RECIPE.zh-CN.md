@@ -20,7 +20,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
       - 卡片和已 Settle 行的详情：同 T3 的线程卡片，用 `Popup` 挂在行右侧 4px、和行顶部对齐：标题，然后是项目、其他机器的名字、分支和程序，12px，最宽 320px。时序同 T3 的 tooltip 分组：第一张等 150ms；有卡片开着或刚关不到 400ms 时，下一张和行内控件的提示都立即出现；关闭没有延迟。第一张和最后一张有 150ms 淡入淡出，立即出现的没有。实色底加 `shadow_xl`：T3 的玻璃效果靠背景模糊，mod 做不到。行内控件点亮、拖动或点击这一行时隐藏。
   - **底栏**（40px），同 T3：一排 32px 纯图标按钮（圆角 8，16px 图标，悬停前为 `dim`）：Settings，以及打开官方 `machine-add` 的 server 图标；Herdr 下载好更新后，最右出现 `Update` 胶囊（15% `accent` 底、12px `accent` 字），点击重启进入新版（`app.update`）。
 - **工作区**：
-  - **标签栏**（40px，可拖动窗口）：当前 space 的标签，照 T3 的面板标签：24px 高、12px 字、最宽 144px，当前标签最宽 240px（圆角 6，当前标签 `selected`）：12px 程序图标（没有程序时用终端图标），悬停标签时它变成关闭 `×`；然后是名字，悬停显示全名（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点。然后各自占一个块，块宽跟着内容自动调整：你加了 Review 栏的话先是它（`pulls-review` mod，见 README），然后是动作控件（[herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod：`▶ <名字> | ▾` 外面一圈 1px `border` 描边，没有动作时是 `▶ Add action`），最后是标签栏末尾：26px 的 `+`（`tab.new`：在当前 space 开终端标签），Windows 上再加窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
+  - **标签栏**（40px，可拖动窗口）：当前 space 的标签，照 T3 的面板标签：24px 高、12px 字、宽度取决于完整名字，放得下就全部显示；放不下时最长的先让步，当前标签降到 240px、其他降到 144px，再放不下就滚动（圆角 6，当前标签 `selected`）：12px 程序图标（没有程序时用终端图标），悬停标签时它变成关闭 `×`；然后是名字，悬停显示全名（没人命名的标签按下面的命名规则显示其中的 agent，没有 agent 就显示当前 pane），工作中显示转圈，blocked 显示 `!` 徽章，done 且未看显示 7px `done` 圆点。然后各自占一个块，块宽跟着内容自动调整：你加了 Review 栏的话先是它（`pulls-review` mod，见 README），然后是动作控件（[herdr-actions](https://github.com/JinJieBeWater/herdr-actions) mod：`▶ <名字> | ▾` 外面一圈 1px `border` 描边，没有动作时是 `▶ Add action`），最后是标签栏末尾：26px 的 `+`（`tab.new`：在当前 space 开终端标签），Windows 上再加窗口按钮。侧栏隐藏时，最左边出现侧栏开关，同时统计 agent：blocked、working、done。
   - **窗格**（内边距 2/8，间距 8），即当前标签：圆角 8，`background` 填充，聚焦边框 2px，默认关闭（`focus.color` 为 `background`，改成 `accent` 即显示；平时的边框也是 2px，颜色同 `background`，所以聚焦时终端不会变尺寸），单个窗格也带框。每个窗格顶部有 28px 标题栏：程序图标、agent 名或终端标题（13px 中粗，聚焦时 `foreground`）、目录、状态标记，以及右分屏、下分屏、缩放/取消缩放、关闭按钮（悬停时出现）。
   - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
 - **新建菜单**（`t3-new-menu`，576 宽弹层，位于顶部）：选一个 space 开终端标签（`tab.new`）；`⌘1…` 按编号选 space。当前 space 排最前，同一机器的 space 排在一起；显示 6 行后滚动，滚动跟随高亮。每行第二行是目录，远程 space 前面加服务器图标和机器名，和 T3 标记远程 thread 的方式相同。底部 footer 放按键提示，右侧是 New space（`space.new`）：有多台机器时先选机器，和 T3 的 Add project 先选 environment 相同（未就绪的机器置灰且不可选，`← Spaces` 返回）。`⌘N` 不询问，直接用当前 space 的机器。
@@ -61,7 +61,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。
 - `herdr-actions` 和标签栏末尾（`t3-tabs`，`part: "end"`）自己调整所在块的宽度：`run("layout.resize", { id: props().block, px })`，宽度取 `on_size_change` 的值除以 `settings().zoom`（它报的是乘过缩放的像素）。`tabs-row` 要保持不可拖动，否则拖动会和它们抢宽度。布局引用了没安装的 mod 时，`herdr-app status` 会报 `no mod folder`：先装 herdr-actions。
 - `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。 `mods/t3-new-menu/check-new-menu.cjs` 同样检查新建菜单，可在任意位置运行。
-- 标签条让当前标签保持可见，移动量最小，和 T3 的 `scrollIntoView({ inline: "nearest" })` 一样。Herdr 的滚动容器不能由脚本移动，所以 `tab-scroll` 负责裁剪，`tab-strip` 用 `.ml()` 偏移；每个标签用 `on_size_change` 上报宽度。只在当前标签或可用宽度变化时才移动，所以横向滑开的标签不会被拉回；滚轮仍然用来切换标签。
+- 标签条让当前标签保持可见，移动量最小，和 T3 的 `scrollIntoView({ inline: "nearest" })` 一样。Herdr 的滚动容器不能由脚本移动，所以 `tab-scroll` 负责裁剪，`tab-strip` 用 `.ml()` 偏移；标签的完整宽度来自一份高度为 0 的名字副本，用 `on_size_change` 量出。只在当前标签或可用宽度变化时才移动，所以横向滑开的标签不会被拉回；滚轮仍然用来切换标签。
 
 ## 完成标准
 

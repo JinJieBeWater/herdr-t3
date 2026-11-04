@@ -703,15 +703,33 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(root, "tab-b0").hoverStyle.bg, undefined);
   assert.equal(find(root, "tab-other").hoverStyle.bg, f.theme().hover);
   assert.equal(find(root, "tab-strip").style.gap, 4);
-  // A tab out of the strip's room comes into view with the least move, and a swipe away isn't pulled back.
+  // Tabs take their whole names while the room allows, the longest give way first; past that the strip keeps the active tab in view.
   {
     const strip = f.spaces()[0].tabs, kept = strip.splice(0), view = f.load("t3-tabs");
     strip.push(...["a", "b", "c", "d"].map(id => ({ id, name: id, active: id === "a" })));
     const at = () => Math.abs(find(view.render(cx), "tab-strip").style.ml);
+    const w = (id) => find(view.render(cx), `tab-${id}`).style.w;
     const pick = (id) => strip.forEach(c => { c.active = c.id === id; });
     const room = (width) => fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width }, cx);
     const wheel = (x, y) => fire(view.render(cx), "on_scroll_wheel", { delta: { x, y } }, cx);
-    for (const c of strip) fire(find(view.render(cx), `tab-${c.id}`), "on_size_change", { width: 100 }, cx);
+    // A name's width, so its tab is `whole` wide: 33 around the name.
+    const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 33 }, cx);
+    assert.equal(w("a"), 144, "before its name is measured");
+    assert.equal(find(view.render(cx), "name-a").style.h, 0, "the measure doesn't show");
+    for (const id of "abcd") name(id, 300);
+    room(1212);
+    assert.deepEqual([..."abcd"].map(w), [300, 300, 300, 300], "room for them all: every name whole");
+    room(1012);
+    assert.deepEqual([..."abcd"].map(w), [250, 250, 250, 250], "too little: they share it");
+    name("b", 100);
+    room(812);
+    assert.deepEqual([..."abcd"].map(w), [240, 100, 230, 230], "a short name keeps its width, the active tab holds 240, the long ones share the rest");
+    room(500);
+    assert.deepEqual([..."abcd"].map(w), [240, 100, 144, 144], "squeezed: the active tab stops at 240, the rest at 144, and the strip scrolls");
+    pick("b");
+    assert.deepEqual([..."abcd"].map(w), [144, 100, 144, 144], "a short active tab asks for no more");
+    for (const id of "abcd") name(id, 100);
+    pick("a");
     room(250);
     assert.equal(at(), 0, "the first tab is at its place");
     pick("d");
@@ -731,20 +749,14 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(at(), 162, "a swipe stops at the last tab");
     wheel(10000, 0);
     assert.equal(at(), 0, "and at the first");
-    // Picked, a tab widens a frame later: the strip moves again for its real width, and for the old one's narrowing.
-    pick("a");
-    assert.equal(at(), 0);
+    // Its name lengthening moves the strip for its new end; another tab's doesn't.
     pick("d");
     assert.equal(at(), 162);
-    fire(find(view.render(cx), "tab-d"), "on_size_change", { width: 240 }, cx);
-    assert.equal(at(), 302, "the widened tab's end is in view");
-    pick("c");
-    fire(find(view.render(cx), "tab-c"), "on_size_change", { width: 240 }, cx);
-    fire(find(view.render(cx), "tab-d"), "on_size_change", { width: 100 }, cx);
-    assert.equal(at(), 208, "its start lands at the left edge, by the real widths");
-    fire(find(view.render(cx), "tab-a"), "on_size_change", { width: 120 }, cx);
-    assert.equal(at(), 208, "another tab's width doesn't move the strip");
-    for (const [id, width] of [["a", 100], ["c", 100]]) fire(find(view.render(cx), `tab-${id}`), "on_size_change", { width }, cx);
+    name("d", 200);
+    assert.equal(at(), 262, "the active tab's end stays in view");
+    name("a", 120);
+    assert.equal(at(), 262, "another tab's width doesn't move the strip");
+    name("a", 100);
     pick("b");
     room(60);
     assert.equal(at(), 104, "a tab wider than the room shows its start");
@@ -1045,14 +1057,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
-    // A tab as T3's panel tab: 24px, 12px, 144px at most; its icon's slot closes it, a × while the tab is hovered.
+    // A tab as T3's panel tab: 24px, 12px; its icon's slot closes it, a × while the tab is hovered.
     // A tab drags as a space does, and leaving ends either.
     const f = fixture(256), tabs = f.load("t3-tabs"), spaces = f.load("t3-spaces");
     f.spaces()[0].active = f.spaces()[0].tabs[0].active = true;
     f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
     const tab = find(tabs.render(cx), "tab-other").style;
-    assert.deepEqual([tab.h, tab.text_size, tab.max_w, tab.pl, tab.gap], [24, 12, 144, 6, 2]);
-    assert.equal(find(tabs.render(cx), "tab-b0").style.max_w, 240, "the active tab reads more of its name");
+    assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.gap], [24, 12, 6, 2]);
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg", "at rest it's the tab's icon, a terminal's when it has no program");
