@@ -753,7 +753,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(strings(find(bar, "review-open")), ["4", "ahead of main"], "the branch's count says what it is against");
     assert.deepEqual(strings(find(bar, "review-changes")), ["3", "uncommitted"]);
     assert.deepEqual(find(bar, "pulls-review").items.map(n => typeof n.key === "string" ? n.key : n.source ?? n.kind),
-      ["review-pick", "div", "review-open", "div", "review-changes", "div", "review-ahead", "div", "review-behind"], "one outlined group: a rule before each segment, the icon included, as the Actions split");
+      ["review-pick", "review-open", "review-changes", "review-ahead", "review-behind"], "its icon, then its segments, spaced as the bar's other buttons");
     assert.equal(find(bar, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
     const countColor = id => find(tabs.render(cx), id).items[0].style.text_color;
     assert.equal(countColor("review-open"), f.theme().ansi4);

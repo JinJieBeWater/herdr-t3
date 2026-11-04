@@ -159,7 +159,7 @@ export function reviewBar(view, t, stop) {
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // The accessibility label says what each count compares, which the short label can't.
   // The count carries the color; what it counts stays quiet beside it.
-  const item = (id, count, noun, ansi, name, args) => h_flex().id(id).h_full().px(8).gap(6).flex_none().items_center()
+  const item = (id, count, noun, ansi, name, args) => h_flex().id(id).h_full().px(8).gap(6).flex_none().items_center().rounded(6)
     .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label(name)
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover((on, cx) => { if (on) view.reviewHover = id; else if (view.reviewHover === id) view.reviewHover = null; cx.notify(); })
@@ -175,11 +175,10 @@ export function reviewBar(view, t, stop) {
     r.ahead > 0 && item("review-ahead", `↑${r.ahead}`, null, 2, `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`]),
     r.behind > 0 && item("review-behind", `↓${r.behind}`, null, 1, `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`]),
   ].filter(Boolean);
-  segments.at(-1)?.rounded_r(6);
-  // Outlined, not filled: a fill would read as the active tab. Built as the Actions control beside it: each part's fill runs to the outline and the rules.
-  return h_flex().id("pulls-review").h(26).mr(4).flex_none().items_center().rounded(6).border(1).border_color(t.border).on_mouse_down("left", stop)
+  // No outline or fill at rest, as the bar's other buttons: a fill would read as the active tab.
+  return h_flex().id("pulls-review").h(26).mr(4).gap(4).flex_none().items_center().on_mouse_down("left", stop)
     // Stays with no counts: on a clean default branch it's the only way in.
-    .child(h_flex().id("review-pick").h_full().px(5).flex_none().items_center().rounded_l(6).when(!segments.length, el => el.rounded_r(6)).text_color(t.dim)
+    .child(h_flex().id("review-pick").size(26).flex_none().items_center().justify_center().rounded(6).text_color(t.dim)
       .hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label("Pick a commit or branch to review")
       .on_mouse_down("left", (e, cx) => { view.reviewPress = e.position; stop(e, cx); })
       .on_click((_e, cx) => cx.spawn(async () => {
@@ -188,6 +187,6 @@ export function reviewBar(view, t, stop) {
         const height = Math.min(480, 10 + 36 + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + branches.length * 32 : 0));
         openOverlay({ mod: "t3-tabs", kind: "popup", at: underBar(view.reviewPress), width: 480, height, props: { actions: "review", root: r.root, base: r.base, baseRef: r.baseRef, commits, branches, height } });
       }))
-      .child(svg("mods/workspace-chrome/git-branch.svg").size(12)))
-    .children(segments.flatMap(s => [div().w(1).h(14).flex_none().bg(t.border), s]));
+      .child(svg("mods/workspace-chrome/git-branch.svg").size(14)))
+    .children(segments);
 }
