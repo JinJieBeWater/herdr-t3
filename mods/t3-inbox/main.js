@@ -399,8 +399,16 @@ export default class Inbox extends View {
       const going = kids.get(a.address).filter((s) => s === "working").length;
       const meta = [branch, going ? `${going} sub-agent${going > 1 ? "s" : ""} working` : null].filter(Boolean).join(" · ");
       const pic = icon(a.program, 16, t.muted);
+      const over = !dragging && !this.sweep?.moved && this.hovered === a.address;
+      // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, in color only so nothing reflows.
+      const leads = on || ghost || st === "blocked" || st === "done";
+      const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
+        // Another machine's agent, as in T3: a server mark before its program, the machine named on hover.
+        .when(Boolean(machine), (el) => el.child(div().when(!ghost, (m) => m.id(`machine-${a.address}`).tooltip(machine).accessibility_label(`On ${machine}`))
+          .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim))))
+        .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
       // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
-      const offer = !dragging && !this.sweep?.moved && this.hovered === a.address && !busy(a) && !pins.includes(a.address);
+      const offer = over && !busy(a) && !pins.includes(a.address);
       const id = `settle-${a.address}`;
       // As in T3, the corner says the state when there's one worth saying (Working, Needs you, Done: finished
       // and not yet seen), else how long ago it last changed. Sized as T3's: 16px mark, 4px gaps, and the
@@ -449,13 +457,13 @@ export default class Inbox extends View {
           .child(div().flex_1().min_w(0).truncate().child(a.space_name ?? ""))
           .child(corner))
         .child(h_flex().gap(8).items_center()
-          // Only the one in view is bright, as in T3.
-          .child(div().flex_1().min_w(0).truncate().text_size(14).text_color(on ? t.foreground : t.muted).child(title(a)))
-          // Another machine's agent, as in T3: a server mark before its program, the machine named on hover.
-          .when(Boolean(machine), (el) => el.child(div().when(!ghost, (m) => m.id(`machine-${a.address}`).tooltip(machine).accessibility_label(`On ${machine}`))
-            .flex_none().child(svg("mods/workspace-chrome/server.svg").size(14).text_color(t.dim))))
-          .when(Boolean(pic), (el) => el.child(pic)))
-        .when(Boolean(meta), (el) => el.child(div().min_w(0).truncate().text_size(12).text_color(t.dim).child(meta)));
+          .child(div().flex_1().min_w(0).truncate().text_size(14).when(leads, (el) => el.font_medium())
+            .text_color(leads || over || swept(a) ? t.foreground : t.muted).child(title(a)))
+          // Marks go on the third line when there is one, as in T3, so the title keeps its whole line.
+          .when(Boolean(marks) && !meta, (el) => el.child(marks)))
+        .when(Boolean(meta), (el) => el.child(h_flex().gap(6).items_center().text_size(12).text_color(t.dim)
+          .child(div().flex_1().min_w(0).truncate().child(meta))
+          .when(Boolean(marks), (m) => m.child(marks))));
     };
 
     // A settled row: one dim line; viewing it leaves it settled. Hovered it brightens and its time

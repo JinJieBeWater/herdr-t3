@@ -41,6 +41,22 @@ function texts(node) {
   return node && typeof node === "object" ? node.items.flatMap(texts) : [];
 }
 
+// The element whose own child is this text: a card's title, or its branch line.
+function holding(node, text) {
+  if (!node || typeof node !== "object") return null;
+  if (node.items.includes(text)) return node;
+  for (const child of node.items) { const hit = holding(child, text); if (hit) return hit; }
+  return null;
+}
+
+// The row that element sits in.
+function lineOf(node, text) {
+  if (!node || typeof node !== "object") return null;
+  if (node.items.some((child) => child?.items?.includes(text))) return node;
+  for (const child of node.items) { const hit = lineOf(child, text); if (hit) return hit; }
+  return null;
+}
+
 function fixture() {
   const f = { now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [] };
   const cx = {
@@ -259,4 +275,24 @@ test("a plain click on a settled row's undo leaves no sweep behind either", () =
   f.event("unsettle-A", "on_mouse_down:left"); f.event("unsettle-A", "on_click"); f.render(1100);
   f.event("t3-inbox-root", "on_mouse_move", { position: { x: 20, y: 300 } });
   assert.equal(f.keys, undefined); assert.equal(f.mod.sweep, null);
+});
+
+test("a title is bright when it's in view, needs you or is done; hover brightens without changing its weight", () => {
+  const f = fixture(); f.env.theme = () => ({ foreground: "bright", muted: "quiet" });
+  f.add("Seen", "idle"); f.add("Finished", "done"); f.add("Stuck", "blocked"); f.add("Open", "idle").focused = true;
+  f.render();
+  const look = (name) => { const { style } = holding(f.tree, name); return [style.text_color[0], Boolean(style.font_medium)]; };
+  assert.deepEqual(look("Seen"), ["quiet", false]);
+  for (const name of ["Finished", "Stuck", "Open"]) assert.deepEqual(look(name), ["bright", true], name);
+  f.mod.hovered = "Seen"; f.render();
+  assert.deepEqual(look("Seen"), ["bright", false]);
+});
+
+test("a card's marks sit on its third line when it has one, else on the title's", () => {
+  const f = fixture(); f.add("m1/A"); f.add("m1/B");
+  f.env.panes = () => [{ pane: "m1/A", branch: "dev" }];
+  f.render();
+  assert.equal(find(lineOf(f.tree, "m1/A"), "machine-m1/A"), null, "the title keeps its whole line");
+  assert.ok(find(lineOf(f.tree, "dev"), "machine-m1/A"), "the branch line carries the mark");
+  assert.ok(find(lineOf(f.tree, "m1/B"), "machine-m1/B"), "no third line: the title's line carries it");
 });
