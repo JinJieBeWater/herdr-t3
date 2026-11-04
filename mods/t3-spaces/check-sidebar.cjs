@@ -852,7 +852,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const f = fixture(256), tabs = f.load("t3-tabs"), scope = f.scopes.get("t3-tabs"), ranges = [];
     scope.exec = async (_command, args) => {
       if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: "abcdef123456\x1ffix: a\x1f2 hours ago\n" }; }
-      if (args.includes("for-each-ref")) return { code: 0, stdout: "feat\nother\n" };
+      if (args.includes("for-each-ref")) return { code: 0, stdout: "feat\nOther\n" };
       return { code: 0, stdout: "3\n" };
     };
     const r = { root: "/repo", branch: "feat", base: "main", baseRef: "origin/main", unmerged: 4 };
@@ -861,20 +861,42 @@ for (const width of [208, 240, 256, 320, 480]) {
     const run = { ...cx, spawn: fn => { reading = fn(run); } };
     const click = async review => {
       tabs.reviews.set(JSON.stringify(scope.reviewLocation()), review);
+      fire(find(tabs.render(cx), "review-pick"), "on_mouse_down:left", { position: { x: 900, y: 20 } }, cx);
       fire(find(tabs.render(cx), "review-pick"), "on_click", {}, run);
       await reading;
       return f.overlays.at(-1);
     };
     const spec = await click(r);
     assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
-    assert.equal(JSON.stringify(spec.props.branches), JSON.stringify([{ name: "other", count: 3 }]), "the current branch isn't offered against itself");
-    assert.equal(spec.height, 10 + 24 + 32 + 9 + 24 + 32, "the popup fits its rows");
+    assert.equal(JSON.stringify(spec.props.branches), JSON.stringify([{ name: "Other", count: 3 }]), "the current branch isn't offered against itself");
+    assert.equal(spec.height, 10 + 36 + 24 + 32 + 9 + 24 + 32, "the popup fits its rows");
+    assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
+    assert.equal(spec.at.x, 892);
+    assert.equal(spec.at.y, 40 * f.settings().zoom, "it hangs from the tab bar, not over the bar");
     const menu = f.load("t3-tabs", spec.props).render(cx);
     fire(find(menu, "review-commit-abcdef123456"), "on_click", {}, cx);
     assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
     assert.equal(f.overlays.at(-1).mod, "pulls-review");
-    fire(find(menu, "review-branch-other"), "on_click", {}, cx);
-    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...other");
+    fire(find(menu, "review-branch-Other"), "on_click", {}, cx);
+    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...Other");
+    // Search narrows both lists; Enter opens the first left.
+    const searching = f.load("t3-tabs", spec.props), inner = f.scopes.get("t3-tabs");
+    let typed = "", submit;
+    inner.InputState = { new: () => ({ on: (event, fn) => { if (event === "submit") submit = fn; }, value: () => typed, focus() {} }) };
+    inner.initReviewMenu(searching);
+    typed = "oTHER";
+    assert.equal(find(searching.render(cx), "review-commit-abcdef123456"), null, "a commit that doesn't match goes");
+    assert.ok(find(searching.render(cx), "review-branch-Other"), "matching ignores case");
+    submit();
+    assert.equal(String(f.overlays.at(-1).props.args), "origin/main...Other", "Enter opens the only match left");
+    typed = "abcdef";
+    assert.ok(find(searching.render(cx), "review-commit-abcdef123456"), "a sha's start matches");
+    submit();
+    assert.equal(String(f.overlays.at(-1).props.args), "abcdef123456");
+    typed = "nope";
+    const opened = f.overlays.length;
+    submit();
+    assert.equal(f.overlays.length, opened, "no match: Enter opens nothing");
     await click({ ...r, branch: "main", unmerged: 0 });
     assert.equal(ranges.at(-1), "HEAD", "on the default branch: its recent commits");
     const before = f.overlays.length;
