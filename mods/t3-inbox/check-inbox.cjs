@@ -310,7 +310,7 @@ test("a space's monogram is its first glyph, in T3's color for the same name", (
   assert.equal(run(`monogram("~")`), "", "nothing to spell: the folder instead");
   f.add("A"); f.render();
   const tile = holding(f.tree, "O"), color = run('tint("One", true)');
-  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 8.25], "T3's 14% wash of the color and its type, the card's 16px");
+  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 10.24], "T3's 14% wash of the color, the card's 16px, type as before");
 });
 
 test("a space's own icon, found as T3 finds it, replaces its monogram on every card", async () => {
