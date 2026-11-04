@@ -56,7 +56,8 @@ export function watchReview(view, cx) {
 async function readReview(cwd) {
   const top = await git(cwd, ["rev-parse", "--show-toplevel"]);
   if (top.code !== 0) return null;
-  const root = top.stdout.trim(), status = await git(root, ["status", "--porcelain=v2", "--branch"]);
+  // File by file, as the page it opens lists them: plain status folds a new folder into one line.
+  const root = top.stdout.trim(), status = await git(root, ["status", "--porcelain=v2", "--branch", "--untracked-files=all"]);
   if (status.code !== 0) return null;
   const review = { root, branch: null, upstream: null, base: null, baseRef: null, changed: 0, ahead: 0, behind: 0, unmerged: 0, newer: 0, gone: false };
   let ab = false;

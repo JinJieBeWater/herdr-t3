@@ -744,7 +744,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     scope.exec = async (_command, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" }
       : args.includes("symbolic-ref") ? { code: 1, stdout: "" }
       : args.includes("rev-list") ? (refs[args.at(-1)] ? { code: 0, stdout: refs[args.at(-1)] } : { code: 128, stdout: "" })
-      : { code: 0, stdout: status };
+      : (assert.ok(args.includes("--untracked-files=all"), "a new folder counts its files, as the page it opens"), { code: 0, stdout: status });
     const review = await scope.readReview("/repo/src");
     const show = r => tabs.reviews.set(JSON.stringify(scope.reviewLocation()), r);
     assert.deepEqual({ ...review }, { root: "/repo", branch: "feat", upstream: "origin/feat", base: "main", baseRef: "main", changed: 3, ahead: 2, behind: 1, unmerged: 4, newer: 0, gone: false });
@@ -780,6 +780,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     delete refs["origin/main...HEAD"];
     refs["main...HEAD"] = "0\t0\n";
     assert.equal((await scope.readReview("/repo")).unmerged, 0, "nothing past main: no Review");
+    refs["main...HEAD"] = "0\t4\n";
+    for (const head of ["(detached)", "main"]) {
+      status = full.replace("# branch.head feat", `# branch.head ${head}`);
+      assert.equal((await scope.readReview("/repo")).unmerged, 0, `on ${head} the CLI opens its ref picker: no Review`);
+    }
   }
   {
     // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
