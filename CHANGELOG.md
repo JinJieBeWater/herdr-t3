@@ -9,6 +9,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 - `cmd-]` / `cmd-[` walk the Inbox as T3 does: the rows it shows, in its order, stopping at either end; a folded shelf only its row in view. Lists keep Herdr's `agent.next`. After updating, add `"cmd-]": "t3-chrome.next"` and `"cmd-[": "t3-chrome.prev"` to your `layout:herdr-t3` section in `keys.json`.
 - A sub-agent in view with no row of its own lights its parent's card, and Settle acts on it.
 - An agent you bring into view that the space filter hides widens the filter to all spaces.
+- Closing a tab or pane asks first when that ends a terminal, as T3 does: the ×s and `cmd-w` / `cmd-shift-w`. After updating, add the `cmd-w`, `ctrl-alt-shift-x`, `cmd-shift-w` and `ctrl-alt-x` lines from the repo's `keys.json` to your `layout:herdr-t3` section. Agents and the right-click menu close as before.
 
 ### Fixes
 

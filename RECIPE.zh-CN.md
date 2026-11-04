@@ -42,6 +42,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 - **Inbox 动画**，照 T3（`Sidebar.motion.ts`）：行的顺序或所在区变化时（Settle、取消 Settle、一轮结束、拖动放下），挪了位置的行从原位滑过去（收起区标题、Show more 和 Active 为空时的提示也一起滑，和 T3 的列表标记一样，行不会从它们上面滑过），新行从上方 40px 淡入（上面有留下来的行时跟着它走），离开的行在原位淡出；150ms ease-out，拖动中或一次超过 40 行时不播。拖动放下的行从松手处滑到落点。悬停时，时间和 Settle/撤销按钮交叉淡变；working 卡片平时 70% 不透明度，悬停或正在查看时恢复；已 Settle 行的项目标记平时 40%。Herdr 只给元素“之后的变化”补间，所以移动的行换一个新 id，先在原位画一帧再放手。
 - **当前查看的行**，照 T3 的 route row：所在区折叠或排在 Settled 当前页之外时仍然显示；查看的是没有自己行的子 agent（区块、peek）时，点亮最近一个列出的祖先；从别处切到一个被空间筛选隐藏的 agent 时，筛选放宽为全部空间并保存（首次绘制不会，查看期间自己选的筛选也保持不变）。Herdr 不能用代码滚动普通列表（只有虚拟列表可以），所以和 T3 不同，不会把它滚进视野。
 - **撤销提示条**，照 T3：Settle 和取消置顶后，在第一个收起区标题上方显示 `Settled 2 agents, Undo` 5 秒（200ms 淡入淡出）；连续同一种操作合并计数；Undo 让它们回到原样，不算新消息。不绑快捷键：⌘Z 留给终端。
+- **关闭**，照 T3 的 `confirmTerminalClose`：标签和窗格的 ×，以及上面的快捷键，都交给标签栏的 `t3-tabs`。会结束终端时打开自带的 `confirm`（400×190；`Close tab?` / `Close pane?`，名字超过 40 字符时截断，并说明会结束什么）；不会结束终端时直接关闭。space 的最后一个窗格交给 Herdr 自己的 `Close space?`。`tab.close` 和 `pane.close` 对 agent 不变；右键菜单和命令面板仍直接执行它们。
 - **标签**：单击选中，双击改名，拖动排序，右键菜单，滚轮切换上/下一个标签。
 - 置顶、折叠、排序、筛选和收纳区状态按屏幕保存（`localStorage` / 共享状态 `agents.sort`、`space.colors`）。
 
@@ -49,7 +50,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可
 
 - `layouts/herdr-t3.json`：根为 `row` → `sidebar` 列 [`brand` 块 `t3-chrome`；`sidebar-lists` stack [`lists` 列 [`spaces` `t3-spaces`、`agents` `t3-agents`]、`inbox` `t3-inbox`，props `{ "newMenu": "t3-new-menu" }`]；`sidebar-footer` `t3-chrome`，props `{ "footer": true }`]，以及 `work` 列 [`tabs` `t3-tabs`；`work-body` 行 [`main` `{ "tab": "active", "pane": { "header": { "content": { "mod": "t3-pane" } } } }`]；`work-bottom-inset`；`status` `workspace-status`，隐藏]。预览图：`layouts/herdr-t3.svg`。
 - Mods：`t3-chrome`、`t3-spaces`、`t3-agents`、`t3-tabs`、`t3-pane`、`t3-new-menu` 分别改自 Herdr 自带的 `workspace-chrome`、`spaces`、`agents`、`tabs`、`pane`、`new-menu`；`t3-inbox` 是新写的。原样使用的自带 mod：`workspace-status`、`picker`、`menu`，以及 `mods/workspace-chrome/` 下的图标和 `mods/pane/close.svg`。
-- `keys.json`：`layout:herdr-t3` → `cmd-shift-b`：`t3-chrome.sidebar`，`cmd-shift-s`：`t3-inbox.settle`（只在 Inbox 显示时生效），`cmd-]` / `cmd-[`：`t3-chrome.next` / `.prev`（由一直显示的 t3-chrome 处理，按 Inbox 写进 `shared("t3-inbox.rows")` 的 `{ order, view }` 走，照 T3 的 `resolveAdjacentThreadId`，不循环；显示 Lists 时用 `agent.next` / `.prev`）。
+- `keys.json`：`layout:herdr-t3` → `cmd-shift-b`：`t3-chrome.sidebar`，`cmd-shift-s`：`t3-inbox.settle`（只在 Inbox 显示时生效），`cmd-]` / `cmd-[`：`t3-chrome.next` / `.prev`（由一直显示的 t3-chrome 处理，按 Inbox 写进 `shared("t3-inbox.rows")` 的 `{ order, view }` 走，照 T3 的 `resolveAdjacentThreadId`，不循环；显示 Lists 时用 `agent.next` / `.prev`）。 `cmd-w` 和 `ctrl-alt-shift-x`：`t3-tabs.close-tab`；`cmd-shift-w` 和 `ctrl-alt-x`：`t3-tabs.close-pane`。
 - 运行的程序：`t3-spaces` 运行只读的 `git status` / `git rev-parse`（不加可选锁、不用 fsmonitor）和 `hc machine ls --json`，点重装机器的 Connect 时运行 `hc machine rm` 和 `hc machine add`；`t3-inbox` 运行 `hc label <agent> settled=<ms>:<turn>`；为 space 标记，`t3-spaces`、`t3-inbox`、`t3-new-menu` 运行 `git rev-parse --show-toplevel`、`sh -c` 文件检测和 `base64`（在 space 的机器上）。
 
 ## 注意
