@@ -1200,6 +1200,9 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(await press("prev", { order, view: "t0" }), []);
     assert.deepEqual(await press("next", { order, view: null }), [["agent.focus", { terminal: "t0" }]], "none in view: the first");
     assert.deepEqual(await press("prev", { order, view: null }), [["agent.focus", { terminal: "t5" }]], "or the last");
+    const mixed = ["t0", "pane:p9", "t5"];
+    assert.deepEqual(await press("next", { order: mixed, view: "t0" }), [["pane.focus", { pane: "p9" }]], "a mod pane's row has no agent to focus");
+    assert.deepEqual(await press("next", { order: mixed, view: "pane:p9" }), [["agent.focus", { terminal: "t5" }]], "and the walk goes on from it");
     f.slots.lists.active = "lists";
     assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.next", {}]], "Lists keep agent.next");
   }

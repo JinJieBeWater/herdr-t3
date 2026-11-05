@@ -18,12 +18,14 @@ const switchSidebar = () => run("layout.select", { stack: "sidebar-lists", child
 // The next or previous agent. With the Inbox showing, as T3's thread traversal (resolveAdjacentThreadId): the rows it
 // draws, in its order, from the one in view, stopping at either end; with none in view, the first or the last.
 // Lists keep Herdr's agent.next, which wraps. The Inbox may be hidden, so this copy, always shown, takes the key.
+// A row can be a mod pane's (`pane:<id>`), which has no agent to focus.
 const step = (command) => {
   if (!inboxShown()) return run(command === "next" ? "agent.next" : "agent.prev");
   const { order = [], view = null } = shared("t3-inbox.rows") ?? {};
   const i = view === null ? -1 : order.indexOf(view);
   const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
-  if (to) run("agent.focus", { terminal: to });
+  if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
+  else if (to) run("agent.focus", { terminal: to });
 };
 
 export default class WorkspaceChrome extends View {
