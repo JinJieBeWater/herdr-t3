@@ -34,7 +34,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，悬停显示机器名。从侧栏底部的服务器图标添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
 - **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 在有程序运行时先询问，没有程序运行时直接关闭。
-- **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的标签和窗格标题用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一行。
+- **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的标签和窗格标题用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一张卡片。
 
 ## 安装
 
@@ -43,7 +43,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 ## 快速上手
 
 - **侧栏**：侧栏右上角的按钮（或 `cmd-shift-b`）在 Lists 和 Inbox 之间切换；旁边那个按钮隐藏侧栏。
-- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s` Settle 当前查看的 agent，已 Settle 的则取回；配合 `cmd-]` 可以逐张看完、逐张 Settle。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。独立标签里的 review 在收纳区上方有一条两行的记录，写着它的项目：从任何地方点它都能回去，悬停出现 × 可以关闭。
+- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s` Settle 当前查看的 agent，已 Settle 的则取回；配合 `cmd-]` 可以逐张看完、逐张 Settle。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。独立标签里的 review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭（从 Review 栏可以重开，已审标记和分析结果都还在）。
 - **聚焦边框**（默认关闭）：把 `~/.config/herdr-app/layouts/herdr-t3.json` 里窗格的 `focus.color` 从 `"background"` 改成 `"accent"`（或其他主题色），聚焦的窗格就会有边框。保存即生效。
 
 ## 快捷键
