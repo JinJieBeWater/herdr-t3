@@ -48,7 +48,8 @@ const env = {
 };
 const source = ["tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
-const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }) };
+const timers = [];
+const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { after: (ms, fn) => timers.push(fn) } };
 const load = (props = {}) => {
   const context = vm.createContext({ ...env, props: () => props });
   vm.runInContext(source, context, { filename: "main.js" });
@@ -67,7 +68,7 @@ assert.equal(find(bar.render(), "action-add").style.text_color, theme.dim);
 fire(find(bar.render(), "action-add"), "on_hover", true, cx);
 assert.equal(find(bar.render(), "action-add").style.text_color, theme.foreground, "its icon brightens with its text");
 fire(find(bar.render(), "action-add"), "on_click", {}, cx);
-assert.deepEqual(plain(overlays.at(-1)), { mod: "t3-actions", kind: "dialog", width: 440, height: 410, props: { actions: "edit", id: null } });
+assert.deepEqual(plain(overlays.at(-1)), { mod: "t3-actions", kind: "dialog", width: 512, props: { actions: "edit", id: null } }, "as T3's dialog, as tall as its fields");
 
 // Some: "▶ Dev | ▾" in one outline, a rule between.
 state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "bun dev" }, { id: "b", name: "Test", command: "bun test", place: "right", cwd: "~/x" }] };
@@ -96,7 +97,11 @@ assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
 
 // The editor saves an edit in place, and a new one at the end.
 fields.length = 0;
+timers.length = 0;
 const edit = load({ actions: "edit", id: "a" });
+assert.equal(edit.render().style.opacity, 0, "drawn clear first");
+timers.forEach((fn) => fn(cx));
+assert.equal(edit.render().style.opacity, 1, "then it fades in, as T3's dialog");
 fields[1].text = "bun run dev";
 fire(find(edit.render(), "action-save"), "on_click");
 assert.equal(state["t3-actions"].list[0].command, "bun run dev");

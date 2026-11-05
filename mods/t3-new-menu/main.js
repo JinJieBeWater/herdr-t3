@@ -31,9 +31,12 @@ const SHOWN = 6; // rows before the list scrolls; a virtual list has no height o
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
 
 export default class NewMenu extends View {
-  init() {
+  init(_props, cx) {
     this.at = 0;
     this.filter = "";
+    // As T3's palette it fades in; a transition only eases later changes, so it draws clear first.
+    this.shown = false;
+    cx.timer.after(34, (cx) => { this.shown = true; cx.notify(); });
     this.picking = Boolean(props()?.pick); // choosing the machine for a new space; the sidebar's New space opens here
     this.scroll = VirtualListScrollHandle.new();
     const field = (placeholder) => {
@@ -126,6 +129,7 @@ export default class NewMenu extends View {
     const footButton = (id, label) => h_flex().id(id).gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(label).hover(s => s.bg(t.selected));
     return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)
+      .opacity(this.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down" || e.key === "up") {
@@ -137,7 +141,7 @@ export default class NewMenu extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(36).mt(6).flex_none().px(16).gap(8).items_center()
+      .child(h_flex().h(34).my(6).flex_none().px(16).gap(8).items_center()
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.picking ? this.machineInput : this.spaceInput).flex_1().h_full().text_size(13).text_color(t.foreground)))
       .child(div().mt(8).px(16).py(6).flex_none().text_size(12).font_medium().text_color(t.muted).child(this.picking ? "Machines" : "Spaces"))
@@ -147,7 +151,7 @@ export default class NewMenu extends View {
           .track_scroll(this.scroll).size_full()
           .on_item_click((id) => this.choose(this.items().find(item => item.key === id)))))
         .when(items.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child(this.picking ? "No matching machines." : "No matching spaces."))))
-      .child(h_flex().flex_none().px(16).py(8).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
+      .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()
           .child(hint("↑ ↓", "Navigate"))
           .child(hint("Enter", this.picking ? "New space" : "New tab"))

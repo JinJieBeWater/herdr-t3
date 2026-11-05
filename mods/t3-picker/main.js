@@ -23,9 +23,12 @@ function settled(p) {
 }
 
 export default class Picker extends View {
-  init() {
+  init(_props, cx) {
     this.at = null;
     this.filter = "";
+    // As T3's palette it fades in; a transition only eases later changes, so it draws clear first.
+    this.shown = false;
+    cx.timer.after(34, (cx) => { this.shown = true; cx.notify(); });
     this.scroll = VirtualListScrollHandle.new();
     this.input = InputState.new({ placeholder: "Search terminals…" });
     this.input.on("change", (_e, cx) => { this.filter = this.input.value(); this.at = 0; this.scroll.scroll_to_item(0); cx.notify(); });
@@ -97,6 +100,7 @@ export default class Picker extends View {
     const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
     return v_flex().id("picker").size_full().min_h(0).bg(t.popover).text_size(13)
+      .opacity(this.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down" || e.key === "up") {
@@ -111,7 +115,7 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(36).mt(6).flex_none().px(16).gap(8).items_center()
+      .child(h_flex().h(34).my(6).flex_none().px(16).gap(8).items_center()
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
       // No heading: there is one kind of row, and the room goes to the list.
@@ -121,7 +125,7 @@ export default class Picker extends View {
           .track_scroll(this.scroll).size_full()
           .on_item_click((id) => this.choose(this.items().find((item) => item.key === id)))))
         .when(items.length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching terminals."))))
-      .child(h_flex().flex_none().px(16).py(8).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
+      .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()
           .child(hint("↑ ↓", "Navigate"))
           .child(hint("Enter", "Go"))

@@ -23,7 +23,8 @@ const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foregr
 // { list: [{ id, name, command, icon, place, cwd }], last: id }
 const state = () => shared(KEY) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
-const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", width: 440, height: 410, props: { actions: "edit", id } });
+// As T3's dialog (max-w-lg): 512 wide, as tall as its fields.
+const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", width: 512, props: { actions: "edit", id } });
 
 // A menu hangs from the bar (40px, as Herdr T3's tab bar) under the click, not on the pointer, where it would cover the bar; the app keeps it in the window.
 // With no press to read (assistive tech clicks without one), the app's default: the pointer.
@@ -63,7 +64,7 @@ function control(view, t, stop) {
     .child(tip(view.hot, t, "action-more", "Actions", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
-        openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 61 + s.list.length * 32), props: { actions: "menu" } });
+        openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
         cx.notify();
       })
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
@@ -80,13 +81,13 @@ function initMenu(view, cx) {
 function menu(view) {
   const t = theme(), { list } = state(), done = () => closeOverlay(props().overlay);
   const picks = [...list.map(a => () => runAction(a)), () => editor(null)];
-  const row = (id, at, i, label) => h_flex().id(id).h(32).px(8).gap(8).rounded(6).items_center().flex_none()
+  const row = (id, at, i, label) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().flex_none()
     .text_color(t.foreground).when(view.at === at, el => el.bg(t.selected))
     .role("button").accessibility_label(label)
     .on_hover((on, cx) => { if (on && view.at !== at) { view.at = at; cx.notify(); } })
     .on_click(() => { done(); picks[at](); })
     .child(i).child(div().flex_1().min_w(0).truncate().child(label));
-  return v_flex().id("actions-menu").size_full().min_h(0).p(6).bg(t.popover).text_size(13)
+  return v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(13)
     .track_focus(view.keys).on_key_down((e, cx) => {
       if (e.key === "down") view.at = (view.at + 1) % picks.length;
       else if (e.key === "up") view.at = (view.at + picks.length - 1) % picks.length;
@@ -97,17 +98,17 @@ function menu(view) {
       cx.notify();
     })
     .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map((a, at) =>
-      row(`action-${a.id}`, at, icon(a.icon).size(14).text_color(t.muted), a.name)
-        .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, div().id(`edit-${a.id}`).size(20).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
+      row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
+        .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
           .child(svg("mods/t3-actions/settings.svg").size(14)), { below: true })))))
-    .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))
-    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(14).text_color(t.muted), "Add action"));
+    .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
+    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).text_color(t.muted), "Add action"));
 }
 
 // The editor dialog: this copy's own inputs, made once in init.
-function initEditor(view) {
+function initEditor(view, cx) {
   const a = state().list.find(x => x.id === props().id);
   view.action = a;
   view.icon = a?.icon ?? "play";
@@ -119,6 +120,9 @@ function initEditor(view) {
     return [k, input];
   });
   view.inputs[0][1].focus();
+  // As T3's dialog it fades in; a transition only eases later changes, so it draws clear first.
+  view.shown = false;
+  cx.timer.after(34, (cx) => { view.shown = true; cx.notify(); });
 }
 
 function saveEditor(view) {
@@ -150,6 +154,7 @@ function editorView(view) {
       .cursor_pointer().hover(s => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text);
   };
   return v_flex().id("action-editor").size_full().p(18).gap(14).bg(t.popover).text_size(13)
+    .opacity(view.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
     .child(h_flex().items_center()
       .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child(view.action ? "Edit action" : "Add action"))
       .child(div().text_size(11).text_color(t.dim).child("Esc")))
@@ -177,7 +182,7 @@ function editorView(view) {
 export default class Actions extends View {
   init(_props, cx) {
     const overlay = props()?.actions;
-    if (overlay === "edit") initEditor(this);
+    if (overlay === "edit") initEditor(this, cx);
     if (overlay === "menu") initMenu(this, cx);
     // The bar's copy answers Delete's dialog: `t3-actions.delete-action:<id>`.
     if (!overlay) cx.spawn(async () => {

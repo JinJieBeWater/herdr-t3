@@ -15,6 +15,7 @@ function element() {
       else if (key === "on_key_down") node.handlers.key = args[0];
       else if (key === "on_item_click") node.handlers.item = args[0];
       else if (key === "id") node.key = args[0];
+      else if (key === "opacity") node.opacity = args[0];
       return proxy;
     };
   } });
@@ -31,7 +32,8 @@ const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).joi
 let spaces, machines;
 let openProps = {};
 const calls = [], scrolled = [];
-const cx = { notify() {}, stop_propagation() {} };
+const timers = [];
+const cx = { notify() {}, stop_propagation() {}, timer: { after: (ms, fn) => timers.push(fn) } };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
@@ -42,7 +44,7 @@ const context = vm.createContext({
 });
 const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
-const open = () => { const m = new context.Mod(); m.init(); return m; };
+const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const list = (m) => find(m.render(), "new-rows");
 const press = (m, key, platform = false) => m.render().handlers.key({ key, modifiers: { platform } }, cx);
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
@@ -112,4 +114,11 @@ m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
 assert.deepEqual(take(), [["space.new", { machine: "" }]]);
 assert.ok(text(open().render()).includes("⌘N"), "⌘N beside a button that does the same");
+
+// As T3's palette it fades in: drawn clear first, then shown.
+timers.length = 0;
+m = open();
+assert.equal(m.render().opacity, 0);
+timers.forEach((fn) => fn(cx));
+assert.equal(m.render().opacity, 1);
 console.log("ok new menu");

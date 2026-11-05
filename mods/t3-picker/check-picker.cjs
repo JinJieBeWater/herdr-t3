@@ -14,6 +14,7 @@ function element() {
       else if (key === "on_key_down") node.handlers.key = args[0];
       else if (key === "on_item_click") node.handlers.item = args[0];
       else if (key === "id") node.key = args[0];
+      else if (key === "opacity") node.opacity = args[0];
       return proxy;
     };
   } });
@@ -40,7 +41,8 @@ const panes = [
   { pane: "p3", tab: "c1", terminal: "t3", program: zsh, focused: false },
 ];
 const shared = {}, calls = [];
-const cx = { notify() {}, stop_propagation() {} };
+const timers = [];
+const cx = { notify() {}, stop_propagation() {}, timer: { after: (ms, fn) => timers.push(fn) } };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
@@ -55,7 +57,7 @@ const context = vm.createContext({
 });
 const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
-const open = () => { const m = new context.Mod(); m.init(); return m; };
+const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const keys = (m) => find(m.render(), "picker-rows")?.keys ?? [];
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
 const focus = (id) => panes.forEach((p) => { if (p.tab === "c1") p.focused = p.pane === id; });
@@ -100,4 +102,11 @@ assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]]);
 // Back to a pane that's gone shows nothing.
 shared["t3-picker.back"] = "p9";
 assert.ok(!keys(open()).some((k) => k.startsWith("back:")));
+
+// As T3's palette it fades in: drawn clear first, then shown.
+timers.length = 0;
+const faded = open();
+assert.equal(faded.render().opacity, 0);
+timers.forEach((fn) => fn(cx));
+assert.equal(faded.render().opacity, 1);
 console.log("ok picker");
