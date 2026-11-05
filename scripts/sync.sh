@@ -1,5 +1,5 @@
 #!/bin/sh
-# After editing this repo: copy t3-inbox, t3-actions and the Review extra to their standalone repos and the layout, its mods, the Review extra and the theme to the local Herdr App.
+# After editing this repo: copy t3-inbox, t3-actions and the Review extra to their standalone repos and the layout, its mods, the Review extra and the extra themes to the local Herdr App.
 # Real copies, not symlinks: Herdr App doesn't load a mod's own SVGs through a symlink.
 set -eu
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -45,4 +45,4 @@ jq --argjson old "$old" '[$old | .. | objects | .focus? | objects | .color][0] a
   | (.. | objects | .focus? | objects | .color) |= ($c // .)
   | (if $review then (.. | objects | select(.id? == "tabs-row") | .children) |= (.[0:1] + [$review] + .[1:]) else . end)' "$layout" > "$layout.tmp"
 mv "$layout.tmp" "$layout"
-cp "$src/extras/themes/herdr-t3.json" "$app/themes/"
+cp "$src"/extras/themes/*.json "$app/themes/"

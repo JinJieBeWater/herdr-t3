@@ -98,9 +98,9 @@ install_app() {
   gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
   for d in "$src"/mods/t3-*/ "$src"/extras/mods/*/ "$src"/scripts/demo/mods/*/; do rsync -a $gen "$d" "$A/mods/$(basename "$d")/"; done
   layout
-  cp "$src/layouts/herdr-t3.svg" "$A/layouts/"; cp "$src/extras/themes/herdr-t3.json" "$A/themes/"; cp "$src/keys.json" "$A/"
+  cp "$src/layouts/herdr-t3.svg" "$A/layouts/"; cp "$src"/extras/themes/*.json "$A/themes/"; cp "$src/keys.json" "$A/"
   cat > "$A/settings.json" <<EOF
-{ "appearance": "dark", "theme": "herdr-t3", "font": "Geist Mono", "font_size": 12, "ui_font": "Geist", "zoom": 1.1,
+{ "appearance": "dark", "theme": "catppuccin-mocha", "font": "Geist Mono", "font_size": 12, "ui_font": "Geist", "zoom": 1.1,
   "minimum_contrast": 3, "sounds": { "enabled": false } }
 EOF
   cat > "$A/shared.json" <<'EOF'
