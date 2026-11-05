@@ -1074,7 +1074,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
     assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
-    // Its details, as an Inbox row's: under the tab, led by its whole name, after 150ms for the first and at once for the next.
+    // Its whole name and nothing else, with an Inbox row's timing: after 150ms for the first and at once for the next.
     const tabCard = (id) => find(tabs.render(cx), `details-${id}`)?.style.content;
     assert.equal(tabCard("other"), undefined, "the first waits");
     cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
@@ -1082,8 +1082,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     cx.timers.filter(t => t.ms === 34 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
     assert.equal(tabCard("other").style.opacity, 1, "then it fades in");
     assert.equal(tabCard("other").style.mt, 4);
-    assert.equal(strings(tabCard("other"))[0], "other");
-    assert.ok(strings(tabCard("other")).includes(f.spaces()[0].name), "its project");
+    assert.deepEqual(strings(tabCard("other")), ["other"], "only its whole name: the project and branch are in the sidebar");
     assert.deepEqual([find(tabs.render(cx), "details-other").style.bottom, find(tabs.render(cx), "details-other").style.left, find(tabs.render(cx), "details-other").style.size], [0, 0, 1], "a Popup hangs from its anchor's bottom left: the tab's");
     fire(find(tabs.render(cx), "tab-b0"), "on_hover", true, cx);
     assert.equal(tabCard("b0").style.opacity, 1, "the next tab's opens at once");

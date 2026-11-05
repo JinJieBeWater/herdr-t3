@@ -19,7 +19,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ### Interaction
 
-- A tab's icon turns to × on hover, and hovering a tab shows its details: the same card and timing as an Inbox row's.
+- A tab's icon turns to × on hover, and hovering a tab shows its whole name in a quiet hover label, with an Inbox row's timing.
 - A work column under 1024px folds Actions and the Review bar to icons and counts.
 - A mod pane can give its tab and pane header a title, an icon and a status; the review pane shows its analysis that way.
 - `cmd-]` / `cmd-[` walk the Inbox as T3 does: the rows it shows, in its order, stopping at either end; a folded shelf only its row in view. Lists keep Herdr's `agent.next`. After updating, add `"cmd-]": "t3-chrome.next"` and `"cmd-[": "t3-chrome.prev"` to your `layout:herdr-t3` section in `keys.json`.

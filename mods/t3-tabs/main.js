@@ -4,8 +4,7 @@ import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focus
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
-import { projectMark } from "./project.js";
-import { programIcon, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { detailsFor } from "./details.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out.
@@ -224,16 +223,14 @@ export default class Tabs extends View {
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
-      // Its details, as an Inbox row's: under the tab, a Popup hanging from a 1px anchor at its bottom left. Up from the hover on: a Popup must
-      // have measured its anchor before the frame a card starts to fade in. A status mark lit in the tab speaks for itself instead.
-      const pic = programIcon(program, 12, t.muted);
+      // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
+      // A Popup hanging from a 1px anchor at the tab's bottom left, with an Inbox row's timing. Up from the hover on: a Popup must
+      // have measured its anchor before the frame a label starts to fade in. A status mark lit in the tab speaks for itself instead.
       const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(0).size(1)
-        .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(detailsCard(this, t, c.id, name, [
-          space?.name && detailsLine(t, projectMark(space, 12, t, ps), space.name),
-          space?.machine && detailsLine(t, svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted), space.machine),
-          lead?.branch && detailsLine(t, svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(t.muted), lead.branch),
-          pic && program.name && detailsLine(t, div().flex_none().opacity(0.6).child(pic), program.name),
-        ]).mt(4)));
+        .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(div().id(`details-card-${c.id}`)
+          .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
+          .opacity(this.details === c.id && this.detailsIn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
+          .child(name)));
       const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
