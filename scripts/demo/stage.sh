@@ -121,6 +121,8 @@ down() {
   [ -d "$D" ] || { echo "nothing at $D"; return; }
   [ -f "$D/app.pid" ] && kill "$(cat "$D/app.pid")" 2>/dev/null || true
   demo jin.review --stop >/dev/null 2>&1 || true
+  # --stop can leave a daemon started with --port running: its pid file names it.
+  p=$(jq -r '.pid // empty' "$H/.pulls.review/daemon.pid" 2>/dev/null || true); [ -z "$p" ] || kill "$p" 2>/dev/null || true
   if mine; then
     for t in $(demo hc ls --all --json | jq -r '.terminals[].address'); do demo hc kill "$t" >/dev/null 2>&1 || true; demo hc rm "$t" >/dev/null 2>&1 || true; done
     demo hc server stop >/dev/null 2>&1 || true
