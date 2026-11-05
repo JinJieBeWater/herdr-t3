@@ -256,7 +256,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual(header.items.map(n => typeof n.key === "string" ? n.key : n.kind), ["tip-sidebar-toggle", "div", "tip-sidebar-mode"], "the toggle leads, as T3's; the sidebar switch at the end; search is a shortcut");
+  assert.deepEqual(header.items.map(n => n.key), ["tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds the sidebar switch and toggle; search is a shortcut");
   assert.equal(header.style.pr + (26 - 14) / 2, 16, "the toggle's icon ends on the same line as the + and status column");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
@@ -270,16 +270,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(update, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.update", {}]);
   f.ui.updates = { app: {} };
-  {
-    // The toggle stays put as the sidebar hides: the brand bar's and the tab bar's both sit after the window buttons.
-    Object.assign(f.ui, { window: { platform: "macos", titlebar: "none" }, root: { traffic_lights: [16, 13] } });
-    const brand = f.load("t3-chrome").render(cx).style.pl;
-    f.slots.sidebar.hidden = true;
-    assert.equal(f.load("t3-tabs").render(cx).style.pl, brand, "the same spot either way");
-    assert.equal(brand, 80, "past the window buttons");
-    delete f.slots.sidebar.hidden;
-    Object.assign(f.ui, { window: { platform: "macos" }, root: {} });
-  }
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
   assert.deepEqual([groups[0].h, "pt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
   assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");
