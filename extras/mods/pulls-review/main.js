@@ -4,7 +4,7 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { props, run, settings, theme } from "herdr";
+import { props, run, settings, setShared, shared, theme } from "herdr";
 import { watchReview, reviewBar, reviewMenu, initReviewMenu, menuClosed } from "./bar.js";
 import { launch } from "./open.js";
 
@@ -13,7 +13,13 @@ export default class PullsReview extends View {
     const p = props() ?? {};
     if (p.menu === "review") initReviewMenu(this);
     else if (p.overlay) cx.spawn(() => launch(p));
-    else watchReview(this, cx);
+    else {
+      // A review pane starts only when shown and shared outlives the app, so a run's word from before a restart would stay
+      // until its tab is seen. The bar, always shown, drops it; a pane still running says so again at its next poll (1.5s).
+      const status = Object.entries(shared("review.status") ?? {}), left = status.filter(([, word]) => word !== "working");
+      if (left.length < status.length) setShared("review.status", Object.fromEntries(left));
+      watchReview(this, cx);
+    }
   }
 
   close() { if (this.search) menuClosed(); }

@@ -329,7 +329,7 @@ export default class ReviewPane extends View {
 
   // What its tab and pane header show (t3's name.js), as the word an agent would report: a run going, then how it ended
   // until the tab is looked at. In the pane, the button keeps a failure.
-  // shortcut: shared outlives the app and a pane starts only when shown, so after a restart a tab not yet shown can keep its spinner until it is; a heartbeat would fix it.
+  // shortcut: a pane starts only when shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until its tab is shown.
   report() {
     const a = this.switching ? null : this.review?.analysis, real = a?.state === "running", mine = panes().filter(p => p.mod === PANE);
     if (!mine.some(p => p.tab === this.tab)) return;

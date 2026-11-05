@@ -446,5 +446,15 @@ const load = (props = {}, setup = record) => {
   assert.equal(closed.length, shutBefore);
   assert.deepEqual(plain(notes), []);
 
+  // A review pane starts only when shown and shared outlives the app, so a run's word from before a restart would spin on
+  // in its tab and its Inbox row. The bar, always shown, drops it; only the bar: an overlay opens with every menu.
+  state["review.status"] = { a: "working", b: "done", c: "blocked" };
+  load({ overlay: "o", page: "/x" });
+  assert.equal(state["review.status"].a, "working", "opening a review isn't a restart");
+  load({ block: "review" });
+  assert.deepEqual(plain(state["review.status"]), { b: "done", c: "blocked" }, "how a run ended is still news");
+  const kept = state["review.status"]; load({ block: "review" });
+  assert.equal(state["review.status"], kept, "nothing to drop, nothing written: every write redraws every mod");
+
   console.log("ok: the Review bar's counts outlined and ruled, its block sized to fit, the branch menu and its search, opening a review");
 })().catch(e => { console.error(e); process.exit(1); });

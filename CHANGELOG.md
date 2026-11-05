@@ -8,6 +8,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 - A review in a tab of its own has a one-line row above the shelves, with its space, name and analysis state. Click it to get back from any space, hover for × to close it; `cmd-]` and `cmd-[` walk it too.
 - A review split off an agent lights that agent's card while it has the focus, and the keys go on from there.
+- A review whose analysis was running when Herdr quit no longer spins until you open it: the Review bar drops that state when it starts, and a run still going says so again within seconds.
 
 ### Actions and Review, as mods of their own
 

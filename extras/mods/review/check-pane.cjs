@@ -215,6 +215,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   const finished = { state: "current" }, failed = { state: "current", error: "boom" };
   shownTab = "other"; pane.startingUntil = Date.now() + 1000; pane.review.analysis = { state: "current", agent: true }; pane.report();
   assert.equal(word(), "working", "from the click, before the run exists");
+  sharedStore.delete("review.status"); pane.report();
+  assert.equal(word(), "working", "the Review bar dropped it at its start: a run still going says so again");
   pane.startingUntil = Date.now() - 1; pane.report();
   assert.equal(word(), null, "a start that never came isn't a finished run");
   ended(finished);
