@@ -12,6 +12,8 @@ import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWi
 const PANE = "review";
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
 const LOAD_TIMEOUT = 30000;
+// How long a sideways scroll's bars stay after it stops (ms).
+const BARS_LINGER = 1000;
 // Preferences every review pane shares: a pane's localStorage is its own, so a new pane would start from the defaults.
 const PREFS = `${PANE}.prefs`;
 const pref = (key) => shared(PREFS)?.[key];
@@ -152,6 +154,7 @@ export default class ReviewPane extends View {
     this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.auto = new Set(); this.asked = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
+    this.barsOn = false; this.barsRun = 0;
     this.load(cx);
     // While a run goes the pane follows it; otherwise the folder watch and a slow timer catch new diffs.
     cx.timer.every(1500, (cx) => { if (this.analyzing()) this.poll(cx); });
@@ -1100,7 +1103,7 @@ export default class ReviewPane extends View {
         // Code scrolls sideways by the wheel: split, each side under the pointer; the full-width rows under either.
         // Headers and notes stay put, and the list keeps the vertical.
         .on_scroll_wheel((event, cx) => {
-          let moved = false;
+          let moved = false, sideways = false;
           // How far this run down has gone (a negative delta scrolls down, as sideways); any scroll up restarts it.
           const dy = event.delta.y / zoom();
           if (dy > 0) this.scrolledDownBy = 0;
@@ -1109,7 +1112,12 @@ export default class ReviewPane extends View {
           if (hide !== this.headerHidden) { this.headerHidden = hide; moved = true; }
           for (const side of this.splitShown() ? [(event.local_position?.x ?? 0) / zoom() < this.view / 2 ? 0 : 1, 2] : [2]) {
             const x = Math.min(this.sideMax(side), Math.max(0, this.shift[side] - event.delta.x / zoom()));
-            if (x !== this.shift[side]) { this.shift[side] = x; moved = true; }
+            if (x !== this.shift[side]) { this.shift[side] = x; moved = sideways = true; }
+          }
+          if (sideways) {
+            const run = ++this.barsRun;
+            this.barsOn = true;
+            cx.timer.after(BARS_LINGER, (cx) => { if (run === this.barsRun) { this.barsOn = false; cx.notify(); } });
           }
           if (moved) cx.notify();
         })
@@ -1143,17 +1151,23 @@ export default class ReviewPane extends View {
           })
           .child(this.item(t, { key: `f:${sticky.path}`, kind: "file", file: sticky, size: FILE }))))
         .child(Scrollbar.vertical("review-diff").absolute().inset_0())
-        // Code scrolls sideways by the wheel alone: a thin bar per overflowing side says where it is.
-        .children((this.splitShown() ? [0, 1, 2] : [2]).filter(side => this.sideMax(side) > 0).map(side => this.hbar(t, side)))
+        .children(this.hbars(t))
         .when(!items.length, el => el.child(div().absolute().top(8).px(12).text_color(t.dim).child("No files in this group"))));
   }
 
-  // Where code has scrolled to sideways, a 4px track along the bottom of its side; split, the full-width rows' sits above the halves'.
-  hbar(t, side) {
-    const width = side === 2 ? this.view : this.view / 2, max = this.sideMax(side);
-    const thumb = Math.max(24, width * width / this.sideWidth[side]);
-    return div().id(`hbar-${side}`).absolute().bottom(side === 2 && this.splitShown() ? 8 : 2).left(side === 1 ? this.view / 2 : 0).w(width).h(4)
-      .child(div().absolute().left((width - thumb) * Math.min(this.shift[side], max) / max).w(thumb).h_full().rounded_full().bg(t.muted + "80"));
+  // Code scrolls sideways by the wheel alone: while it does, as an overlay scrollbar, a 4px bar says where it is, for each
+  // overflowing side with rows in view. Split, the full-width rows' sits above the halves' when both show.
+  hbars(t) {
+    const { start = 0, end = 0 } = this.visible ?? {}, split = this.splitShown();
+    const kinds = new Set((this.itemList ?? []).slice(start, end).map(item => item.kind));
+    const sides = (split ? [0, 1, 2] : [2]).filter(side => this.sideMax(side) > 0 && kinds.has(side < 2 ? "pair" : split ? "solo" : "row"));
+    return sides.map(side => {
+      const width = side === 2 ? this.view : this.view / 2, max = this.sideMax(side);
+      const thumb = Math.max(24, width * width / this.sideWidth[side]);
+      return div().id(`hbar-${side}`).absolute().bottom(side === 2 && sides.length > 1 ? 8 : 2).left(side === 1 ? this.view / 2 : 0).w(width).h(4)
+        .opacity(this.barsOn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
+        .child(div().absolute().left((width - thumb) * Math.min(this.shift[side], max) / max).w(thumb).h_full().rounded_full().bg(t.muted + "80"));
+    });
   }
 
   groupHeader(t, g) {

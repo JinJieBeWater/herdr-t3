@@ -321,9 +321,31 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.render(cx); pane.sideWidth = [0, 0, pane.view + 300];
   wheel(100, -500);
   assert.deepEqual(plain(pane.shift), [0, 0, 300]);
-  // Only an overflowing side draws its position bar.
-  drawn.clear(); pane.render(cx);
-  assert.ok(drawn.has("hbar-2") && !drawn.has("hbar-0") && !drawn.has("hbar-1"));
+  // Only an overflowing side with rows in view draws its position bar, while it scrolls: as an overlay scrollbar.
+  const barItems = (kinds) => { pane.itemList = kinds.map((kind, i) => ({ kind, key: `k${i}`, size: 20 })); pane.visible = { start: 0, end: kinds.length }; };
+  const shownItems = pane.itemList, shownVisible = pane.visible;
+  const hbars = () => plain(pane.hbars({ muted: "#000000" }).map(b => b.key ?? b.id));
+  barItems(["solo"]);
+  assert.equal(hbars().length, 1, "the full-width rows' alone");
+  barItems(["pair"]);
+  assert.deepEqual(hbars(), [], "none on screen: a far-off new file's long line says nothing here");
+  pane.sideWidth = [pane.view, pane.view, pane.view + 300]; barItems(["pair"]);
+  assert.equal(hbars().length, 2, "a side each, the far-off rows' left out");
+  barItems(["pair", "solo"]);
+  assert.equal(hbars().length, 3, "all in view: stacked");
+  pane.sideWidth = [0, 0, pane.view + 300];
+  pane.shift[2] = 0; timers.length = 0; const runs = pane.barsRun;
+  wheel(100, -40);
+  assert.ok(pane.barsOn && pane.barsRun === runs + 1, "on as it scrolls");
+  assert.equal(timers.length, 1);
+  wheel(100, -40);
+  timers.shift()(cx);
+  assert.ok(pane.barsOn, "a later scroll keeps them: the earlier timer is stale");
+  timers.shift()(cx);
+  assert.ok(!pane.barsOn, "off once it stops");
+  pane.shift[2] = 300; wheel(100, -40);
+  assert.equal(timers.length, 0, "at the end, nothing moves and nothing shows");
+  pane.itemList = shownItems; pane.visible = shownVisible;
   // Analysis settings: opening reads the daemon's agents and settings, a model the catalog lacks shows as its own row;
   // a pick writes the local agent back, resetting the model on an agent switch; the field searches, Enter picks or saves as typed.
   press("settings");
