@@ -81,15 +81,6 @@ function progressText(progress) {
 // The Phosphor and catppuccin icons (ph/, cat/), as the app draws them.
 const PH = `mods/${PANE}/ph`, CAT = `mods/${PANE}/cat`;
 
-const UNITS = [["year", 365 * 864e5], ["month", 30 * 864e5], ["week", 7 * 864e5], ["day", 864e5], ["hour", 36e5], ["minute", 6e4]];
-// As the app's formatTimeAgo, in English as the rest of the pane: "3 days ago"; under a minute, "now".
-export function timeAgo(date, now = Date.now()) {
-  const elapsed = now - new Date(date).getTime(), [unit, ms] = UNITS.find(([, ms]) => elapsed >= ms) ?? [];
-  if (!unit) return "now";
-  const n = Math.round(elapsed / ms);
-  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-}
-
 // In the browser, as mods/pulls-review opens one.
 function openUrl(url) {
   const platform = appWindow()?.platform;
@@ -363,7 +354,7 @@ export default class ReviewPane extends View {
     // As report(): only a change, and tabs without a review pane drop out.
     if (now?.root === this.root && now.page === this.page && now.base === this.base && now.commits?.length === commits.length
       && commits.every((c, i) => c.sha === now.commits[i].sha) && live.length === Object.keys(all).length - 1) return;
-    const shown = { root: this.root, page: this.page, base: this.base, commits: commits.map(c => ({ sha: c.sha, subject: c.subject, when: c.date ? timeAgo(c.date) : "" })) };
+    const shown = { root: this.root, page: this.page, base: this.base, commits: commits.map(c => ({ sha: c.sha, subject: c.subject, time: c.date ? new Date(c.date).getTime() : null })) };
     setShared(`${PANE}.shown`, Object.fromEntries([...live, [this.tab, shown]]));
   }
 

@@ -477,7 +477,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(drawn.has("analyze") && !drawn.has("commits") && !drawn.has("commit-back"));
   // The bar reads the diff's commits and the page shown; on one commit's page they stay the base's.
   const base = pane.page, baseEntry = () => sharedStore.get("review.shown").b;
-  assert.deepEqual(plain(baseEntry()), { root: "/repo", page: base, base, commits: [{ sha: "c1", subject: "one", when: "" }, { sha: "c2", subject: "two", when: "" }] });
+  assert.deepEqual(plain(baseEntry()), { root: "/repo", page: base, base, commits: [{ sha: "c1", subject: "one", time: null }, { sha: "c2", subject: "two", time: null }] });
   const opened = [];
   pane.open = (page) => { opened.push(page); pane.page = page; };
   sharedStore.set("review", { tab: "b", root: "/repo", page: "/commit/c2", base, n: pane.handled + 1 });

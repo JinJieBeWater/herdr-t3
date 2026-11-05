@@ -39,7 +39,7 @@ const zoom = 1.1, calls = [], overlays = [], closed = [], notes = [], launched =
 const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a30", hover: "#202024", ansi1: "#e06c75", ansi2: "#98c379", ansi3: "#c8a84b", ansi4: "#5f8fe0", ansi9: "#f08c95", ansi10: "#b5e09a", ansi11: "#e8cf7a", ansi12: "#8fb4f2" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
 const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
-  svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) },
+  svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) }, Popup: { new: (id) => element("popup").id(id) },
   InputState: { new: () => ({ on() {}, value: () => "", focus() {} }) },
   theme: () => theme, settings: () => ({ zoom }), window: () => ({ platform: "macos", active: true }),
   spaces: () => [{ id: "s", active: true, folder: "/space", tabs: [{ id: "b" }] }], panes: () => [{ pane: "p1", tab: "b", cwd: "/repo/src" }],
@@ -49,9 +49,10 @@ const env = {
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
   appHome: () => "/app", readTextFile: async () => '{ "open": "herdr" }',
 };
-const source = ["bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["details.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
-const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), timer: { every() {} } };
+// Timers fire at once: a card that waits 150ms is up by the next render.
+const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
 // `setup` gets the module's scope before init, to stand in for git; by default it records what open.js's launch gets.
 const record = (scope) => { scope.launch = (input) => { launched.push(plain(input)); }; };
 const load = (props = {}, setup = record) => {
@@ -215,7 +216,8 @@ const load = (props = {}, setup = record) => {
   let oldGit = false;
   const exec = scope.exec = async (_command, args) => {
     gits.push(args.find(a => a === "log" || a === "for-each-ref") ?? args.join(" "));
-    if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: "abcdef123456\x1ffix: a\x1f2 hours ago\n" }; }
+    if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: `abcdef123456\x1ffix: a\x1f${Math.floor(Date.now() / 1000) - 7260}\x1fAvery\n` }; }
+    if (args.includes("rev-list")) return { code: 0, stdout: "abcdef123456\n" };
     const counting = args.includes("--format=%(refname:short) %(ahead-behind:origin/main)");
     if (counting) return oldGit ? { code: 128, stdout: "" } : { code: 0, stdout: "feat 0 0\nOther 3 1\n" };
     if (args.includes("--format=%(refname:short)")) return { code: 0, stdout: "feat\nOther\n" };
@@ -232,6 +234,7 @@ const load = (props = {}, setup = record) => {
     return overlays.at(-1);
   };
   const spec = await click(r);
+  assert.equal(spec.width, 560);
   assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
   assert.deepEqual(gits.splice(0), ["log", "for-each-ref"]);
   assert.deepEqual(plain(spec.props.branches), [{ name: "Other", count: 3 }], "the current branch isn't offered against itself");
@@ -249,7 +252,7 @@ const load = (props = {}, setup = record) => {
   fire(find(menu.render(), "review-branch-Other"), "on_click", {}, cx);
   assert.deepEqual([launched.at(-1).args, launched.at(-1).page], [["origin/main...Other"], "/compare/origin/main...Other"]);
   // With the review pane showing this repository's diff: its count lit, one commit's place and steps, the menu on its commits.
-  const list = ["c1", "c2", "c3"].map(sha => ({ sha, subject: sha, when: "1 hour ago" }));
+  const list = ["c1", "c2", "c3"].map(sha => ({ sha, subject: sha, time: Date.now() - 36e5 }));
   const pane = (page, base = "/branch/feat", commits = list) => { state["review.shown"] = { b: { root: "/repo", page, base, commits } }; };
   pane("/branch/feat"); show(r);
   let lit = bar.render();
@@ -273,7 +276,20 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(plain(within.props.within), { tab: "b", root: "/repo", base: "/branch/feat", sha: "c2" });
   assert.equal(within.height, Math.min(480, 10 + 36 + 32 + 24 + 3 * 32 + 9 + 24 + 32), "the popup fits All changes too");
   const inMenu = load(within.props).mod;
-  assert.equal(find(inMenu.render(), "review-commit-c2").style.bg, theme.hover, "the commit shown is marked");
+  const marked = (id) => walk(find(inMenu.render(), id)).some(n => n.source === "mods/workspace-chrome/check.svg");
+  assert.deepEqual([marked("review-commit-c2"), marked("review-commit-c1"), marked("review-all")], [true, false, false], "the commit shown is checked");
+  // The highlight as the Actions and New menus': `selected`, on the top row first, moved by ↑/↓ (round) and by the pointer.
+  const ids = ["review-all", "review-branch-Other", "review-commit-c3", "review-commit-c2", "review-commit-c1"];
+  const highlighted = () => ids.filter(id => find(inMenu.render(), id).style.bg === theme.selected);
+  assert.deepEqual(highlighted(), ["review-all"]);
+  const key = (k) => fire(find(inMenu.render(), "review-menu"), "on_key_down", { key: k }, cx);
+  key("down"); key("down");
+  assert.deepEqual(highlighted(), ["review-commit-c3"]);
+  key("up"); key("up"); key("up");
+  assert.deepEqual(highlighted(), ["review-commit-c1"], "up from the top goes round to the bottom");
+  fire(find(inMenu.render(), "review-branch-Other"), "on_hover", true, cx);
+  assert.deepEqual(highlighted(), ["review-branch-Other"], "the pointer moves it too");
+  assert.equal(find(inMenu.render(), "review-commit-c3").hoverStyle.bg, theme.foreground + "0a", "the rest lift faintly under the pointer");
   fire(find(inMenu.render(), "review-commit-c1"), "on_click", {}, cx);
   assert.deepEqual([state.review.page, state.review.base], ["/commit/c1", "/branch/feat"], "a pick stays in this diff");
   fire(find(inMenu.render(), "review-all"), "on_click", {}, cx);
@@ -328,19 +344,42 @@ const load = (props = {}, setup = record) => {
   delete state["review.shown"]; delete state.review;
   // Search narrows both lists; Enter opens the first left.
   const searching = load(spec.props);
-  let typed = "", submit;
-  searching.scope.InputState = { new: () => ({ on: (event, fn) => { if (event === "submit") submit = fn; }, value: () => typed, focus() {} }) };
+  let typed = "", submit, change;
+  searching.scope.InputState = { new: () => ({ on: (event, fn) => { if (event === "submit") submit = fn; else if (event === "change") change = fn; }, value: () => typed, focus() {} }) };
   searching.scope.initReviewMenu(searching.mod);
-  typed = "oTHER";
+  const type = (text) => { typed = text; change({}, cx); };
+  fire(find(searching.mod.render(), "review-menu"), "on_key_down", { key: "down" }, cx);
+  submit({}, cx);
+  assert.deepEqual(launched.at(-1).args, ["abcdef123456"], "Enter opens the highlighted row");
+  type("oTHER");
   assert.equal(find(searching.mod.render(), "review-commit-abcdef123456"), null, "a commit that doesn't match goes");
   assert.ok(find(searching.mod.render(), "review-branch-Other"), "matching ignores case");
   submit({}, cx);
   assert.deepEqual(launched.at(-1).args, ["origin/main...Other"], "Enter opens the only match left");
-  typed = "abcdef";
-  assert.ok(find(searching.mod.render(), "review-commit-abcdef123456"), "a sha's start matches");
+  type("abcdef");
+  const commitRow = () => find(searching.mod.render(), "review-commit-abcdef123456");
+  assert.deepEqual(strings(commitRow()), ["fix:", "a", "2h"], "a sha's start matches; one line: the dimmed prefix, the subject, a short age, no sha");
+  const card = () => strings(find(commitRow(), "details-review-commit-abcdef123456").style.content);
+  assert.deepEqual(card(), [], "its card waits for the hover");
+  fire(commitRow(), "on_hover", true, cx);
+  const [title, age, ...who] = card();
+  assert.deepEqual([title, who], ["fix: a", ["A", "Avery"]], "hovered: the whole subject, then its author");
+  assert.match(age, /^2h ago · [A-Z][a-z]{2} \d+, \d\d:\d\d$/, "and when, to the minute");
+  assert.equal(find(commitRow(), "details-review-commit-abcdef123456").style.anchor, "top_right", "on the row's left: the menu hangs at the window's right");
+  fire(commitRow(), "on_hover", false, cx);
+  assert.deepEqual(card(), [], "gone with the pointer");
+  // Not pushed: ↑ in the row, and the card says where it isn't.
+  const picks = await scope.readPicks({ ...r, upstream: "origin/feat" }, true);
+  assert.deepEqual(plain(picks.unpushed), ["abcdef123456"], "the upstream's missing commits, read beside the log");
+  gits.length = 0;
+  const pushing = load({ ...spec.props, upstream: "origin/feat", unpushed: picks.unpushed });
+  const outRow = () => find(pushing.mod.render(), "review-commit-abcdef123456");
+  assert.deepEqual(strings(outRow()), ["fix:", "a", "↑", "2h"]);
+  fire(outRow(), "on_hover", true, cx);
+  assert.equal(strings(find(outRow(), "details-review-commit-abcdef123456").style.content).at(-1), "Not on origin/feat yet");
   submit({}, cx);
   assert.deepEqual(launched.at(-1).args, ["abcdef123456"]);
-  typed = "nope";
+  type("nope");
   const opened = launched.length;
   submit({}, cx);
   assert.equal(launched.length, opened, "no match: Enter opens nothing");

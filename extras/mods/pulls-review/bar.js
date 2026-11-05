@@ -4,13 +4,16 @@
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
 import { div, svg, image } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, HoverCard } from "gpui-base";
+import { h_flex, v_flex, InputState, Input, HoverCard, Popup } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, window, openOverlay, closeOverlay, props, setShared, shared, theme, settings } from "herdr";
 import { launch } from "./open.js";
+import { detailsFor, detailsLine, detailsCard } from "./details.js";
 
 const MOD = "pulls-review";
 // The menu's branches show this many rows above the commits, and scroll for the rest.
 const BRANCH_ROWS = 4;
+// A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
+const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
 // When the logo's menu last closed: a press outside a popup closes it before the press's own click lands.
 const MENU_CLOSED = `${MOD}.menuClosed`;
 export const menuClosed = () => setShared(MENU_CLOSED, Date.now());
@@ -42,6 +45,22 @@ export function reviewLocation() {
 
 // Reads write nothing under .git, so the folder watch doesn't wake on them.
 export const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
+
+// A commit's age as the Inbox's settled rows read (t3-inbox's ago), but "now" for "just now": the column is narrow.
+function ago(ms, now) {
+  const m = Math.floor((now - ms) / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h`;
+  return `${Math.floor(m / 1440)}d`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// A commit's card: its age, then when to the minute (`2h ago · Nov 5, 10:37`).
+function when(ms, now) {
+  const d = new Date(ms), short = ago(ms, now), pad = (n) => String(n).padStart(2, "0");
+  return `${short === "now" ? "just now" : `${short} ago`} · ${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export const browserPath = page => encodeURI(page).replaceAll("#", "%23");
 
@@ -137,10 +156,16 @@ async function readReview(cwd) {
 // Read on click, so the bar's 10 s poll stays as cheap as it was.
 // shortcut: the menu holds the newest 200 commits and 20 branches, so search can't reach past them; read more if a repo needs it.
 // `log` false inside a review: the menu lists the review's commits.
+// `unpushed`: the shas not on the upstream, for the menu's ↑.
 async function readPicks(r, log) {
-  const read = log ? await git(r.root, ["log", "-200", "--format=%H%x1f%s%x1f%cr", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]) : { stdout: "" };
-  const commits = read.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, when] = line.split("\x1f"); return { sha, subject, when }; });
-  if (!r.baseRef) return { commits, branches: [] };
+  const none = { code: 0, stdout: "" };
+  const [read, ahead] = await Promise.all([
+    log ? git(r.root, ["log", "-200", "--format=%H%x1f%s%x1f%ct%x1f%an", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]) : none,
+    r.upstream && !r.gone ? git(r.root, ["rev-list", "--max-count=200", `${r.upstream}..HEAD`]) : none,
+  ]);
+  const commits = read.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, time, author] = line.split("\x1f"); return { sha, subject, time: Number(time) * 1000, author }; });
+  const unpushed = ahead.code === 0 ? ahead.stdout.split("\n").filter(Boolean) : [];
+  if (!r.baseRef) return { commits, branches: [], unpushed };
   // Each branch's count ahead of the base in the same call (Git 2.41); an older Git fails it, and the menu goes without counts.
   const refs = (format) => git(r.root, ["for-each-ref", "--sort=-committerdate", "--count=21", `--no-merged=${r.baseRef}`, `--format=${format}`, "refs/heads"]);
   let listed = await refs(`%(refname:short) %(ahead-behind:${r.baseRef})`);
@@ -148,7 +173,7 @@ async function readPicks(r, log) {
   // A branch name has no spaces.
   const branches = listed.stdout.split("\n").map(line => line.split(" ")).filter(([name]) => name && name !== r.branch).slice(0, 20)
     .map(([name, ahead]) => (ahead === undefined ? { name } : { name, count: parseInt(ahead, 10) || 0 }));
-  return { commits, branches };
+  return { commits, branches, unpushed };
 }
 
 const branchArgs = (b) => [`${props().baseRef}...${b.name}`];
@@ -171,39 +196,92 @@ function reviewMatches(view) {
 
 export function initReviewMenu(view) {
   view.search = InputState.new({ placeholder: props().branches.length ? "Search commits and branches" : "Search commits" });
-  view.search.on("change", (_e, cx) => cx.notify());
-  view.search.on("submit", (_e, cx) => {
-    const { commits, branches } = reviewMatches(view), { within } = props();
-    // The top row: All changes until a search hides it.
-    if (within && !view.search.value().trim()) showWithin(within.base);
-    else if (branches[0]) openPick(branchArgs(branches[0]), cx);
-    else if (commits[0]) pickCommit(commits[0], cx);
-  });
+  view.at = 0;
+  view.search.on("change", (_e, cx) => { view.at = 0; cx.notify(); });
+  view.search.on("submit", (_e, cx) => menuPicks(view)[view.at]?.act(cx));
   view.search.focus();
+}
+
+// The menu's rows in order, each with what it opens: the highlight walks them, as the Actions and New menus'.
+function menuPicks(view) {
+  const { commits, branches } = reviewMatches(view), { within } = props();
+  return [
+    // All changes until a search hides it.
+    ...(within && !view.search.value().trim() ? [{ id: "review-all", act: () => showWithin(within.base) }] : []),
+    ...branches.map(b => ({ id: `review-branch-${b.name}`, act: (cx) => openPick(branchArgs(b), cx) })),
+    ...commits.map(c => ({ id: `review-commit-${c.sha}`, act: (cx) => pickCommit(c, cx) })),
+  ];
 }
 
 // The logo's menu, this mod opened as an overlay with props.menu (main.js).
 export function reviewMenu(view) {
-  const t = theme(), { base, branch, height, within } = props(), { commits, branches } = reviewMatches(view), searching = Boolean(view.search.value().trim());
+  const t = theme(), { base, branch, height, within, upstream, unpushed = [] } = props(), { commits, branches } = reviewMatches(view), searching = Boolean(view.search.value().trim());
+  const now = Date.now(), picks = menuPicks(view), lit = picks[view.at]?.id;
   const title = (text) => div().h(24).px(8).flex_none().flex().items_center().text_size(11).text_color(t.dim).child(text);
-  const row = (id, name, action, ...cells) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
-    .hover(s => s.bg(t.hover)).role("button").accessibility_label(name).on_click(action).children(cells);
+  // As the Actions and New menus: the highlighted row `selected`, set by the pointer or ↑/↓, the others lifted faintly on hover.
+  const row = (id, name, action, cells, hovered) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
+    .when(id === lit, el => el.bg(t.selected)).when(id !== lit, el => el.hover(s => s.bg(t.foreground + "0a")))
+    .on_hover((on, cx) => {
+      if (on && id !== lit) { view.at = picks.findIndex(p => p.id === id); cx.notify(); }
+      hovered?.(on, cx);
+    })
+    .role("button").accessibility_label(name).on_click(action).children(cells);
+  // What the review pane shows, as a menu marks its pick.
+  const shown = () => svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.muted);
   // A popup's height is only a maximum: this one sets its own, for the list to scroll inside and to hold still while searching.
+  // shortcut: ↑/↓ can take the highlight past the rows in view: only a virtual list scrolls from code, and its rows can't
+  // open a card. Search narrows the list instead; make the commits a virtual list if that's not enough.
   return v_flex().id("review-menu").w_full().h(height).p(5).bg(t.popover).text_size(13)
+    .on_key_down((e, cx) => {
+      if ((e.key !== "down" && e.key !== "up") || !picks.length) return;
+      view.at = (view.at + (e.key === "down" ? 1 : picks.length - 1)) % picks.length;
+      cx.stop_propagation();
+      cx.notify();
+    })
     .child(h_flex().h(32).mb(4).px(8).gap(8).flex_none().items_center()
       .child(svg("mods/workspace-chrome/search.svg").size(13).flex_none().text_color(t.dim))
       .child(Input.new(view.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
     // Outside the lists, so All changes and each list's title stay put. Branches first: the few, above up to 200 commits.
-    .when(Boolean(within) && !searching, el => el.child(row("review-all", "Review all changes", () => showWithin(within.base), div().flex_1().child("All changes")).when(!within?.sha, s => s.bg(t.hover))))
+    .when(Boolean(within) && !searching, el => el.child(row("review-all", "Review all changes" + (within.sha ? "" : ", shown"), () => showWithin(within.base), [div().flex_1().child("All changes"), ...(within.sha ? [] : [shown()])])))
     .when(branches.length > 0, el => el.child(title(`Branches vs ${base}`)).child(v_flex().id("review-branches").flex_none().overflow_y_scroll().when(commits.length > 0, list => list.max_h(BRANCH_ROWS * 32))
       .children(branches.map(b => row(`review-branch-${b.name}`, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx),
-        div().flex_1().min_w(0).truncate().child(b.name), ...(b.count === undefined ? [] : [div().flex_none().text_size(12).text_color(t.dim).child(String(b.count))]))))))
+        [div().flex_1().min_w(0).truncate().child(b.name), ...(b.count === undefined ? [] : [div().flex_none().text_size(12).text_color(t.dim).child(String(b.count))])])))))
     .when(commits.length > 0 && branches.length > 0, el => el.child(div().h(1).mx(6).my(4).flex_none().bg(t.border)))
     .when(commits.length > 0, el => el.child(title(within ? "Commits in this review" : branch === "(detached)" ? "Commits" : `Commits on ${branch}`))
-      .child(v_flex().id("review-commit-list").flex_1().min_h(0).overflow_y_scroll().children(commits.map(c =>
-        row(`review-commit-${c.sha}`, `Review commit ${c.subject}`, (_e, cx) => pickCommit(c, cx),
-          div().w(58).flex_none().text_color(t.dim).child(c.sha.slice(0, 7)), div().flex_1().min_w(0).truncate().child(c.subject), div().flex_none().text_size(12).text_color(t.dim).child(c.when.replace(/ ago$/, ""))).when(c.sha === within?.sha, s => s.bg(t.hover))))))
+      .child(v_flex().id("review-commit-list").flex_1().min_h(0).overflow_y_scroll().children(commits.map(c => {
+        const id = `review-commit-${c.sha}`, prefix = PREFIX.exec(c.subject)?.[0] ?? "", out = unpushed.includes(c.sha), on = c.sha === within?.sha;
+        return row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : "") + (on ? ", shown" : ""), (_e, cx) => pickCommit(c, cx), [
+          h_flex().flex_1().min_w(0).gap(4).when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
+            .child(div().flex_1().min_w(0).truncate().child(c.subject.slice(prefix.length))),
+          h_flex().flex_none().gap(6).items_center().text_size(12).text_color(t.dim)
+            .when(out, el => el.child(div().text_color(t.ansi2).child("↑")))
+            .child(c.time ? ago(c.time, now) : c.when ?? "")
+            .when(on, el => el.child(shown())),
+          commitCard(view, t, id, c, upstream, out, now)], (hover, cx) => hoverCommit(view, id, hover, cx))
+          .relative();
+      }))))
     .when(!commits.length && !branches.length, el => el.child(div().p(8).text_color(t.dim).child("No matches")));
+}
+
+// A row hovered: its card, with the Inbox's timing (details.js).
+function hoverCommit(view, id, on, cx) {
+  if (on) { view.hovered = id; detailsFor(view, id, cx); }
+  else if (view.hovered === id) { view.hovered = null; detailsFor(view, null, cx); }
+  cx.notify();
+}
+
+// As an Inbox row's details, but on the row's left: the menu hangs at the window's right. A 1px anchor just outside the
+// row's top left corner, the card's top right pinned to it. The whole subject, which the row truncates, then its lines.
+function commitCard(view, t, id, c, upstream, out, now) {
+  const up = view.details === id || view.detailsOut === id;
+  const initial = (name) => div().size(12).flex_none().rounded_full().bg(t.border).flex().items_center().justify_center()
+    .text_size(8).font_medium().text_color(t.muted).child(name.slice(0, 1).toUpperCase());
+  return Popup.new(`details-${id}`, div()).absolute().top(-1).left(-1).size(1).anchor("top_right")
+    .when(up, pop => pop.content(detailsCard(view, t, id, c.subject, [
+      c.time && detailsLine(t, svg("mods/workspace-chrome/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
+      c.author && detailsLine(t, initial(c.author), c.author),
+      upstream && detailsLine(t, svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
+    ], true).mr(4)));
 }
 
 export function reviewBar(view, t, stop) {
@@ -250,12 +328,12 @@ export function reviewBar(view, t, stop) {
     if (closing || view.readingPicks) return;
     view.readingPicks = true;
     cx.spawn(async () => { try {
-      const picks = await readPicks(r, !within), { branches } = picks;
+      const picks = await readPicks(r, !within), { branches, unpushed } = picks;
       // Within a review, its own commits, newest first as the log's.
       const commits = within ? [...list].reverse() : picks.commits;
       if (!commits.length && !branches.length) return;
       const height = Math.min(480, 10 + 36 + (within ? 32 : 0) + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + (commits.length ? Math.min(branches.length, BRANCH_ROWS) : branches.length) * 32 : 0));
-      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 480, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, commits, branches, height, within } });
+      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 560, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height, within } });
     } finally { view.readingPicks = false; } });
   };
   // One commit shown: its place, opening the menu, between steps to the older and newer ones.
