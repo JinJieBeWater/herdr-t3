@@ -4,9 +4,23 @@
 
 ## 2026-11-05
 
+### 按 T3 的数值绘制
+
+- Lucide 图标描边 1.75px，同 T3 的 CSS 把 Lucide 的 2px 调细。每个 mod 都用自己的副本，Herdr 自带的那些也一样；只有加载转圈不是 Lucide，仍用自带的。
+- Inbox 的密度和 T3 侧栏一致：已 Settle、已 Snooze 的行和 Show more 为 36px，收纳区标题 32px、数量用常规字重，卡片内边距 6、圆角 6。
+- 撤销提示条放在侧栏底栏，同 T3，不再遮挡列表：显示 `Settled,`（或 `Settled 2,`）和 `Undo`，空间不够时 `Undo` 换成图标。单独停靠、没有底栏时，Inbox 仍在第一个收纳区上方显示。
+- Custom snooze 的时长改用带 − / + 的数字字段，单位用下拉选择，同 T3 的对话框。
+- Snooze 菜单、New、Go to 和 Actions 编辑框改为淡入。T3 同时从 98% 放大，Herdr 做不了缩放动画。
+- Inbox 顶栏的 Search 尺寸照 T3 的搜索框：32px 高、16px 图标。
+- New 和 Go to 的搜索框、底栏内边距照 T3 的命令面板。
+- Actions 编辑框改为 T3 的 512px 对话框，高度随内容；Actions 菜单行 28px，编辑按钮 24px。
+- 关闭确认改用 T3 的措辞：`Close terminal "<名字>"?` 和 "This stops the running process and clears its history."；标签里有多个在运行时为 `Close 2 terminals?`。
+- 标签要移动 6px 才开始拖动，同 T3；不到 6px 松手时选中按下的那个标签。
+- 更新：用 `mods/t3-*` 各文件夹覆盖已安装的；用 Review 的再复制 `extras/mods/review` 和 `extras/mods/pulls-review`。
+
 ### 图标统一为 Lucide
 
-- 布局和 Review 扩展的图标都换成 Lucide，和 T3 Code、shadcn/ui 一样：2px 描边，同一套网格。改动的有搜索、机器图标、侧栏开关、窗格标题栏的分屏/缩放/关闭，以及 Review 的 Phosphor 图标（含分类图标）；程序图标、Review 的文件图标、Windows 窗口按钮和加载转圈不变。
+- 布局和 Review 扩展的图标都换成 Lucide，和 T3 Code、shadcn/ui 一样，同一套网格。改动的有搜索、机器图标、侧栏开关、窗格标题栏的分屏/缩放/关闭，以及 Review 的 Phosphor 图标（含分类图标）；程序图标、Review 的文件图标、Windows 窗口按钮和加载转圈不变。
 - 更新时：覆盖已安装的 `mods/t3-*`，用 Review 的话再覆盖 `extras/mods/review` 和 `extras/mods/pulls-review`；遗留的旧图标（`review/ph/`、`t3-pane/split-*.svg`）可以删掉。
 
 ### 对齐

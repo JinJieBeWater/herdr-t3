@@ -4,9 +4,23 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-05
 
+### Drawn to T3's numbers
+
+- Lucide icons draw 1.75px strokes, as T3's CSS thins Lucide's 2px. Each mod keeps its own copies, the ones Herdr ships included; only the spinner, not Lucide's, is the shipped one.
+- Inbox is as dense as T3's sidebar: settled and snoozed rows and Show more are 36px, shelf headers 32px with a regular-weight count, cards 6px in and rounded 6.
+- The undo notice sits in the sidebar footer, as T3's, so it covers nothing: `Settled,` (or `Settled 2,`) and `Undo`, which gives way to an icon short of room. Docked alone, with no footer, Inbox still shows it over the first shelf.
+- Custom snooze takes its amount in a number field with − and +, and its unit from a select, as T3's dialog.
+- The snooze menu, New, Go to and the Actions editor fade in. T3's also scale up from 98%, which Herdr can't animate.
+- Search in Inbox's top row is sized as T3's search field: 32px, a 16px icon.
+- New and Go to pad their search field and footer as T3's palette.
+- The Actions editor is T3's 512px dialog, as tall as its fields; Actions menu rows are 28px with a 24px edit button.
+- Closing asks in T3's words: `Close terminal "<name>"?` and "This stops the running process and clears its history.", or `Close 2 terminals?` for a tab running several.
+- A tab drags only once the pointer has moved 6px, as T3's; short of that a press selects the tab pressed.
+- Updating: copy the `mods/t3-*` folders and, with Review, `extras/mods/review` and `extras/mods/pulls-review` over the installed ones.
+
 ### One icon set: Lucide
 
-- Every icon in the layout and the Review extra is Lucide's, as T3 Code's and shadcn/ui's: 2px strokes on one grid. Search, the machine marks, the sidebar toggle, the pane header's split, zoom and close, and Review's Phosphor icons (its category icons too) change; programs' icons, Review's file icons, the Windows window buttons and the spinner stay.
+- Every icon in the layout and the Review extra is Lucide's, as T3 Code's and shadcn/ui's, on one grid. Search, the machine marks, the sidebar toggle, the pane header's split, zoom and close, and Review's Phosphor icons (its category icons too) change; programs' icons, Review's file icons, the Windows window buttons and the spinner stay.
 - Updating: copy the `mods/t3-*` folders and, with Review, `extras/mods/review` and `extras/mods/pulls-review` over the installed ones; the old icons left behind (`review/ph/`, `t3-pane/split-*.svg`) can go.
 
 ### Lined up

@@ -77,7 +77,7 @@ async function atPrompt(terminal) {
 
 // The confirm dialog's title doesn't wrap: a long name is cut to what fits, a wide (CJK) character counting twice.
 // shortcut: counts characters rather than measuring them, upgrade if a name of wide Latin letters still clips.
-function fit(name, room = 30) {
+function fit(name, room = 26) {
   let used = 0, out = "";
   for (const ch of name) {
     used += ch.codePointAt(0) > 0x2e7f ? 2 : 1;
@@ -106,14 +106,17 @@ export default class Tabs extends View {
     });
   }
 
-  // As T3's confirmTerminalClose: `Close terminal "Pi"?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
-  ask(what, name, detail, command, args, cx) {
+  // As T3's confirmTerminalClose: `Close terminal "Pi"?` or `Close 2 terminals?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
+  ask(names, more, command, args, cx) {
     // The dialog hides the pointer's leaving, and the × stops the press that would close the card.
     this.overTab = null;
     detailsFor(this, null, cx);
     cx.notify();
     if (this.asking) closeOverlay(this.asking);
-    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title: `Close ${what} "${fit(name)}"?`, detail, command: { name: command, args } } });
+    const [title, detail] = names.length === 1
+      ? [`Close terminal "${fit(names[0])}"?`, "This stops the running process and clears its history."]
+      : [`Close ${names.length} terminals?`, `This stops their running processes and clears their histories: ${names.map(n => `"${n}"`).join(", ")}.`];
+    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title, detail: detail + more, command: { name: command, args } } });
   }
 
   // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
@@ -121,10 +124,11 @@ export default class Tabs extends View {
     const space = spaces().find(s => s.tabs.some(c => c.id === id));
     if (!space) return;
     const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id);
-    const ends = (await Promise.all(mine.filter(p => p.terminal).map(p => atPrompt(p.terminal)))).filter(empty => !empty).length;
-    if (ends === 0) return run("tab.close", { id });
-    const stops = ends === 1 ? "This stops its running process and clears its history." : `This stops its ${ends} running processes and clears their histories.`;
-    this.ask("tab", nameOf(c, leadOf(mine)), stops + (space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : ""), "tab.close", { id, confirmed: true }, cx);
+    const live = mine.filter(p => p.terminal), empty = await Promise.all(live.map(p => atPrompt(p.terminal)));
+    // A lone pane goes by its tab's name, as the tab shows it.
+    const names = live.filter((_, k) => !empty[k]).map(p => mine.length === 1 ? nameOf(c, p) : namer()(p));
+    if (names.length === 0) return run("tab.close", { id });
+    this.ask(names, space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : "", "tab.close", { id, confirmed: true }, cx);
   }
 
   async closePane(pane, cx) {
@@ -133,7 +137,7 @@ export default class Tabs extends View {
     const tabs = spaces().find(s => s.tabs.some(c => c.id === p.tab))?.tabs.map(c => c.id) ?? [];
     // A space's last pane closes the space, and Herdr asks that itself.
     if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1 || await atPrompt(p.terminal)) return run("pane.close", { pane });
-    this.ask("pane", namer()(p), "This stops its running process and clears its history.", "pane.close", { pane }, cx);
+    this.ask([namer()(p)], "", "pane.close", { pane }, cx);
   }
 
   // Each tab's width: its whole name while the room allows, else the longest names give way first.
@@ -247,23 +251,26 @@ export default class Tabs extends View {
           cx.notify();
         })
         .when(!c.active, el => el.hover(s => s.bg(t.hover)))
-        // Dragged as a space is: the source fades, a line shows where it lands.
-        .when(this.pressed === i && this.over !== i, el => el.opacity(0.5))
+        // Dragged as a space is: the source fades, a line shows where it lands. `over` is null until the drag starts.
+        .when(this.pressed === i && this.over !== null && this.over !== i, el => el.opacity(0.5))
         .when(this.pressed !== null && this.over === i && this.pressed !== i, el => el.child(
           div().absolute().top(0).bottom(0).w(2).bg(t.accent)
             .when(this.pressed < i, line => line.right(0))
             .when(this.pressed > i, line => line.left(0)),
         ))
-        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = this.over = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
-        .on_mouse_move((_e, cx) => {
+        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = i; this.over = null; this.pressAt = e.position; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+        .on_mouse_move((e, cx) => {
           if (this.pressed === null || this.over === i) return;
+          // As T3's tabs: a drag starts 6px from the press, so a click's wobble only selects.
+          if (this.over === null && Math.hypot(e.position.x - this.pressAt.x, e.position.y - this.pressAt.y) < 6 * settings().zoom) return;
           this.over = i;
           cx.notify();
         })
         .on_mouse_up("left", (_e, cx) => {
-          const from = this.pressed; this.pressed = this.over = null;
-          if (from !== null && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
-          else run("tab.select", { id: c.id });
+          const from = this.pressed, dragged = this.over !== null; this.pressed = this.over = null;
+          if (dragged && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
+          // Short of a drag it was a click on the pressed tab, wherever the release lands.
+          else run("tab.select", { id: shown[from ?? i].id });
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
