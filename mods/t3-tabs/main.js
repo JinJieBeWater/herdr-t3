@@ -176,7 +176,7 @@ export default class Tabs extends View {
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stop).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-      .child(svg("mods/workspace-chrome/sidebar.svg").size(14).flex_none())
+      .child(svg("mods/t3-tabs/panel-left.svg").size(14).flex_none())
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), { action: "layout.toggle:sidebar", below: true });
   }
 
@@ -227,7 +227,7 @@ export default class Tabs extends View {
       const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
       // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
       const over = this.overTab === c.id;
-      const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
+      const glyph = !program?.icon ? svg("mods/t3-tabs/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
       // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
@@ -275,7 +275,7 @@ export default class Tabs extends View {
         .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
-          .when(over, el => el.child(svg("mods/pane/close.svg").size(12).text_color(t.foreground)))
+          .when(over, el => el.child(svg("mods/t3-tabs/x.svg").size(12).text_color(t.foreground)))
           .when(!over && status != null, el => el.child(mark(t, status))))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
       return tab;
@@ -285,10 +285,10 @@ export default class Tabs extends View {
     // however wide they are, and the window's own buttons stay last.
     if (props()?.part === "end") return h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
-        .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
+        .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), "Close window", () => run("window.close")))));
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close")))));
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))

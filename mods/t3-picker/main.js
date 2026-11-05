@@ -12,7 +12,7 @@ import { projectMark } from "./project.js";
 const ROW = 46;
 const SHOWN = 6; // rows before the list scrolls; a virtual list has no height of its own, and the popup hugs its content
 
-const icon = (t, p) => !p?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).flex_none().text_color(t.muted)
+const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/terminal.svg").size(12).flex_none().text_color(t.muted)
   : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
 
 // Settled or snoozed (until it wakes) in the inbox isn't news, so its done dot goes, as in the tabs and pane headers.
@@ -82,7 +82,7 @@ export default class Picker extends View {
           .child(div().flex_none().child("·"))
           // As T3 marks a remote thread: a server icon, then the name.
           .when(Boolean(s.machine), (el) => el
-            .child(svg("mods/workspace-chrome/server.svg").size(12).flex_none().text_color(t.muted))
+            .child(svg("mods/t3-inbox/server.svg").size(12).flex_none().text_color(t.muted))
             .child(div().flex_none().text_color(t.muted).child(`${s.machine} ·`)))
           .child(div().min_w(0).truncate().child(s.name + (item.team ? ` · +${item.team}` : "")))))
       .when(Boolean(mark), (el) => el.child(mark))
@@ -112,7 +112,7 @@ export default class Picker extends View {
         cx.notify();
       })
       .child(h_flex().h(36).mt(6).flex_none().px(16).gap(8).items_center()
-        .child(svg("mods/workspace-chrome/search.svg").size(16).flex_none().text_color(t.dim))
+        .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
       // No heading: there is one kind of row, and the room goes to the list.
       .child(div().flex_none().mt(8).mb(8).px(8)
@@ -131,7 +131,7 @@ export default class Picker extends View {
         .child(h_flex().id("picker-new").gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
           .role("button").accessibility_label("New tab").hover((s) => s.bg(t.selected))
           .on_click(() => { closeOverlay(props().overlay); run("mod.open", { name: "t3-new-menu" }); })
-          .child(svg("mods/workspace-chrome/square-pen.svg").size(14).text_color(t.muted))
+          .child(svg("mods/t3-picker/square-pen.svg").size(14).text_color(t.muted))
           .child("New tab")));
   }
 }

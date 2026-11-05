@@ -78,7 +78,7 @@ export default class WorkspaceChrome extends View {
         .child(glyph), { action: key });
       return h_flex().size_full().bg(t.chrome).px(8).gap(2).items_center()
         .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
-        .child(button("add-machine", svg("mods/workspace-chrome/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
+        .child(button("add-machine", svg("mods/t3-inbox/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this.hot, t, "app-update", `Update ${ready} downloaded. Click to restart`, div().id("app-update").h(24).px(10).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).font_medium().text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow("app-update"))
@@ -102,6 +102,6 @@ export default class WorkspaceChrome extends View {
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/workspace-chrome/sidebar.svg").size(14)), { action: "layout.toggle:sidebar", below: true }));
+        .child(svg("mods/t3-chrome/panel-left.svg").size(14)), { action: "layout.toggle:sidebar", below: true }));
   }
 }

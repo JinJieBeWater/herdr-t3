@@ -149,9 +149,9 @@ export default class Agents extends View {
         .when(i === this.at, el => el.bg(t.selected))
         .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
         .on_click(() => choose(s))
-        .child(svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted))
+        .child(svg(`mods/t3-agents/${s.icon}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().child(s.label))
-        .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
+        .when(s.id === on, (el) => el.child(svg("mods/t3-agents/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
   peek(addr) {
@@ -284,7 +284,7 @@ export default class Agents extends View {
           cx.stop_propagation();
           this.toggleFold(a.address, cx);
         })
-        .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(lit(id)))
+        .child(svg(`mods/t3-agents/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(lit(id)))
         .when(!open, (el) => el.child(String(subs.length))));
     };
 
@@ -318,7 +318,7 @@ export default class Agents extends View {
           this.setPins(isPinned ? this.pins.filter((p) => p !== a.address) : [...this.pins, a.address]);
           cx.notify();
         })
-        .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(`pin-${a.address}`)));
+        .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(`pin-${a.address}`)));
       // A row leads with what the agent is on; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
       const full = byPriority || isPinned;
@@ -403,7 +403,7 @@ export default class Agents extends View {
         .when(!open && !byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top })))
         .child(div().flex_none().child(String(g.members.length)))
         .child(div().w(26).flex_none().flex().items_center().justify_center().text_color(this.overGroup === g.id ? t.foreground : t.dim)
-          .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none()));
+          .child(svg(`mods/t3-agents/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none()));
     };
     const rows = groups.flatMap((g, i) => [header(g, i), ...(this.isFolded(g.id, g.id === "sec-1") ? [] : g.members.flatMap(withKids))]);
 
@@ -438,7 +438,7 @@ export default class Agents extends View {
                   openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });
                   cx.notify();
                 })
-                .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14))),
+                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(14))),
             ),
       )
       .when(list.length === 0, (el) =>

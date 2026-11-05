@@ -4,6 +4,11 @@
 
 ## 2026-11-05
 
+### 图标统一为 Lucide
+
+- 布局和 Review 扩展的图标都换成 Lucide，和 T3 Code、shadcn/ui 一样：2px 描边，同一套网格。改动的有搜索、机器图标、侧栏开关、窗格标题栏的分屏/缩放/关闭，以及 Review 的 Phosphor 图标（含分类图标）；程序图标、Review 的文件图标、Windows 窗口按钮和加载转圈不变。
+- 更新时：覆盖已安装的 `mods/t3-*`，用 Review 的话再覆盖 `extras/mods/review` 和 `extras/mods/pulls-review`；遗留的旧图标（`review/ph/`、`t3-pane/split-*.svg`）可以删掉。
+
 ### 对齐
 
 - 侧栏行和卡片里的按钮悬停只变亮、不加底色，和 T3 一致：Inbox 的时钟、Settle、撤销和 Wake，以及 Lists 里机器行的 `+`、worktree 和子 agent 的折叠、图钉；Snooze 菜单打开时时钟同样只是变亮。栏、标题行和标签的 `×` 保留底色，也和 T3 一致。

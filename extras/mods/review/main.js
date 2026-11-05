@@ -19,14 +19,14 @@ const PREFS = `${PANE}.prefs`;
 const pref = (key) => shared(PREFS)?.[key];
 const setPref = (key, value) => setShared(PREFS, { ...shared(PREFS), [key]: value });
 const MONO = "JetBrains Mono";
-// The app's category icons (Phosphor duotone, in ph/) and hues (Tailwind's 300 on dark, 800 on light), by category.
+// The app's category icons (Lucide here, for one icon set across the layout; the app's are Phosphor duotone, in its own shapes) and hues (Tailwind's 300 on dark, 800 on light), by category.
 const CATEGORY = {
-  ui: ["compass-tool", "#f9a8d4", "#9d174d"], api: ["plugs-connected", "#93c5fd", "#1e40af"], core: ["code", "#c4b5fd", "#5b21b6"],
+  ui: ["drafting-compass", "#f9a8d4", "#9d174d"], api: ["plug-zap", "#93c5fd", "#1e40af"], core: ["code", "#c4b5fd", "#5b21b6"],
   data: ["database", "#fcd34d", "#92400e"], cli: ["terminal", "#bef264", "#3f6212"], security: ["shield-check", "#fca5a5", "#991b1b"],
-  tests: ["flask", "#86efac", "#166534"], docs: ["book-open", "#7dd3fc", "#075985"], examples: ["play-circle", "#67e8f9", "#155e75"],
+  tests: ["flask-conical", "#86efac", "#166534"], docs: ["book-open", "#7dd3fc", "#075985"], examples: ["circle-play", "#67e8f9", "#155e75"],
   deps: ["package", "#fdba74", "#9a3412"], build: ["hammer", "#fde047", "#854d0e"], scripts: ["wrench", "#6ee7b7", "#065f46"],
-  config: ["sliders-horizontal", "#5eead4", "#115e59"], i18n: ["translate", "#a5b4fc", "#3730a3"], assets: ["image", "#f0abfc", "#86198f"],
-  other: ["dots-three-circle", "#d4d4d4", "#262626"],
+  config: ["sliders-horizontal", "#5eead4", "#115e59"], i18n: ["languages", "#a5b4fc", "#3730a3"], assets: ["image", "#f0abfc", "#86198f"],
+  other: ["circle-ellipsis", "#d4d4d4", "#262626"],
 };
 // Herdr scales what a script sets by its zoom, but reports sizes and positions scaled already: they come back divided by it,
 // and a path, painted unscaled, goes out multiplied by it.
@@ -80,8 +80,8 @@ function progressText(progress) {
   if (progress?.kind === "thinking") return `Thinking… (step ${progress.step})`;
   return "Starting…";
 }
-// The Phosphor and catppuccin icons (ph/, cat/), as the app draws them.
-const PH = `mods/${PANE}/ph`, CAT = `mods/${PANE}/cat`;
+// Lucide's icons (lucide/), the layout's one set, and the catppuccin file icons (cat/), as the app draws them.
+const LU = `mods/${PANE}/lucide`, CAT = `mods/${PANE}/cat`;
 
 // In the browser, as mods/pulls-review opens one.
 function openUrl(url) {
@@ -412,7 +412,7 @@ export default class ReviewPane extends View {
     const link = (id, text, url) => div().id(id).text_color(t.muted).hover(s => s.text_color(t.foreground).underline()).role("link")
       .on_click((_e, cx) => { cx.stop_propagation(); openUrl(url); }).child(text);
     const note = (text, color = t.dim) => div().px(8).py(4).flex_none().text_color(color).child(text);
-    const mark = (on) => div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/workspace-chrome/check.svg").size(12)));
+    const mark = (on) => div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/check.svg").size(12)));
     const choice = (id, text, detail, on, pick, lit = false) => h_flex().id(id).h(28).px(8).gap(8).flex_none().items_center().rounded(6)
       .when(lit, el => el.bg(HOVER)).hover(s => s.bg(HOVER)).role("radio_button").accessibility_label(text).on_click((_e, cx) => pick(cx))
       .child(mark(on))
@@ -423,7 +423,7 @@ export default class ReviewPane extends View {
       .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => { this.settingsPage = id; cx.notify(); })
       .child(div().flex_none().child(text))
       .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
-      .child(svg("mods/workspace-chrome/chevron-right.svg").size(11).flex_none().text_color(t.dim));
+      .child(svg("mods/review/chevron-right.svg").size(11).flex_none().text_color(t.dim));
     // A page's list scrolls where the panel runs short; everything above it stays put.
     const list = (items) => v_flex().id(`${page}-list`).min_h(0).flex_shrink_1().gap(2).overflow_y_scroll().children(items);
     const done = (cx) => { this.settingsPage = null; this.modelInput.set_value(""); this.modelIndex = -1; cx.notify(); };
@@ -472,7 +472,7 @@ export default class ReviewPane extends View {
     ] : [
       h_flex().id("settings-back").h(28).px(8).gap(6).flex_none().items_center().rounded(6).hover(s => s.bg(HOVER))
         .role("button").accessibility_label("Back").on_click((_e, cx) => done(cx))
-        .child(svg("mods/workspace-chrome/chevron-left.svg").size(11).flex_none().text_color(t.dim))
+        .child(svg("mods/review/chevron-left.svg").size(11).flex_none().text_color(t.dim))
         .child(div().font_medium().child({ language: "Language", agent: "Agent", model: "Model" }[page])),
       rule(),
       page === "language" && list(LOCALES.map(([code, name]) => choice(`locale-${code}`, name, null, code === locale, (cx) => {
@@ -484,7 +484,7 @@ export default class ReviewPane extends View {
       }))),
       // The search sits above the catalog, which runs to hundreds for some agents.
       page === "model" && h_flex().h(28).px(8).gap(8).flex_none().items_center()
-        .child(svg("mods/workspace-chrome/search.svg").size(12).w(14).flex_none().text_color(t.dim))
+        .child(svg(`${LU}/search.svg`).size(12).w(14).flex_none().text_color(t.dim))
         .child(div().flex_1().min_w(0).h(24).px(6).flex().items_center().rounded(6).border_1().border_color(t.border).cursor_text()
           .child(Input.new(this.modelInput).flex_1().h_full().text_size(12).text_color(t.foreground))),
       page === "model" && list([
@@ -534,9 +534,9 @@ export default class ReviewPane extends View {
   // (or its group's header) is brought back there, as folding the bodies above it would carry the view elsewhere.
   foldMenu(t) {
     const actions = [
-      ["expand-all", "Expand all files", "arrows-out-line-vertical", false, () => true],
-      ["collapse-all", "Collapse all files", "arrows-in-line-vertical", true, () => true],
-      ["collapse-reviewed", "Collapse reviewed files", "check-square", true, f => f.reviewed && !f.changed],
+      ["expand-all", "Expand all files", "unfold-vertical", false, () => true],
+      ["collapse-all", "Collapse all files", "fold-vertical", true, () => true],
+      ["collapse-reviewed", "Collapse reviewed files", "square-check", true, f => f.reviewed && !f.changed],
       ["collapse-tests", "Collapse test files", "flask", true, f => f.test],
     ];
     const run = (collapse, applies, cx) => {
@@ -550,7 +550,7 @@ export default class ReviewPane extends View {
     return this.popover(t, "review-fold-menu").min_w(192).p(4).gap(2)
       .children(actions.map(([id, label, icon, collapse, applies]) => h_flex().id(`fold-${id}`).h(28).px(8).gap(8).items_center().rounded(6)
         .hover(s => s.bg(HOVER)).role("button").accessibility_label(label).on_click((_e, cx) => run(collapse, applies, cx))
-        .child(svg(`${PH}/${icon}-duotone.svg`).size(14).flex_none().text_color(t.dim))
+        .child(svg(`${LU}/${icon}.svg`).size(14).flex_none().text_color(t.dim))
         .child(label)));
   }
 
@@ -567,11 +567,11 @@ export default class ReviewPane extends View {
     return this.popover(t, "review-status-panel").w(320).p(12).gap(10)
       .child(div().font_medium().text_size(13).child("AI analysis"))
       .when(running, el => el.child(h_flex().gap(6).items_center().opacity(0.4)
-        .child(svg(`${PH}/spinner-duotone.svg`).size(12).flex_none().spin(900))
+        .child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().spin(900))
         .child(div().min_w(0).child(progressText(this.review.analysis.progress)))))
       .when(Boolean(error), el => el.child(div().text_color(t.ansi1).child(error)))
       .when(!running, el => el.child(h_flex().justify_end()
-        .child(this.button(t, "rerun", "Re-run", (cx) => { this.closePopup(cx); this.analyze(cx, true); }, { primary: true, icon: `${PH}/arrow-clockwise-duotone.svg` }))));
+        .child(this.button(t, "rerun", "Re-run", (cx) => { this.closePopup(cx); this.analyze(cx, true); }, { primary: true, icon: `${LU}/rotate-cw.svg` }))));
   }
 
   // One file, or a folder's files at once. As the app's, marking folds the file and unmarking opens it again.
@@ -637,8 +637,8 @@ export default class ReviewPane extends View {
     const fill = state === "changed" ? "#f97316" : state === "none" ? null : t.accent;
     return div().size(16).flex_none().rounded(4).border_1().border_color(fill ?? t.border).bg(fill ?? t.raised)
       .flex().items_center().justify_center().text_color("#ffffff")
-      .when(state === "all", el => el.child(svg("mods/workspace-chrome/check.svg").size(10)))
-      .when(state === "some" || state === "changed", el => el.child(svg("mods/workspace-chrome/minus.svg").size(10)));
+      .when(state === "all", el => el.child(svg("mods/review/check.svg").size(10)))
+      .when(state === "some" || state === "changed", el => el.child(svg("mods/review/minus.svg").size(10)));
   }
 
   // Rebuilt only when something it shows changed: render runs on every live change in Herdr.
@@ -779,7 +779,7 @@ export default class ReviewPane extends View {
       .child((!this.review
         // As the app's FeedbackLoading.
         ? div().flex_1().py(48).when(!this.error, el => el.child(h_flex().gap(8).items_center().justify_center().text_color(t.dim).role("status")
-          .child(svg(`${PH}/spinner-duotone.svg`).size(14).flex_none().spin(900)).child("Loading the review…")))
+          .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().spin(900)).child("Loading the review…")))
         // The divider drags; Herdr keeps the width under the group's id (renamed when the default changes, to take it).
         // As the app's group sidebar: w-64, at least 192, at most 40% of the page.
         : sidebar ? h_resizable("review-sidebar-width").flex_1().min_h(0)
@@ -870,15 +870,15 @@ export default class ReviewPane extends View {
       const compact = this.width < COMPACT;
       // As the app's DiffAnalyzeButton, the analysis's state is the button's: running or failed, it opens the status; without
       // an agent, the settings. An analysis of an older version (the app has none) says so after its Re-analyze.
-      const analyze = !a.agent ? { text: "Set up agent", lead: `${PH}/key-duotone.svg`, primary: true, run: (cx) => this.togglePopup("settings", cx) }
-        : this.analyzing() ? { text: "Analyzing…", lead: `${PH}/spinner-duotone.svg`, spin: true, run: (cx) => this.togglePopup("status", cx) }
-        : error ? { text: "Analysis failed", lead: `${PH}/warning-circle-duotone.svg`, color: "ansi1", run: (cx) => this.togglePopup("status", cx) }
-        : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${PH}/sparkle-duotone.svg`, primary: a.state === "none", note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => this.analyze(cx, a.state === "current") };
+      const analyze = !a.agent ? { text: "Set up agent", lead: `${LU}/key-round.svg`, primary: true, run: (cx) => this.togglePopup("settings", cx) }
+        : this.analyzing() ? { text: "Analyzing…", lead: "mods/workspace-chrome/spinner.svg", spin: true, run: (cx) => this.togglePopup("status", cx) }
+        : error ? { text: "Analysis failed", lead: `${LU}/circle-alert.svg`, color: "ansi1", run: (cx) => this.togglePopup("status", cx) }
+        : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${LU}/sparkles.svg`, primary: a.state === "none", note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => this.analyze(cx, a.state === "current") };
       buttons.push({ id: "analyze", ...analyze, ...compact && { text: null, icon: analyze.lead, label: analyze.text } });
-      buttons.push({ id: "fold-menu", icon: `${PH}/caret-up-down-duotone.svg`, label: "Expand or collapse files", active: this.popup === "fold", run: (cx) => this.togglePopup("fold", cx) });
+      buttons.push({ id: "fold-menu", icon: `${LU}/chevrons-up-down.svg`, label: "Expand or collapse files", active: this.popup === "fold", run: (cx) => this.togglePopup("fold", cx) });
     }
     // The view (unified or split, files as a tree or a list) is set in the settings, with the analysis.
-    buttons.push({ id: "settings", icon: "mods/workspace-chrome/settings.svg", label: "Settings", active: this.popup === "settings", run: (cx) => this.togglePopup("settings", cx) });
+    buttons.push({ id: "settings", icon: "mods/review/settings.svg", label: "Settings", active: this.popup === "settings", run: (cx) => this.togglePopup("settings", cx) });
     // The diff shown is named in the pane's own header (render's titles), so this one starts with the counts.
     return { parts, buttons };
   }
@@ -932,7 +932,7 @@ export default class ReviewPane extends View {
           .role("button").accessibility_label(open(g, depth) ? "Hide subgroups" : "Show subgroups")
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); const k = id(g, depth); this.folded.has(k) ? this.folded.delete(k) : this.folded.add(k); cx.notify(); })
-          .child(svg(`${PH}/caret-${open(g, depth) ? "down" : "right"}.svg`).size(12))));
+          .child(svg(`${LU}/chevron-${open(g, depth) ? "down" : "right"}.svg`).size(12))));
     };
     for (const g of this.review.groups) {
       rows.push(groupRow(g, 0, g));
@@ -950,11 +950,11 @@ export default class ReviewPane extends View {
   // A group's category icon in its hue (Tailwind's 300 on dark, 800 on light); unless `lit`, grey, as the app's `saturate-0`.
   categoryIcon(t, category, size, lit) {
     const [icon, dark, light] = CATEGORY[category] ?? CATEGORY.other, hue = isLight(t.background) ? light : dark;
-    return svg(`${PH}/${icon}-duotone.svg`).size(size).flex_none().text_color(lit ? hue : grey(hue));
+    return svg(`${LU}/${icon}.svg`).size(size).flex_none().text_color(lit ? hue : grey(hue));
   }
 
   criticalMark(t, size = 14) {
-    return svg(`${PH}/circle-wavy-warning-duotone.svg`).size(size).flex_none().text_color(isLight(t.background) ? "#d97706" : "#fbbf24");
+    return svg(`${LU}/badge-alert.svg`).size(size).flex_none().text_color(isLight(t.background) ? "#d97706" : "#fbbf24");
   }
 
   // The group or subgroup at the list's top, as the app's aside sticks for the group scrolled to; before the list draws, its first.
@@ -1050,7 +1050,7 @@ export default class ReviewPane extends View {
         .on_click((_e, cx) => this.select(row.path, cx))
         .child(checkbox(`tree-check-${row.path}`, state, f.reviewed ? `${row.path}: reviewed` : `${row.path}: not reviewed`, (cx) => this.setReviewed(f, !f.reviewed, cx)))
         .child(path(row, false))
-        .when(f.test, el => el.child(svg(`${PH}/flask-duotone.svg`).size(14).flex_none().text_color(light ? "#15803d" : "#4ade80")))
+        .when(f.test, el => el.child(svg(`${LU}/flask-conical.svg`).size(14).flex_none().text_color(light ? "#15803d" : "#4ade80")))
         .when(critical, el => el.child(this.criticalMark(t)))
         .child(div().flex_none().text_size(11).child(this.diffStats(t, f.additions, f.deletions)))
         .child(this.fileStatus(f.status));
@@ -1229,7 +1229,7 @@ export default class ReviewPane extends View {
         .when(subgroups > 0 && Boolean(toggle), el => el.child(this.caretButton(`${id}-caret`)
           .role("button").accessibility_label(expanded ? "Hide subgroups" : "Show subgroups")
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); toggle(cx); })
-          .child(svg(`${PH}/caret-${expanded ? "up" : "down"}.svg`).size(12)))))
+          .child(svg(`${LU}/chevron-${expanded ? "up" : "down"}.svg`).size(12)))))
       .child(div().h(2).w_full().bg(active ? hue : t.border));
   }
 
@@ -1274,7 +1274,7 @@ export default class ReviewPane extends View {
       }))))
       .when(Boolean(open), el => el
         .child(h_flex().gap(4).items_center().text_size(13)
-          .child(svg(`${PH}/folder-notch-open-duotone.svg`).size(14).flex_none().opacity(FADE))
+          .child(svg(`${LU}/folder-open.svg`).size(14).flex_none().opacity(FADE))
           .child(div().opacity(FADE).child("subgroups of"))
           .child(div().child(open.label))
           .child(div().flex_1().h(1).bg(t.border)))
@@ -1307,7 +1307,7 @@ export default class ReviewPane extends View {
           .bg(this.current === f.path ? t.selected : t.chrome)
           .child(this.checkMark(t, f.changed ? "changed" : f.reviewed ? "all" : "none"))
           .child(div().min_w(0).flex_shrink_1().truncate().when(f.reviewed, el => el.text_color(t.dim)).child(f.previousPath ? `${f.previousPath} → ${f.path}` : f.path))
-          .when(f.test, el => el.child(svg(`${PH}/flask-duotone.svg`).size(14).flex_none().text_color(isLight(t.background) ? "#15803d" : "#4ade80")))
+          .when(f.test, el => el.child(svg(`${LU}/flask-conical.svg`).size(14).flex_none().text_color(isLight(t.background) ? "#15803d" : "#4ade80")))
           .when(f.noisy, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("generated")))
           .when(f.changed, el => el.child(div().flex_none().text_size(11).text_color(t.ansi3).child("changed since reviewed")))
           .child(div().flex_1())
@@ -1315,8 +1315,8 @@ export default class ReviewPane extends View {
           .when(f.isBinary, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("binary")))
           .child(this.fileStatus(f.status))
           .child(h_flex().flex_none().gap(4)
-            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/workspace-chrome/file-text.svg").size(14).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
-            .child(slot().child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).text_color(t.dim))));
+            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/review/file-text.svg").size(14).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
+            .child(slot().child(svg(`mods/review/chevron-${open ? "down" : "right"}.svg`).size(12).text_color(t.dim))));
       }
       case "group":
         return h_flex().w_full().h(item.size).px(12).gap(8).items_center().font_semibold().text_color(t.ansi4)
@@ -1332,7 +1332,7 @@ export default class ReviewPane extends View {
         const body = h_flex().gap(8).items_start().overflow_hidden()
           .child(critical
             ? div().w(12).flex_none().font_bold().text_color(t.blocked).child("!")
-            : svg(`mods/${PANE}/sparkles.svg`).size(12).mt(3).flex_none().text_color(t.dim))
+            : svg(`${LU}/sparkles.svg`).size(12).mt(3).flex_none().text_color(t.dim))
           // Markdown in a row wraps at the row's width, past the mark and padding: a column of the measured width holds it.
           .child(v_flex().w(noteWidth(this.view, item.anchored)).flex_none()
             .child(TextView.markdown(`note-${item.key}`, note.text).selectable(true).scrollable(false).text_size(12).text_color(t.foreground)));
@@ -1345,7 +1345,7 @@ export default class ReviewPane extends View {
       }
       case "empty":
         return div().w_full().h(item.size).pl(codeInset(this.splitShown())).pr(12).gap(8).flex().items_center().text_color(t.dim)
-          .when(Boolean(item.loading), el => el.child(svg(`${PH}/spinner-duotone.svg`).size(14).flex_none().spin(900))).child(item.text);
+          .when(Boolean(item.loading), el => el.child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().spin(900))).child(item.text);
       default:
         return v_flex().w_full().h(item.size).children(item.lines.map(line => this.line(t, item.kind, line)));
     }

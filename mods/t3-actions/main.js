@@ -67,7 +67,7 @@ function control(view, t, stop) {
         cx.notify();
       })
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
-      .child(svg("mods/workspace-chrome/chevron-down.svg").size(14)), { below: true }));
+      .child(svg("mods/t3-actions/chevron-down.svg").size(14)), { below: true }));
 }
 
 // The menu takes the keyboard, as the shipped menu does.
@@ -101,9 +101,9 @@ function menu(view) {
         .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, div().id(`edit-${a.id}`).size(20).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/workspace-chrome/settings.svg").size(14)), { below: true })))))
+          .child(svg("mods/t3-actions/settings.svg").size(14)), { below: true })))))
     .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))
-    .child(row("action-new", list.length, svg("mods/workspace-chrome/plus.svg").size(14).text_color(t.muted), "Add action"));
+    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(14).text_color(t.muted), "Add action"));
 }
 
 // The editor dialog: this copy's own inputs, made once in init.

@@ -163,11 +163,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   for (const id of ["status-t0", "status-vps/t2", "sub-status-child", "sub-status-grandchild"]) assert.equal(find(at, id).style.size, 20);
   assert.equal(find(agent, "pin-t0"), null, "hidden pin has no click target");
   assert.deepEqual(find(at, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "a parent shows its fold arrow and time before the status, as the shipped list");
-  assert.equal(find(at, "fold-t0").items[0].source, "mods/workspace-chrome/chevron-down.svg");
+  assert.equal(find(at, "fold-t0").items[0].source, "mods/t3-agents/chevron-down.svg");
   assert.deepEqual(strings(find(at, "when-t0")), ["<1m"], "time in its state, as the shipped list");
   fire(agent, "on_hover", true, cx);
   const hoveredTree = ag.render(cx);
-  assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/workspace-chrome/chevron-down.svg", "hover leaves the icon alone");
+  assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/chevron-down.svg", "hover leaves the icon alone");
   assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 18);
   assert.equal(find(hoveredTree, "pin-t0").style.size, 20, "pin is as wide as the time's slot");
   assert.equal(find(hoveredTree, "pin-t0").style.border, undefined, "pin is borderless like fold");
@@ -190,7 +190,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(at, "fold-t0").style.min_w, 20);
   assert.equal(find(at, "fold-t0").style.h, 20);
   assert.ok(strings(find(at, "fold-t0")).includes("2"), "folded badge counts descendants");
-  assert.equal(find(at, "fold-t0").items[0].source, "mods/workspace-chrome/chevron-right.svg", "folded, the arrow points right");
+  assert.equal(find(at, "fold-t0").items[0].source, "mods/t3-agents/chevron-right.svg", "folded, the arrow points right");
   assert.equal(find(at, "fold-t0").items[1], "2", "and the count follows");
   assert.equal(find(at, "fold-t0").style.text_color, f.theme().dim, "count is dim");
   // Inside a hovered row a button's own fill doesn't show: its arrow and count brighten together instead.
@@ -243,7 +243,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(f.state["agents.pins"].includes("t0"));
   assert.equal(find(ag.render(cx), "pin-t0"), null, "pinning does not leave a stale hover after reordering");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
-  assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/workspace-chrome/pin-off.svg", "pinned rows offer unpin");
+  assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/t3-agents/pin-off.svg", "pinned rows offer unpin");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
   assert.equal(find(ag.render(cx), "pin-t0"), null, "pinned rows also hide their pin outside hover");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
@@ -309,7 +309,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // A group header is drawn as Inbox's shelves and Spaces' machines: dim 12px, the count and a chevron at the end, in the status column.
   const group = find(at, "sp-s0"), chevron = group.items.at(-1);
   assert.deepEqual([group.style.text_color, group.style.text_size, group.style.pr + chevron.style.w / 2], [f.theme().dim, 12, find(at, "ag-t0").style.px + 14 / 2]);
-  assert.equal(chevron.items[0].source, "mods/workspace-chrome/chevron-down.svg", "open, it points down, as T3's");
+  assert.equal(chevron.items[0].source, "mods/t3-agents/chevron-down.svg", "open, it points down, as T3's");
   fire(group, "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "sp-s0").items.at(-1).style.text_color, f.theme().foreground, "it lights with its row");
   assert.equal(find(f.load("t3-spaces").render(cx), "spaces-heading").items[0].style.text_color, f.theme().muted);
@@ -320,7 +320,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const f = fixture(256), root = f.load("t3-inbox").render(cx);
   const card = find(root, "card-vps/t2"), mark = find(card, "machine-vps/t2");
   assert.ok(strings(find(root, "tip-machine-vps/t2")).includes("vps") === false && find(root, "tip-machine-vps/t2"), "its card waits for the hover");
-  assert.ok(walk(mark).some(n => n.source === "mods/workspace-chrome/server.svg"));
+  assert.ok(walk(mark).some(n => n.source === "mods/t3-inbox/server.svg"));
   assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
 }
@@ -497,7 +497,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(find(f.load("t3-agents").render(cx), "pinned"), "the agents list shows the same pin");
   assert.deepEqual(f.calls.pop(), ["pane.focus", { pane: "p9" }], "letting go hands the keyboard back to the pane that had it");
   assert.equal(h("pinned"), 0, "the labels close again");
-  assert.ok(walk(find(root(), "card-vps/t2")).some(n => n.source === "mods/workspace-chrome/pin.svg"), "a pin shows its glyph");
+  assert.ok(walk(find(root(), "card-vps/t2")).some(n => n.source === "mods/t3-inbox/pin.svg"), "a pin shows its glyph");
 
   lift("card-t0"); over("card-vps/t2", 10);
   assert.equal(h("gap-vps/t2"), 82, "the upper half of a pin opens a gap above it");
@@ -649,7 +649,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
     const arrow = find(sp.render(cx), "space-fold-s0");
     assert.equal(8 + 8 + arrow.style.mr + arrow.style.min_w / 2, 23, "its center is the column of the heading's last button");
-    assert.deepEqual([arrow.items[0].source, arrow.items.length], ["mods/workspace-chrome/chevron-down.svg", 1], "a checkout shows its fold arrow at the end, as an agent parent");
+    assert.deepEqual([arrow.items[0].source, arrow.items.length], ["mods/t3-spaces/chevron-down.svg", 1], "a checkout shows its fold arrow at the end, as an agent parent");
     assert.equal(arrow.style.text_color, f.theme().dim, "the arrow is dim");
     assert.equal(arrow.hoverStyle.bg, undefined, "no ground, as T3's row controls");
     fire(arrow, "on_hover", true, cx);
@@ -664,7 +664,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.calls.length, before, "folding runs no command");
     assert.equal(f.stores.get("t3-spaces").get("repos.folded"), JSON.stringify(["/r"]), "folding persists");
     const count = find(sp.render(cx), "space-fold-s0");
-    assert.equal(count.items[0].source, "mods/workspace-chrome/chevron-right.svg");
+    assert.equal(count.items[0].source, "mods/t3-spaces/chevron-right.svg");
     assert.deepEqual([count.items[1], count.style.text_color], ["1", f.theme().dim], "folded, a dim count says how many");
     fire(count, "on_click", {}, cx);
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
@@ -1143,10 +1143,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
-    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/workspace-chrome/terminal.svg"), "the tab's icon, a terminal's when it has no program");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "the tab's icon, a terminal's when it has no program");
     fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
-    assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
-    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/workspace-chrome/terminal.svg"), "and the icon stays");
+    assert.equal(close().items[0].source, "mods/t3-tabs/x.svg", "hovered, a ×");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "and the icon stays");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
     // Its whole name and nothing else, with an Inbox row's timing: after 150ms for the first and at once for the next.
     const tabCard = (id) => find(tabs.render(cx), `details-${id}`)?.style.content;

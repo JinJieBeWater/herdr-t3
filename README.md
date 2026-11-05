@@ -112,7 +112,7 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 
 ## Credits and license
 
-`t3-chrome`, `t3-spaces`, `t3-agents`, `t3-tabs`, `t3-pane`, `t3-new-menu`, `t3-picker` and the layout start from Herdr App's shipped `workspace-chrome`, `spaces`, `agents`, `tabs`, `pane`, `new-menu`, `picker` and `main`. Settle follows T3 Code's design. Apache-2.0, as Herdr App.
+`t3-chrome`, `t3-spaces`, `t3-agents`, `t3-tabs`, `t3-pane`, `t3-new-menu`, `t3-picker` and the layout start from Herdr App's shipped `workspace-chrome`, `spaces`, `agents`, `tabs`, `pane`, `new-menu`, `picker` and `main`. Settle follows T3 Code's design. Icons are [Lucide](https://lucide.dev)'s (ISC License, Copyright (c) Lucide Contributors). Apache-2.0, as Herdr App.
 
 ## More
 

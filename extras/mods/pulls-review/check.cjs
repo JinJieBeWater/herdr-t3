@@ -286,7 +286,7 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(plain(within.props.within), { tab: "b", root: "/repo", base: "/branch/feat", sha: "c2" });
   assert.equal(within.height, 10 + 36 + 36 + 4 * 32, "the popup fits All changes too");
   const inMenu = load(within.props).mod;
-  const marked = (id) => walk(find(inMenu.render(), id)).some(n => n.source === "mods/workspace-chrome/check.svg");
+  const marked = (id) => walk(find(inMenu.render(), id)).some(n => n.source === "mods/pulls-review/check.svg");
   assert.deepEqual([marked("review-commit-c2"), marked("review-commit-c1"), marked("review-all")], [true, false, false], "the commit shown is checked");
   // Commits first, All changes on top inside a review, no branch among them.
   const rowsOf = (m) => ["review-all", "review-branch-Other", "review-commit-c3", "review-commit-c2", "review-commit-c1"].filter(id => find(m.render(), id));

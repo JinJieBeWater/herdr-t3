@@ -128,11 +128,13 @@ const mainScope = load("main.js", env), pane = new mainScope.Mod();
 const mainSource = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");
 const icons = [
   ...[...mainSource.matchAll(/mods\/\$\{PANE\}\/([a-z/-]+)\.svg/g)].map(m => m[1]),
-  ...[...mainSource.matchAll(/\$\{PH\}\/([a-z-]+)\.svg/g)].map(m => `ph/${m[1]}`),
-  ...Object.values(vm.runInContext("CATEGORY", mainScope)).map(([icon]) => `ph/${icon}-duotone`),
+  ...[...mainSource.matchAll(/\$\{LU\}\/([a-z0-9-]+)\.svg/g)].map(m => `lucide/${m[1]}`),
+  ...Object.values(vm.runInContext("CATEGORY", mainScope)).map(([icon]) => `lucide/${icon}`),
   ...vm.runInContext("FILE_ICONS", mainScope).map(([, name]) => `cat/${name}`),
   ...Object.values(vm.runInContext("FOLDER_ICONS", mainScope)).map(name => `cat/${name}`),
-  "cat/file", "cat/folder", "ph/caret-up", "ph/caret-down", "ph/caret-right",
+  "cat/file", "cat/folder", "lucide/chevron-up", "lucide/chevron-down", "lucide/chevron-right",
+  // The fold menu's, named in its rows.
+  "lucide/unfold-vertical", "lucide/fold-vertical", "lucide/square-check",
 ];
 for (const icon of icons) assert.ok(fs.existsSync(path.join(__dirname, `${icon}.svg`)), `icon on disk: ${icon}`);
 // File and folder icons by @antfu/design's rules, first match winning as there; a folder chain by its last name.

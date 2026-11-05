@@ -4,6 +4,11 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-05
 
+### One icon set: Lucide
+
+- Every icon in the layout and the Review extra is Lucide's, as T3 Code's and shadcn/ui's: 2px strokes on one grid. Search, the machine marks, the sidebar toggle, the pane header's split, zoom and close, and Review's Phosphor icons (its category icons too) change; programs' icons, Review's file icons, the Windows window buttons and the spinner stay.
+- Updating: copy the `mods/t3-*` folders and, with Review, `extras/mods/review` and `extras/mods/pulls-review` over the installed ones; the old icons left behind (`review/ph/`, `t3-pane/split-*.svg`) can go.
+
 ### Lined up
 
 - Buttons inside sidebar rows and cards light up on hover without a ground, as T3's: Inbox's clock, Settle, undo and Wake, and in Lists a machine's `+`, the worktree and sub-agent folds and the pin; an open snooze menu lights the clock the same way. Bars, headings and a tab's `×` keep theirs, as T3's.

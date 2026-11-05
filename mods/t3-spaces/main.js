@@ -329,7 +329,7 @@ export default class Spaces extends View {
           cx.notify();
         })
         // -1: the glyph's own inset, so its edge meets the heading and the spaces' marks.
-        .child(svg(`mods/workspace-chrome/${m ? "server" : "monitor"}.svg`).size(14).ml(-1).flex_none())
+        .child(svg(`mods/t3-inbox/${m ? "server" : "monitor"}.svg`).size(14).ml(-1).flex_none())
         // The dot describes the machine, so it follows its name, however short.
         .child(h_flex().flex_1().min_w(0).gap(6).items_center()
           .child(div().min_w(0).truncate().child(m ?? "This computer"))
@@ -346,19 +346,19 @@ export default class Spaces extends View {
           .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
             .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
             .role("button").accessibility_label("New space here")
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)),
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/plus.svg").size(12)),
             // The key makes a space on the current space's machine: it names this + only on that one.
             { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
           // An indicator, not a button: the whole row folds, so it lights with the row and has no label of its own.
           .child(div().id(`machine-fold-${m ?? "local"}`).w(26).flex_none().flex().items_center().justify_center()
             .text_color(this.overMachine === `machine-${m ?? "local"}` ? t.foreground : t.dim)
-            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none())));
+            .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none())));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
         .on_click(() => run("space.new", { machine: m ?? "" }))
         // Laid out as a space's row: the + in the mark's 18px, the words where a name starts.
-        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/workspace-chrome/plus.svg").size(12))).child("New space here");
+        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here");
       if (rebuilt) return [head];
       return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
     });
@@ -445,7 +445,7 @@ export default class Spaces extends View {
           .gap(8)
           .items_center()
           .when(Boolean(tree), el => el.pl(20).child(h_flex().size(18).flex_none().items_center().justify_center()
-            .child(svg("mods/workspace-chrome/branch.svg").size(16).text_color(t.dim))))
+            .child(svg("mods/t3-spaces/git-branch.svg").size(16).text_color(t.dim))))
           .when(!tree, el => el.child(projectMark(w, 18, t, ps)))
           .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t, w.id) : div().flex_1())
@@ -462,7 +462,7 @@ export default class Spaces extends View {
             // Pressing it neither selects nor drags the space.
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
-            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
+            .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
             .when(folded, el => el.child(String(kids)))))),
       );
   }
@@ -475,7 +475,7 @@ export default class Spaces extends View {
     if (JSON.stringify(colors) !== JSON.stringify(shared("space.colors") ?? {})) setShared("space.colors", colors);
     const asks = props()?.newMenu && machines().length > 1;
     const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
-      .on_click(fn).child(svg(`mods/workspace-chrome/${icon}.svg`).size(14)), more);
+      .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(14)), more);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))

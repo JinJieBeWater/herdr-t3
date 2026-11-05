@@ -253,7 +253,7 @@ export function reviewMenu(view) {
     })
     .role("button").accessibility_label(name).on_click(action).children(cells);
   // What the review pane shows, as a menu marks its pick.
-  const shown = () => svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.muted);
+  const shown = () => svg("mods/pulls-review/check.svg").size(14).flex_none().text_color(t.muted);
   // A popup's height is only a maximum: this one sets its own, for the list to scroll inside and to hold still while searching.
   return v_flex().id("review-menu").w_full().h(height).p(5).bg(t.popover).text_size(13)
     .on_key_down((e, cx) => {
@@ -264,7 +264,7 @@ export function reviewMenu(view) {
       cx.stop_propagation();
     })
     .child(h_flex().h(32).mb(4).px(8).gap(8).flex_none().items_center()
-      .child(svg("mods/workspace-chrome/search.svg").size(13).flex_none().text_color(t.dim))
+      .child(svg(`mods/${MOD}/search.svg`).size(13).flex_none().text_color(t.dim))
       .child(Input.new(view.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
     // Outside the list, so the pages' switch and All changes stay put.
     .when(tabs, el => el.child(h_flex().h(32).mb(4).px(3).gap(4).flex_none().items_center()
@@ -275,7 +275,7 @@ export function reviewMenu(view) {
     .when(tab === "branches", el => el.child(scrollList(view, "review-branches", branches.map(b => {
       const id = `review-branch-${b.name}`;
       return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
-        svg("mods/workspace-chrome/git-branch.svg").size(13).flex_none().text_color(t.dim),
+        svg("mods/pulls-review/git-branch.svg").size(13).flex_none().text_color(t.dim),
         h_flex().flex_1().min_w(0).gap(8)
           .child(div().flex_none().max_w(220).truncate().child(b.name))
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(b.subject ?? "")),
@@ -342,15 +342,15 @@ function commitCard(view, t, id, c, upstream, out, now) {
   const up = view.details === id || view.detailsOut === id;
   return Popup.new(`details-${id}`, div()).absolute().top(-1).left(-1).size(1).anchor("top_right")
     .when(up, pop => pop.content(detailsCard(view, t, id, c.subject, [
-      c.time && detailsLine(t, svg("mods/workspace-chrome/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
+      c.time && detailsLine(t, svg("mods/pulls-review/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
       c.author && detailsLine(t, initial(t, c.author), c.author),
-      upstream && detailsLine(t, svg("mods/workspace-chrome/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
+      upstream && detailsLine(t, svg("mods/pulls-review/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
     ], true).mr(4)));
 }
 
 // A branch's card, as a commit's: its last commit, then how it stands against the base and its upstream, and where it's checked out.
 function branchCard(view, t, id, b, base, now) {
-  const up = view.details === id || view.detailsOut === id, icon = (name, color = t.muted) => svg(`mods/workspace-chrome/${name}.svg`).size(12).flex_none().text_color(color);
+  const up = view.details === id || view.detailsOut === id, icon = (name, color = t.muted) => svg(`mods/pulls-review/${name}.svg`).size(12).flex_none().text_color(color);
   const ahead = /ahead (\d+)/.exec(b.track ?? "")?.[1], behind = /behind (\d+)/.exec(b.track ?? "")?.[1];
   const upstream = !b.upstream ? "No upstream" : b.track === "gone" ? `${b.upstream} is gone`
     : !ahead && !behind ? `Up to date with ${b.upstream}` : `${[ahead && `${ahead} not pushed`, behind && `${behind} to pull`].filter(Boolean).join(", ")} · ${b.upstream}`;
