@@ -270,8 +270,23 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(update, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.update", {}]);
   f.ui.updates = { app: {} };
+  // The inbox's undo notice, in the footer's free space as T3's: short, then Undo, which the inbox does.
+  f.state["t3-inbox.notice"] = { action: "Settled", count: 2, gen: 3, shown: true, live: true, at: Date.now() };
+  assert.equal(find(footer.render(cx), "undo-notice-3"), null, "with Lists showing its Undo couldn't reach the Inbox");
+  f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+  const note = find(footer.render(cx), "undo-notice-3");
+  assert.deepEqual([strings(note), "flex_1" in note.style, note.style.text_size], [["Undo", "Settled 2,"], true, 11], "reversed, so the summary is what wraps away");
+  assert.equal(walk(note).find(x => x.kind === "svg").source, "mods/t3-inbox/undo.svg", "T3's Undo2, for when the word doesn't fit");
+  fire(find(note, "undo-notice-undo"), "on_click", {}, cx);
+  assert.deepEqual(f.calls.pop(), ["t3-inbox.undo", {}]);
+  f.state["t3-inbox.notice"].count = 1;
+  assert.deepEqual(strings(find(footer.render(cx), "undo-notice-3")), ["Undo", "Settled,"]);
+  f.state["t3-inbox.notice"].at = Date.now() - 60000;
+  assert.equal(find(footer.render(cx), "undo-notice-3"), null, "one left from before a restart doesn't show");
+  delete f.state["t3-inbox.notice"];
+  delete f.slots["sidebar-lists"];
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
-  assert.deepEqual([groups[0].h, "pt" in groups[0]], [22, false], "the first group sits under the heading like Spaces' first row");
+  assert.deepEqual([groups[0].h, groups[0].pt], [30, 8], "the first group keeps 8px under the heading, as Spaces' first machine does");
   assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");
   fire(settings, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.settings", {}]);
@@ -291,7 +306,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Header icon: 14 inside a 26 button, inset by pr. Status mark: flush right inside list px 8 + row px 8.
   assert.equal(heading.style.pr + (26 - 14) / 2, 8 + find(at, "ag-t0").style.px, "status column ends under the header icons");
   assert.equal(heading.items[0].style.text_color, f.theme().muted, "section titles are a step brighter than group labels");
-  assert.equal(find(at, "sp-s0").items[0].style.text_color, f.theme().dim);
+  // A group header is drawn as Inbox's shelves and Spaces' machines: dim 12px, the count and a chevron at the end, in the status column.
+  const group = find(at, "sp-s0"), chevron = group.items.at(-1);
+  assert.deepEqual([group.style.text_color, group.style.text_size, group.style.pr + chevron.style.w / 2], [f.theme().dim, 12, find(at, "ag-t0").style.px + 14 / 2]);
+  assert.equal(chevron.items[0].source, "mods/workspace-chrome/chevron-down.svg", "open, it points down, as T3's");
+  fire(group, "on_hover", true, cx);
+  assert.equal(find(ag.render(cx), "sp-s0").items.at(-1).style.text_color, f.theme().foreground, "it lights with its row");
   assert.equal(find(f.load("t3-spaces").render(cx), "spaces-heading").items[0].style.text_color, f.theme().muted);
 }
 
@@ -321,6 +341,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(inbox.render(run), "card-vps/t2"), "on_hover", true, run);
   const offered = inbox.render(run);
   assert.equal(find(offered, "settle-vps/t2").style.opacity, 1);
+  assert.equal(find(offered, "settle-vps/t2").hoverStyle.bg, undefined, "as T3's, a card's button only lights up: no ground");
   assert.equal(walk(find(offered, "corner-vps/t2")).find(n => n.style.opacity === 0 && walk(n).some(c => c.key === "state-vps/t2" || strings(c).length)) != null, true, "the state fades out under it");
   fire(find(inbox.render(run), "settle-vps/t2"), "on_click", {}, run);
   const [, , value] = f.labelled.pop();
@@ -376,10 +397,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(find(inbox.render(run), "card-vps/t2") && !find(inbox.render(run), "working-header"), "only the chosen space's agents");
   scope("all");
   assert.ok(find(inbox.render(run), "working-header"), "all spaces again");
-  // The brand bar switches the sidebar; with the inbox showing, a settled agent's done is no news.
+  // The brand bar switches the sidebar, its icon the mode a click shows; with the inbox showing, a settled agent's done is no news.
+  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/inbox.svg", "in Lists it offers the Inbox");
   fire(find(f.load("t3-chrome").render(cx), "sidebar-mode"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.select", { stack: "sidebar-lists", child: "inbox" }]);
   f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/layout-list.svg", "in the Inbox it offers the lists");
   f.spaces()[0].tabs[0].status = "done"; f.agents()[0].status = "done";
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
@@ -517,10 +540,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   lift("slim-t0");
   assert.ok(find(find(root(), "drag-ghost"), "ghost-slim-t0"), "a settled row lifts as its row");
   over("card-vps/t2", 10);
-  assert.equal(h("gap-vps/t2"), 84, "the gap is the destination's: a card");
+  assert.equal(h("gap-vps/t2"), 80, "the gap is the destination's: a card");
   assert.ok(badge("pin"), "a settled row can be pinned");
   over("active-rest");
-  assert.equal(h("gap-head-active"), 84, "the empty space above the shelves counts as Active");
+  assert.equal(h("gap-head-active"), 80, "the empty space above the shelves counts as Active");
   assert.ok(badge("unsettle"));
   release();
   assert.deepEqual(f.labelled.pop(), ["label", "t0", "settled="], "dropped on Active, it's unsettled");
@@ -543,7 +566,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(settleButton, "on_click", {}, run);
   assert.equal(f.labelled.length, 0, "the button's click after a sweep doesn't settle again");
   // As core writes them back: the label the settle set, else the row stays pending and won't lift (its stamp is ms).
-  for (const k of [t0, f.terminals().find(k => k.address === "vps/t2")]) k.labels = { settled: inbox.pending[k.address] ?? `${Date.now()}:0` };
+  for (const k of [t0, f.terminals().find(k => k.address === "vps/t2")]) k.labels = { settled: inbox.pending.settled[k.address] ?? `${Date.now()}:0` };
 
   const n = f.labelled.length;
   lift("slim-vps/t2"); over("active");
@@ -625,8 +648,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     const ids = () => [...sp.ordered().map(r => r.w.id)];
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
     const arrow = find(sp.render(cx), "space-fold-s0");
+    assert.equal(8 + 8 + arrow.style.mr + arrow.style.min_w / 2, 23, "its center is the column of the heading's last button");
     assert.deepEqual([arrow.items[0].source, arrow.items.length], ["mods/workspace-chrome/chevron-down.svg", 1], "a checkout shows its fold arrow at the end, as an agent parent");
     assert.equal(arrow.style.text_color, f.theme().dim, "the arrow is dim");
+    assert.equal(arrow.hoverStyle.bg, undefined, "no ground, as T3's row controls");
     fire(arrow, "on_hover", true, cx);
     assert.equal(find(sp.render(cx), "space-fold-s0").items[0].style.text_color, f.theme().foreground, "hovered, it brightens");
     fire(arrow, "on_hover", false, cx);
@@ -991,16 +1016,30 @@ for (const width of [208, 240, 256, 320, 480]) {
     const lists = f.load("t3-spaces", menu), heading = find(lists.render(cx), "spaces-heading").style, row = find(lists.render(cx), "machine-local");
     const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style, chevron = 8 + row.style.pr + add.w / 2, plus = 8 + row.style.pr + add.w + slots.gap + add.w / 2;
     assert.deepEqual([chevron, plus], [heading.pr + 13, heading.pr + 26 + 2 + 13]);
+    assert.equal(row.style.text_size, 12, "the same size as the agents' group headers and Inbox's shelves");
     assert.ok(row.items.findIndex(n => find(n, "machine-state-local")) < row.items.findIndex(n => find(n, "machine-add-local")), "the dot is before the +");
     // Hover labels name the control, and its key only when the key does the same.
+    lists.machines = [{ name: "spare", state: "asleep" }];
+    const blank = find(lists.render(cx), "machine-new-spare");
+    assert.deepEqual([blank.style.px, blank.items[0].style.size, blank.style.gap], [8, 18, 8], "New space here lays out as a space's row");
     lists.machines = [{ name: "vps", state: "connected" }];
     const label = (id) => { lists.hot = id; return strings(find(lists.render(cx), `tip-${id}`).style.content); };
     assert.deepEqual(label("space-new"), ["New space"], "⌘N doesn't ask, as this does");
     assert.deepEqual(label("space-new-tab"), ["New tab"]);
     assert.deepEqual(label("machine-add-local"), ["New space here (⌘N)"], "⌘N makes it on this space's machine");
     assert.deepEqual(label("machine-add-vps"), ["New space here"], "and not on another");
-    assert.deepEqual(label("machine-fold-local"), ["Collapse spaces"]);
     assert.deepEqual(label("machine-state-local"), ["Connected"]);
+    // Three kinds: a button does what the row doesn't (a ground on hover, a label); an indicator is the row's (it lights with it);
+    // a mark only says (a label, no ground).
+    const fold = () => find(lists.render(cx), "machine-fold-local");
+    assert.equal(find(lists.render(cx), "tip-machine-fold-local"), null, "the chevron has no label: the row folds");
+    assert.deepEqual([fold().hoverStyle.bg, fold().style.text_color], [undefined, f.theme().dim]);
+    fire(find(lists.render(cx), "machine-local"), "on_hover", true, cx);
+    assert.equal(fold().style.text_color, f.theme().foreground, "it lights with its row");
+    fire(find(lists.render(cx), "machine-local"), "on_hover", false, cx);
+    assert.equal(fold().style.text_color, f.theme().dim, "and dims when the pointer leaves");
+    assert.equal(find(lists.render(cx), "machine-add-local").hoverStyle.bg, undefined, "a button in a row only lights up, as T3's");
+    assert.equal(find(lists.render(cx), "machine-state-local").hoverStyle.bg, undefined, "a mark: no ground");
     lists.hot = null;
   }
   {

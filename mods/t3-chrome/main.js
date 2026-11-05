@@ -54,6 +54,22 @@ export default class WorkspaceChrome extends View {
     if (props()?.footer) {
       // As T3's footer: a row of 32px icon buttons, and at its end, once Herdr has downloaded an update, its restart.
       const ready = updates().app.ready;
+      // T3's undo notice, the inbox's (t3-inbox.notice), in this row's free space so it covers nothing: "Settled," or
+      // "Settled 2," then Undo, which the inbox does. It fades in and out over 200ms, Undo inert while it goes. One older than
+      // its 5s and the fade is left from before a restart.
+      // Only with the Inbox showing: its Undo reaches the Inbox only then, as cmd-shift-s does.
+      const n = inboxShown() && shared("t3-inbox.notice");
+      // T3's two wraps, not a cut mid-word: short of room the summary drops to a second line the row clips; shorter still, so
+      // does the word, and the icon, whose negative margin kept it out of the way beside the word, shows.
+      const notice = n && Date.now() - n.at < 6000 && h_flex().id(`undo-notice-${n.gen}`).flex_1().min_w(0).h(24).overflow_hidden().flex_row_reverse().flex_wrap().gap_x(4)
+        .text_size(11).text_color(t.dim).opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })
+        // As T3's InlineButton: medium, foreground, underlined on hover.
+        .child(h_flex().id("undo-notice-undo").min_w(0).h(24).overflow_hidden().flex_wrap().justify_end().font_medium().text_color(t.foreground)
+          .when(n.live, (el) => el.hover((s) => s.underline()).role("button").accessibility_label(`Undo: ${n.action} ${n.count} agent${n.count === 1 ? "" : "s"}`)
+            .on_click(() => run("t3-inbox.undo")))
+          .child(h_flex().ml(-16).w(16).h(24).flex_none().child(svg("mods/t3-inbox/undo.svg").size(16).text_color(t.foreground)))
+          .child(h_flex().h(24).child("Undo")))
+        .child(h_flex().h(24).child(`${n.action}${n.count === 1 ? "" : ` ${n.count}`},`));
       const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit(id)).hover(s => s.bg(t.hover)).on_hover(glow(id))
         .role("button").accessibility_label(label)
@@ -63,7 +79,7 @@ export default class WorkspaceChrome extends View {
       return h_flex().size_full().bg(t.chrome).px(8).gap(2).items_center()
         .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
         .child(button("add-machine", svg("mods/workspace-chrome/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
-        .child(div().flex_1())
+        .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this.hot, t, "app-update", `Update ${ready} downloaded. Click to restart`, div().id("app-update").h(24).px(10).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).font_medium().text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow("app-update"))
           .role("button").accessibility_label(`Restart into Herdr ${ready}`)
@@ -78,7 +94,8 @@ export default class WorkspaceChrome extends View {
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
-        .child(svg(`mods/workspace-chrome/${inbox ? "layers" : "circle-check"}.svg`).size(14)), { action: "t3-chrome.sidebar", below: true }))
+        // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
+        .child(svg(`mods/t3-chrome/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), { action: "t3-chrome.sidebar", below: true }))
       .child(tip(this.hot, t, "sidebar-toggle", "Hide sidebar", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")

@@ -276,6 +276,7 @@ export default class Agents extends View {
         .justify_center()
         .rounded(4)
         .text_size(11)
+        // As T3's row controls, hover only lights it: no ground.
         .role("button").accessibility_label(open ? "Collapse sub-agents" : "Expand sub-agents")
         .text_color(lit(id))
         .on_hover(glow(id))
@@ -283,7 +284,7 @@ export default class Agents extends View {
           cx.stop_propagation();
           this.toggleFold(a.address, cx);
         })
-        .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11).flex_none().text_color(lit(id)))
+        .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(lit(id)))
         .when(!open, (el) => el.child(String(subs.length))));
     };
 
@@ -317,7 +318,7 @@ export default class Agents extends View {
           this.setPins(isPinned ? this.pins.filter((p) => p !== a.address) : [...this.pins, a.address]);
           cx.notify();
         })
-        .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(14).flex_none().text_color(lit(`pin-${a.address}`)));
+        .child(svg(`mods/workspace-chrome/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(`pin-${a.address}`)));
       // A row leads with what the agent is on; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
       const full = byPriority || isPinned;
@@ -373,29 +374,36 @@ export default class Agents extends View {
     }
 
     // A group's header; it folds the group. Folded, it says how many and the most urgent state.
-    // The first group sits right under the heading, as Spaces' first row does; later ones keep 8px above.
+    // Each keeps 8px above, the first under the heading too, as Spaces' machines do.
     const header = (g, i) => {
       const initial = g.id === "sec-1";
       const open = !this.isFolded(g.id, initial);
       const top = g.members.map(shownStatus).reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
+      // Drawn as Inbox's shelves, T3's: a dim label, then at the far edge the count and the chevron, in the status column
+      // (a 26px slot 2px in, as a machine's), an indicator that lights with its row.
       return h_flex()
         .id(g.id)
-        .px(8)
-        .when(i > 0, (el) => el.pt(8))
-        .h(i > 0 ? 30 : 22)
+        .pl(8).pr(2)
+        .pt(8)
+        .h(30)
         .flex_none()
         .gap(4)
         .items_center()
-        .text_size(11)
+        .text_size(12)
         .font_medium()
+        .text_color(t.dim)
         .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
+        .on_hover((on, cx) => {
+          if (on) this.overGroup = g.id;
+          else if (this.overGroup === g.id) this.overGroup = null;
+          cx.notify();
+        })
         .on_click((_e, cx) => this.toggleFold(g.id, cx, initial))
-        .child(div().min_w(0).truncate().text_color(g.status ? t[g.status] : t.dim).child(g.label))
-        .when(byPriority || !open, (el) => el.child(div().text_color(t.dim).child(String(g.members.length))))
-        .child(div().flex_1())
-        .when(!open, (el) => el
-          .when(!byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top })))
-          .child(svg("mods/workspace-chrome/chevron-right.svg").size(12).flex_none().text_color(t.dim)));
+        .child(div().flex_1().min_w(0).truncate().child(g.label))
+        .when(!open && !byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top })))
+        .child(div().flex_none().child(String(g.members.length)))
+        .child(div().w(26).flex_none().flex().items_center().justify_center().text_color(this.overGroup === g.id ? t.foreground : t.dim)
+          .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none()));
     };
     const rows = groups.flatMap((g, i) => [header(g, i), ...(this.isFolded(g.id, g.id === "sec-1") ? [] : g.members.flatMap(withKids))]);
 

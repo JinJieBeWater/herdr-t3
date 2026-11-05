@@ -85,10 +85,10 @@ function fixture() {
   };
   const env = {
     View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
-    Popover: { new: (id) => element().id(id) }, HoverCard: { new: (id) => element().id(id) }, Popup: { new: element }, Input: { new: element }, Button: { new: element },
+    Popover: { new: (id) => element().id(id) }, HoverCard: { new: (id) => element().id(id) }, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, Select: { new: (id) => element().id(id) }, Input: { new: element }, NumberInput: { new: element }, Button: { new: element },
     InputState: { new: (o = {}) => {
       let value = o.value ?? "";
-      return { on() {}, value: () => value, set_value(v) { value = v; }, focus() {} };
+      return { on() {}, value: () => value, set_value(v) { value = v; }, focus() {}, set_min(m) { this.min = m; } };
     } },
     namer: () => (a) => a.mod ? f.state[`${a.mod}.titles`]?.[a.tab] || a.title : a.address, Date: FakeDate,
     programOf: (x) => x.mod ? f.state[`${x.mod}.program`] ?? null : x.program,
@@ -402,8 +402,8 @@ test("settling slides the card down into Settled and the rows under it up, then 
   const a = at(flyOf(f, "A")), b = at(flyOf(f, "B"));
   assert.equal(a.id, "fly-A-1", "a row that moves is a new element, first drawn where it was");
   assert.ok(a.top < 0, "A starts up where its card was, over Settled");
-  assert.deepEqual(b, { id: "fly-B-1", top: 84, opacity: 1 }, "B starts a card lower, where it was");
-  assert.equal(at(flyOf(f, "C")).top, 84);
+  assert.deepEqual(b, { id: "fly-B-1", top: 80, opacity: 1 }, "B starts a card lower, where it was");
+  assert.equal(at(flyOf(f, "C")).top, 80);
   f.render(1116);
   assert.deepEqual([at(flyOf(f, "A")), at(flyOf(f, "B"))], [{ id: "fly-A-1", top: 0, opacity: 1 }, { id: "fly-B-1", top: 0, opacity: 1 }], "then they're let go, the same elements, so Herdr eases them");
   f.render(1200);
@@ -414,7 +414,7 @@ test("a new row fades in from 40px up at the top, or in place under a row that s
   const f = fixture(); f.add("A", "idle", 200); f.mod.listH = 600; f.render();
   f.add("B", "idle", 300); f.add("Z", "idle", 50); f.render(1100);
   assert.deepEqual(at(flyOf(f, "B")), { id: "fly-B-1", top: -40, opacity: 0 }, "at the top: from 40px up, clear");
-  assert.deepEqual(at(flyOf(f, "Z")), { id: "fly-Z-1", top: -84, opacity: 0 }, "under A, which moved a card down: riding with it");
+  assert.deepEqual(at(flyOf(f, "Z")), { id: "fly-Z-1", top: -80, opacity: 0 }, "under A, which moved a card down: riding with it");
   f.render(1116);
   assert.deepEqual([at(flyOf(f, "B")).opacity, at(flyOf(f, "Z")).top], [1, 0]);
 });
@@ -424,7 +424,7 @@ test("a row that leaves fades out where it was, then goes", () => {
   f.rows.splice(0, 1); f.terms.splice(0, 1); f.render(1100);
   const ghost = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("leaving-A-") ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
   assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 8], "drawn as it was, where it was");
-  assert.equal(at(flyOf(f, "B")).top, 84, "B slides up from under it");
+  assert.equal(at(flyOf(f, "B")).top, 80, "B slides up from under it");
   f.render(1116);
   assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 48], "fading, 40px down: nothing above it stays");
   f.render(1300);
@@ -479,17 +479,31 @@ test("settling shows T3's undo notice over the first shelf for 5s; Undo puts the
   f.render(8300); assert.equal(note(), null);
 });
 
+test("with the layout's footer there, the notice goes to it, as T3's footer row hosts it; its Undo comes back as a command", () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); a.focused = true;
+  f.context.layout = () => ({ children: [{ id: "sidebar-lists", active: "inbox" }, { id: "sidebar-footer", content: { mod: "t3-chrome", props: { footer: true } } }] });
+  f.render(); f.settle(); f.render(1000);
+  assert.equal(find(f.tree, "undo-notice-1"), null, "nothing over the list");
+  assert.deepEqual(plain(f.state["t3-inbox.notice"]), { action: "Settled", count: 1, gen: 1, shown: false, live: true, at: 1000 });
+  f.render(1016); assert.equal(f.state["t3-inbox.notice"].shown, true, "then it fades in, there");
+  f.mod.undo(f.cx);
+  assert.equal(f.mod.pending.settled.A, "");
+  f.render(1016); assert.deepEqual([f.state["t3-inbox.notice"].live, f.state["t3-inbox.notice"].shown], [false, false], "fading out");
+  f.render(1300); assert.equal(f.state["t3-inbox.notice"], null);
+  const writes = f.jobs.length; f.mod.undo(f.cx); assert.equal(f.jobs.length, writes, "an Undo pressed as it goes does nothing");
+});
+
 test("folding Working slides its header down with the list, as T3's markers move, so nothing passes over it", () => {
   const f = fixture(), a = f.add("A", "working", 300); f.add("B", "working", 200); f.add("C", "idle", 100); a.focused = true;
   f.terms[2].labels.settled = "500:0"; f.mod.workOpen = true; f.mod.open = true; f.mod.listH = 600; f.render();
   f.mod.workOpen = false; f.render(1100);
-  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -84, opacity: 1 }, "the header starts where it was, a card higher");
+  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -80, opacity: 1 }, "the header starts where it was, a card higher");
   assert.equal(flyOf(f, "m:settled").key, "fly-m:settled-0", "Settled sits at the bottom: it doesn't move");
   assert.ok(find(f.tree, "working-header"), "the header's own element is inside its wrapper");
   f.render(1116);
   assert.equal(at(flyOf(f, "m:working")).top, 0);
   f.mod.workOpen = true; f.render(1300);
-  assert.equal(at(flyOf(f, "m:working")).top, 84, "unfolding, it goes back up from where it was");
+  assert.equal(at(flyOf(f, "m:working")).top, 80, "unfolding, it goes back up from where it was");
 });
 
 test("an agent brought into view that the space filter hides widens it, as T3's route reveal; a filter you pick stays", () => {
@@ -729,6 +743,8 @@ test("the snooze menu's keys are wired to reach it", () => {
   const f = fixture(); f.add("A", "idle", 100); f.render(); f.mod.hovered = "A"; f.render();
   f.event("snooze-menu-A", "on_open_change", true); f.render();
   const pop = find(f.tree, "snooze-menu-A"), panel = find(f.tree, "snooze-panel-A");
+  assert.deepEqual(JSON.parse(JSON.stringify([panel.style.opacity, panel.style.transition])), [[0], ["opacity", { duration: 150, easing: "ease-out" }]], "drawn clear once, as T3's menu fades in");
+  f.render(f.now + 16); assert.equal(find(f.tree, "snooze-panel-A").style.opacity[0], 1, "then let go");
   assert.ok(panel.style.track_focus[0]);
   assert.equal(panel.style.track_focus[0], pop.style.track_focus[0], "the keyboard moves to the panel");
   assert.deepEqual(Array.from(f.bound, (b) => b.keystroke), ["enter", "space"]);
@@ -1122,7 +1138,27 @@ test("the Custom dialog says what's wrong, stays open, and on a good answer hand
   assert.equal(find(tree, "custom-error"), null, "changing course clears it");
   d.amount.set_value("0"); fire("custom-submit");
   assert.ok(texts(find(tree, "custom-error")).includes("Enter a positive duration."));
-  d.amount.set_value("30"); fire("unit-minutes"); fire("custom-submit");
+  // T3's number field and unit Select: steppers either side, stopping at 0; the units in a list under the trigger.
+  assert.equal(d.amount.min, 0);
+  assert.ok(find(tree, "custom-unit-button") && !find(tree, "unit-minutes"), "the list is shut");
+  assert.ok(texts(find(tree, "custom-unit-button")).includes("Hours"));
+  const lit = () => ["minutes", "hours", "days"].filter((u) => "aria_active_descendant" in find(tree, `unit-${u}`).style);
+  const key = (k) => { find(tree, "custom-unit-list").handlers.on_key_down({ key: k }, f.cx); tree = d.render(f.cx); };
+  fire("custom-unit-button");
+  assert.deepEqual(lit(), ["hours"], "it opens on the chosen one");
+  key("down"); assert.deepEqual([lit(), d.unit], [["days"], "hours"], "keys move the highlight, not the choice");
+  key("down"); assert.deepEqual(lit(), ["minutes"], "round the ends");
+  key("up"); assert.deepEqual(lit(), ["days"]);
+  key("enter"); assert.deepEqual([d.unit, d.unitOpen], ["days", false], "Enter picks and closes");
+  fire("custom-unit-button"); d.overUnit = true;
+  find(tree, "custom-unit-list").handlers.on_mouse_down_out({}, f.cx);
+  assert.equal(d.unitOpen, true, "a press on the trigger is the trigger's to toggle");
+  d.overUnit = false; find(tree, "custom-unit-list").handlers.on_mouse_down_out({}, f.cx);
+  assert.equal(d.unitOpen, false, "a press elsewhere closes it");
+  tree = d.render(f.cx); fire("custom-unit-button");
+  d.amount.set_value("30"); fire("unit-minutes");
+  assert.deepEqual([d.unit, d.unitOpen, texts(find(tree, "custom-unit-button")).includes("Minutes")], ["minutes", false, true], "a click picks and closes");
+  fire("custom-submit");
   assert.equal(f.state["t3-inbox.custom"].at, f.now + 1800000);
   assert.equal(f.state["t3-inbox.custom"].address, "A");
   assert.deepEqual(closed, ["o1"]);

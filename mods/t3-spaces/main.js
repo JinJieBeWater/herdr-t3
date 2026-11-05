@@ -311,11 +311,18 @@ export default class Spaces extends View {
       const connected = !m || machine?.state === "connected";
       const rebuilt = this.rebuilt(machine) || !!repair;
       const folded = this.folded.has(m);
-      // Drawn as the agents list's group headers: the first under the heading, later ones 8px apart.
+      // Drawn as the agents list's group headers, each 8px below what's above it, the heading included: right under it,
+      // its + and chevron crowded the heading's buttons, a column of icons unevenly spaced.
       // Its + and chevron stand under the heading's two buttons, in slots built as those are (26px, 2px apart, 10px from the edge), so any zoom rounds them alike.
-      const head = h_flex().id(`machine-${m ?? "local"}`).when(i > 0, el => el.pt(8)).h(i > 0 ? 30 : 22).flex_none().pl(8).pr(2).gap(4).items_center()
-        .text_size(11).font_medium().text_color(t.dim)
+      const head = h_flex().id(`machine-${m ?? "local"}`).pt(8).h(30).flex_none().pl(8).pr(2).gap(4).items_center()
+        .text_size(12).font_medium().text_color(t.dim)
         .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`)
+        .on_hover((on, cx) => {
+          // By the row's id: this computer's m is null, which a cleared field would equal.
+          if (on) this.overMachine = `machine-${m ?? "local"}`;
+          else if (this.overMachine === `machine-${m ?? "local"}`) this.overMachine = null;
+          cx.notify();
+        })
         .on_click((_e, cx) => {
           folded ? this.folded.delete(m) : this.folded.add(m);
           localStorage.setItem("machines.folded", JSON.stringify([...this.folded]));
@@ -338,18 +345,20 @@ export default class Spaces extends View {
         .child(h_flex().flex_none().gap(2).items_center()
           .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
             .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
-            .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
+            .role("button").accessibility_label("New space here")
             .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)),
             // The key makes a space on the current space's machine: it names this + only on that one.
             { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
-          .child(tipMark(this, t, `machine-fold-${m ?? "local"}`, folded ? "Expand spaces" : "Collapse spaces", div().w(26).flex_none().flex().items_center().justify_center()
-            .text_color(this.hot === `machine-fold-${m ?? "local"}` ? t.foreground : t.dim)
-            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none()))));
+          // An indicator, not a button: the whole row folds, so it lights with the row and has no label of its own.
+          .child(div().id(`machine-fold-${m ?? "local"}`).w(26).flex_none().flex().items_center().justify_center()
+            .text_color(this.overMachine === `machine-${m ?? "local"}` ? t.foreground : t.dim)
+            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none())));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
         .on_click(() => run("space.new", { machine: m ?? "" }))
-        .child(svg("mods/workspace-chrome/plus.svg").size(12)).child("New space here");
+        // Laid out as a space's row: the + in the mark's 18px, the words where a name starts.
+        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/workspace-chrome/plus.svg").size(12))).child("New space here");
       if (rebuilt) return [head];
       return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
     });
@@ -440,7 +449,9 @@ export default class Spaces extends View {
           .when(!tree, el => el.child(projectMark(w, 18, t, ps)))
           .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t, w.id) : div().flex_1())
-          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", div().id(foldId).h(20).min_w(20).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+          // -3: its chevron stands in the column of the heading's last button and a machine's chevron, 23 from the edge.
+          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", div().id(foldId).h(20).min_w(20).mr(-3).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+            // raised: the row under it already shows hover or selected.
             .text_size(11).text_color(lit)
             .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
             .on_hover((over, cx) => {
@@ -451,7 +462,7 @@ export default class Spaces extends View {
             // Pressing it neither selects nor drags the space.
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
-            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none().text_color(lit))
+            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
             .when(folded, el => el.child(String(kids)))))),
       );
   }

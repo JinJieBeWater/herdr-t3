@@ -90,7 +90,7 @@
           "children": [
             { "id": "tabs", "type": "block", "size": { "weight": 1 }, "window_drag": true, "content": { "mod": "t3-tabs" } },
             { "id": "actions", "type": "block", "size": { "px": 108 }, "window_drag": true, "content": { "mod": "t3-actions", "props": { "block": "actions" } } },
-            { "id": "tabs-end", "type": "block", "size": { "px": 33 }, "window_drag": true, "content": { "mod": "t3-tabs", "props": { "part": "end", "block": "tabs-end" } } }
+            { "id": "tabs-end", "type": "block", "size": { "px": 36 }, "window_drag": true, "content": { "mod": "t3-tabs", "props": { "part": "end", "block": "tabs-end" } } }
           ]
         },
         {
@@ -127,7 +127,7 @@
               }
             }
           ],
-          "padding": [2, 8],
+          "padding": [0, 8],
           "gap": 8
         },
         {
@@ -136,7 +136,7 @@
           "children": [
             { "id": "bar-measure", "type": "block", "size": { "weight": 1 }, "content": { "mod": "t3-tabs", "props": { "part": "measure" } } }
           ],
-          "size": { "px": 6 }
+          "size": { "px": 8 }
         },
         {
           "id": "status",

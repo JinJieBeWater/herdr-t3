@@ -208,7 +208,7 @@ export default class Tabs extends View {
     const live = awake(st);
     const ps = panes();
     const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
       .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
@@ -284,7 +284,7 @@ export default class Tabs extends View {
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
     if (props()?.part === "end") return h_flex().size_full().items_center().justify_end().bg(t.chrome)
-      .child(h_flex().id("tabs-end").flex_none().pr(8).gap(4).items_center().on_size_change((size) => this.fit(size))
+      .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
         .child(button("tab-new", svg("mods/workspace-chrome/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))

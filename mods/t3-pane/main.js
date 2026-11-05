@@ -69,30 +69,33 @@ export default class Pane extends View {
     const all = terminals();
     const st = p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), subAgents(agents(), all)(p.terminal));
     const pane = p.pane;
+    // A mark takes the last button's 26px, so it, the × and the tab bar's + share one column.
+    const slot = (mark) => div().w(26).flex_none().flex().items_center().justify_center().child(mark);
     // The rounded frame paints the background; rectangular child fills would cover its corners.
     return h_flex()
       .id(`pane-head-${pane}`)
       .size_full()
-      .px(8)
+      // 4 + the frame's 2 is a tab's 6: with its 16px slot and 2 to the name, the icon and first word stand under the first tab's.
+      .pl(4)
       .gap(8)
       .items_center()
       .text_size(13)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
-      .when(Boolean(pic), (el) => el.child(pic))
+      .child(div().size(16).mr(-6).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
       .child(div().min_w(0).truncate().text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
-        .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(folder(p.cwd)))
+        .child(div().flex_1().min_w(0).truncate().pr(8).text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
         .when(this.hovered, el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
           .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/split-right.svg", "Split right", () => run("pane.split", { direction: "right", pane }), "pane.split:right"))
           .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/split-down.svg", "Split down", () => run("pane.split", { direction: "down", pane }), "pane.split:down"))
           .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "unzoom" : "zoom"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane }), "pane.zoom"))
           .child(this.button(t, `ph-x-${pane}`, "mods/t3-pane/close.svg", "Close pane", () => { this.hot = null; run(`t3-tabs.close-pane:${pane}`); }, "pane.close")))))
-      .when(st === "working", el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))))
+      .when(st === "working", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))))
       // The same marks as the agents list and tabs.
-      .when(st === "blocked", el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!"))))
-      .when(st === "done" && !settled(p), el => el.child(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))));
+      .when(st === "blocked", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))))
+      .when(st === "done" && !settled(p), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done)))));
   }
 }
