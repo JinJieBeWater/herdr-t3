@@ -4,6 +4,12 @@
 
 ## 2026-11-05
 
+### 新建：space 建在哪台机器，只有一条规则
+
+- 侧栏的 New space 在机器多于一台时先问建在哪台，Inbox 和 Lists 都一样，和 New 菜单原有的行为一致。`cmd-n` 仍然不问，直接用当前 space 的机器；机器行的 `+` 用该行的机器。
+- Spaces 标题栏和 Inbox 顶栏有同样的两个按钮：New space（`folder-plus`，原来是 `+`）和 New tab（先选 space）。
+- 更新时：复制 `mods/t3-spaces`、`mods/t3-inbox`、`mods/t3-new-menu` 和 `layouts/herdr-t3.json`。
+
 ### 跳转：程序，以及回到上一处
 
 - `cmd-p` 和 Inbox 的 Search 打开布局自己的跳转（`t3-picker`，改自 Herdr 的 picker），画法同新建菜单：T3 的命令面板，两行的行带 space 标记、程序和状态标记，底部是按键提示。每个窗格一行，名字和图标与窗格标题、标签一致，不再按标签列出 Herdr 自己的标签名：输入 `lazygit` 回车，就跳到那个窗格，不管它旁边有没有 agent、在哪个 space。标签名只有你命名过才参与搜索。ctrl+d 关闭这个窗格，有程序在运行时先确认。

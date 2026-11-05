@@ -5,7 +5,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props } from "herdr";
 import { projectMark, tint } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 
@@ -312,7 +312,8 @@ export default class Spaces extends View {
       const rebuilt = this.rebuilt(machine) || !!repair;
       const folded = this.folded.has(m);
       // Drawn as the agents list's group headers: the first under the heading, later ones 8px apart.
-      const head = h_flex().id(`machine-${m ?? "local"}`).when(i > 0, el => el.pt(8)).h(i > 0 ? 30 : 22).flex_none().px(8).gap(4).items_center()
+      // Its + and chevron stand under the heading's two buttons, in slots built as those are (26px, 2px apart, 10px from the edge), so any zoom rounds them alike.
+      const head = h_flex().id(`machine-${m ?? "local"}`).when(i > 0, el => el.pt(8)).h(i > 0 ? 30 : 22).flex_none().pl(8).pr(2).gap(4).items_center()
         .text_size(11).font_medium().text_color(t.dim)
         .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`)
         .on_click((_e, cx) => {
@@ -320,8 +321,12 @@ export default class Spaces extends View {
           localStorage.setItem("machines.folded", JSON.stringify([...this.folded]));
           cx.notify();
         })
-        .child(svg(`mods/workspace-chrome/${m ? "server" : "monitor"}.svg`).size(14).flex_none())
-        .child(div().flex_1().min_w(0).truncate().child(m ?? "This computer"))
+        // -1: the glyph's own inset, so its edge meets the heading and the spaces' marks.
+        .child(svg(`mods/workspace-chrome/${m ? "server" : "monitor"}.svg`).size(14).ml(-1).flex_none())
+        // The dot describes the machine, so it follows its name, however short.
+        .child(h_flex().flex_1().min_w(0).gap(6).items_center()
+          .child(div().min_w(0).truncate().child(m ?? "This computer"))
+          .child(tipMark(this, t, `machine-state-${m ?? "local"}`, connected ? "Connected" : (machine?.state ?? "asleep").replace(/_/g, " ").replace(/^./, c => c.toUpperCase()), div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim))))
         .when(!connected && !rebuilt, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
         .when(rebuilt, el => el.child(h_flex().flex_none().gap(3).items_center()
           .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
@@ -330,12 +335,16 @@ export default class Spaces extends View {
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
             .child(repair?.busy ? "Connecting…" : "Connect")))))
-        .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).size(20).flex_none().flex().items_center().justify_center().rounded(4)
-          .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
-          .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
-          .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)), { action: "space.new" })))
-        .child(tipMark(this, t, `machine-state-${m ?? "local"}`, connected ? "Connected" : (machine?.state ?? "asleep").replace(/_/g, " ").replace(/^./, c => c.toUpperCase()), div().size(6).rounded_full().flex_none().bg(connected ? t.ansi2 : t.dim)))
-        .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
+        .child(h_flex().flex_none().gap(2).items_center()
+          .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
+            .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
+            .role("button").accessibility_label("New space here").hover(s => s.bg(t.hover))
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/workspace-chrome/plus.svg").size(12)),
+            // The key makes a space on the current space's machine: it names this + only on that one.
+            { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
+          .child(tipMark(this, t, `machine-fold-${m ?? "local"}`, folded ? "Expand spaces" : "Collapse spaces", div().w(26).flex_none().flex().items_center().justify_center()
+            .text_color(this.hot === `machine-fold-${m ?? "local"}` ? t.foreground : t.dim)
+            .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none()))));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
@@ -453,11 +462,22 @@ export default class Spaces extends View {
     // The shipped mods (the Terminals picker) still color spaces from "space.colors": the same color, from the name.
     const colors = Object.fromEntries(sp.filter(p => p.name !== "~").map(p => [p.id, tint(p.name, false)]));
     if (JSON.stringify(colors) !== JSON.stringify(shared("space.colors") ?? {})) setShared("space.colors", colors);
+    const asks = props()?.newMenu && machines().length > 1;
+    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
+      .on_click(fn).child(svg(`mods/workspace-chrome/${icon}.svg`).size(14)), more);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
-        .child(tip(this.hot, t, "space-new", "New space", div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === "space-new" ? t.foreground : t.dim).on_hover(this.glow("space-new")).role("button").accessibility_label("New space").hover(s => s.bg(t.hover))
-          .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14)), { action: "space.new" })))
+        // The same two as Inbox's top row, so switching modes moves nothing.
+        .child(h_flex().flex_none().gap(2).items_center()
+          .child(tool("space-new", "New space", "folder-plus", (_e, cx) => {
+            this.hot = null;
+            // The layout's menu asks which machine, as its mod.json places it; the shipped one can't, so docked alone it's the active space's.
+            if (asks) openOverlay({ mod: props().newMenu, kind: "popup", at: "top", offset: 40, width: 576, height: 420, props: { pick: true } });
+            else run("space.new");
+            cx.notify();
+          }, { action: asks ? null : "space.new" }))
+          .child(tool("space-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }))))
       .child(v_flex().id("space-list").flex_1().min_h(0).overflow_y_scroll()
         .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
         // Herdr reports no release outside the sidebar, so leaving ends a drag, as in the inbox.

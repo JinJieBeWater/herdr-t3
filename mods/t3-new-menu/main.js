@@ -34,7 +34,7 @@ export default class NewMenu extends View {
   init() {
     this.at = 0;
     this.filter = "";
-    this.picking = false; // choosing the machine for a new space
+    this.picking = Boolean(props()?.pick); // choosing the machine for a new space; the sidebar's New space opens here
     this.scroll = VirtualListScrollHandle.new();
     const field = (placeholder) => {
       const input = InputState.new({ placeholder });
@@ -44,7 +44,7 @@ export default class NewMenu extends View {
     };
     this.spaceInput = field("Search spaces…");
     this.machineInput = field("Search machines…");
-    this.spaceInput.focus();
+    (this.picking ? this.machineInput : this.spaceInput).focus();
   }
 
   // The active space's machine first, as ⌘N would use it.
@@ -121,7 +121,8 @@ export default class NewMenu extends View {
     const t = theme(), ps = panes(), items = this.items();
     const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
-    const newKey = shortcut("space.new");
+    // ⌘N doesn't ask: it only names what this button does when there's nothing to ask.
+    const newKey = this.machineRows().length > 1 ? "" : shortcut("space.new");
     const footButton = (id, label) => h_flex().id(id).gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(label).hover(s => s.bg(t.selected));
     return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)

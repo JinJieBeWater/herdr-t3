@@ -26,8 +26,10 @@ const find = (node, id) => {
   for (const child of node.items) { const found = find(child, id); if (found) return found; }
   return null;
 };
+const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).join(" ") : "";
 
 let spaces, machines;
+let openProps = {};
 const calls = [], scrolled = [];
 const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
@@ -36,7 +38,7 @@ const context = vm.createContext({
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => scrolled.push(i) }) },
   v_virtual_list: (id, n, size, key, render) => { const list = element(); list.key = id; list.count = n; list.keys = Array.from({ length: n }, (_, i) => key(i)); list.drawn = render({ start: 0, end: n }); return list; },
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
-  closeOverlay() {}, props: () => ({ overlay: "o" }), window: () => ({ platform: "macos" }), keys: () => [], home: () => "/home/me", projectMark: element,
+  closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element,
 });
 const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
@@ -90,6 +92,15 @@ find(m.render(), "space-new").handlers.click({}, cx);
 list(m).handlers.item("machine:", cx);
 assert.deepEqual(take(), [["space.new", { machine: "" }]], "This computer");
 
+// The sidebar's New space opens on the machines; ⌘N, which doesn't ask, isn't offered as the same thing.
+openProps = { pick: true };
+m = open();
+assert.deepEqual([...list(m).keys], ["machine:", "machine:away", "machine:kvm"]);
+list(m).handlers.item("machine:kvm", cx);
+assert.deepEqual(take(), [["space.new", { machine: "kvm" }]]);
+openProps = {};
+assert.ok(!text(open().render()).includes("⌘N"), "no ⌘N beside a button that asks");
+
 // On a remote space its machine is offered first; with one machine there is nothing to ask.
 spaces = [local("a"), remote("r1", true)];
 m = open();
@@ -100,4 +111,5 @@ spaces = [local("a", true)];
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
 assert.deepEqual(take(), [["space.new", { machine: "" }]]);
+assert.ok(text(open().render()).includes("⌘N"), "⌘N beside a button that does the same");
 console.log("ok new menu");

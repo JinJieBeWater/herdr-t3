@@ -37,7 +37,7 @@
                   "type": "block",
                   "size": { "weight": 1 },
                   "min": 90,
-                  "content": { "mod": "t3-spaces" }
+                  "content": { "mod": "t3-spaces", "props": { "newMenu": "t3-new-menu" } }
                 },
                 {
                   "id": "agents",

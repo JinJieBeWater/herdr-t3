@@ -24,7 +24,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时
     - 标签的完整名字，悬停时：一个悬停提示（12px，`chrome`，1px `border`，圆角 6），挂在标签下方 4px，文字起点和标签里的名字对齐，只有名字和状态文字，因为 `×` 盖住了状态标记（项目、分支和程序在侧栏和窗格标题栏里都有）。时序和 Inbox 行相同（`details.js`，t3-inbox 那份的副本）；按下标签或状态标记点亮时隐藏。
   - **窗格**（内边距 2/8，间距 8），即当前标签：圆角 8，`background` 填充，聚焦边框 2px，默认关闭（`focus.color` 为 `background`，改成 `accent` 即显示；平时的边框也是 2px，颜色同 `background`，所以聚焦时终端不会变尺寸），单个窗格也带框。每个窗格顶部有 28px 标题栏：程序图标、agent 名或终端标题（13px 中粗，聚焦时 `foreground`）、目录、状态标记，以及右分屏、下分屏、缩放/取消缩放、关闭按钮（悬停时出现）。
   - 底部留 6px；布局里有自带的 `workspace-status` 状态栏，但隐藏。
-- **新建菜单**（`t3-new-menu`，576 宽弹层，位于顶部）：选一个 space 开终端标签（`tab.new`）；`⌘1…` 按编号选 space。当前 space 排最前，同一机器的 space 排在一起；显示 6 行后滚动，滚动跟随高亮。每行第二行是目录，远程 space 前面加服务器图标和机器名，和 T3 标记远程 thread 的方式相同。底部 footer 放按键提示，右侧是 New space（`space.new`）：有多台机器时先选机器，和 T3 的 Add project 先选 environment 相同（未就绪的机器置灰且不可选，`← Spaces` 返回）。`⌘N` 不询问，直接用当前 space 的机器。
+- **新建菜单**（`t3-new-menu`，576 宽弹层，位于顶部）：选一个 space 开终端标签（`tab.new`）；`⌘1…` 按编号选 space。当前 space 排最前，同一机器的 space 排在一起；显示 6 行后滚动，滚动跟随高亮。每行第二行是目录，远程 space 前面加服务器图标和机器名，和 T3 标记远程 thread 的方式相同。底部 footer 放按键提示，右侧是 New space（`space.new`）：有多台机器时先选机器，和 T3 的 Add project 先选 environment 相同（未就绪的机器置灰且不可选，`← Spaces` 返回）。`⌘N` 不询问，直接用当前 space 的机器，所以 footer 只在无需询问时才标它。侧栏的 New space（Inbox 顶栏和 Spaces 标题栏的 `folder-plus`，旁边是同样的 `square-pen` New tab）直接打开这个菜单的选机器步骤（`openOverlay` 带 `props: { pick: true }`，菜单由布局的 `newMenu` 指定）；只有一台机器，或单独停靠没有 `newMenu` 时，直接运行 `space.new`。
 
 ## 它怎么表现
 
@@ -57,7 +57,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时
 ## 注意
 
 - `t3-tabs` 和 `t3-chrome` 用 `find(layout(), "sidebar-lists")` 找 stack；保留节点 id `sidebar`、`sidebar-lists`、`lists`、`inbox`。
-- 悬停提示是 `mods/t3-inbox/tip.js`（用 `HoverCard` 照 T3 Code 的 tooltip 绘制：12px，标签加 `keys()` 读到的快捷键，可带一行暗色说明），各放一份副本。和 T3 一样，提示只用几个词说出控件的名字，控件本身有没有文字都可以加；第二行只用于看不出来的操作（Shift+click）。纯图标按钮和无文字标记（状态、机器）有提示，程序图标和图钉没有。和 T3 一样默认朝上；上方放不下的（品牌栏、标签栏及其中的 Actions 和 Review 栏、Actions 菜单的行、两行的筛选提示）传 `below`：`HoverCard` 不会像 T3 那样自动翻转。`.tooltip()` 只收字符串，样式由外壳决定。
+- 悬停提示是 `mods/t3-inbox/tip.js`（用 `HoverCard` 照 T3 Code 的 tooltip 绘制：12px，标签加 `keys()` 读到的快捷键（仅当按键和控件做的是同一件事），可带一行暗色说明），各放一份副本。和 T3 一样，提示只用几个词说出控件的名字，控件本身有没有文字都可以加；第二行只用于看不出来的操作（Shift+click）。纯图标按钮和无文字标记（状态、机器）有提示，程序图标和图钉没有。和 T3 一样默认朝上；上方放不下的（品牌栏、标签栏及其中的 Actions 和 Review 栏、Actions 菜单的行、两行的筛选提示）传 `below`：`HoverCard` 不会像 T3 那样自动翻转。`.tooltip()` 只收字符串，样式由外壳决定。
 - 只有品牌栏那份 `t3-chrome` 监听 `nextCommand()`；底栏那份没东西可切换。
 - 碰到 index 的 git 命令会再次唤醒目录监听：始终带上 `--no-optional-locks -c core.fsmonitor=false`。
 - Settle 标签大约 0.65 秒后才出现在 `terminals()`：要保留待定值。

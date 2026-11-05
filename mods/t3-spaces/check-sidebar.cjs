@@ -85,7 +85,7 @@ function fixture(width) {
     },
     openOverlay: spec => overlays.push(spec), closeOverlay: id => closed.push(id), updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
-    keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }],
+    keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }, { section: "global", keys: "cmd-n", action: "space.new" }],
   };
   function load(name, props = {}) {
     const storage = stores.get(name) ?? new Map();
@@ -715,8 +715,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     const pick = (id) => strip.forEach(c => { c.active = c.id === id; });
     const room = (width) => fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width }, cx);
     const wheel = (x, y) => fire(view.render(cx), "on_scroll_wheel", { delta: { x, y } }, cx);
-    // A name's width, so its tab is `whole` wide: 33 around the name.
-    const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 33 }, cx);
+    // A name's width, so its tab is `whole` wide: 47 around the name.
+    const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 47 }, cx);
     assert.equal(w("a"), 144, "before its name is measured");
     assert.equal(find(view.render(cx), "name-a").style.h, 0, "the measure doesn't show");
     for (const id of "abcd") name(id, 300);
@@ -731,7 +731,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([..."abcd"].map(w), [240, 100, 144, 144], "squeezed: the active tab stops at 240, the rest at 144, and the strip scrolls");
     pick("b");
     assert.deepEqual([..."abcd"].map(w), [144, 100, 144, 144], "a short active tab asks for no more");
-    name("b", 33 + 14);
+    name("b", 47 + 14);
     assert.equal(w("b"), 96, "a name as short as `Pi` still gets a tab 96px wide");
     for (const id of "abcd") name(id, 100);
     pick("a");
@@ -972,6 +972,38 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
+    // Lists and Inbox make the same things the same way: with two machines New space asks, in the layout's menu; docked alone it can't.
+    const f = fixture(256), menu = { newMenu: "t3-new-menu" };
+    for (const [mod, space, tab] of [["t3-spaces", "space-new", "space-new-tab"], ["t3-inbox", "inbox-new-space", "inbox-new-tab"]]) {
+      const view = f.load(mod, menu);
+      f.calls.length = f.overlays.length = 0;
+      fire(find(view.render(cx), space), "on_click", {}, cx);
+      assert.deepEqual(f.calls, [], `${space} asks first`);
+      assert.deepEqual(plain(f.overlays), [{ mod: "t3-new-menu", kind: "popup", at: "top", offset: 40, width: 576, height: 420, props: { pick: true } }], `${space} opens on the machines`);
+      fire(find(view.render(cx), tab), "on_click", {}, cx);
+      assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-new-menu" }]], `${tab} picks a space`);
+      f.overlays.length = 0;
+      fire(find(f.load(mod).render(cx), space), "on_click", {}, cx);
+      assert.deepEqual(f.calls.splice(0), [["space.new", {}]], `${space} docked alone`);
+      assert.equal(f.overlays.length, 0);
+    }
+    // A machine's + and chevron stand under the heading's two buttons: centers 51 and 23 from the sidebar's edge. Its dot follows its name.
+    const lists = f.load("t3-spaces", menu), heading = find(lists.render(cx), "spaces-heading").style, row = find(lists.render(cx), "machine-local");
+    const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style, chevron = 8 + row.style.pr + add.w / 2, plus = 8 + row.style.pr + add.w + slots.gap + add.w / 2;
+    assert.deepEqual([chevron, plus], [heading.pr + 13, heading.pr + 26 + 2 + 13]);
+    assert.ok(row.items.findIndex(n => find(n, "machine-state-local")) < row.items.findIndex(n => find(n, "machine-add-local")), "the dot is before the +");
+    // Hover labels name the control, and its key only when the key does the same.
+    lists.machines = [{ name: "vps", state: "connected" }];
+    const label = (id) => { lists.hot = id; return strings(find(lists.render(cx), `tip-${id}`).style.content); };
+    assert.deepEqual(label("space-new"), ["New space"], "⌘N doesn't ask, as this does");
+    assert.deepEqual(label("space-new-tab"), ["New tab"]);
+    assert.deepEqual(label("machine-add-local"), ["New space here (⌘N)"], "⌘N makes it on this space's machine");
+    assert.deepEqual(label("machine-add-vps"), ["New space here"], "and not on another");
+    assert.deepEqual(label("machine-fold-local"), ["Collapse spaces"]);
+    assert.deepEqual(label("machine-state-local"), ["Connected"]);
+    lists.hot = null;
+  }
+  {
     // A row's details, as T3's thread card: at the row's top right, with T3's tooltip group for timing and fade.
     const f = fixture(256), inbox = f.load("t3-inbox");
     f.panes()[0].branch = "feat/x";
@@ -1062,18 +1094,20 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
-    // A tab as T3's panel tab: 24px, 12px; its icon's slot closes it, a × while the tab is hovered.
+    // A tab as T3's panel tab: 24px, 12px; unlike T3's its icon stays, and × comes at its end, over the status mark, while the tab is hovered.
     // A tab drags as a space does, and leaving ends either.
     const f = fixture(256), tabs = f.load("t3-tabs"), spaces = f.load("t3-spaces");
     f.spaces()[0].active = f.spaces()[0].tabs[0].active = true;
     f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
     const tab = find(tabs.render(cx), "tab-other").style;
-    assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.gap], [24, 12, 6, 2]);
+    assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.pr, tab.gap], [24, 12, 6, 4, 2]);
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
-    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg", "at rest it's the tab's icon, a terminal's when it has no program");
+    assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/workspace-chrome/terminal.svg"), "the tab's icon, a terminal's when it has no program");
     fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
     assert.equal(close().items[0].source, "mods/pane/close.svg", "hovered, a ×");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/workspace-chrome/terminal.svg"), "and the icon stays");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
     // Its whole name and nothing else, with an Inbox row's timing: after 150ms for the first and at once for the next.
     const tabCard = (id) => find(tabs.render(cx), `details-${id}`)?.style.content;
@@ -1095,7 +1129,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.calls.pop();
     assert.ok(find(tabs.render(cx), "tab-other").items.some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
     fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
-    assert.equal(close().items[0].source, "mods/workspace-chrome/terminal.svg");
+    assert.equal(close().items.length, 0, "the × goes with the pointer");
     fire(close(), "on_click", {}, cx);
     assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:other", {}], "the × goes through the tab bar's answer");
     cx.timers.filter(t => t.ms === 150 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
