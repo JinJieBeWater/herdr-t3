@@ -8,7 +8,7 @@
 
 - Lucide 图标描边 1.75px，同 T3 的 CSS 把 Lucide 的 2px 调细。每个 mod 都用自己的副本，Herdr 自带的那些也一样；只有加载转圈不是 Lucide，仍用自带的。
 - Inbox 的密度和 T3 侧栏一致：已 Settle、已 Snooze 的行和 Show more 为 36px，收纳区标题 32px、数量用常规字重，卡片内边距 6、圆角 6。
-- 撤销提示条放在侧栏底栏，同 T3，不再遮挡列表：显示 `Settled,`（或 `Settled 2,`）和 `Undo`，空间不够时 `Undo` 换成图标。单独停靠、没有底栏时，Inbox 仍在第一个收纳区上方显示。
+- 撤销提示条放在侧栏底栏，同 T3，不再遮挡列表：显示 `Settled,`（或 `Settled 2,`）和 `Undo`；空间不够时截断摘要，`Undo` 始终显示。单独停靠、没有底栏时，Inbox 仍在第一个收纳区上方显示。
 - Custom snooze 的时长改用带 − / + 的数字字段，单位用下拉选择，同 T3 的对话框。
 - Snooze 菜单、New、Go to 和 Actions 编辑框改为淡入。T3 同时从 98% 放大，Herdr 做不了缩放动画。
 - Inbox 顶栏的 Search 尺寸照 T3 的搜索框：32px 高、16px 图标。

@@ -61,18 +61,16 @@ export default class WorkspaceChrome extends View {
       // its 5s and the fade is left from before a restart.
       // Only with the Inbox showing: its Undo reaches the Inbox only then, as cmd-shift-s does.
       const n = inboxShown() && shared("t3-inbox.notice");
-      // T3's two wraps, not a cut mid-word: short of room the summary drops to a second line the row clips; shorter still, so
-      // does the word, and the icon, whose negative margin kept it out of the way beside the word, shows.
-      const notice = n && Date.now() - n.at < 6000 && h_flex().id(`undo-notice-${n.gen}`).flex_1().min_w(0).h(24).overflow_hidden().flex_row_reverse().flex_wrap().gap_x(4)
+      // Short of room the summary is cut, never Undo: GPUI's flex doesn't do T3's two wraps, which squeezed Undo to nothing.
+      const notice = n && Date.now() - n.at < 6000 && h_flex().id(`undo-notice-${n.gen}`).flex_1().min_w(0).h(24).justify_end().gap(4).items_center()
         .text_size(11).text_color(t.dim).opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })
+        .child(div().min_w(0).truncate().child(`${n.action}${n.count === 1 ? "" : ` ${n.count}`},`))
         // As T3's InlineButton: medium, foreground, underlined on hover.
-        .child(h_flex().id("undo-notice-undo").min_w(0).h(24).overflow_hidden().flex_wrap().justify_end().font_medium().text_color(t.foreground)
+        .child(h_flex().id("undo-notice-undo").flex_none().h(24).items_center().font_medium().text_color(t.foreground)
           .when(n.live, (el) => el.hover((s) => s.underline()).role("button").accessibility_label(`Undo: ${n.action} ${n.count} agent${n.count === 1 ? "" : "s"}`)
             .on_click(() => run("t3-inbox.undo")))
-          .child(h_flex().ml(-16).w(16).h(24).flex_none().child(svg("mods/t3-inbox/undo.svg").size(16).text_color(t.foreground)))
-          .child(h_flex().h(24).child("Undo"))
-          .when(n.live, (el) => stop(this, t, "undo-notice-undo", el, 4)))
-        .child(h_flex().h(24).child(`${n.action}${n.count === 1 ? "" : ` ${n.count}`},`));
+          .child("Undo")
+          .when(n.live, (el) => stop(this, t, "undo-notice-undo", el, 4)));
       const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit(id)).hover(s => s.bg(t.hover)).on_hover(glow(id))
         .role("button").accessibility_label(label)

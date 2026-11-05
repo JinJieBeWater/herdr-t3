@@ -8,7 +8,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 - Lucide icons draw 1.75px strokes, as T3's CSS thins Lucide's 2px. Each mod keeps its own copies, the ones Herdr ships included; only the spinner, not Lucide's, is the shipped one.
 - Inbox is as dense as T3's sidebar: settled and snoozed rows and Show more are 36px, shelf headers 32px with a regular-weight count, cards 6px in and rounded 6.
-- The undo notice sits in the sidebar footer, as T3's, so it covers nothing: `Settled,` (or `Settled 2,`) and `Undo`, which gives way to an icon short of room. Docked alone, with no footer, Inbox still shows it over the first shelf.
+- The undo notice sits in the sidebar footer, as T3's, so it covers nothing: `Settled,` (or `Settled 2,`) and `Undo`; short of room the summary is cut, never `Undo`. Docked alone, with no footer, Inbox still shows it over the first shelf.
 - Custom snooze takes its amount in a number field with − and +, and its unit from a select, as T3's dialog.
 - The snooze menu, New, Go to and the Actions editor fade in. T3's also scale up from 98%, which Herdr can't animate.
 - Search in Inbox's top row is sized as T3's search field: 32px, a 16px icon.

@@ -275,12 +275,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(footer.render(cx), "undo-notice-3"), null, "with Lists showing its Undo couldn't reach the Inbox");
   f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
   const note = find(footer.render(cx), "undo-notice-3");
-  assert.deepEqual([strings(note), "flex_1" in note.style, note.style.text_size], [["Undo", "Settled 2,"], true, 11], "reversed, so the summary is what wraps away");
-  assert.equal(walk(note).find(x => x.kind === "svg").source, "mods/t3-inbox/undo.svg", "T3's Undo2, for when the word doesn't fit");
+  assert.deepEqual([strings(note), "flex_1" in note.style, note.style.text_size], [["Settled 2,", "Undo"], true, 11]);
+  assert.ok("flex_none" in find(note, "undo-notice-undo").style && "truncate" in note.items[0].style, "short of room the summary is cut, never Undo");
   fire(find(note, "undo-notice-undo"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-inbox.undo", {}]);
   f.state["t3-inbox.notice"].count = 1;
-  assert.deepEqual(strings(find(footer.render(cx), "undo-notice-3")), ["Undo", "Settled,"]);
+  assert.deepEqual(strings(find(footer.render(cx), "undo-notice-3")), ["Settled,", "Undo"]);
   f.state["t3-inbox.notice"].at = Date.now() - 60000;
   assert.equal(find(footer.render(cx), "undo-notice-3"), null, "one left from before a restart doesn't show");
   delete f.state["t3-inbox.notice"];
