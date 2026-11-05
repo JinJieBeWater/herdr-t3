@@ -384,6 +384,15 @@ for (const width of [208, 240, 256, 320, 480]) {
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
   assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "no done dot for a settled agent's tab");
+  f.terminals().find(c => c.address === "t0").labels = { snoozed: String(Date.now() + 60000) };
+  assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "nor for a snoozed one's");
+  // Snoozed with a sub-agent stuck, the Inbox shows it as needing the person, so the hidden sidebar's toggle counts it.
+  f.terminals().find(c => c.address === "child").status = "error"; f.slots.sidebar.hidden = true;
+  const stuck = () => strings(find(f.load("t3-tabs").render(cx), "agents-blocked"));
+  const snoozedCount = stuck();
+  f.terminals().find(c => c.address === "t0").labels = {};
+  assert.deepEqual(snoozedCount, stuck(), "the same count, snoozed or not");
+  delete f.slots.sidebar.hidden;
 }
 
 {

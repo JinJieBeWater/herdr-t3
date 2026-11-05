@@ -33,6 +33,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 - A sub-agent in view with no row of its own lights its parent's card, and Settle acts on it.
 - An agent you bring into view that the space filter hides widens the filter to all spaces.
 - Closing a tab or pane asks first when a program is running in it; an empty shell closes at once. This covers the ×s and `cmd-w` / `cmd-shift-w`. After updating, add the `cmd-w`, `ctrl-alt-shift-x`, `cmd-shift-w` and `ctrl-alt-x` lines from the repo's `keys.json` to your `layout:herdr-t3` section. Agents and the right-click menu close as before.
+- **Snooze**, as T3's: the clock on a hovered card opens a menu (In 1 hour, In 3 hours, This evening, Tomorrow, Next week, Custom…). The agent waits on a Snoozed shelf and wakes where it was, marked `Woke`; it shows early if it needs you, and Undo, Wake or a drag out of the shelf bring it back at once.
+- A pinned card offers Settle too, as T3's: settling drops the pin, and Undo puts it back in its place.
 
 ### Fixes
 

@@ -128,6 +128,10 @@ terms[0].labels.settled = "1:1";
 assert.equal(dots(), shown);
 sidebar.children[0].active = "inbox";
 assert.equal(dots(), shown - 1);
+delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60000);
+assert.equal(dots(), shown - 1, "snoozed too");
+terms[0].labels.snoozed = String(Date.now() - 1);
+assert.equal(dots(), shown, "woken, it is news again");
 
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);

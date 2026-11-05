@@ -7,11 +7,16 @@ import { tip, tipMark } from "./tip.js";
 import { detailsFor } from "./details.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
-// One that works or gets stuck is unsettled there, so only done needs leaving out.
-function awake() {
+// One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one, until it
+// wakes, isn't news either, working or done; while it or what's under it needs the person it shows there, so it
+// counts here too.
+function awake(st) {
   if (find(layout(), "sidebar-lists")?.active !== "inbox") return agents();
-  const put = new Set(terminals().filter((k) => k.labels?.settled).map((k) => k.address));
-  return agents().filter((a) => !put.has(a.address));
+  const now = Date.now(), labels = new Map(terminals().map((k) => [k.address, k.labels]));
+  return agents().filter((a) => {
+    const l = labels.get(a.address);
+    return !l?.settled && (!(Number(l?.snoozed) > now) || st(a) === "blocked");
+  });
 }
 
 // "Needs you", drawn as the agents list and pane headers draw it.
@@ -197,10 +202,10 @@ export default class Tabs extends View {
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
-    const live = awake();
     // Each agent with its sub-agents (tree.js).
     const every = agents(), all = terminals(), under = subAgents(every, all);
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
+    const live = awake(st);
     const ps = panes();
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))

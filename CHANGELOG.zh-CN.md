@@ -30,6 +30,8 @@
 - 工作区窄于 1024px 时，动作和 Review 栏收成图标和数字。
 - mod 窗格可以给所在的标签和窗格标题栏提供标题、图标和状态；评审窗格就这样显示分析状态。
 - `cmd-]` / `cmd-[` 照 T3 在 Inbox 里走：按画出来的行的顺序，到两端停住；折叠的区只算当前查看的那一行。显示 Lists 时照旧用 Herdr 的 `agent.next`。更新后，在 `keys.json` 的 `layout:herdr-t3` 分区加上 `"cmd-]": "t3-chrome.next"` 和 `"cmd-[": "t3-chrome.prev"`。
+- **Snooze**，照 T3：鼠标移到卡片上，点时钟打开菜单（In 1 hour、In 3 hours、This evening、Tomorrow、Next week、Custom…）。agent 进 Snoozed 收纳区等待，到点回到原位并标 `Woke`；需要你时会提前出现，撤销、Wake 或把它拖出收纳区都能立刻叫回。
+- 已置顶的卡片也能 Settle，和 T3 相同：Settle 会取消置顶，Undo 放回原位。
 - 查看没有自己行的子 agent 时，点亮它父 agent 的卡片，Settle 也作用在这张卡片上。
 - 关闭标签或窗格时，里面有程序在运行就先确认，空 shell 直接关闭：包括 × 和 `cmd-w` / `cmd-shift-w`。更新后，把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区。Agent 和右键菜单的关闭不变。
 

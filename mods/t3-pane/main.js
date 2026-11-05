@@ -22,10 +22,11 @@ function folder(cwd) {
   return cwd === h ? "~" : cwd.startsWith(h + "/") ? "~" + cwd.slice(h.length) : cwd;
 }
 
-// Settled in the inbox isn't news, so its done dot goes, as in the tabs.
+// Settled or snoozed (until it wakes) in the inbox isn't news, so its done dot goes, as in the tabs.
 function settled(p) {
   const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-  return find(layout())?.active === "inbox" && Boolean(terminals().find((k) => k.address === p.terminal)?.labels?.settled);
+  const labels = terminals().find((k) => k.address === p.terminal)?.labels;
+  return find(layout())?.active === "inbox" && Boolean(labels?.settled || Number(labels?.snoozed) > Date.now());
 }
 
 export default class Pane extends View {
