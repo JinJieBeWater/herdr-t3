@@ -47,7 +47,7 @@ const env = {
   shared: (key) => state[key], setShared: (key, value) => { state[key] = value; },
   run: (name, args) => calls.push([name, plain(args)]), notify: (n) => notes.push(n),
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
-  appHome: () => "/app", readTextFile: async () => '{ "open": "herdr" }',
+  appHome: () => "/app", home: () => "/Users/me", readTextFile: async () => '{ "open": "herdr" }',
 };
 const source = ["details.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
@@ -218,9 +218,12 @@ const load = (props = {}, setup = record) => {
     gits.push(args.find(a => a === "log" || a === "for-each-ref") ?? args.join(" "));
     if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: `abcdef123456\x1ffix: a\x1f${Math.floor(Date.now() / 1000) - 7260}\x1fAvery\n` }; }
     if (args.includes("rev-list")) return { code: 0, stdout: "abcdef123456\n" };
-    const counting = args.includes("--format=%(refname:short) %(ahead-behind:origin/main)");
-    if (counting) return oldGit ? { code: 128, stdout: "" } : { code: 0, stdout: "feat 0 0\nOther 3 1\n" };
-    if (args.includes("--format=%(refname:short)")) return { code: 0, stdout: "feat\nOther\n" };
+    // Each branch: name, last subject, its time, author, upstream, its track, worktree, then (Git 2.41) ahead and behind.
+    const format = args.find(a => a.startsWith("--format=%(refname:short)%1f")), counting = format?.endsWith("%1f%(ahead-behind:origin/main)");
+    const refs = (ab) => [["feat", "wip", 60, "Avery", "origin/feat", "", "/repo", "0 0"], ["Other", "add other", 10800, "Blake", "origin/Other", "ahead 2", "/Users/me/wt/other", "3 1"]]
+      .map(([name, subject, age, ...rest]) => [name, subject, Math.floor(Date.now() / 1000) - age, ...rest].slice(0, ab ? 8 : 7).join("\x1f")).join("\n") + "\n";
+    if (counting) return oldGit ? { code: 128, stdout: "" } : { code: 0, stdout: refs(true) };
+    if (format) return { code: 0, stdout: refs(false) };
     return { code: 128, stdout: "" };
   };
   const r = { root: "/repo", branch: "feat", base: "main", baseRef: "origin/main", unmerged: 4 };
@@ -237,8 +240,11 @@ const load = (props = {}, setup = record) => {
   assert.equal(spec.width, 560);
   assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
   assert.deepEqual(gits.splice(0), ["log", "for-each-ref"]);
-  assert.deepEqual(plain(spec.props.branches), [{ name: "Other", count: 3 }], "the current branch isn't offered against itself");
-  assert.equal(spec.height, 10 + 36 + 24 + 32 + 9 + 24 + 32, "the popup fits its rows");
+  const { time: otherTime, ...other } = plain(spec.props.branches)[0];
+  assert.deepEqual([spec.props.branches.length, other], [1, { name: "Other", subject: "add other", author: "Blake", upstream: "origin/Other", track: "ahead 2", worktree: "/Users/me/wt/other", count: 3, behind: 1 }],
+    "the current branch isn't offered against itself; each comes with its last commit, upstream, worktree and counts, from the one call");
+  assert.ok(Math.abs(Date.now() - 3 * 36e5 - otherTime) < 5000);
+  assert.equal(spec.height, 10 + 36 + 36 + 32, "the popup fits the switch and the longer page, so turning pages doesn't resize it");
   assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
   assert.deepEqual([spec.mod, spec.props.menu], ["pulls-review", "review"]);
   assert.deepEqual(plain(spec.at), { x: 892, y: 40 * zoom }, "it hangs from the bar under the press, not over the bar");
@@ -249,6 +255,10 @@ const load = (props = {}, setup = record) => {
   fire(find(menu.render(), "review-commit-abcdef123456"), "on_click", {}, cx);
   assert.deepEqual(launched.at(-1), { root: "/repo", args: ["abcdef123456"], page: "/commit/abcdef123456", overlay: "m1" }, "a menu pick doesn't analyze");
   assert.equal(closed.length, shut, "launch closes the menu when done: closing first would stop its task");
+  assert.equal(find(menu.render(), "review-branch-Other"), null, "commits first, the branches on a page of their own");
+  fire(find(menu.render(), "review-tab-branches"), "on_click", {}, cx);
+  assert.deepEqual([find(menu.render(), "review-commit-abcdef123456"), strings(find(menu.render(), "review-branch-Other"))], [null, ["Other", "add other", "3 ahead", "3h"]],
+    "a branch's row: its name, its last commit, how far ahead and how old");
   fire(find(menu.render(), "review-branch-Other"), "on_click", {}, cx);
   assert.deepEqual([launched.at(-1).args, launched.at(-1).page], [["origin/main...Other"], "/compare/origin/main...Other"]);
   // With the review pane showing this repository's diff: its count lit, one commit's place and steps, the menu on its commits.
@@ -274,43 +284,52 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(gits.splice(0), ["for-each-ref"], "inside a review the menu lists its commits: no log");
   assert.deepEqual(plain(within.props.commits.map(c => c.sha)), ["c3", "c2", "c1"], "newest first, as the log's");
   assert.deepEqual(plain(within.props.within), { tab: "b", root: "/repo", base: "/branch/feat", sha: "c2" });
-  assert.equal(within.height, Math.min(480, 10 + 36 + 32 + 24 + 3 * 32 + 9 + 24 + 32), "the popup fits All changes too");
+  assert.equal(within.height, 10 + 36 + 36 + 4 * 32, "the popup fits All changes too");
   const inMenu = load(within.props).mod;
   const marked = (id) => walk(find(inMenu.render(), id)).some(n => n.source === "mods/workspace-chrome/check.svg");
   assert.deepEqual([marked("review-commit-c2"), marked("review-commit-c1"), marked("review-all")], [true, false, false], "the commit shown is checked");
+  // Commits first, All changes on top inside a review, no branch among them.
+  const rowsOf = (m) => ["review-all", "review-branch-Other", "review-commit-c3", "review-commit-c2", "review-commit-c1"].filter(id => find(m.render(), id));
+  const ids = rowsOf(inMenu);
+  assert.deepEqual(ids, ["review-all", "review-commit-c3", "review-commit-c2", "review-commit-c1"]);
+  assert.deepEqual(strings(find(inMenu.render(), "review-menu")).filter(text => /^(Commits|Branches|\d+|in this review)$/.test(text)), ["Commits", "3", "Branches", "1", "in this review"],
+    "the switch counts each page, and says what the page shown lists");
   // The highlight as the Actions and New menus': `selected`, on the top row first, moved by ↑/↓ (round) and by the pointer.
-  const ids = ["review-all", "review-branch-Other", "review-commit-c3", "review-commit-c2", "review-commit-c1"];
-  const highlighted = () => ids.filter(id => find(inMenu.render(), id).style.bg === theme.selected);
+  const highlighted = () => ids.filter(id => find(inMenu.render(), id)?.style.bg === theme.selected);
   assert.deepEqual(highlighted(), ["review-all"]);
   const key = (k) => fire(find(inMenu.render(), "review-menu"), "on_key_down", { key: k }, cx);
-  key("down"); key("down");
+  key("down");
   assert.deepEqual(highlighted(), ["review-commit-c3"]);
   const cardOf = (id) => strings(find(find(inMenu.render(), id), `details-${id}`).style.content);
   assert.equal(cardOf("review-commit-c3")[0], "c3", "the card follows the keys to a commit");
-  fire(find(inMenu.render(), "review-branch-Other"), "on_hover", true, cx);
-  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes when the pointer takes the highlight to a branch");
-  key("down");
   key("up");
-  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes on a branch");
-  key("down");
-  key("up"); key("up"); key("up");
+  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes off it");
+  key("up");
   assert.deepEqual(highlighted(), ["review-commit-c1"], "up from the top goes round to the bottom");
-  fire(find(inMenu.render(), "review-branch-Other"), "on_hover", true, cx);
-  assert.deepEqual(highlighted(), ["review-branch-Other"], "the pointer moves it too");
-  assert.equal(find(inMenu.render(), "review-commit-c3").hoverStyle.bg, theme.foreground + "0a", "the rest lift faintly under the pointer");
+  fire(find(inMenu.render(), "review-commit-c3"), "on_hover", true, cx);
+  assert.deepEqual(highlighted(), ["review-commit-c3"], "the pointer moves it too");
+  assert.equal(find(inMenu.render(), "review-commit-c2").hoverStyle.bg, theme.foreground + "0a", "the rest lift faintly under the pointer");
   fire(find(inMenu.render(), "review-commit-c1"), "on_click", {}, cx);
   assert.deepEqual([state.review.page, state.review.base], ["/commit/c1", "/branch/feat"], "a pick stays in this diff");
   fire(find(inMenu.render(), "review-all"), "on_click", {}, cx);
   assert.equal(state.review.page, "/branch/feat");
+  // Tab turns to the branches' page, and back.
+  key("tab");
+  assert.deepEqual(rowsOf(inMenu), ["review-branch-Other"], "no commit among the branches");
+  assert.equal(strings(find(inMenu.render(), "review-menu")).at(-5), "vs main");
+  // A branch's card, as a commit's: its last commit, then how it stands against the base and its upstream, and where it's checked out.
+  key("down");
+  const [branchName, branchSubject, branchAge, ...branchRest] = cardOf("review-branch-Other");
+  assert.deepEqual([branchName, branchSubject, branchRest], ["Other", "add other", ["B", "Blake", "3 ahead of main, 1 behind", "2 not pushed · origin/Other", "Checked out in ~/wt/other"]]);
+  assert.match(branchAge, /^3h ago · /);
   fire(find(inMenu.render(), "review-branch-Other"), "on_click", {}, cx);
   assert.deepEqual(launched.at(-1).args, ["origin/main...Other"], "a branch is a new diff");
-  // Titled for what it lists: this review's commits, else the branch's. Branches above them, the titles outside the scrolling lists.
-  const titles = (node) => strings(node).filter(text => /^(Branches vs|Commits)/.test(text));
-  assert.deepEqual(plain(titles(inMenu.render())), ["Branches vs main", "Commits in this review"]);
+  key("tab");
+  assert.deepEqual(rowsOf(inMenu), ids);
   const top = find(inMenu.render(), "review-menu").items.map(n => n.key);
-  assert.ok(top.includes("review-all") && top.includes("review-branches") && top.includes("review-commit-list"));
+  assert.ok(top.includes("review-all") && top.includes("review-commit-list") && !top.includes("review-branches"), "All changes and the switch outside the list");
   const many = load({ ...within.props, branches: Array.from({ length: 9 }, (_, i) => ({ name: `b${i}`, count: 1 })) }).mod;
-  assert.equal(find(many.render(), "review-branches").style.h, 4 * 32, "a long branch list can't push the commits away");
+  fire(find(many.render(), "review-tab-branches"), "on_click", {}, cx);
   // The lists scroll by script, as the shipped picker's: rows keep their handlers, ↑/↓ keep the highlight in view, the wheel
   // takes the highlight along. Until the list is measured every row is drawn; then only those in view, where the scroll puts them.
   const branchRow = (i) => find(many.render(), `review-branch-b${i}`);
@@ -318,7 +337,7 @@ const load = (props = {}, setup = record) => {
   fire(find(many.render(), "review-branches"), "on_size_change", { width: 500, height: 4 * 32 * zoom }, cx);
   assert.deepEqual([branchRow(3)?.style.top, branchRow(4)], [3 * 32, null], "measured: the four in view");
   const manyKey = (k) => fire(find(many.render(), "review-menu"), "on_key_down", { key: k }, cx);
-  for (let i = 0; i < 6; i++) manyKey("down");
+  for (let i = 0; i < 5; i++) manyKey("down");
   assert.equal(branchRow(5).style.bg, theme.selected);
   assert.deepEqual([branchRow(5).style.top, branchRow(1)], [3 * 32, null], "↑/↓ scroll the highlight into view, at the bottom edge");
   // Two events before the next render, as a trackpad sends them: both count.
@@ -423,9 +442,11 @@ const load = (props = {}, setup = record) => {
   oldGit = true; gits.length = 0;
   const old = await click(r);
   assert.deepEqual(gits.splice(0).filter(g => g === "for-each-ref"), ["for-each-ref", "for-each-ref"]);
-  assert.deepEqual(plain(old.props.branches), [{ name: "Other" }], "an older Git: the names without counts");
-  const uncounted = find(load(old.props).mod.render(), "review-branch-Other");
-  assert.deepEqual([strings(uncounted), uncounted.style.accessibility_label], [["Other"], "Review branch Other"]);
+  assert.deepEqual([old.props.branches[0].name, "count" in old.props.branches[0]], ["Other", false], "an older Git: the branches without counts");
+  const oldMenu = load(old.props).mod;
+  fire(find(oldMenu.render(), "review-tab-branches"), "on_click", {}, cx);
+  const uncounted = find(oldMenu.render(), "review-branch-Other");
+  assert.deepEqual([strings(uncounted), uncounted.style.accessibility_label], [["Other", "add other", "3h"], "Review branch Other"]);
 
   // Opened as an overlay (`mod.open:pulls-review`) it reviews the focused pane's worktree and closes itself: in "herdr"
   // mode, a review pane split off the focused one.
