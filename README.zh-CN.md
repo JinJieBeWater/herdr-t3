@@ -99,14 +99,13 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 ```json
 {
   "appearance": "dark",
-  "font": "Maple Mono NF CN",
-  "ui_font": "Maple Mono NF CN",
+  "font": "Geist Mono",
+  "ui_font": "Geist",
   "font_size": 12,
+  "zoom": 1.1,
   "minimum_contrast": 3
 }
 ```
-
-Herdr 不自带 [Maple Mono NF CN](https://github.com/subframe7536/maple-font)：先安装它，或者删掉字体这几行，沿用 Herdr 的 JetBrains Mono 和 Geist。
 
 ## 致谢与许可证
 

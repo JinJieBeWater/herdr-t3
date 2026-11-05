@@ -99,14 +99,13 @@ Not part of the layout and not copied by an install; add them by hand if you wan
 ```json
 {
   "appearance": "dark",
-  "font": "Maple Mono NF CN",
-  "ui_font": "Maple Mono NF CN",
+  "font": "Geist Mono",
+  "ui_font": "Geist",
   "font_size": 12,
+  "zoom": 1.1,
   "minimum_contrast": 3
 }
 ```
-
-Herdr doesn't ship [Maple Mono NF CN](https://github.com/subframe7536/maple-font): install it, or leave the font lines out to keep Herdr's JetBrains Mono and Geist.
 
 ## Credits and license
 
