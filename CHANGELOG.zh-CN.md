@@ -4,6 +4,13 @@
 
 ## 2026-11-05
 
+### 跳转：程序，以及回到上一处
+
+- `cmd-p` 和 Inbox 的 Search 打开布局自己的跳转（`t3-picker`，改自 Herdr 的 picker），画法同新建菜单：T3 的命令面板，两行的行带 space 标记、程序和状态标记，底部是按键提示。每个窗格一行，名字和图标与窗格标题、标签一致，不再按标签列出 Herdr 自己的标签名：输入 `lazygit` 回车，就跳到那个窗格，不管它旁边有没有 agent、在哪个 space。标签名只有你命名过才参与搜索。ctrl+d 关闭这个窗格，有程序在运行时先确认。
+- 第一行回到你上次从这里跳走前的窗格，打开时就选中它，所以 `cmd-p`、回车就能来回切换。
+- Pi 退出后，终端不再沿用旧的 Pi 会话名：在原处启动的 lazygit，标签和窗格标题都显示 lazygit。
+- 更新时：把 `mods/t3-picker` 也复制过去，并把 `"cmd-p": "mod.open:t3-picker"` 加进 `layout:herdr-t3` 的快捷键。
+
 ### Inbox：找回 review
 
 - 独立标签里的 review 和 agent 一样有卡片：分析时在 Working，结束后回到 Active 顶部。从任何 space 点它都能回去，`cmd-]` 和 `cmd-[` 也会走到它。Settle 就是关闭，已审标记和分析结果都会保留，可以从 Review 栏重开。

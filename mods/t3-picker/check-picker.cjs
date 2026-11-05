@@ -1,0 +1,103 @@
+// Loads Go to in a fake `herdr`: a row a pane, found by its name and program, not an unnamed tab's; Back goes back.
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+function element() {
+  const node = { items: [], handlers: {} };
+  const proxy = new Proxy(node, { get(target, key) {
+    if (key in target) return target[key];
+    return (...args) => {
+      if (key === "when") { if (args[0]) args[1](proxy); }
+      else if (key === "child") node.items.push(args[0]);
+      else if (key === "on_key_down") node.handlers.key = args[0];
+      else if (key === "on_item_click") node.handlers.item = args[0];
+      else if (key === "id") node.key = args[0];
+      return proxy;
+    };
+  } });
+  return proxy;
+}
+const find = (node, id) => {
+  if (!node || typeof node !== "object") return null;
+  if (node.key === id) return node;
+  for (const child of node.items) { const found = find(child, id); if (found) return found; }
+  return null;
+};
+
+const pi = { name: "Pi", key: "pi", agent: true }, git = { name: "Git Changes", key: "lazygit", agent: false };
+const zsh = { name: "zsh", key: "shell", shell: true }, vite = { name: "Vite", key: "vite", agent: false };
+// The current space comes first wherever it is in the list.
+const spaces = [
+  { id: "s2", name: "api", machine: null, active: false, tabs: [{ id: "c2", name: "herdr worktree", named: false, active: true }] },
+  { id: "s1", name: "web", machine: null, active: true, tabs: [{ id: "c1", name: "Fix login", named: true, active: true }] },
+];
+const panes = [
+  { pane: "p4", tab: "c2", terminal: "t4", program: vite, focused: true },
+  { pane: "p1", tab: "c1", terminal: "t1", program: pi, status: "working", focused: true },
+  { pane: "p2", tab: "c1", terminal: "t2", program: git, focused: false },
+  { pane: "p3", tab: "c1", terminal: "t3", program: zsh, focused: false },
+];
+const shared = {}, calls = [];
+const cx = { notify() {}, stop_propagation() {} };
+const context = vm.createContext({
+  View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
+  InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
+  VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) },
+  v_virtual_list: (id, n, size, key, render) => { const list = element(); list.key = id; list.keys = Array.from({ length: n }, (_, i) => key(i)); list.drawn = render({ start: 0, end: n }); return list; },
+  spaces: () => spaces, panes: () => panes, agents: () => [], terminals: () => [], layout: () => null, window: () => ({ platform: "macos" }),
+  focused: () => ({ pane: panes.find((p) => p.focused && spaces.find((s) => s.active).tabs.some((c) => c.id === p.tab)).pane }),
+  run: (name, args) => calls.push([name, args]), theme: () => ({}), props: () => ({ overlay: "o" }), closeOverlay() {},
+  shared: (k) => shared[k], setShared: (k, v) => { shared[k] = v; },
+  namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
+  ownStatus: (w) => w, subAgents: () => () => [], treeStatus: (own) => own,
+});
+const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
+vm.runInContext(src, context);
+const open = () => { const m = new context.Mod(); m.init(); return m; };
+const keys = (m) => find(m.render(), "picker-rows")?.keys ?? [];
+const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
+const focus = (id) => panes.forEach((p) => { if (p.tab === "c1") p.focused = p.pane === id; });
+
+// Every pane has a row, the current space's first. Opens on where you are, and Enter there stays put.
+let m = open();
+assert.deepEqual(keys(m), ["pane:p1", "pane:p2", "pane:p3", "pane:p4"]);
+m.input.submit();
+assert.deepEqual(take(), [["pane.focus", { pane: "p1" }]]);
+assert.equal(shared["t3-picker.back"], undefined, "staying put isn't a jump");
+
+// Typing its program picks its row; Enter goes to its pane and keeps where it left.
+m = open(); m.input.type("lazygit"); m.render(); m.input.submit();
+assert.deepEqual(take(), [["pane.focus", { pane: "p2" }]]);
+assert.equal(shared["t3-picker.back"], "p1");
+
+// Opened again from lazygit, Back leads and Enter goes back; then Back points at lazygit.
+focus("p2");
+m = open();
+assert.equal(keys(m)[0], "back:p1");
+m.input.submit();
+assert.deepEqual(take(), [["pane.focus", { pane: "p1" }]]);
+assert.equal(shared["t3-picker.back"], "p2");
+
+// Another space's program by its program; an unnamed tab's name finds nothing; a named tab's finds its panes.
+focus("p1");
+m = open(); m.input.type("vite"); m.render(); m.input.submit();
+assert.deepEqual(take(), [["pane.focus", { pane: "p4" }]]);
+m = open(); m.input.type("worktree");
+assert.deepEqual(keys(m), []);
+m = open(); m.input.type("fix login");
+assert.deepEqual(keys(m), ["pane:p1", "pane:p2", "pane:p3"]);
+
+// A click goes by the row's key.
+m = open(); find(m.render(), "picker-rows").handlers.item("pane:p3");
+assert.deepEqual(take(), [["pane.focus", { pane: "p3" }]]);
+
+// ctrl+d closes the pane through the tab bar, which asks first.
+m = open(); m.input.type("lazygit"); m.render().handlers.key({ key: "d", modifiers: { control: true } }, cx);
+assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]]);
+
+// Back to a pane that's gone shows nothing.
+shared["t3-picker.back"] = "p9";
+assert.ok(!keys(open()).some((k) => k.startsWith("back:")));
+console.log("ok picker");
