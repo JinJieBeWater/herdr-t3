@@ -1,0 +1,96 @@
+<!doctype html>
+<!-- The market covers, one per ?name: the scenes' shots, set in the layout's own colors. poster.sh renders them at 2400x1500.
+     A piece of a shot goes by its pixels, so a shot taken again may need its pieces moved. -->
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Geist; src: url(fonts/Geist-Variable.woff2); font-weight: 100 900; }
+@font-face { font-family: Geist Mono; src: url(fonts/GeistMono-Variable.woff2); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1200px; height: 750px; overflow: hidden; background: #0b0b0f; }
+#poster { position: absolute; inset: 0; overflow: hidden; color: #f4f4f7; font-family: Geist; --a: #6b93ff; --b: #8f6bff;
+  background:
+    radial-gradient(760px 520px at var(--gx, 78%) var(--gy, 62%), color-mix(in srgb, var(--a) 42%, transparent), transparent 70%),
+    radial-gradient(620px 460px at 8% 0%, color-mix(in srgb, var(--b) 24%, transparent), transparent 70%),
+    #0b0b0f; }
+#poster::before { content: ""; position: absolute; inset: 0; opacity: .5;
+  background-image: radial-gradient(rgba(255,255,255,.13) 1px, transparent 1px); background-size: 24px 24px;
+  mask-image: linear-gradient(120deg, #000, transparent 60%); }
+.kicker { position: absolute; left: 60px; top: 50px; font: 500 15px Geist Mono; letter-spacing: .08em; color: var(--a); }
+h1 { position: absolute; left: 58px; top: 80px; font-size: 78px; line-height: 1.02; font-weight: 700; letter-spacing: -.04em; }
+h1 em { font-style: normal; color: var(--a); }
+.sub { position: absolute; left: 60px; font-size: 23px; line-height: 1.32; color: #b4b4c0; letter-spacing: -.01em; }
+.crop { position: absolute; background-repeat: no-repeat; border-radius: 14px; border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.4); }
+.lift { box-shadow: 0 30px 90px rgba(0,0,0,.8), 0 0 70px color-mix(in srgb, var(--a) 35%, transparent); border-color: color-mix(in srgb, var(--a) 55%, rgba(255,255,255,.2)); }
+.note { position: absolute; font-size: 19px; line-height: 1.25; font-weight: 600; letter-spacing: -.01em; }
+.note small { display: block; margin-top: 3px; font-size: 15.5px; font-weight: 400; color: #a9a9b4; letter-spacing: 0; }
+.note::before { content: ""; position: absolute; left: -26px; top: 11px; width: 18px; height: 2px; background: var(--c, var(--a)); }
+.ring { position: absolute; border: 2px solid var(--a); border-radius: 12px; box-shadow: 0 0 34px color-mix(in srgb, var(--a) 55%, transparent), inset 0 0 18px color-mix(in srgb, var(--a) 12%, transparent); }
+.ring b { position: absolute; top: -13px; left: 12px; padding: 3px 9px; border-radius: 7px; background: var(--a); color: #17070f; font: 600 13px Geist Mono; letter-spacing: .03em; white-space: nowrap; }
+</style>
+<div id="poster"></div>
+<script>
+const P = document.getElementById("poster"), W = 3360, H = 2084;
+// A piece of a shot, by its pixels, drawn cssW wide at (left, top). Whole shot by default.
+function shot(file, { x = 0, y = 0, w = W, h = H, left, top, cssW, cls = "", style = "" }) {
+  const s = cssW / w, el = document.createElement("div");
+  el.className = "crop " + cls;
+  el.style.cssText = "left:" + left + "px;top:" + top + "px;width:" + cssW + "px;height:" + h * s + "px;background-image:url(../" + file + ");background-size:" + W * s + "px " + H * s + "px;background-position:" + -x * s + "px " + -y * s + "px;" + style;
+  P.append(el);
+  return el;
+}
+const text = (tag, cls, html, style = "") => { const el = document.createElement(tag); el.className = cls; el.innerHTML = html; el.style.cssText = style; P.append(el); return el; };
+const accent = (a, b, gx, gy) => { P.style.setProperty("--a", a); P.style.setProperty("--b", b); P.style.setProperty("--gx", gx); P.style.setProperty("--gy", gy); };
+
+const posters = {
+  // herdr-t3's: the layout is the whole window, so the whole window, with the macOS buttons a shot leaves out.
+  layout() {
+    const s = 750 / H, win = shot("layout.png", { left: (1200 - W * s) / 2, top: 0, cssW: W * s, style: "border: 0; border-radius: 0;" });
+    ["#ed6a5e", "#f5bf4f", "#61c554"].forEach((c, i) => { const d = document.createElement("div"); d.style.cssText = "position:absolute;left:" + (36 + i * 40) * s + "px;top:" + 28 * s + "px;width:" + 24 * s + "px;height:" + 24 * s + "px;border-radius:50%;background:" + c + ";"; win.append(d); });
+  },
+  // The cover of herdr-t3 and herdr-t3-inbox both: the real sidebar, with fourteen agents out of sight. The room is the point.
+  inbox() {
+    accent("#f0a33a", "#6b93ff", "76%", "34%");
+    // Without the title bar's row: a shot has no window buttons, and the toggle would float beside the room they leave.
+    const s = 0.8, left = 690, top = 60, w = 566 * s, h = 630, head = 82, card = 370, foot = 1902, bottom = 90;
+    const side = shot("inbox.png", { w: 566, h: h / s, left, top, cssW: w, cls: "lift", style: "background: #141418;" });
+    side.style.backgroundImage = "none"; side.style.overflow = "hidden";
+    const piece = (y, ph, t) => { const p = document.createElement("div"); p.style.cssText = "position:absolute;left:0;top:" + t + "px;width:" + w + "px;height:" + ph * s + "px;background:url(../inbox.png) 0 " + -y * s + "px / " + W * s + "px " + H * s + "px no-repeat;"; side.append(p); };
+    piece(head, card - head, 0);
+    piece(foot, bottom, h - bottom * s - 2);
+    text("div", "kicker", "HERDR T3 · INBOX");
+    text("h1", "", "Save your<br><em>attention.</em>", "font-size: 104px;");
+    text("div", "sub", "14 agents working.<br>Your <b>Inbox</b> shows just one.", "top: 318px; width: 540px; font-size: 30px;");
+  },
+  actions() {
+    accent("#4fd17a", "#6b93ff", "70%", "30%");
+    // The window with the run's tool output cut out of its pane, so it opens on the findings.
+    const s = 1200 / W, top = 300, from = 640, gap = from - 165, cut = 1745, skip = 1830 - 1745;
+    const win = shot("actions.png", { w: W, h: 1400, left: 60, top, cssW: 1200, style: "background: #1d1d22;" });
+    win.style.backgroundImage = "none";
+    const piece = (x, y, w, h, l, t) => { const p = document.createElement("div"); p.style.cssText = "position:absolute;left:" + l * s + "px;top:" + t * s + "px;width:" + w * s + "px;height:" + h * s + "px;background:url(../actions.png) " + -x * s + "px " + -y * s + "px / " + W * s + "px " + H * s + "px no-repeat;"; win.append(p); };
+    piece(0, 0, W, 165, 0, 0);
+    piece(0, 165, 563, 1235, 0, 165);
+    piece(563, from, W - 563, cut - from, 563, 165);
+    piece(563, cut + skip, W - 563, H - cut - skip, 563, cut - gap);
+    win.style.overflow = "hidden";
+    // The window's buttons, which a shot leaves out.
+    ["#ed6a5e", "#f5bf4f", "#61c554"].forEach((c, i) => { const d = document.createElement("div"); d.style.cssText = "position:absolute;left:" + (36 + i * 40) * s + "px;top:" + 28 * s + "px;width:" + 24 * s + "px;height:" + 24 * s + "px;border-radius:50%;background:" + c + ";"; win.append(d); });
+    // The bar's control and the menu it opens, larger.
+    shot("actions.png", { x: 3040, y: 12, w: 305, h: 66, left: 910, top: 88, cssW: 240, style: "background-color: #141418;" });
+    shot("actions.png", { x: 2730, y: 90, w: 611, h: 397, left: 730, top: 158, cssW: 420, cls: "lift" });
+    text("div", "kicker", "HERDR T3 · ACTIONS");
+    text("h1", "", "Your commands,<br><em>one click away.</em>", "font-size: 68px;");
+    text("div", "sub", "Tests, a dev server, a retro over your agents' sessions.", "top: 232px; width: 620px; font-size: 21px;");
+  },
+  review() {
+    accent("#e86bb0", "#8f6bff", "50%", "70%");
+    // One thing to see: the groups the analysis made, over a note it left on the code.
+    shot("review.png", { x: 1150, y: 400, w: 2190, h: 1000, left: 60, top: 372, cssW: 1080 });
+    shot("review.png", { x: 605, y: 258, w: 1565, h: 120, left: 60, top: 268, cssW: 1080, cls: "lift" });
+    text("div", "kicker", "HERDR T3 · PULLS.REVIEW");
+    text("h1", "", "A 43-file PR,<br><em>sorted by AI.</em>");
+  },
+};
+posters[location.search.slice(1)]();
+</script>

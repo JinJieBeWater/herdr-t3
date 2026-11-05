@@ -1,0 +1,13 @@
+#!/bin/sh
+# A stand-in agent for states a real one won't reach on cue: `<link named claude|codex|pi> <state> <title> [screen line…]`.
+# It reports as the program it is named after (OSC 7501) and keeps the screen it was given.
+app=$(basename "$0") state=$1 title=$2
+shift 2
+b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+printf '\033]2;%s\007' "$title"
+for line in "$@"; do printf '%s\n' "$line"; done
+case $state in
+  blocked) printf '\033]7501;state=blocked:kind=permission:app=%s:msg=%s\033\\' "$app" "$(b64 "$title")" ;;
+  *) printf '\033]7501;state=%s:app=%s:msg=%s\033\\' "$state" "$app" "$(b64 "$title")" ;;
+esac
+exec sleep 86400
