@@ -4,6 +4,11 @@
 
 ## 2026-11-05
 
+### Inbox：找回 review
+
+- 独立标签里的 review 在收纳区上方有一行，显示 space、名字和分析状态。从任何 space 点它都能回去，悬停出现 × 可以关闭；`cmd-]` 和 `cmd-[` 也会走到它。
+- agent 旁边的 review 获得焦点时，点亮那个 agent 的卡片，快捷键从它继续走。
+
 ### 动作和 Review 成为独立 mod
 
 - 动作移出 `t3-tabs`，成为单独的 mod `mods/t3-actions`，随布局一起提供，也[单独发布](https://github.com/JinJieBeWater/herdr-t3-actions)给其他布局用。它属于更新时要覆盖的 `mods/t3-*`；已有的动作会保留。

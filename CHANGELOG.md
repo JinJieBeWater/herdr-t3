@@ -4,6 +4,11 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-05
 
+### Inbox: finding a review again
+
+- A review in a tab of its own has a one-line row above the shelves, with its space, name and analysis state. Click it to get back from any space, hover for × to close it; `cmd-]` and `cmd-[` walk it too.
+- A review split off an agent lights that agent's card while it has the focus, and the keys go on from there.
+
 ### Actions and Review, as mods of their own
 
 - Actions moved out of `t3-tabs` to a mod of their own, `mods/t3-actions`, shipped with the layout and also [published alone](https://github.com/JinJieBeWater/herdr-t3-actions) for other layouts. It is one of the `mods/t3-*` you overwrite when updating; your actions are kept.
