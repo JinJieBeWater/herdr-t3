@@ -41,7 +41,7 @@ const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
   svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) }, Popup: { new: (id) => element("popup").id(id) },
   InputState: { new: () => ({ on() {}, value: () => "", focus() {} }) },
-  theme: () => theme, settings: () => ({ zoom }), window: () => ({ platform: "macos", active: true }),
+  theme: () => theme, settings: () => ({ zoom }), keys: () => [], window: () => ({ platform: "macos", active: true }),
   spaces: () => [{ id: "s", active: true, folder: "/space", tabs: [{ id: "b" }] }], panes: () => [{ pane: "p1", tab: "b", cwd: "/repo/src" }],
   focused: () => shown, exec: async () => ({ code: 1, stdout: "" }), hc: async () => ({ code: 1 }), watchFolder: () => new Promise(() => {}),
   shared: (key) => state[key], setShared: (key, value) => { state[key] = value; },
@@ -49,7 +49,7 @@ const env = {
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
   appHome: () => "/app", home: () => "/Users/me", readTextFile: async () => '{ "open": "herdr" }',
 };
-const source = ["details.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["details.js", "tip.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
 const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };

@@ -4,10 +4,11 @@
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
 import { div, svg, image } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, HoverCard, Popup } from "gpui-base";
+import { h_flex, v_flex, InputState, Input, Popup } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, window, openOverlay, closeOverlay, props, setShared, shared, theme, settings, home } from "herdr";
 import { launch } from "./open.js";
 import { detailsFor, detailsLine, detailsCard } from "./details.js";
+import { tip } from "./tip.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -22,10 +23,6 @@ const glow = (view, id) => (on, cx) => {
   else if (view.hot === id) view.hot = null;
   cx.notify();
 };
-// A hover label as Herdr T3's: `.tooltip()` takes only a string, in the shell's own style. Only while hovered: a menu
-// opened from the button hides the pointer's leaving, and the card would stay up over it.
-const tip = (hot, t, id, label, trigger) => HoverCard.new(`tip-${id}`).anchor("top_center").open_delay(150).close_delay(0).trigger(trigger)
-  .content(hot !== id ? div() : div().mt(4).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground).child(label));
 // A menu hangs from the bar (40px, as Herdr T3's tab bar) under the click, not on the pointer, where it would cover the
 // bar; the app keeps it in the window. With no press to read (assistive tech clicks without one), the app's default: the pointer.
 const underBar = (press) => press && { x: press.x - 8, y: 40 * settings().zoom };
@@ -394,7 +391,7 @@ export function reviewBar(view, t, stop) {
     // Hovered, the label turns foreground: the count takes its bright twin (ansi + 8) to stay the lead, same hue.
     .child(div().font_medium().text_color(t[`ansi${view.reviewHover === id ? ansi + 8 : ansi}`]).child(count))
     .when(Boolean(noun) && !compact, el => el.child(noun))
-    .when(last, el => el.rounded_r(6)));
+    .when(last, el => el.rounded_r(6)), { below: true });
   const segments = [
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
     r.unmerged > 0 && ["review-open", String(r.unmerged), `ahead of ${r.base}${r.gone ? " · merged?" : ""}`, 4, `Review the branch: ${n(r.unmerged, "commit")} on ${r.branch}, not on ${r.baseRef}`
@@ -440,7 +437,7 @@ export function reviewBar(view, t, stop) {
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
       .on_mouse_down("left", pressed).on_click(openMenu)
       // image, not svg: svg would draw the logo in one tint.
-      .child(image(`mods/${MOD}/logo.svg`).w(14).h(14).flex_none())))
+      .child(image(`mods/${MOD}/logo.svg`).w(14).h(14).flex_none()), { below: true }))
     .children(segments.flatMap((s, i) => [div().w(1).h(14).flex_none().bg(t.border), item(s, !sha && i === segments.length - 1)]))
     .children(place);
 }

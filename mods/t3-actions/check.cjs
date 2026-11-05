@@ -39,15 +39,15 @@ const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
   svg: (source) => element("svg", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) },
   InputState: { new: ({ value }) => { const f = { text: value, on() {}, value: () => f.text, focus() {} }; fields.push(f); return f; } },
-  theme: () => theme, settings: () => ({ zoom }), home: () => "/home/me",
+  theme: () => theme, settings: () => ({ zoom }), home: () => "/home/me", keys: () => [], window: () => ({ platform: "macos" }),
   shared: (key) => state[key], setShared: (key, value) => { state[key] = value; },
   run: (name, args) => calls.push([name, plain(args)]),
   openOverlay: (spec) => overlays.push(spec), closeOverlay() {},
   focused: () => ({ tab: "b", cwd: "/repo" }), panes: () => [], spaces: () => [{ active: true, folder: "/space" }],
   nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
 };
-const source = fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
-  .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
+const source = ["tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }) };
 const load = (props = {}) => {
   const context = vm.createContext({ ...env, props: () => props });
@@ -74,6 +74,7 @@ state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "bun dev" }, { i
 const control = find(bar.render(), "actions");
 assert.ok(control.style.border);
 assert.deepEqual(control.items.map(n => typeof n.key === "string" ? n.key : n.kind), ["tip-action-run", "div", "tip-action-more"]);
+assert.equal(find(control, "tip-action-more").style.anchor, "top_center", "the top bar has no room above: its label opens below");
 assert.deepEqual(strings(find(control, "action-run")), ["Dev"]);
 fire(find(control, "action-run"), "on_click");
 assert.deepEqual(calls.at(-1), ["terminal.open", { argv: ["sh", "-c", "bun dev"], name: "Dev", place: "tab", folder: "/repo" }]);

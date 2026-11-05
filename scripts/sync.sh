@@ -13,7 +13,7 @@ gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 for m in t3-agents t3-tabs t3-pane; do cp "$src/mods/t3-inbox/name.js" "$src/mods/t3-inbox/tree.js" "$src/mods/$m/"; done
 
 # t3-inbox/tip.js is the one hover label.
-for m in t3-agents t3-tabs t3-pane t3-chrome t3-spaces; do cp "$src/mods/t3-inbox/tip.js" "$src/mods/$m/"; done
+for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions extras/mods/pulls-review; do cp "$src/mods/t3-inbox/tip.js" "$src/$d/"; done
 
 # t3-inbox/details.js is the one details card and its timing.
 for d in mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/t3-inbox/details.js" "$src/$d/"; done

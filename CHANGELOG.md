@@ -19,6 +19,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ### Visual
 
+- Hover labels open above their controls, as T3's, so one on a card leaves its title readable. What has no room up there (the brand bar, the tab bar with Actions and the Review bar, the Inbox filter) still opens below.
 - Tabs are T3's panel tabs: 24px, as wide as their whole names while the room allows. Short of room the longest give way first, the active one to 240px and the rest to 144px, then the strip scrolls and keeps the active tab in view. A short name's tab is 96px at least, so `Pi` isn't a sliver.
 - The sidebar footer is a row of icon buttons, as T3's.
 - A new install shows the Inbox first.

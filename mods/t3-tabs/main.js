@@ -177,7 +177,7 @@ export default class Tabs extends View {
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stop).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
       .child(svg("mods/workspace-chrome/sidebar.svg").size(14).flex_none())
-      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), { action: "layout.toggle:sidebar" });
+      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), { action: "layout.toggle:sidebar", below: true });
   }
 
   // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
@@ -210,7 +210,7 @@ export default class Tabs extends View {
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
-      .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key });
+      .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
       const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
@@ -275,7 +275,7 @@ export default class Tabs extends View {
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().child(label))
-        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status)))))
+        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status), { below: true }))))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
       return tab;
     };

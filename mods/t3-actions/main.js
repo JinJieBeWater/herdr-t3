@@ -1,8 +1,9 @@
 // Actions, as T3 Code's run button: commands you start with one click, kept in shared state.
 // In a bar it draws "▶ Dev | ▾", sized to fit its block; the menu and the editor are this mod opened as overlays.
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, HoverCard } from "gpui-base";
+import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
+import { tip } from "./tip.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
@@ -18,11 +19,6 @@ const glow = (view, id) => (on, cx) => {
   cx.notify();
 };
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
-
-// A hover label as T3 Code's tooltip: `.tooltip()` takes only a string, in the shell's own style. Only while lit: a dialog
-// opened from the button hides the pointer's leaving, and the card would stay up over it.
-const tip = (hot, t, id, label, trigger) => HoverCard.new(`tip-${id}`).anchor("top_center").open_delay(150).close_delay(0).trigger(trigger)
-  .content(hot !== id ? div() : div().mt(4).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground).child(label));
 
 // { list: [{ id, name, command, icon, place, cwd }], last: id }
 const state = () => shared(KEY) ?? { list: [] };
@@ -57,12 +53,12 @@ function control(view, t, stop) {
   if (!main) return tip(view.hot, t, "action-add", "Add action", box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     // The dialog covers it, before the pointer can report leaving it.
     .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
-    .child(icon("play").size(14)).when(!compact, el => el.child("Add action")));
+    .child(icon("play").size(14)).when(!compact, el => el.child("Add action")), { below: true });
   return box("actions").text_color(t.dim)
     // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill.
     .child(tip(view.hot, t, "action-run", `Run ${main.name}`, h_flex().id("action-run").h(22).px(8).gap(8).items_center().rounded_l(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
-      .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name)))))
+      .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name))), { below: true }))
     .child(div().w(1).h(14).flex_none().bg(t.border))
     .child(tip(view.hot, t, "action-more", "Actions", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
@@ -71,7 +67,7 @@ function control(view, t, stop) {
         cx.notify();
       })
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
-      .child(svg("mods/workspace-chrome/chevron-down.svg").size(14))));
+      .child(svg("mods/workspace-chrome/chevron-down.svg").size(14)), { below: true }));
 }
 
 // The menu takes the keyboard, as the shipped menu does.
@@ -105,7 +101,7 @@ function menu(view) {
         .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, div().id(`edit-${a.id}`).size(20).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/workspace-chrome/settings.svg").size(14)))))))
+          .child(svg("mods/workspace-chrome/settings.svg").size(14)), { below: true })))))
     .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))
     .child(row("action-new", list.length, svg("mods/workspace-chrome/plus.svg").size(14).text_color(t.muted), "Add action"));
 }
