@@ -2,7 +2,7 @@
 
 English · [中文](README.zh-CN.md)
 
-A [T3 Code](https://github.com/pingdotgg/t3code)-like layout for Herdr App: Lists (Spaces + Agents) or an Inbox sidebar with T3-style Settle, slim tabs and framed panes.
+A [T3 Code](https://github.com/pingdotgg/t3code)-like layout for Herdr App: an Inbox sidebar with T3-style Settle or Lists (Spaces + Agents), slim tabs, framed panes and Actions.
 
 ![Herdr T3](preview.png)
 

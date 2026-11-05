@@ -2,7 +2,7 @@
 
 > 中文译本。给 agent 构建用的正本是 [RECIPE.md](RECIPE.md)，两者不一致时以英文为准。
 
-Herdr App 的一个安静、近似 T3 Code 的窗口：左侧 256px 侧栏，可在带 T3 式 Settle 的 Inbox（默认显示，T3 只有这一种侧栏）和 Lists（Spaces + Agents）之间切换；窄标签栏；圆角窗格带小标题栏。全部使用主题自身的颜色，只有 agent 需要你时才醒目。
+Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时替你节约注意力。默认打开带 T3 式 Settle 的 Inbox：需要你的 agent 以卡片留在上方，工作中的折叠进 Working 收纳区，结束的等你手动 Settle，有新工作时自动回来。一键可切到 Lists（Spaces + Agents）。窄标签和带框窗格使用同一套名字和状态标记，动作按钮在标签栏运行保存好的命令，全部使用主题自身的颜色。
 
 ![Herdr T3](preview.png)
 

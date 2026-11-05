@@ -2,7 +2,7 @@
 
 [English](README.md) · 中文
 
-给 Herdr App 用的 [T3 Code](https://github.com/pingdotgg/t3code) 风格布局。侧栏可以在 Lists（Spaces + Agents）和带 T3 式 Settle 的 Inbox 之间切换，另有窄标签栏和带圆角边框的窗格。
+给 Herdr App 用的 [T3 Code](https://github.com/pingdotgg/t3code) 风格布局。侧栏可以在带 T3 式 Settle 的 Inbox 和 Lists（Spaces + Agents）之间切换，另有窄标签栏、带圆角边框的窗格和动作按钮。
 
 ![Herdr T3](preview.png)
 

@@ -1,6 +1,6 @@
 # Herdr T3
 
-A calm, T3 Code-like window for Herdr App: a 256px sidebar on the left that switches between an Inbox with T3-style Settle (shown first, as T3's only sidebar) and Lists (Spaces + Agents), a slim tab bar and rounded panes with a small header. Everything sits on the theme's own colors; nothing is loud unless an agent needs you.
+A calm, T3 Code-like window for Herdr App that saves your attention as agents multiply. It opens on an Inbox with T3-style Settle: agents that need you stay up top as cards, busy ones fold into a Working shelf, and finished ones wait until you settle them, coming back on new work. One key switches to Lists (Spaces + Agents). Slim tabs and framed panes use the same names and status marks, Actions runs saved commands from the tab bar, and everything sits on your theme's colors.
 
 ![Herdr T3](preview.png)
 
