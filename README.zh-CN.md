@@ -2,7 +2,7 @@
 
 [English](README.md) · 中文
 
-给 Herdr App 用的 [T3 Code](https://github.com/pingdotgg/t3code) 风格布局。侧栏可以在带 T3 式 Settle 的 Inbox 和 Lists（Spaces + Agents）之间切换，另有窄标签栏、带圆角边框的窗格和动作按钮。
+给 Herdr App 用的 [T3 Code](https://github.com/pingdotgg/t3code) 风格布局。侧栏可以在带 T3 式 Settle 的 Inbox 和 Lists（Spaces + Agents）之间切换，另有窄标签栏、带圆角边框的窗格和动作按钮，还可选配合 pulls.review 的 Review 栏。
 
 ![Herdr T3](preview.png)
 
@@ -31,6 +31,10 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签；侧栏的 New tab 先选 space（或新建一个）。不选 agent：在终端里启动。
 - **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。它是 `t3-actions` mod，随布局一起安装，也[单独发布](https://github.com/JinJieBeWater/herdr-t3-actions)给其他布局用。
+- **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，悬停显示机器名。从侧栏底部的服务器图标添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
+- **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
+- **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 在有程序运行时先询问，没有程序运行时直接关闭。
+- **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的标签和窗格标题用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一行。
 
 ## 安装
 

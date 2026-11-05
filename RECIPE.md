@@ -1,6 +1,6 @@
 # Herdr T3
 
-A calm, T3 Code-like window for Herdr App that saves your attention as agents multiply. It opens on an Inbox with T3-style Settle: agents that need you stay up top as cards, busy ones fold into a Working shelf, and finished ones wait until you settle them, coming back on new work. One key switches to Lists (Spaces + Agents). Slim tabs and framed panes use the same names and status marks, Actions runs saved commands from the tab bar, and everything sits on your theme's colors.
+A calm, T3 Code-like window for Herdr App that saves your attention as agents multiply. It opens on an Inbox with T3-style Settle: agents that need you stay up top as cards, busy ones fold into a Working shelf, and finished ones wait until you settle them, coming back on new work. One key switches to Lists (Spaces + Agents), and agents on your other machines sit in the same sidebar, marked by machine. Slim tabs and framed panes use the same names and status marks. Actions, as T3's run button, keeps your commands at the tab bar: `▶` runs the last one again, in a new tab or a split. An optional Review bar, for pulls.review, counts what there is to review in the focused worktree and opens it in a pane beside the agent.
 
 ![Herdr T3](preview.png)
 
