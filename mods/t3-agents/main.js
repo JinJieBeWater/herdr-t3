@@ -3,10 +3,11 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
+import { agents, terminals, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, nextCommand } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
+import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
@@ -40,6 +41,11 @@ export default class Agents extends View {
       this.keys.focus();
       return;
     }
+    stopsInit(this, cx, "entry");
+    // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
+    cx.spawn(async (cx) => {
+      for (;;) if (await nextCommand() === "focus") enter(this, cx, "ag-sort");
+    });
     this.folded = JSON.parse(localStorage.getItem("folded") ?? "{}");
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
@@ -132,7 +138,11 @@ export default class Agents extends View {
         else if (e.key === "up") this.at = (this.at + SORTS.length - 1) % SORTS.length;
         else if (e.key === "enter") choose(SORTS[this.at]);
         else if (e.key === "escape") closeOverlay(props().overlay);
-        else return;
+        else {
+          const to = menuJump(this, e, SORTS.map((s) => s.label), this.at);
+          if (to < 0) return;
+          this.at = to;
+        }
         cx.stop_propagation();
         cx.notify();
       })
@@ -176,7 +186,7 @@ export default class Agents extends View {
     const pic = icon(k.program, 14, t.foreground);
     const on = k.address === shown;
     const name = k.name || k.template || k.program?.name || k.address;
-    return h_flex()
+    return stop(this, t, `sub-${k.address}`, h_flex()
       .id(`sub-${k.address}`)
       .relative()
       .pl(8 + s.depth * 20)
@@ -200,7 +210,7 @@ export default class Agents extends View {
         .when(Boolean(pic), el => el.child(pic)))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
         .child(div().min_w(0).truncate().text_color(on ? t.foreground : t.muted).child(name)))
-      .child(this.status(t, { status: st }, "", `sub-status-${k.address}`));
+      .child(this.status(t, { status: st }, "", `sub-status-${k.address}`)), 8);
   }
 
   status(t, a, note = "", id) {
@@ -266,7 +276,7 @@ export default class Agents extends View {
     // carries any hidden child's urgency.
     const fold = (a, subs) => {
       const open = !this.isFolded(a.address), id = `fold-${a.address}`;
-      return tip(this.hot, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", div()
+      return tip(this.hot, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", stop(this, t, id, div()
         .id(id)
         .h(20).min_w(20).flex_none()
         .px(4)
@@ -285,7 +295,7 @@ export default class Agents extends View {
           this.toggleFold(a.address, cx);
         })
         .child(svg(`mods/t3-agents/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(lit(id)))
-        .when(!open, (el) => el.child(String(subs.length))));
+        .when(!open, (el) => el.child(String(subs.length))), 4));
     };
 
     // A row's detail is what the agent is on, as the inbox, tabs and pane headers name it.
@@ -305,12 +315,15 @@ export default class Agents extends View {
       const st = shownStatus(a);
       const idle = st === "idle" && !a.focused;
       const isPinned = this.pins.includes(a.address);
+      const pinId = `pin-${a.address}`, rowId = `ag-${a.address}`;
+      // Hovered, or with the keyboard on the row or inside it.
+      const offer = this.hovered === a.address || within(this, [rowId, pinId, `fold-${a.address}`]);
       // Shown on hover in the time's slot, as in the shipped list; the status stays.
-      const pin = div().id(`pin-${a.address}`).role("button")
+      const pin = stop(this, t, pinId, div().id(pinId).role("button")
         .size(20).flex_none().flex().items_center().justify_center()
         .rounded(4)
         .accessibility_label(isPinned ? "Unpin" : "Pin")
-        .on_hover(glow(`pin-${a.address}`))
+        .on_hover(glow(pinId))
         .on_click((_e, cx) => {
           cx.stop_propagation();
           // Reordering can move the row without a pointer-leave event.
@@ -318,7 +331,7 @@ export default class Agents extends View {
           this.setPins(isPinned ? this.pins.filter((p) => p !== a.address) : [...this.pins, a.address]);
           cx.notify();
         })
-        .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(`pin-${a.address}`)));
+        .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId))), 4);
       // A row leads with what the agent is on; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
       const full = byPriority || isPinned;
@@ -327,8 +340,8 @@ export default class Agents extends View {
       // Its sub-agents' word, when it isn't its own, is marked as theirs.
       const fromKid = st !== own(a);
       const when = this.since(a);
-      return h_flex()
-        .id(`ag-${a.address}`)
+      return stop(this, t, rowId, h_flex()
+        .id(rowId)
         .relative()
         .w_full().min_w(0)
         .px(8)
@@ -358,9 +371,9 @@ export default class Agents extends View {
         .child(h_flex().id(`controls-${a.address}`).flex_none().items_center().gap(4)
           .when(subs.length > 0, el => el.child(fold(a, subs)))
           // The time and the pin share one slot at least the pin's width, so hovering moves nothing else.
-          .child(this.hovered === a.address ? tip(this.hot, t, `pin-${a.address}`, isPinned ? "Unpin" : "Pin", pin)
+          .child(offer ? tip(this.hot, t, pinId, isPinned ? "Unpin" : "Pin", pin)
             : h_flex().id(`when-${a.address}`).min_w(20).flex_none().justify_end().text_size(11).text_color(t.dim).when(Boolean(when), el => el.child(duration(now - when))))
-          .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "", `status-${a.address}`)));
+          .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "", `status-${a.address}`))), 8);
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
@@ -381,7 +394,7 @@ export default class Agents extends View {
       const top = g.members.map(shownStatus).reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
       // Drawn as Inbox's shelves, T3's: a dim label, then at the far edge the count and the chevron, in the status column
       // (a 26px slot 2px in, as a machine's), an indicator that lights with its row.
-      return h_flex()
+      return stop(this, t, g.id, h_flex()
         .id(g.id)
         .pl(8).pr(2)
         .pt(8)
@@ -403,11 +416,11 @@ export default class Agents extends View {
         .when(!open && !byPriority && top && top !== "idle", (el) => el.child(this.status(t, { status: top })))
         .child(div().flex_none().child(String(g.members.length)))
         .child(div().w(26).flex_none().flex().items_center().justify_center().text_color(this.overGroup === g.id ? t.foreground : t.dim)
-          .child(svg(`mods/t3-agents/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none()));
+          .child(svg(`mods/t3-agents/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none())));
     };
     const rows = groups.flatMap((g, i) => [header(g, i), ...(this.isFolded(g.id, g.id === "sec-1") ? [] : g.members.flatMap(withKids))]);
 
-    return v_flex()
+    return focusRoot(this, v_flex()
       .id("t3-agents-root")
       .size_full()
       .min_h(0)
@@ -425,7 +438,7 @@ export default class Agents extends View {
             .justify_between()
             .child(div().text_size(12).font_medium().text_color(t.muted).child("Agents"))
             .child(
-              tip(this.hot, t, "ag-sort", `Sort agents: ${sort.label}`, div()
+              tip(this.hot, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", div()
                 .id("ag-sort")
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
                 .role("button").accessibility_label("Sort agents")
@@ -438,12 +451,12 @@ export default class Agents extends View {
                   openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });
                   cx.notify();
                 })
-                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(14))),
+                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(14)))),
             ),
       )
       .when(list.length === 0, (el) =>
         el.child(div().px(16).text_size(12).text_color(t.dim).child("No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.")),
       )
-      .child(v_flex().id("ag-list").flex_1().min_h(0).px(8).overflow_y_scroll().children(rows));
+      .child(v_flex().id("ag-list").flex_1().min_h(0).px(8).overflow_y_scroll().children(rows)));
   }
 }

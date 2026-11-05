@@ -49,17 +49,17 @@ const env = {
   terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
   run: (name, args) => calls.push([name, args]),
 };
-const cx = { notify() {}, stop_propagation() {} };
-// name.js, tree.js and tip.js are inlined as the mod's own copies are.
+const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }) };
+// name.js, tree.js, tip.js and focus.js are inlined as the mod's own copies are.
 function load(...files) {
   const src = files.map((f) => fs.readFileSync(f, "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ").replace("export default class", "globalThis.Mod = class");
   const context = vm.createContext({ ...env });
   vm.runInContext(src, context, { filename: files.at(-1) });
-  const mod = new context.Mod(); mod.init(); return mod;
+  const mod = new context.Mod(); mod.init({}, cx); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const header = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "main.js"));
+const header = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "focus.js"), path.join(__dirname, "main.js"));
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);
 assert.deepEqual(take(), [["pane.focus", { pane: "p2" }]]);
@@ -136,6 +136,19 @@ delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60
 assert.equal(dots(), shown - 1, "snoozed too");
 terms[0].labels.snoozed = String(Date.now() - 1);
 assert.equal(dots(), shown, "woken, it is news again");
+
+// The buttons come with the keyboard on the header, the stop that gets there, and only in keyboard mode.
+{
+  const quiet = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "focus.js"), path.join(__dirname, "main.js"));
+  props = { pane: "p2" };
+  assert.equal(find(quiet.render(), "ph-x-p2"), null);
+  assert.equal(find(quiet.render(), "pane-head-p2").style?.tab_index, undefined);
+  sharedValues["t3-focus"] = "on";
+  assert.equal(find(quiet.render(), "ph-x-p2"), null);
+  quiet.fs.keyboard = true; quiet.fs.handles.set("pane-head-p2", { focus() {}, is_focused: () => true });
+  assert.ok(find(quiet.render(), "ph-x-p2"), "the buttons show");
+  delete sharedValues["t3-focus"];
+}
 
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);

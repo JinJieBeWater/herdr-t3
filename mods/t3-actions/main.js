@@ -4,6 +4,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
 import { tip } from "./tip.js";
+import { stopsInit, stop, focusRoot, onStop, menuJump } from "./focus.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
@@ -47,28 +48,28 @@ function deleteAction(id) {
 }
 
 // The bar's control: "▶ Dev | ▾", or "Add action" before there is one. Outlined, not filled: a fill would read as an active tab.
-function control(view, t, stop) {
+function control(view, t, stopPress) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the icon alone, the name left to the hover label. Unset, the full control.
   const s = state(), main = primary(s), compact = shared("bar.compact");
-  const box = (id) => h_flex().id(id).h(24).flex_none().items_center().rounded(6).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stop);
-  if (!main) return tip(view.hot, t, "action-add", "Add action", box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
+  const box = (id) => h_flex().id(id).h(24).flex_none().items_center().rounded(6).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stopPress);
+  if (!main) return tip(view.hot, t, "action-add", "Add action", stop(view, t, "action-add", box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     // The dialog covers it, before the pointer can report leaving it.
     .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
-    .child(icon("play").size(14)).when(!compact, el => el.child("Add action")), { below: true });
+    .child(icon("play").size(14)).when(!compact, el => el.child("Add action"))), { below: true });
   return box("actions").text_color(t.dim)
     // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill.
-    .child(tip(view.hot, t, "action-run", `Run ${main.name}`, h_flex().id("action-run").h(22).px(8).gap(8).items_center().rounded_l(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
+    .child(tip(view.hot, t, "action-run", `Run ${main.name}`, stop(view, t, "action-run", h_flex().id("action-run").h(22).px(8).gap(8).items_center().rounded_l(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
-      .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name))), { below: true }))
+      .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name)))), { below: true }))
     .child(div().w(1).h(14).flex_none().bg(t.border))
-    .child(tip(view.hot, t, "action-more", "Actions", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
+    .child(tip(view.hot, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
         openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
         cx.notify();
       })
-      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stop(e, cx); })
-      .child(svg("mods/t3-actions/chevron-down.svg").size(14)), { below: true }));
+      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stopPress(e, cx); })
+      .child(svg("mods/t3-actions/chevron-down.svg").size(14))), { below: true }));
 }
 
 // The menu takes the keyboard, as the shipped menu does.
@@ -76,39 +77,47 @@ function initMenu(view, cx) {
   view.at = 0;
   view.keys = cx.focus_handle();
   view.keys.focus();
+  stopsInit(view, cx, "modal");
 }
 
 function menu(view) {
   const t = theme(), { list } = state(), done = () => closeOverlay(props().overlay);
   const picks = [...list.map(a => () => runAction(a)), () => editor(null)];
+  const labels = [...list.map(a => a.name), "Add action"];
   const row = (id, at, i, label) => h_flex().id(id).h(28).px(8).gap(8).rounded(6).items_center().flex_none()
     .text_color(t.foreground).when(view.at === at, el => el.bg(t.selected))
     .role("button").accessibility_label(label)
     .on_hover((on, cx) => { if (on && view.at !== at) { view.at = at; cx.notify(); } })
     .on_click(() => { done(); picks[at](); })
     .child(i).child(div().flex_1().min_w(0).truncate().child(label));
-  return v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(13)
+  return focusRoot(view, v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(13)
     .track_focus(view.keys).on_key_down((e, cx) => {
       if (e.key === "down") view.at = (view.at + 1) % picks.length;
       else if (e.key === "up") view.at = (view.at + picks.length - 1) % picks.length;
-      else if (e.key === "enter") { done(); picks[view.at](); }
+      // On a row's Edit, Enter is Edit's.
+      else if (e.key === "enter") { if (onStop(view)) return; done(); picks[view.at](); }
       else if (e.key === "escape") done();
-      else return;
+      else {
+        const to = menuJump(view, e, labels, view.at);
+        if (to < 0) return;
+        view.at = to;
+      }
       cx.stop_propagation();
       cx.notify();
     })
     .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map((a, at) =>
       row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
-        .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
+        .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/t3-actions/settings.svg").size(14)), { below: true })))))
+          .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })))))
     .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
-    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).text_color(t.muted), "Add action"));
+    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).text_color(t.muted), "Add action")));
 }
 
 // The editor dialog: this copy's own inputs, made once in init.
 function initEditor(view, cx) {
+  stopsInit(view, cx, "modal");
   const a = state().list.find(x => x.id === props().id);
   view.action = a;
   view.icon = a?.icon ?? "play";
@@ -142,18 +151,18 @@ function editorView(view) {
   const field = ([k, input]) => v_flex().gap(6).child(label({ name: "Name", command: "Command", cwd: "Folder (optional)" }[k]))
     .child(h_flex().h(32).px(10).rounded(6).border(1).border_color(t.border).bg(t.input).items_center()
       .child(Input.new(input).flex_1().h_full().text_size(13).text_color(t.foreground)));
-  const choice = (id, on, pick, name, child) => h_flex().id(id).h(28).px(8).gap(6).rounded(6).items_center().justify_center()
+  const choice = (id, on, pick, name, child) => stop(view, t, id, h_flex().id(id).h(28).px(8).gap(6).rounded(6).items_center().justify_center()
     .bg(on ? t.selected : t.input).text_color(lit(view, id, on ? t.foreground : t.dim)).on_hover(glow(view, id))
     .role("button").accessibility_label(name)
-    .on_click((_e, cx) => { pick(); cx.notify(); }).child(child);
+    .on_click((_e, cx) => { pick(); cx.notify(); }).child(child));
   // Buttons, title and padding as the shipped confirm dialog's, which Delete opens.
   const button = (id, text, primary, act) => {
     const on = primary && ok;
-    return h_flex().id(id).h(32).px(14).items_center().rounded(8).border_1().border_color(on ? t.solid : t.input).text_size(12)
+    return stop(view, t, id, h_flex().id(id).h(32).px(14).items_center().rounded(8).border_1().border_color(on ? t.solid : t.input).text_size(12)
       .bg(on ? t.solid : t.raised).text_color(on ? t.solid_foreground : primary ? t.dim : t.foreground)
-      .cursor_pointer().hover(s => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text);
+      .cursor_pointer().hover(s => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text), 8);
   };
-  return v_flex().id("action-editor").size_full().p(18).gap(14).bg(t.popover).text_size(13)
+  return focusRoot(view, v_flex().id("action-editor").size_full().p(18).gap(14).bg(t.popover).text_size(13)
     .opacity(view.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
     .child(h_flex().items_center()
       .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child(view.action ? "Edit action" : "Add action"))
@@ -165,7 +174,7 @@ function editorView(view) {
       .child(v_flex().gap(6).child(label("Run in")).child(h_flex().gap(4).children(PLACES.map(([p, text]) =>
         choice(`place-${p}`, view.place === p, () => { view.place = p; }, `Run in: ${text}`, text).text_size(12))))))
     .child(h_flex().mt_auto().gap(8).items_center()
-      .when(Boolean(view.action), el => el.child(h_flex().id("action-delete").h(32).px(8).items_center().rounded(8).text_size(12).text_color(t.blocked)
+      .when(Boolean(view.action), el => el.child(stop(view, t, "action-delete", h_flex().id("action-delete").h(32).px(8).items_center().rounded(8).text_size(12).text_color(t.blocked)
         .cursor_pointer().hover(s => s.bg(t.hover)).role("button").accessibility_label("Delete action").on_click(() => {
           done();
           openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: {
@@ -173,10 +182,10 @@ function editorView(view) {
             detail: "This removes the action and can't be undone.",
             command: { name: `${MOD}.delete-action:${view.action.id}` },
           } });
-        }).child("Delete")))
+        }).child("Delete"), 8)))
       .child(div().flex_1())
       .child(button("action-cancel", "Cancel", false, done))
-      .child(button("action-save", "Save", true, () => saveEditor(view))));
+      .child(button("action-save", "Save", true, () => saveEditor(view)))));
 }
 
 export default class Actions extends View {
@@ -184,6 +193,7 @@ export default class Actions extends View {
     const overlay = props()?.actions;
     if (overlay === "edit") initEditor(this, cx);
     if (overlay === "menu") initMenu(this, cx);
+    if (!overlay) stopsInit(this, cx);
     // The bar's copy answers Delete's dialog: `t3-actions.delete-action:<id>`.
     if (!overlay) cx.spawn(async () => {
       for (;;) {
@@ -197,9 +207,9 @@ export default class Actions extends View {
     const overlay = props()?.actions;
     if (overlay === "menu") return menu(this);
     if (overlay === "edit") return editorView(this);
-    const stop = (_e, cx) => cx.stop_propagation();
-    return h_flex().size_full().items_center().justify_end()
-      .child(h_flex().id("actions-fit").flex_none().pr(8).items_center().on_size_change((size) => this.fit(size)).child(control(this, theme(), stop)));
+    const stopPress = (_e, cx) => cx.stop_propagation();
+    return focusRoot(this, h_flex().size_full().items_center().justify_end()
+      .child(h_flex().id("actions-fit").flex_none().pr(8).items_center().on_size_change((size) => this.fit(size)).child(control(this, theme(), stopPress))));
   }
 
   // With the block's id in props.block, it sizes that block to the control: layout.resize, which Herdr keeps with the

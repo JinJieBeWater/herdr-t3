@@ -72,7 +72,7 @@ function fixture() {
   FakeDate.now = () => f.now;
   const cx = {
     notify() { f.notified = true; }, stop_propagation() {}, bind_keys(b) { f.bound = b; },
-    focus_handle: () => ({ focus() { f.keys = true; } }),
+    focus_handle: () => ({ focus() { f.keys = true; }, is_focused: () => false }),
     spawn: (fn) => f.jobs.push(fn),
     timer: {
       every: () => ({}),
@@ -105,8 +105,8 @@ function fixture() {
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async (args) => { f.labelled.push(args.join(" ")); return { code: 0 }; }, nextCommand: () => new Promise(() => {}),
   };
-  // tree.js, project.js, tip.js and details.js, the shared status, space-mark, hover-label and details rules, are inlined as each mod's own copies are.
-  const tree = ["tree.js", "project.js", "tip.js", "details.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  // tree.js, project.js, tip.js, details.js and focus.js, the shared status, space-mark, hover-label, details and keyboard rules, are inlined as each mod's own copies are.
+  const tree = ["tree.js", "project.js", "tip.js", "details.js", "focus.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
@@ -119,7 +119,7 @@ function fixture() {
       .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
     const context = vm.createContext({ ...env });
     vm.runInContext(src, context);
-    const mod = new context.Mod(); mod.init({});
+    const mod = new context.Mod(); mod.init({}, cx);
     return () => mod.render(cx);
   };
   f.add = (address, status = "idle", ms = 100) => {
@@ -300,6 +300,58 @@ test("only a list with nothing in it says so, as T3's", () => {
   assert.deepEqual(said(f), ["Nothing in Two yet"], "a filter that leaves nothing names its space");
   f.mod.scope = ["s2", "gone"]; f.render();
   assert.deepEqual(said(f), ["Nothing in Two yet"]);
+});
+
+// check-focus.cjs has focus.js's own rules; these are what the inbox wires to them.
+test("in keyboard mode each control is a stop, and a row shows with the keyboard on it what it shows hovered", () => {
+  const f = fixture(); f.add("A", "idle", 100);
+  const on = (id) => { f.mod.fs.keyboard = true; f.mod.fs.handles.set(id, { focus() {}, is_focused: () => true }); };
+  f.render();
+  assert.equal(find(f.tree, "card-A").style.tab_index, undefined, "no stop until the mode's on: a press would take the terminal's keyboard");
+  assert.equal(find(f.tree, "inbox-search").style.track_focus, undefined);
+  f.state["t3-focus"] = "on";
+  f.render();
+  for (const id of ["card-A", "inbox-search", "inbox-scope", "inbox-new-space", "inbox-new-tab"]) assert.deepEqual(find(f.tree, id).style.tab_index, [0], id);
+  assert.equal(find(f.tree, "settle-A").style.tab_index, undefined, "faded out it's no button");
+  on("card-A"); f.render();
+  assert.deepEqual(find(f.tree, "settle-A").style.tab_index, [0], "Settle comes with the keyboard");
+  assert.deepEqual(find(f.tree, "snooze-A").style.tab_index, [0], "and Snooze");
+  assert.equal(find(f.tree, "settle-A").style.opacity[0], 1);
+  // And stays while the keyboard's on it, and Enter does what a click does (the kit's on_click: GPUI's keyboard click).
+  f.mod.fs.handles.clear(); on("settle-A"); f.render();
+  assert.equal(find(f.tree, "settle-A").style.opacity[0], 1);
+  assert.ok(find(f.tree, "settle-A").handlers.on_click);
+  // A settled row's undo the same.
+  f.event("settle-A", "on_click"); f.flush(); f.label("A", "settled", "1"); f.render(1100);
+  assert.equal(f.mod.fs.keyboard, true);
+  f.mod.open = true; f.mod.fs.handles.clear(); on("slim-A"); f.render(1100);
+  assert.deepEqual(find(f.tree, "unsettle-A").style.tab_index, [0]);
+});
+
+test("pane.go hands the inbox the keyboard, and it starts at Search", async () => {
+  const f = fixture(); f.add("A", "idle", 100);
+  f.render();
+  const sent = ["focus"];
+  f.context.nextCommand = async () => { if (sent.length) return sent.shift(); throw new Error("done"); };
+  await assert.rejects(f.jobs.at(0)(f.cx), /done/);
+  assert.ok(f.state["t3-focus"], "the mode's on");
+  assert.ok(f.keys, "and the keyboard's moved");
+  f.render();
+  assert.equal(find(f.tree, "inbox-search").style.track_focus[0], f.mod.fs.handles.get("inbox-search"));
+});
+
+test("snooze menu, Custom's units: Home, End and typing move the same highlight", () => {
+  const f = fixture(); f.add("A", "idle", 100);
+  f.render(); f.mod.hovered = "A"; f.render();
+  f.event("snooze-menu-A", "on_open_change", true); f.render();
+  find(f.tree, "snooze-menu-A").handlers.on_open_change?.(true, f.cx); f.render();
+  const key = (e) => { f.event("snooze-panel-A", "on_key_down", e); f.render(); };
+  key({ key: "end" });
+  assert.equal(f.mod.napAt, find(f.tree, "snooze-panel-A").items.filter((n) => n.key?.startsWith("snooze-")).length - 1);
+  key({ key: "home" });
+  assert.equal(f.mod.napAt, 0);
+  key({ key: "c", key_char: "c" });
+  assert.equal(find(f.tree, `snooze-${f.mod.napAt}-A`).style.accessibility_label[0], "Custom…");
 });
 
 test("a plain click on Settle leaves no sweep behind to swallow the next click", () => {

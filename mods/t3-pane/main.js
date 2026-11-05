@@ -10,6 +10,7 @@ import { panes, terminals, agents, props, run, theme, home, layout } from "herdr
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
+import { stopsInit, stop, focusRoot, within } from "./focus.js";
 
 function icon(p, size, color) {
   if (!p?.icon) return null;
@@ -30,14 +31,17 @@ function settled(p) {
 }
 
 export default class Pane extends View {
-  init() { this.hovered = false; }
+  init(_props, cx) {
+    this.hovered = false;
+    stopsInit(this, cx);
+  }
 
   me() {
     return panes().find((p) => p.pane === props()?.pane);
   }
 
   button(t, id, icon, label, action, key) {
-    return tip(this.hot, t, id, label, div()
+    return tip(this.hot, t, id, label, stop(this, t, id, div()
       .id(id)
       .size(26).flex_none().flex().items_center().justify_center()
       .rounded(6)
@@ -56,7 +60,7 @@ export default class Pane extends View {
         action();
         cx.notify();
       })
-      .child(svg(icon).size(14)), { action: key });
+      .child(svg(icon).size(14))), { action: key });
   }
 
   render(cx) {
@@ -71,9 +75,11 @@ export default class Pane extends View {
     const pane = p.pane;
     // A mark takes the last button's 26px, so it, the × and the tab bar's + share one column.
     const slot = (mark) => div().w(26).flex_none().flex().items_center().justify_center().child(mark);
+    // The buttons show with the keyboard on the header or one of them, as they do hovered: the header's the stop that gets there.
+    const head = `pane-head-${pane}`, tools = ["r", "d", "z", "x"].map((k) => `ph-${k}-${pane}`);
     // The rounded frame paints the background; rectangular child fills would cover its corners.
-    return h_flex()
-      .id(`pane-head-${pane}`)
+    return focusRoot(this, stop(this, t, head, h_flex()
+      .id(head)
       .size_full()
       // 4 + the frame's 2 is a tab's 6: with its 16px slot and 2 to the name, the icon and first word stand under the first tab's.
       .pl(4)
@@ -88,7 +94,7 @@ export default class Pane extends View {
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
         .child(div().flex_1().min_w(0).truncate().pr(8).text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
-        .when(this.hovered, el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
+        .when(this.hovered || within(this, [head, ...tools]), el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
           .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/square-split-horizontal.svg", "Split right", () => run("pane.split", { direction: "right", pane }), "pane.split:right"))
           .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/square-split-vertical.svg", "Split down", () => run("pane.split", { direction: "down", pane }), "pane.split:down"))
           .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "minimize-2" : "maximize-2"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane }), "pane.zoom"))
@@ -96,6 +102,6 @@ export default class Pane extends View {
       .when(st === "working", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))))
-      .when(st === "done" && !settled(p), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done)))));
+      .when(st === "done" && !settled(p), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))))), 8));
   }
 }

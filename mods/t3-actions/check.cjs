@@ -46,7 +46,7 @@ const env = {
   focused: () => ({ tab: "b", cwd: "/repo" }), panes: () => [], spaces: () => [{ active: true, folder: "/space" }],
   nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
 };
-const source = ["tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["tip.js", "focus.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 const timers = [];
 const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { after: (ms, fn) => timers.push(fn) } };
@@ -174,5 +174,16 @@ delete state["bar.compact"];
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(plain(state["t3-actions"].list.map((a) => a.id)), ["a2"]);
 
-  console.log("ok: Add action and ▶ | ▾ outlined, run, menu under the press and by keys, editor saves, Delete asks, the block sized to fit");
+  {
+  // Home, End, typing; Enter on a row's Edit is Edit's, not the row's; the bar's stops wait for keyboard mode.
+  const menu = load({ actions: "menu" }), key = (e) => fire(find(menu.render(), "actions-menu"), "on_key_down", e, cx);
+  key({ key: "end" });
+  assert.equal(find(menu.render(), "action-new").style.bg, theme.selected);
+  key({ key: "home" });
+  assert.notEqual(find(menu.render(), "action-new").style.bg, theme.selected);
+  key({ key: "a", key_char: "a", modifiers: {} });
+  assert.equal(find(menu.render(), "action-new").style.bg, theme.selected, "typing finds Add action");
+  assert.equal(find(menu.render(), "action-new").style.tab_index, undefined, "rows go by the arrows");
+}
+console.log("ok: Add action and ▶ | ▾ outlined, run, menu under the press and by keys, editor saves, Delete asks, the block sized to fit");
 })().catch((e) => { console.error(e); process.exit(1); });

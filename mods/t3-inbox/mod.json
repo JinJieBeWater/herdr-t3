@@ -1,4 +1,5 @@
 {
   "place": "none",
-  "title": "Inbox"
+  "title": "Inbox",
+  "focusable": true
 }

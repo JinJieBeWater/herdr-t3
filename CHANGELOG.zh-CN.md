@@ -16,6 +16,7 @@
 - Actions 编辑框改为 T3 的 512px 对话框，高度随内容；Actions 菜单行 28px，编辑按钮 24px。
 - 关闭确认改用 T3 的措辞：`Close terminal "<名字>"?` 和 "This stops the running process and clears its history."；标签里有多个在运行时为 `Close 2 terminals?`。
 - 标签要移动 6px 才开始拖动，同 T3；不到 6px 松手时选中按下的那个标签。
+- 键盘焦点照 T3 的 focus-visible：用 `pane.go` 移到 Inbox、Spaces 或 Agents 后进入键盘模式，Tab 走遍侧栏、标签栏和窗格标题栏的控件，当前控件有 2px 内描边；键盘落在某行时，该行悬停才出现的控件也会出现；Enter 或 Space 触发。菜单支持 Home、End，没有搜索框的菜单还支持 T3 的字母 typeahead。鼠标操作不变：点击后键盘仍留在终端。`pane.go` 向左走到边缘时现在会进入侧栏。
 - 更新：用 `mods/t3-*` 各文件夹覆盖已安装的；用 Review 的再复制 `extras/mods/review` 和 `extras/mods/pulls-review`。
 
 ### 图标统一为 Lucide

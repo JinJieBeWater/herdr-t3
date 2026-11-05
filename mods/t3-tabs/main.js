@@ -5,6 +5,7 @@ import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
 import { detailsFor } from "./details.js";
+import { stopsInit, stop, focusRoot, within } from "./focus.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one, until it
@@ -93,6 +94,7 @@ export default class Tabs extends View {
     this.over = null;
     this.strip = 0;
     this.nameW = {};
+    if (props()?.part !== "measure") stopsInit(this, cx);
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
@@ -155,7 +157,9 @@ export default class Tabs extends View {
   // Herdr's scroll areas can't be moved from a script, so the strip is a clipped row this offsets itself.
   // Only when the active tab or the room changes: a swipe to another tab isn't pulled back.
   stripAt(shown, widths) {
-    const room = this.room ?? 0, i = shown.findIndex(c => c.active), width = (c) => widths.get(c.id);
+    // The tab the keyboard's on, else the active one: a stop off the strip's end can't be seen.
+    const walked = shown.findIndex(c => within(this, [`tab-${c.id}`, `close-${c.id}`]));
+    const room = this.room ?? 0, i = walked >= 0 ? walked : shown.findIndex(c => c.active), width = (c) => widths.get(c.id);
     const key = `${shown[i]?.id}:${i}:${room}:${i >= 0 ? width(shown[i]) : 0}`;
     if (i >= 0 && room > 0 && key !== this.revealed && shown.every(c => this.nameW[c.id])) {
       this.revealed = key;
@@ -171,17 +175,17 @@ export default class Tabs extends View {
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
   // Idle agents aren't counted: nothing to look at.
-  sidebarToggle(t, stop, live, st) {
+  sidebarToggle(t, stopPress, live, st) {
     const counts = ["blocked", "working", "done"].map(s => [s, live.filter(a => st(a) === s).length]).filter(([, n]) => n > 0);
     const words = { blocked: "needing you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
-    return tip(this.hot, t, "sidebar-toggle", "Show sidebar", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
+    return tip(this.hot, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
       .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
-      .on_mouse_down("left", stop).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
+      .on_mouse_down("left", stopPress).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
       .child(svg("mods/t3-tabs/panel-left.svg").size(14).flex_none())
-      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), { action: "layout.toggle:sidebar", below: true });
+      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n)))))), { action: "layout.toggle:sidebar", below: true });
   }
 
   // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
@@ -211,10 +215,10 @@ export default class Tabs extends View {
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const live = awake(st);
     const ps = panes();
-    const stop = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    const stopPress = (_e, cx) => cx.stop_propagation();
+    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
-      .on_mouse_down("left", stop).on_click(action).child(glyph), { action: key, below: true });
+      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
       const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
@@ -230,7 +234,8 @@ export default class Tabs extends View {
       const name = nameOf(c, lead);
       const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
       // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
-      const over = this.overTab === c.id;
+      const tabId = `tab-${c.id}`, closeId = `close-${c.id}`;
+      const over = this.overTab === c.id || within(this, [tabId, closeId]);
       const glyph = !program?.icon ? svg("mods/t3-tabs/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
@@ -242,7 +247,7 @@ export default class Tabs extends View {
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
           .opacity(this.details === c.id && this.detailsIn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
           .child(status ? `${name} · ${WORDS[status]}` : name)));
-      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(4).gap(2).rounded(6).items_center().flex_none().text_size(12)
+      const tab = h_flex().id(tabId).relative().h(24).w(widths.get(c.id)).pl(6).pr(4).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
@@ -279,28 +284,30 @@ export default class Tabs extends View {
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().child(label))
-        .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
+        .child(div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
           .role("button").accessibility_label(`Close ${name}`)
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
+          .on_mouse_down("left", stopPress).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
           .when(over, el => el.child(svg("mods/t3-tabs/x.svg").size(12).text_color(t.foreground)))
-          .when(!over && status != null, el => el.child(mark(t, status))))
+          .when(!over && status != null, el => el.child(mark(t, status)))
+          .when(over, el => stop(this, t, closeId, el, 4)))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
-      return tab;
+      // A tab goes by its mouse-up, which a key isn't.
+      return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
-    if (props()?.part === "end") return h_flex().size_full().items_center().justify_end().bg(t.chrome)
+    if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
         .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close")))));
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 8;
-    return h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
+    return focusRoot(this, h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
       .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
       // Herdr reports no release outside the bar, so leaving ends a drag, as in the inbox.
       .on_hover((on, cx) => {
@@ -312,9 +319,9 @@ export default class Tabs extends View {
         if (Math.abs(e.delta.x) > Math.abs(e.delta.y)) { this.strip -= e.delta.x / settings().zoom; cx.notify(); }
         else if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next");
       })
-      .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stop, live, st)))
+      .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stopPress, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
         .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })
-        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item))));
+        .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item)))));
   }
 }

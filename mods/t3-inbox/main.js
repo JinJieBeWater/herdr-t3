@@ -17,6 +17,7 @@ import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
 
 const icon = programIcon;
 
@@ -90,6 +91,7 @@ const UNITS = [["minutes", "Minutes"], ["hours", "Hours"], ["days", "Days"]];
 
 // The Custom dialog: this copy's own inputs, made once in init. It opens on an hour from now, as T3's.
 function initCustom(view, cx) {
+  stopsInit(view, cx, "modal");
   const soon = new Date(Date.now() + 3600000), pad = (n) => String(n).padStart(2, "0");
   view.mode = "date";
   view.unit = "hours";
@@ -130,19 +132,20 @@ function calendar(view, t) {
   const y = view.month.getFullYear(), m = view.month.getMonth(), lead = new Date(y, m, 1).getDay();
   const now = new Date(Date.now()), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const turn = (id, glyph, label, by) => h_flex().id(id).size(28).flex_none().items_center().justify_center().rounded(6).hover((s) => s.bg(t.hover))
+  const turn = (id, glyph, label, by) => stop(view, t, id, h_flex().id(id).size(28).flex_none().items_center().justify_center().rounded(6).hover((s) => s.bg(t.hover))
     .role("button").accessibility_label(label)
     .on_click((_e, cx) => { view.month = new Date(y, m + by, 1); cx.notify(); })
-    .child(svg(`mods/t3-inbox/chevron-${glyph}.svg`).size(14).text_color(t.muted));
+    .child(svg(`mods/t3-inbox/chevron-${glyph}.svg`).size(14).text_color(t.muted)));
   const day = (d) => {
-    const past = d.getTime() < today, on = same(d, view.date);
-    return h_flex().id(`day-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`).size(32).items_center().justify_center().rounded(6)
+    const past = d.getTime() < today, on = same(d, view.date), id = `day-${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    return h_flex().id(id).size(32).items_center().justify_center().rounded(6)
       .text_color(on ? t.solid_foreground : past || d.getMonth() !== m ? t.dim : t.foreground)
       .when(past, (el) => el.opacity(0.5))
       .when(on, (el) => el.bg(t.solid))
       .when(!past, (el) => el.when(!on, (b) => b.hover((s) => s.bg(t.hover))).role("button").accessibility_label(`${MONTHS[d.getMonth()]} ${d.getDate()}`)
         .on_click((_e, cx) => { view.date = d; view.calendarOpen = false; view.error = null; cx.notify(); }))
-      .child(String(d.getDate()));
+      .child(String(d.getDate()))
+      .when(!past, (el) => stop(view, t, id, el));
   };
   const weeks = Array.from({ length: 6 }, (_, w) => h_flex().children(Array.from({ length: 7 }, (_, i) => day(new Date(y, m, 1 - lead + w * 7 + i)))));
   return v_flex().id("custom-calendar").mt(4).p(8).gap(4).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(12)
@@ -159,14 +162,14 @@ function customView(view) {
   const label = (text) => div().text_size(12).text_color(t.muted).child(text);
   const input = (state) => h_flex().h(32).px(10).rounded(6).border(1).border_color(t.border).bg(t.input).items_center()
     .child(Input.new(state).flex_1().h_full().text_size(13).text_color(t.foreground));
-  const choice = (id, on, name, pick) => h_flex().id(id).h(28).flex_1().px(8).rounded(6).items_center().justify_center().text_size(12)
+  const choice = (id, on, name, pick) => stop(view, t, id, h_flex().id(id).h(28).flex_1().px(8).rounded(6).items_center().justify_center().text_size(12)
     .bg(on ? t.selected : t.input).text_color(on ? t.foreground : t.dim).hover((s) => s.text_color(t.foreground))
     .role("button").accessibility_label(name)
-    .on_click((_e, cx) => { pick(); view.error = null; cx.notify(); }).child(name);
+    .on_click((_e, cx) => { pick(); view.error = null; cx.notify(); }).child(name));
   // Buttons, title and padding as the shipped confirm dialog's.
-  const button = (id, text, primary, act) => h_flex().id(id).h(32).px(14).items_center().rounded(8).border_1().border_color(primary ? t.solid : t.input).text_size(12)
+  const button = (id, text, primary, act) => stop(view, t, id, h_flex().id(id).h(32).px(14).items_center().rounded(8).border_1().border_color(primary ? t.solid : t.input).text_size(12)
     .bg(primary ? t.solid : t.raised).text_color(primary ? t.solid_foreground : t.foreground)
-    .cursor_pointer().hover((s) => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text);
+    .cursor_pointer().hover((s) => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text), 8);
   // NumberInput replays these onto its own step buttons (their ids are its own); inside the frame's 1px, so 5 round.
   const stepper = (glyph, name, side) => h_flex().h_full().px(10).flex_none().items_center().justify_center().cursor_pointer()
     .when(side === "l", (el) => el.rounded_l(5)).when(side === "r", (el) => el.rounded_r(5)).hover((s) => s.bg(t.hover))
@@ -184,7 +187,7 @@ function customView(view) {
     showUnits(false);
     view.unitFocus.focus();
   };
-  const unitTrigger = h_flex().id("custom-unit-button").w_full().h(32).px(10).gap(8).rounded(6).border(1).border_color(t.border).bg(t.input).items_center().cursor_pointer()
+  const unitTrigger = stop(view, t, "custom-unit-button", h_flex().id("custom-unit-button").w_full().h(32).px(10).gap(8).rounded(6).border(1).border_color(t.border).bg(t.input).items_center().cursor_pointer()
     .on_hover((on) => { view.overUnit = on; })
     .on_size_change((size) => { view.unitW = size.width / zoom; })
     .on_click((_e, cx) => {
@@ -193,7 +196,7 @@ function customView(view) {
       cx.notify();
     })
     .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(UNITS.find(([u]) => u === view.unit)[1]))
-    .child(svg("mods/t3-inbox/chevron-down.svg").size(14).flex_none().text_color(t.muted).opacity(0.7));
+    .child(svg("mods/t3-inbox/chevron-down.svg").size(14).flex_none().text_color(t.muted).opacity(0.7)), 6, { handle: view.unitFocus });
   const unitList = v_flex().id("custom-unit-list").w(view.unitW ?? 168).mt(4).p(4).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg()
     .track_focus(view.unitKeys)
     // The trigger's own click toggles, so a press on it isn't "elsewhere".
@@ -201,7 +204,11 @@ function customView(view) {
     .on_key_down((e, cx) => {
       if (e.key === "enter" || e.key === "space") pickUnit(UNITS[view.unitAt][0]);
       else if (e.key === "down" || e.key === "up") view.unitAt = (view.unitAt + (e.key === "down" ? 1 : UNITS.length - 1)) % UNITS.length;
-      else return;
+      else {
+        const to = menuJump(view, e, UNITS.map(([, name]) => name), view.unitAt);
+        if (to < 0) return;
+        view.unitAt = to;
+      }
       cx.stop_propagation();
       cx.notify();
     })
@@ -220,10 +227,10 @@ function customView(view) {
       .child(v_flex().flex_1().min_w(0).gap(6).child(label("Date"))
         .child(Popover.new("custom-date").anchor("top_left").open(view.calendarOpen)
           .on_open_change((open, cx) => { view.calendarOpen = open; cx.notify(); })
-          .trigger(h_flex().id("custom-date-button").h(32).px(10).gap(8).rounded(6).border(1).border_color(t.border).bg(t.input).items_center().cursor_pointer()
+          .trigger(stop(view, t, "custom-date-button", h_flex().id("custom-date-button").h(32).px(10).gap(8).rounded(6).border(1).border_color(t.border).bg(t.input).items_center().cursor_pointer()
             .role("button").accessibility_label("Choose snooze date")
             .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(`${MONTHS[view.date.getMonth()].slice(0, 3)} ${view.date.getDate()}, ${view.date.getFullYear()}`))
-            .child(svg("mods/t3-inbox/calendar.svg").size(14).flex_none().text_color(t.muted)))
+            .child(svg("mods/t3-inbox/calendar.svg").size(14).flex_none().text_color(t.muted))))
           .when(view.calendarOpen, (el) => el.content(calendar(view, t)))))
       .child(v_flex().flex_1().min_w(0).gap(6).child(label("Time")).child(input(view.time)))
     : h_flex().gap(12)
@@ -233,7 +240,7 @@ function customView(view) {
           .decrement_button(stepper("minus", "Decrease duration", "l"))
           .increment_button(stepper("plus", "Increase duration", "r"))))
       .child(v_flex().flex_1().min_w(0).gap(6).child(label("Unit")).child(unit));
-  return v_flex().id("custom-snooze").size_full().p(18).gap(14).bg(t.popover).text_size(13)
+  return focusRoot(view, v_flex().id("custom-snooze").size_full().p(18).gap(14).bg(t.popover).text_size(13)
     .child(v_flex().gap(4)
       .child(h_flex().items_center()
         .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Custom snooze"))
@@ -247,12 +254,15 @@ function customView(view) {
     .child(h_flex().mt_auto().gap(8).items_center()
       .child(div().flex_1())
       .child(button("custom-cancel", "Cancel", false, done))
-      .child(button("custom-submit", "Snooze", true, (_e, cx) => { submitCustom(view); cx.notify(); })));
+      .child(button("custom-submit", "Snooze", true, (_e, cx) => { submitCustom(view); cx.notify(); }))));
 }
 
 export default class Inbox extends View {
   init(_props, cx) {
     if (props()?.customSnooze) return initCustom(this, cx);
+    stopsInit(this, cx, "entry");
+    // A menu of its own holds the keyboard off every stop for as long as it's open, and gives it back to the one it opened from.
+    this.fs.hold = () => this.napMenu || this.scopeOpen;
     // Each agent's last state, when we saw it set going or come back (ms; 0: before we were watching), the turns
     // it had ended then, and for one that just stopped, when its run started.
     this.changed = JSON.parse(localStorage.getItem("changes") ?? "{}");
@@ -294,6 +304,8 @@ export default class Inbox extends View {
         else if (command === "clear") this.clearSettled?.();
         else if (command === "custom-snooze") this.customSnooze?.(cx);
         else if (command === "undo") this.undo(cx);
+        // pane.go onto this list (mod.json's "focusable"): the keyboard starts at Search.
+        else if (command === "focus") enter(this, cx, "inbox-search");
         cx.notify();
       }
     });
@@ -820,7 +832,7 @@ export default class Inbox extends View {
       const going = (kids.get(a.address) ?? []).filter((s) => s === "working").length;
       const meta = [branch, going ? `${going} sub-agent${going > 1 ? "s" : ""} working` : null].filter(Boolean).join(" · ");
       const pic = icon(a.program, 16, t.muted);
-      const over = !dragging && !this.sweep?.moved && this.hovered === a.address;
+      const over = !dragging && !this.sweep?.moved && (this.hovered === a.address || within(this, [`card-${a.address}`, `settle-${a.address}`, `snooze-${a.address}`, `woke-${a.address}`]));
       // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, in color only so nothing reflows.
       const leads = on || ghost || st === "blocked" || st === "done" || woke(a);
       const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
@@ -847,7 +859,7 @@ export default class Inbox extends View {
         .child(mark).child(div().child(label))
         .when(Boolean(time), (el) => el.children(time.split(" ").map((part) => div().font_family(settings().font_family ?? "JetBrains Mono").child(part))));
       // It wakes where it was, so this carries the weight, as T3's; a click dismisses it, and it stays on hover.
-      const wokeMark = woke(a) && tip(this.hot, t, `woke-${a.address}`, "Dismiss Woke notification", h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
+      const wokeMark = woke(a) && tip(this.hot, t, `woke-${a.address}`, "Dismiss Woke notification", stop(this, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
         .hover((s) => s.underline()).on_hover(glow(`woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
@@ -856,7 +868,7 @@ export default class Inbox extends View {
           wake(a, cx);
           cx.notify();
         })
-        .child(svg("mods/t3-inbox/alarm-clock.svg").size(16).flex_none().text_color(t.blocked)).child("Woke"), { delay });
+        .child(svg("mods/t3-inbox/alarm-clock.svg").size(16).flex_none().text_color(t.blocked)).child("Woke"), 4), { delay });
       const acting = offer || napOffer, quiet = acting && (menu || !woke(a));
       // Lifted, or marked by a sweep, the corner says what letting go will do instead.
       // The state or the time, faded out on hover where Settle fades in over it, as T3's corner.
@@ -886,7 +898,8 @@ export default class Inbox extends View {
         .trigger(h_flex().id(napId).size(20).flex_none().items_center().justify_center().rounded(4)
           .opacity(napOffer ? 1 : 0).transition("opacity", MOTION).on_hover(glow(napId))
           .role("button").accessibility_label("Snooze agent")
-          .child(svg("mods/t3-inbox/clock.svg").size(12).flex_none().text_color(menu ? t.foreground : lit(napId, t.muted))))
+          .child(svg("mods/t3-inbox/clock.svg").size(12).flex_none().text_color(menu ? t.foreground : lit(napId, t.muted)))
+          .when(napOffer, (el) => stop(this, t, napId, el, 4)))
         .when(menu, (el) => {
           const choices = [...presets(now), { label: "Custom…", custom: true }];
           // Sized as T3's menu: as wide as its rows, 160px at least. Nothing lit until the pointer or a key gets there.
@@ -898,9 +911,13 @@ export default class Inbox extends View {
               cx.notify();
             })
             .on_key_down((e, cx) => {
-              if (e.key !== "down" && e.key !== "up") return;
               const n = choices.length;
-              this.napAt = e.key === "down" ? (this.napAt + 1) % n : (this.napAt <= 0 ? n : this.napAt) - 1;
+              if (e.key === "down" || e.key === "up") this.napAt = e.key === "down" ? (this.napAt + 1) % n : (this.napAt <= 0 ? n : this.napAt) - 1;
+              else {
+                const to = menuJump(this, e, choices.map((p) => p.label), this.napAt);
+                if (to < 0) return;
+                this.napAt = to;
+              }
               cx.stop_propagation();
               cx.notify();
             })
@@ -944,7 +961,8 @@ export default class Inbox extends View {
             cx.notify();
           }))
           .child(svg("mods/t3-inbox/check.svg").size(12).flex_none().text_color(lit(id, t.muted)))
-          .child("Settle"), { action: "t3-inbox.settle", delay }))));
+          .child("Settle")
+          .when(offer, (el) => stop(this, t, id, el, 4)), { action: "t3-inbox.settle", delay }))));
       // T3's multiline row: px-2.5 py-1.5, rounded-md.
       const base = v_flex().id(`${ghost ? "ghost-" : ""}card-${a.address}`).px(10).py(6).gap(2).flex_none().rounded(6)
         // A working row recedes until it's hovered or in view, as T3's.
@@ -966,13 +984,14 @@ export default class Inbox extends View {
           .when(Boolean(marks) && !meta, (el) => el.child(marks)))
         .when(Boolean(meta), (el) => el.child(h_flex().gap(6).items_center().text_size(12).text_color(t.dim)
           .child(div().flex_1().min_w(0).truncate().child(meta))
-          .when(Boolean(marks), (m) => m.child(marks))));
+          .when(Boolean(marks), (m) => m.child(marks))))
+        .when(!ghost, (el) => stop(this, t, `card-${a.address}`, el));
     };
 
     // A settled or snoozed row: one dim line; viewing it leaves it so. Hovered it brightens and its time becomes a
     // bare undo arrow, or for a snoozed one, which shows when it comes back, Wake's crossed-out alarm clock, as in T3.
     const slim = (a, ghost) => {
-      const on = viewing(a), over = !dragging && !this.sweep?.moved && this.hovered === a.address, bright = on || over || ghost || swept(a);
+      const on = viewing(a), over = !dragging && !this.sweep?.moved && (this.hovered === a.address || within(this, [`slim-${a.address}`, `wake-${a.address}`, `unsettle-${a.address}`])), bright = on || over || ghost || swept(a);
       const napping = hidden(a), undoId = `${napping ? "wake" : "unsettle"}-${a.address}`, undoLabel = napping ? "Wake agent" : "Unsettle";
       // As T3's settled rows: its project's mark, not its program's.
       const mark = avatar(a.space, a.space_name, 16);
@@ -989,7 +1008,8 @@ export default class Inbox extends View {
           if (napping) wake(a, cx); else unsettle(a, cx);
           cx.notify();
         }))
-        .child(svg(`mods/t3-inbox/${napping ? "alarm-clock-off" : "undo"}.svg`).size(12).flex_none().text_color(lit(undoId, t.muted)));
+        .child(svg(`mods/t3-inbox/${napping ? "alarm-clock-off" : "undo"}.svg`).size(12).flex_none().text_color(lit(undoId, t.muted)))
+        .when(over, (el) => stop(this, t, undoId, el, 4));
       const time = napping
         ? h_flex().gap(4).items_center().text_color(t.accent).child(svg("mods/t3-inbox/alarm-clock.svg").size(12).flex_none().text_color(t.accent)).child(left(napUntil(a), now))
         : !ghost && ago(settledAt(a)[0], now);
@@ -1003,12 +1023,13 @@ export default class Inbox extends View {
           // T3's corner: the time fades out on hover as the undo arrow fades in over it.
           : h_flex().id(`slim-corner-${a.address}`).relative().h(20).min_w(20).flex_none().items_center().justify_end()
             .child(div().flex_none().text_size(12).text_color(t.dim).opacity(over ? 0 : 1).transition("opacity", MOTION).child(time))
-            .child(div().absolute().top(0).right(0).child(tip(this.hot, t, undoId, undoLabel, undo, { action: napping ? undefined : "t3-inbox.settle", delay }))));
+            .child(div().absolute().top(0).right(0).child(tip(this.hot, t, undoId, undoLabel, undo, { action: napping ? undefined : "t3-inbox.settle", delay }))))
+        .when(!ghost, (el) => stop(this, t, `slim-${a.address}`, el));
     };
 
     // A shelf's header, folding it: label, then count and chevron at the far edge; the chevron is an indicator, lit with its row.
     // As T3's: 2px in from the rows' edges, the count in normal weight.
-    const shelf = (id, label, count, open, toggle, extra) => h_flex().id(id).h(SHELF).mx(2).px(8).gap(8).flex_none().items_center()
+    const shelf = (id, label, count, open, toggle, extra) => stop(this, t, id, h_flex().id(id).h(SHELF).mx(2).px(8).gap(8).flex_none().items_center()
       .text_size(12).font_medium().text_color(t.dim)
       .role("button").accessibility_label(`${open ? "Hide" : "Show"} ${label.toLowerCase()} agents`)
       .on_hover((on, cx) => {
@@ -1023,7 +1044,7 @@ export default class Inbox extends View {
       .child(div().flex_1().child(label))
       .when(Boolean(extra), (el) => el.child(extra))
       .child(div().font_normal().child(String(count)))
-      .child(svg(`mods/t3-inbox/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(this.overShelf === id ? t.foreground : t.dim));
+      .child(svg(`mods/t3-inbox/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(this.overShelf === id ? t.foreground : t.dim)));
 
     // The list's motion, as T3's (Sidebar.motion.ts): when the rows' order or sections change, a row that moved slides from
     // where it was, one that's new fades in from 40px above, one that left fades out where it was; 150ms ease-out. Not
@@ -1165,7 +1186,7 @@ export default class Inbox extends View {
       // tab.new shows the new tab; go back to where the person was.
       if (tabNow) { run("space.select", { id: spaceNow.id }); run("tab.select", { id: tabNow }); }
     };
-    const clearButton = doomed.length > 0 && tip(this.hot, t, "settled-clear", "Clear settled agents", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
+    const clearButton = doomed.length > 0 && tip(this.hot, t, "settled-clear", "Clear settled agents", stop(this, t, "settled-clear", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
       .text_color(lit("settled-clear", t.dim)).on_hover(glow("settled-clear"))
       .role("button").accessibility_label("Clear settled agents")
       .on_click((_e, cx) => {
@@ -1178,7 +1199,7 @@ export default class Inbox extends View {
         } });
         cx.notify();
       })
-      .child("Clear"));
+      .child("Clear"), 4));
     const tail = v_flex().id("settled").flex_none()
       .child(fly("m:settled", "marker", shelf("settled-header", "Settled", put.length, this.open, () => {
         this.open = !this.open;
@@ -1190,7 +1211,7 @@ export default class Inbox extends View {
       .when(dragging && others(rows).length === 0 && !(rows.length > 0 && !plan), (el) => el
         .child(plan?.gap === "head-settled" ? gap("head-settled") : placeholder("settled", "Settled")))
       .children(lane("settled", rows, (a) => slim(a), 0))
-      .when(this.open && put.length > this.limit, (el) => el.child(fly("m:more", "marker", h_flex().id("settled-more").h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6)
+      .when(this.open && put.length > this.limit, (el) => el.child(fly("m:more", "marker", stop(this, t, "settled-more", h_flex().id("settled-more").h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6)
         .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("settled-more"))
         .role("button").accessibility_label("Show more settled agents")
         .on_click((_e, cx) => {
@@ -1199,14 +1220,14 @@ export default class Inbox extends View {
           cx.notify();
         })
         .child(svg("mods/t3-inbox/chevron-down.svg").size(16).flex_none())
-        .child(`Show ${Math.min(MORE, put.length - this.limit)} more`))));
+        .child(`Show ${Math.min(MORE, put.length - this.limit)} more`)))));
 
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const asks = props()?.newMenu && machines().length > 1;
-    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
+    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
       .hover((s) => s.bg(t.hover)).on_hover(glow(id))
       .role("button").accessibility_label(label).on_click(fn)
-      .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim))), more);
+      .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim)))), more);
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
     const scoped = sp.filter((s) => scope.includes(s.id));
     const choice = (s, i) => {
@@ -1234,14 +1255,14 @@ export default class Inbox extends View {
         }
         cx.notify();
       })
-      .trigger(h_flex().id("inbox-scope").size(26).flex_none().items_center().justify_center().rounded(6)
+      .trigger(stop(this, t, "inbox-scope", h_flex().id("inbox-scope").size(26).flex_none().items_center().justify_center().rounded(6)
         .hover((s) => s.bg(t.hover)).on_hover(glow("inbox-scope"))
         .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space")
         .child(scoped.length > 1
           ? h_flex().children(scoped.slice(0, 2).map((s, i) => avatar(s.id, s.name, 14).when(i > 0, (el) => el.ml(-6))))
           : scoped.length
             ? avatar(scoped[0].id, scoped[0].name, 16)
-            : svg("mods/t3-inbox/list-filter.svg").size(14).text_color(lit("inbox-scope", t.dim))))
+            : svg("mods/t3-inbox/list-filter.svg").size(14).text_color(lit("inbox-scope", t.dim)))))
       .content(v_flex().id("inbox-scope-panel").w(260).max_h(360).mt(4).p(6).gap(2).rounded(10)
         .bg(t.popover).border_1().border_color(t.border).text_size(13)
         .on_key_down((e, cx) => {
@@ -1260,12 +1281,12 @@ export default class Inbox extends View {
     // Right edge as the brand bar's above (pr 10), so the two rows of icons line up.
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
       // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
-      .child(h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
+      .child(stop(this, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
         .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("inbox-search"))
         // Each opens over its button, before the pointer can report leaving it.
         .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: props()?.picker ?? "picker" }); cx.notify(); })
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(lit("inbox-search", t.dim)))
-        .child(div().child("Search")))
+        .child(div().child("Search"))))
       .child(tip(this.scopeOpen ? null : this.hot, t, "inbox-scope", "Filter by space", filter, { hint: "Shift+click to pick several", below: true }))
       .child(tool("inbox-new-space", "New space", "folder-plus", (_e, cx) => {
         this.hot = null;
@@ -1341,6 +1362,6 @@ export default class Inbox extends View {
       if (this.details === gone) this.details = null;
       if (this.detailsOut === gone) this.detailsOut = null;
     }
-    return tree;
+    return focusRoot(this, tree);
   }
 }

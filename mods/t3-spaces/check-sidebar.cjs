@@ -47,7 +47,7 @@ function fire(node, event, ...args) {
 }
 
 const modRoot = path.dirname(__dirname);
-const cx = { notify() {}, stop_propagation() {}, spawn() {}, timers: [], timer: { every() {}, after(ms, fn) { const t = { ms, fn, cancel() { t.gone = true; } }; cx.timers.push(t); return t; } }, focus_handle: () => { let gone = false; return { focus() { assert.ok(!gone, "a released FocusHandle throws when used"); }, is_focused: () => false, release() { gone = true; return true; } }; } };
+const cx = { notify() {}, stop_propagation() {}, spawn() {}, bind_keys() {}, timers: [], timer: { every() {}, after(ms, fn) { const t = { ms, fn, cancel() { t.gone = true; } }; cx.timers.push(t); return t; } }, focus_handle: () => { let gone = false; return { focus() { assert.ok(!gone, "a released FocusHandle throws when used"); }, is_focused: () => false, release() { gone = true; return true; } }; } };
 function fixture(width) {
   const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
   const tabs = ["local task", "second task", "remote task"].map((name, i) => ({ id: `b${i}`, name, named: true }));
@@ -92,8 +92,8 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js, project.js, tip.js and details.js, the shared naming, status, space-mark, hover-label and details rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js, project.js, tip.js, details.js and focus.js, the shared naming, status, space-mark, hover-label, details and keyboard rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -1315,6 +1315,44 @@ for (const width of [208, 240, 256, 320, 480]) {
     const spaces = f.load("t3-new-menu");
     spaces.filter = "no such space";
     assert.ok(strings(spaces.render(cx)).includes("No matching spaces."));
+  }
+  {
+    // The keyboard's way round (check-focus.cjs has its rules): no control is a stop until the mode's on; then each is, a row
+    // shows with the keyboard on it what it shows hovered, and Enter does what the pointer does.
+    const f = fixture(256), tabs = f.load("t3-tabs"), ag = f.load("t3-agents"), sp = f.load("t3-spaces"), footer = f.load("t3-chrome", { footer: true }), brand = f.load("t3-chrome");
+    const on = (mod, id) => { mod.fs.keyboard = true; mod.fs.handles.set(id, { focus() {}, is_focused: () => true }); };
+    for (const [view, id] of [[tabs, "tab-b0"], [tabs, "sidebar-toggle"], [ag, "ag-t0"], [ag, "ag-sort"], [sp, "space-s0"], [sp, "space-new"], [footer, "settings"], [brand, "sidebar-mode"]]) {
+      const node = find(view.render(cx), id);
+      if (node) assert.equal(node.style.tab_index, undefined, `${id} takes no keyboard from a terminal when pressed`);
+    }
+    f.state["t3-focus"] = "on";
+    for (const [view, id] of [[ag, "ag-t0"], [ag, "ag-sort"], [ag, "fold-t0"], [sp, "space-s0"], [sp, "space-new"], [footer, "settings"], [footer, "add-machine"], [brand, "sidebar-mode"], [brand, "sidebar-toggle"], [tabs, "tab-b0"]])
+      assert.equal(find(view.render(cx), id).style.tab_index, 0, `${id} is a stop`);
+    assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new").style.tab_index, 0);
+    // Tab's × and the pin come with the keyboard, as with the pointer.
+    assert.equal(find(tabs.render(cx), "close-b0").style.tab_index, undefined);
+    on(tabs, "tab-b0");
+    const tab = find(tabs.render(cx), "tab-b0");
+    assert.equal(find(tab, "close-b0").style.tab_index, 0);
+    assert.ok(walk(find(tab, "close-b0")).some((n) => n.source === "mods/t3-tabs/x.svg"), "the × shows");
+    assert.ok(tab.items.some((n) => n.style?.border === 2 && n.style.border_color === f.theme().accent), "the ring is on the tab");
+    // A tab and a space go by their mouse-ups: a key has to say so itself.
+    fire(tab, "on_key_down", { keystroke: "enter" }, cx);
+    assert.deepEqual(f.calls.pop(), ["tab.select", { id: "b0" }]);
+    on(sp, "space-s0");
+    fire(find(sp.render(cx), "space-s0"), "on_key_down", { keystroke: "space" }, cx);
+    assert.deepEqual(f.calls.pop(), ["space.select", { id: "s0" }]);
+    assert.equal(find(ag.render(cx), "pin-t0"), null);
+    on(ag, "ag-t0");
+    assert.equal(find(ag.render(cx), "pin-t0").style.tab_index, 0, "a hidden control is there once the keyboard's on its row");
+    // Menus: Home, End and typing, with the same highlight the arrows move.
+    const sort = f.load("t3-agents", { sortMenu: true }), key = (e) => fire(find(sort.render(cx), "sort-menu"), "on_key_down", e, cx), lit = () => find(sort.render(cx), "sort-priority").style.bg === f.theme().selected ? "priority" : "grouped";
+    key({ key: "home" });
+    assert.equal(lit(), "priority");
+    key({ key: "end" });
+    assert.equal(lit(), "grouped");
+    key({ key: "p", key_char: "p", modifiers: {} });
+    assert.equal(lit(), "priority");
   }
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
 })().catch(e => { console.error(e); process.exit(1); });

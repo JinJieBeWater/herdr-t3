@@ -5,9 +5,10 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, nextCommand } from "herdr";
 import { projectMark, tint } from "./project.js";
 import { tip, tipMark } from "./tip.js";
+import { stopsInit, stop, focusRoot, enter } from "./focus.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 // `ps`: panes(), read once by the caller (each read copies every pane).
@@ -24,6 +25,11 @@ const FALLBACK = 60000;
 
 export default class Spaces extends View {
   init(_props, cx) {
+    stopsInit(this, cx, "entry");
+    // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
+    cx.spawn(async (cx) => {
+      for (;;) if (await nextCommand() === "focus") enter(this, cx, "space-new");
+    });
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -337,30 +343,31 @@ export default class Spaces extends View {
         .when(!connected && !rebuilt, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
         .when(rebuilt, el => el.child(h_flex().flex_none().gap(3).items_center()
           .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
-          .child(tip(this.hot, t, `machine-connect-${m}`, `Connect ${m}`, div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
+          .child(tip(this.hot, t, `machine-connect-${m}`, `Connect ${m}`, stop(this, t, `machine-connect-${m}`, div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
             .hover(s => s.text_color(t.foreground)).on_hover(this.glow(`machine-connect-${m}`))
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
-            .child(repair?.busy ? "Connecting…" : "Connect")))))
+            .child(repair?.busy ? "Connecting…" : "Connect"), 4)))))
         .child(h_flex().flex_none().gap(2).items_center()
-          .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", div().id(`machine-add-${m ?? "local"}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
+          .when(connected, el => el.child(tip(this.hot, t, `machine-add-${m ?? "local"}`, "New space here", stop(this, t, `machine-add-${m ?? "local"}`, div().id(`machine-add-${m ?? "local"}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
             .text_color(this.hot === `machine-add-${m ?? "local"}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${m ?? "local"}`))
             .role("button").accessibility_label("New space here")
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/plus.svg").size(12)),
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/plus.svg").size(12)), 4),
             // The key makes a space on the current space's machine: it names this + only on that one.
             { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
           // An indicator, not a button: the whole row folds, so it lights with the row and has no label of its own.
           .child(div().id(`machine-fold-${m ?? "local"}`).w(26).flex_none().flex().items_center().justify_center()
             .text_color(this.overMachine === `machine-${m ?? "local"}` ? t.foreground : t.dim)
             .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none())));
-      const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
+      const empty = stop(this, t, `machine-new-${m ?? "local"}`, h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
         .on_click(() => run("space.new", { machine: m ?? "" }))
         // Laid out as a space's row: the + in the mark's 18px, the words where a name starts.
-        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here");
-      if (rebuilt) return [head];
-      return [head, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
+        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here"), 8);
+      const heading = stop(this, t, `machine-${m ?? "local"}`, head, 8);
+      if (rebuilt) return [heading];
+      return [heading, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
     });
   }
 
@@ -394,7 +401,7 @@ export default class Spaces extends View {
     // end, and folded, the count; dim, brightening when hovered.
     const folded = kids > 0 && this.foldedRepos.has(g.repo);
     const foldId = `space-fold-${w.id}`, lit = this.hot === foldId ? t.foreground : t.dim;
-    return v_flex()
+    return stop(this, t, `space-${w.id}`, v_flex()
       .relative()
       .id(`space-${w.id}`)
       .px(8)
@@ -450,7 +457,7 @@ export default class Spaces extends View {
           .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t, w.id) : div().flex_1())
           // -3: its chevron stands in the column of the heading's last button and a machine's chevron, 23 from the edge.
-          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", div().id(foldId).h(20).min_w(20).mr(-3).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", stop(this, t, foldId, div().id(foldId).h(20).min_w(20).mr(-3).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
             // raised: the row under it already shows hover or selected.
             .text_size(11).text_color(lit)
             .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
@@ -463,8 +470,9 @@ export default class Spaces extends View {
             .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
             .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
             .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
-            .when(folded, el => el.child(String(kids)))))),
-      );
+            .when(folded, el => el.child(String(kids))), 4)))),
+      // A space goes by its mouse-up, which a key isn't.
+      ), 8, { enter: () => run("space.select", { id: w.id }) });
   }
 
   render() {
@@ -474,9 +482,9 @@ export default class Spaces extends View {
     const colors = Object.fromEntries(sp.filter(p => p.name !== "~").map(p => [p.id, tint(p.name, false)]));
     if (JSON.stringify(colors) !== JSON.stringify(shared("space.colors") ?? {})) setShared("space.colors", colors);
     const asks = props()?.newMenu && machines().length > 1;
-    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
-      .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(14)), more);
-    return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
+    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
+      .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(14))), more);
+    return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
         // The same two as Inbox's top row, so switching modes moves nothing.
@@ -498,6 +506,6 @@ export default class Spaces extends View {
           cx.notify();
         })
         .child(v_flex().id("space-content").w_full().flex_none().px(8).pb(8)
-          .children(this.grouped(t))));
+          .children(this.grouped(t)))));
   }
 }
