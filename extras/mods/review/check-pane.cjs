@@ -164,6 +164,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(pane.review.files.every(f => f.hunks));
   // Its pane header, and a tab of its own, say what it reviews.
   assert.deepEqual(plain(sharedStore.get("review.titles")), { b: "fix vs origin/main" });
+  assert.equal(sharedStore.get("review.program").inbox, true, "asks for its card in t3-inbox: a pane that loses nothing when it closes");
+  assert.equal(sharedStore.get("review.program").name, "Review");
   // The Review bar reads which repository it shows from here; no change, no write: every write redraws every mod.
   assert.equal(sharedStore.get("review.shown").b.root, "/repo");
   const published = sharedStore.get("review.shown"); pane.render(cx);

@@ -721,8 +721,9 @@ export default class ReviewPane extends View {
     const title = this.page ? pageLabel(this.page, this.switching ? null : this.review) : "review";
     const live = Object.fromEntries(Object.entries(titles).filter(([tab]) => mine.some(p => p.tab === tab)));
     if (mine.some(p => p.tab === this.tab) && (titles[this.tab] !== title || Object.keys(live).length !== Object.keys(titles).length)) setShared(`${PANE}.titles`, { ...live, [this.tab]: title });
-    // Its icon in pane headers and tabs (t3's name.js): pulls.review's own logo.
-    if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/logo.svg`) setShared(`${PANE}.program`, { icon: `mods/${PANE}/logo.svg`, tint: false });
+    // Its icon in pane headers and tabs (t3's name.js), pulls.review's own logo. In a tab of its own it has a card in t3-inbox,
+    // whose Settle closes it: its marks and analysis are the daemon's, so that loses nothing.
+    if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/logo.svg` || shared(`${PANE}.program`).inbox !== true) setShared(`${PANE}.program`, { icon: `mods/${PANE}/logo.svg`, tint: false, name: "Review", inbox: true });
     this.report();
     // A later open in this tab: another page, maybe another worktree.
     const request = shared(PANE);
