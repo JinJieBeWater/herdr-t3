@@ -1083,7 +1083,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(tabCard("other").style.opacity, 1, "then it fades in");
     assert.equal(tabCard("other").style.mt, 4);
     assert.deepEqual(strings(tabCard("other")), ["other"], "only its whole name: the project and branch are in the sidebar");
-    assert.deepEqual([find(tabs.render(cx), "details-other").style.bottom, find(tabs.render(cx), "details-other").style.left, find(tabs.render(cx), "details-other").style.size], [0, 0, 1], "a Popup hangs from its anchor's bottom left: the tab's");
+    assert.deepEqual([find(tabs.render(cx), "details-other").style.bottom, find(tabs.render(cx), "details-other").style.left, find(tabs.render(cx), "details-other").style.size], [0, 15, 1], "a Popup hangs from the tab's bottom, its words under the tab's name");
     fire(find(tabs.render(cx), "tab-b0"), "on_hover", true, cx);
     assert.equal(tabCard("b0").style.opacity, 1, "the next tab's opens at once");
     fire(find(tabs.render(cx), "tab-b0"), "on_hover", false, cx);

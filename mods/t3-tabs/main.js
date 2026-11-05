@@ -224,9 +224,10 @@ export default class Tabs extends View {
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
-      // A Popup hanging from a 1px anchor at the tab's bottom left, with an Inbox row's timing. Up from the hover on: a Popup must
+      // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
+      // (the tab's 6px padding, 16px icon slot and 2px gap, less the label's 1px border and 8px padding). Up from the hover on: a Popup must
       // have measured its anchor before the frame a label starts to fade in. A status mark lit in the tab speaks for itself instead.
-      const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(0).size(1)
+      const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(6 + 16 + 2 - (1 + 8)).size(1)
         .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(div().id(`details-card-${c.id}`)
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
           .opacity(this.details === c.id && this.detailsIn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
