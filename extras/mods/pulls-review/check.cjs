@@ -285,6 +285,14 @@ const load = (props = {}, setup = record) => {
   const key = (k) => fire(find(inMenu.render(), "review-menu"), "on_key_down", { key: k }, cx);
   key("down"); key("down");
   assert.deepEqual(highlighted(), ["review-commit-c3"]);
+  const cardOf = (id) => strings(find(find(inMenu.render(), id), `details-${id}`).style.content);
+  assert.equal(cardOf("review-commit-c3")[0], "c3", "the card follows the keys to a commit");
+  fire(find(inMenu.render(), "review-branch-Other"), "on_hover", true, cx);
+  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes when the pointer takes the highlight to a branch");
+  key("down");
+  key("up");
+  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes on a branch");
+  key("down");
   key("up"); key("up"); key("up");
   assert.deepEqual(highlighted(), ["review-commit-c1"], "up from the top goes round to the bottom");
   fire(find(inMenu.render(), "review-branch-Other"), "on_hover", true, cx);
@@ -302,7 +310,22 @@ const load = (props = {}, setup = record) => {
   const top = find(inMenu.render(), "review-menu").items.map(n => n.key);
   assert.ok(top.includes("review-all") && top.includes("review-branches") && top.includes("review-commit-list"));
   const many = load({ ...within.props, branches: Array.from({ length: 9 }, (_, i) => ({ name: `b${i}`, count: 1 })) }).mod;
-  assert.equal(find(many.render(), "review-branches").style.max_h, 4 * 32, "a long branch list can't push the commits away");
+  assert.equal(find(many.render(), "review-branches").style.h, 4 * 32, "a long branch list can't push the commits away");
+  // The lists scroll by script, as the shipped picker's: rows keep their handlers, ↑/↓ keep the highlight in view, the wheel
+  // takes the highlight along. Until the list is measured every row is drawn; then only those in view, where the scroll puts them.
+  const branchRow = (i) => find(many.render(), `review-branch-b${i}`);
+  assert.ok(branchRow(8), "unmeasured: all drawn");
+  fire(find(many.render(), "review-branches"), "on_size_change", { width: 500, height: 4 * 32 * zoom }, cx);
+  assert.deepEqual([branchRow(3)?.style.top, branchRow(4)], [3 * 32, null], "measured: the four in view");
+  const manyKey = (k) => fire(find(many.render(), "review-menu"), "on_key_down", { key: k }, cx);
+  for (let i = 0; i < 6; i++) manyKey("down");
+  assert.equal(branchRow(5).style.bg, theme.selected);
+  assert.deepEqual([branchRow(5).style.top, branchRow(1)], [3 * 32, null], "↑/↓ scroll the highlight into view, at the bottom edge");
+  // Two events before the next render, as a trackpad sends them: both count.
+  const wheeled = find(many.render(), "review-branches");
+  for (let i = 0; i < 2; i++) fire(wheeled, "on_scroll_wheel", { delta: { x: 0, y: 32 * zoom } }, cx);
+  assert.deepEqual([branchRow(0)?.style.top, branchRow(4)], [0, null], "the wheel scrolls back up");
+  assert.equal(branchRow(3).style.bg, theme.selected, "and the highlight comes along, to the last row in view");
   // The logo toggles: a press outside the popup closes it, before or just after the press reaches the bar; its click leaves it closed.
   const menus = () => overlays.length, logoButton = () => find(bar.render(), "review-pick");
   const pressLogo = () => fire(logoButton(), "on_mouse_down:left", { position: { x: 900, y: 20 } }, cx);
@@ -371,6 +394,9 @@ const load = (props = {}, setup = record) => {
   // Not pushed: ↑ in the row, and the card says where it isn't.
   const picks = await scope.readPicks({ ...r, upstream: "origin/feat" }, true);
   assert.deepEqual(plain(picks.unpushed), ["abcdef123456"], "the upstream's missing commits, read beside the log");
+  gits.length = 0;
+  assert.deepEqual(plain((await scope.readPicks({ ...r, upstream: "origin/feat" }, false)).unpushed), [], "inside a review the commits may be another branch's: not read");
+  assert.ok(!gits.some(g => g.startsWith("rev-list")));
   gits.length = 0;
   const pushing = load({ ...spec.props, upstream: "origin/feat", unpushed: picks.unpushed });
   const outRow = () => find(pushing.mod.render(), "review-commit-abcdef123456");

@@ -161,7 +161,8 @@ async function readPicks(r, log) {
   const none = { code: 0, stdout: "" };
   const [read, ahead] = await Promise.all([
     log ? git(r.root, ["log", "-200", "--format=%H%x1f%s%x1f%ct%x1f%an", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]) : none,
-    r.upstream && !r.gone ? git(r.root, ["rev-list", "--max-count=200", `${r.upstream}..HEAD`]) : none,
+    // Inside a review the commits may be another branch's, which HEAD's upstream says nothing about.
+    log && r.upstream && !r.gone ? git(r.root, ["rev-list", "--max-count=200", `${r.upstream}..HEAD`]) : none,
   ]);
   const commits = read.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, time, author] = line.split("\x1f"); return { sha, subject, time: Number(time) * 1000, author }; });
   const unpushed = ahead.code === 0 ? ahead.stdout.split("\n").filter(Boolean) : [];
@@ -197,7 +198,7 @@ function reviewMatches(view) {
 export function initReviewMenu(view) {
   view.search = InputState.new({ placeholder: props().branches.length ? "Search commits and branches" : "Search commits" });
   view.at = 0;
-  view.search.on("change", (_e, cx) => { view.at = 0; cx.notify(); });
+  view.search.on("change", (_e, cx) => { view.at = 0; view.scrollTop = {}; view.hovered = null; detailsFor(view, null, cx); cx.notify(); });
   view.search.on("submit", (_e, cx) => menuPicks(view)[view.at]?.act(cx));
   view.search.focus();
 }
@@ -217,57 +218,91 @@ function menuPicks(view) {
 export function reviewMenu(view) {
   const t = theme(), { base, branch, height, within, upstream, unpushed = [] } = props(), { commits, branches } = reviewMatches(view), searching = Boolean(view.search.value().trim());
   const now = Date.now(), picks = menuPicks(view), lit = picks[view.at]?.id;
+  // The card follows the highlight, by pointer or key: a commit's opens, anything else's closes it.
+  const highlight = (at, cx) => {
+    view.at = at;
+    const id = picks[at].id;
+    detailsFor(view, id.startsWith("review-commit-") ? id : null, cx);
+    cx.notify();
+  };
   const title = (text) => div().h(24).px(8).flex_none().flex().items_center().text_size(11).text_color(t.dim).child(text);
   // As the Actions and New menus: the highlighted row `selected`, set by the pointer or ↑/↓, the others lifted faintly on hover.
-  const row = (id, name, action, cells, hovered) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
+  const row = (id, name, action, cells) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
     .when(id === lit, el => el.bg(t.selected)).when(id !== lit, el => el.hover(s => s.bg(t.foreground + "0a")))
     .on_hover((on, cx) => {
-      if (on && id !== lit) { view.at = picks.findIndex(p => p.id === id); cx.notify(); }
-      hovered?.(on, cx);
+      if (on) { view.hovered = id; highlight(picks.findIndex(p => p.id === id), cx); }
+      else if (view.hovered === id) { view.hovered = null; detailsFor(view, null, cx); cx.notify(); }
     })
     .role("button").accessibility_label(name).on_click(action).children(cells);
   // What the review pane shows, as a menu marks its pick.
   const shown = () => svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.muted);
   // A popup's height is only a maximum: this one sets its own, for the list to scroll inside and to hold still while searching.
-  // shortcut: ↑/↓ can take the highlight past the rows in view: only a virtual list scrolls from code, and its rows can't
-  // open a card. Search narrows the list instead; make the commits a virtual list if that's not enough.
   return v_flex().id("review-menu").w_full().h(height).p(5).bg(t.popover).text_size(13)
     .on_key_down((e, cx) => {
       if ((e.key !== "down" && e.key !== "up") || !picks.length) return;
-      view.at = (view.at + (e.key === "down" ? 1 : picks.length - 1)) % picks.length;
+      view.hovered = null;
+      highlight((view.at + (e.key === "down" ? 1 : picks.length - 1)) % picks.length, cx);
       cx.stop_propagation();
-      cx.notify();
     })
     .child(h_flex().h(32).mb(4).px(8).gap(8).flex_none().items_center()
       .child(svg("mods/workspace-chrome/search.svg").size(13).flex_none().text_color(t.dim))
       .child(Input.new(view.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
     // Outside the lists, so All changes and each list's title stay put. Branches first: the few, above up to 200 commits.
     .when(Boolean(within) && !searching, el => el.child(row("review-all", "Review all changes" + (within.sha ? "" : ", shown"), () => showWithin(within.base), [div().flex_1().child("All changes"), ...(within.sha ? [] : [shown()])])))
-    .when(branches.length > 0, el => el.child(title(`Branches vs ${base}`)).child(v_flex().id("review-branches").flex_none().overflow_y_scroll().when(commits.length > 0, list => list.max_h(BRANCH_ROWS * 32))
-      .children(branches.map(b => row(`review-branch-${b.name}`, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx),
-        [div().flex_1().min_w(0).truncate().child(b.name), ...(b.count === undefined ? [] : [div().flex_none().text_size(12).text_color(t.dim).child(String(b.count))])])))))
+    .when(branches.length > 0, el => el.child(title(`Branches vs ${base}`)).child(scrollList(view, "review-branches", branches.map(b => {
+      const id = `review-branch-${b.name}`;
+      return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx),
+        [div().flex_1().min_w(0).truncate().child(b.name), ...(b.count === undefined ? [] : [div().flex_none().text_size(12).text_color(t.dim).child(String(b.count))])]) };
+    }), picks, lit).when(commits.length > 0, list => list.flex_none().h(Math.min(branches.length, BRANCH_ROWS) * 32)).when(!commits.length, list => list.flex_1().min_h(0))))
     .when(commits.length > 0 && branches.length > 0, el => el.child(div().h(1).mx(6).my(4).flex_none().bg(t.border)))
     .when(commits.length > 0, el => el.child(title(within ? "Commits in this review" : branch === "(detached)" ? "Commits" : `Commits on ${branch}`))
-      .child(v_flex().id("review-commit-list").flex_1().min_h(0).overflow_y_scroll().children(commits.map(c => {
+      .child(scrollList(view, "review-commit-list", commits.map(c => {
         const id = `review-commit-${c.sha}`, prefix = PREFIX.exec(c.subject)?.[0] ?? "", out = unpushed.includes(c.sha), on = c.sha === within?.sha;
-        return row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : "") + (on ? ", shown" : ""), (_e, cx) => pickCommit(c, cx), [
+        const r = row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : "") + (on ? ", shown" : ""), (_e, cx) => pickCommit(c, cx), [
           h_flex().flex_1().min_w(0).gap(4).when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
             .child(div().flex_1().min_w(0).truncate().child(c.subject.slice(prefix.length))),
           h_flex().flex_none().gap(6).items_center().text_size(12).text_color(t.dim)
             .when(out, el => el.child(div().text_color(t.ansi2).child("↑")))
-            .child(c.time ? ago(c.time, now) : c.when ?? "")
+            .child(c.time ? ago(c.time, now) : "")
             .when(on, el => el.child(shown())),
-          commitCard(view, t, id, c, upstream, out, now)], (hover, cx) => hoverCommit(view, id, hover, cx))
-          .relative();
-      }))))
+          commitCard(view, t, id, c, upstream, out, now)]);
+        return { id, el: r };
+      }), picks, lit).flex_1().min_h(0)))
     .when(!commits.length && !branches.length, el => el.child(div().p(8).text_color(t.dim).child("No matches")));
 }
 
-// A row hovered: its card, with the Inbox's timing (details.js).
-function hoverCommit(view, id, on, cx) {
-  if (on) { view.hovered = id; detailsFor(view, id, cx); }
-  else if (view.hovered === id) { view.hovered = null; detailsFor(view, null, cx); }
-  cx.notify();
+// A list scrolled by script, as the shipped picker's: its rows keep their handlers, which a virtual list's can't (a hovered
+// commit opens its card), and ↑/↓ keep the highlight in view, which a scroll area can't be told to. Rows are 32px, only those
+// in view drawn, where the scroll puts them. `items`: [{ id, el }]; the caller sizes the list.
+function scrollList(view, id, items, picks, lit) {
+  const height = view.listHeight?.[id], total = items.length * 32, max = height === undefined ? 0 : Math.max(0, total - height);
+  let top = Math.max(0, Math.min(view.scrollTop?.[id] ?? 0, max));
+  const at = items.findIndex(x => x.id === lit);
+  if (at >= 0 && height !== undefined) top = Math.max(0, Math.min(top, at * 32, max), (at + 1) * 32 - height);
+  view.scrollTop = { ...view.scrollTop, [id]: top };
+  const shown = (i) => height === undefined || (i * 32 + 32 > top && i * 32 < top + height);
+  return div().id(id).relative().overflow_hidden()
+    .on_size_change((size, cx) => {
+      const h = size.height / (Number(settings()?.zoom) || 1);
+      if (h !== height) { view.listHeight = { ...view.listHeight, [id]: h }; cx.notify(); }
+    })
+    // From the scroll as it is now: a trackpad sends several events between two renders.
+    .on_scroll_wheel((e, cx) => {
+      const from = view.scrollTop[id], next = Math.max(0, Math.min(from - e.delta.y / (Number(settings()?.zoom) || 1), max));
+      if (next === from) return;
+      view.scrollTop = { ...view.scrollTop, [id]: next };
+      // The highlight goes along to the nearest row in view, so the next frame doesn't scroll back to it; a card moves off.
+      const now = items.findIndex(x => x.id === picks[view.at]?.id);
+      if (now >= 0) {
+        const keep = Math.min(Math.max(now, Math.ceil(next / 32)), Math.floor((next + height) / 32) - 1);
+        view.at = picks.findIndex(p => p.id === items[keep].id);
+      }
+      view.hovered = null;
+      detailsFor(view, null, cx);
+      cx.stop_propagation();
+      cx.notify();
+    })
+    .children(items.map((x, i) => (shown(i) ? x.el.absolute().left(0).right(0).top(i * 32 - top) : null)).filter(Boolean));
 }
 
 // As an Inbox row's details, but on the row's left: the menu hangs at the window's right. A 1px anchor just outside the
@@ -333,7 +368,7 @@ export function reviewBar(view, t, stop) {
       const commits = within ? [...list].reverse() : picks.commits;
       if (!commits.length && !branches.length) return;
       const height = Math.min(480, 10 + 36 + (within ? 32 : 0) + (commits.length ? 24 + commits.length * 32 : 0) + (commits.length && branches.length ? 9 : 0) + (branches.length ? 24 + (commits.length ? Math.min(branches.length, BRANCH_ROWS) : branches.length) * 32 : 0));
-      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 560, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height, within } });
+      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 560, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: within || r.gone ? null : r.upstream, commits, branches, unpushed, height, within } });
     } finally { view.readingPicks = false; } });
   };
   // One commit shown: its place, opening the menu, between steps to the older and newer ones.
