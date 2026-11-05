@@ -5,6 +5,10 @@
 export const ROW = 20, HUNK = 24, GROUP = 28, FILE = 32, NOTE_LINE = 18;
 // One column of 12px JetBrains Mono; past MAX_COLUMNS a line is cut, not scrolled to.
 export const CHAR = 7.25, MAX_COLUMNS = 1000;
+// Code lines go to the list in runs of up to this many, one item each: Herdr's v_virtual_list takes at most 10000 items,
+// which a group of a few thousand changed lines passes when each line is one.
+// shortcut: a group past about 5000 hunks still passes it; fold its files there if one ever does.
+export const RUN = 32;
 
 /** Where code starts in a row, past the line numbers and sign: notes and placeholders line up with it. */
 export const codeInset = (split) => split ? 52 : 92;
@@ -18,8 +22,8 @@ const columns = (row) => Math.min(MAX_COLUMNS, row ? row.tokens.reduce((n, [text
 export function contentWidth(items, side) {
   let most = 0;
   for (const item of items) {
-    const row = !side ? item.kind === "row" && item.line : side === "solo" ? item.kind === "solo" && item.line : item.kind === "pair" && item.line[side];
-    if (row) most = Math.max(most, columns(row));
+    if (item.kind !== (!side ? "row" : side === "solo" ? "solo" : "pair")) continue;
+    for (const line of item.lines) { const row = side && side !== "solo" ? line[side] : line; if (row) most = Math.max(most, columns(row)); }
   }
   return Math.ceil(codeInset(Boolean(side)) + most * CHAR + 16);
 }
@@ -107,7 +111,7 @@ export const groupFiles = (group) => [...group.files, ...group.children.flatMap(
 
 /**
  * The list for one group: a header per child group, a header per file, and, unless the file
- * is collapsed, its notes and rows. `full` holds a file's whole-file rows once loaded.
+ * is collapsed, its notes and rows, in runs of up to RUN broken by a line's note. `full` holds a file's whole-file rows once loaded.
  * Returns the items with their heights, as `v_virtual_list` takes them.
  */
 export function buildItems(review, group, { collapsed, full, split, width }) {
@@ -138,13 +142,17 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
     for (const [h, hunk] of hunks.entries()) {
       if (hunk.header) push({ key: `h:${path}:${h}`, kind: "hunk", text: hunk.header }, HUNK);
       const lines = split && !solo ? pairRows(hunk.rows) : hunk.rows;
+      let run = null;
       for (const [r, line] of lines.entries()) {
-        push({ key: `r:${path}:${h}:${r}`, kind, line }, ROW);
+        if (!run || run.lines.length === RUN) { run = { key: `r:${path}:${h}:${r}`, kind, lines: [] }; items.push(run); }
+        run.lines.push(line); run.size = run.lines.length * ROW;
         const rows = kind === "pair" ? [line.left, line.right].filter(Boolean) : [line];
         for (const [i, note] of notes.entries()) {
           const at = note.anchor;
-          if (at && rows.some(row => at.side === "additions" ? row.kind !== "-" && row.new === at.line : row.kind === "-" && row.old === at.line))
+          if (at && rows.some(row => at.side === "additions" ? row.kind !== "-" && row.new === at.line : row.kind === "-" && row.old === at.line)) {
             push({ key: `n:${path}:${i}`, kind: "note", note, anchored: true }, noteHeight(note.text, width, true));
+            run = null;
+          }
         }
       }
     }

@@ -30,15 +30,22 @@ const review = {
     children: [{ key: "k", label: "K", category: "tests", critical: false, missing: [], files: ["c.ts"], notes: {}, children: [] }] }],
   analysis: { state: "current", model: "pi/m", agent: true },
 };
-const kinds = (items) => plain(items).map(item => item.key.split(":")[0] + (item.kind === "note" ? `(${item.note.text})` : ""));
+const kinds = (items) => plain(items).map(item => item.key.split(":")[0] + (item.kind === "note" ? `(${item.note.text})` : item.lines ? item.lines.length : ""));
 const opts = { collapsed: new Set(), full: new Map(), split: false, width: 900 };
 // Unanchored notes under the header, an anchored one under its line, children after their header.
-assert.deepEqual(kinds(buildItems(review, review.groups[0], opts)), ["f", "n(whole file)", "h", "r", "r", "r", "n(on the new line 2)", "f", "e", "g", "f", "h", "r", "r", "r"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], opts)), ["f", "n(whole file)", "h", "r3", "n(on the new line 2)", "f", "e", "g", "f", "h", "r3"]);
 assert.deepEqual(plain(groupFiles(review.groups[0])), ["a.ts", "b.png", "c.ts"]);
 // Collapsed files show only their header; a whole file replaces the hunks; split pairs the rows.
 assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, collapsed: new Set(["a.ts", "c.ts"]) })), ["f", "f", "e", "g", "f"]);
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", [row(" ", 1, 1), row("+", undefined, 2)]]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r", "r", "n(on the new line 2)", "f", "e", "g", "f"]);
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: true, collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "h", "r", "r", "n(on the new line 2)", "f", "e", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", [row(" ", 1, 1), row("+", undefined, 2)]]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: true, collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "h", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+// Code lines go in runs of up to 32, a line's note ending one: a few thousand changed lines stay far under v_virtual_list's 10000 items.
+const lines = (n) => Array.from({ length: n }, (_, i) => row("+", undefined, i + 1));
+const one = (n, notes = {}) => buildItems({ ...review, files: [file("x.ts", { hunks: [{ header: "@@", rows: lines(n) }] })] }, { key: "x", files: ["x.ts"], notes, children: [] }, opts);
+assert.deepEqual(kinds(one(70, { "x.ts": [{ text: "here", critical: false, anchor: { side: "additions", line: 40 } }] })), ["f", "h", "r32", "r8", "n(here)", "r30"]);
+const big = plain(one(20000));
+assert.ok(big.length < 1000 && big.filter(item => item.lines).every(item => item.size === item.lines.length * 20));
+assert.equal(big.reduce((n, item) => n + (item.lines?.length ?? 0), 0), 20000);
 assert.ok(noteHeight("测".repeat(200), 900, true) > noteHeight("a".repeat(200), 900, true));
 // A line's note is a card at most 800 wide, so it wraps sooner than a file's own note across a wide view.
 assert.ok(noteHeight("a".repeat(400), 2000, true) > noteHeight("a".repeat(400), 2000, false));
@@ -48,17 +55,17 @@ assert.deepEqual(tree.map(r => `${"  ".repeat(r.depth)}${r.type}:${r.name}`), ["
 assert.deepEqual(tree[0].paths, ["packages/cli/src/a.ts", "packages/cli/src/daemon/b.ts"]);
 assert.deepEqual(plain(fileRows(["x/a.ts"], [], "list")), [{ key: "file:x/a.ts", depth: 0, type: "file", name: "x/a.ts", path: "x/a.ts" }]);
 // The code widens to its longest line (CJK counts double), unified rows or one split side, and stops at MAX_COLUMNS.
-const long = (text) => ({ kind: "row", line: { kind: "+", tokens: [[text]] } });
+const long = (text) => ({ kind: "row", lines: [{ kind: "+", tokens: [[text]] }] });
 assert.equal(contentWidth([long("a".repeat(100))]), Math.ceil(92 + 100 * 7.25 + 16));
 assert.equal(contentWidth([long("测".repeat(50))]), contentWidth([long("a".repeat(100))]));
-const sides = [{ kind: "pair", line: { left: { tokens: [["a".repeat(10)]] }, right: { tokens: [["a".repeat(100)]] } } }, { kind: "pair", line: { left: { tokens: [["a"]] } } }];
+const sides = [{ kind: "pair", lines: [{ left: { tokens: [["a".repeat(10)]] }, right: { tokens: [["a".repeat(100)]] } }, { left: { tokens: [["a"]] } }] }];
 assert.deepEqual([contentWidth(sides, "left"), contentWidth(sides, "right"), contentWidth(sides)], [Math.ceil(52 + 10 * 7.25 + 16), Math.ceil(52 + 100 * 7.25 + 16), 108]);
 assert.equal(contentWidth([long("a".repeat(5000))]), contentWidth([long("a".repeat(1000))]));
 // Split, an added file isn't paired: its rows are "solo", the whole width, measured on their own.
 const added = { ...review, files: [file("n.ts", { status: "added", hunks: [{ header: null, rows: [row("+", undefined, 1), row("+", undefined, 2)] }] })] };
 const soloItems = plain(buildItems(added, { key: "n", files: ["n.ts"], notes: {}, children: [] }, { ...opts, split: true }));
-assert.deepEqual(soloItems.map(item => item.kind), ["file", "solo", "solo"]);
-assert.equal(contentWidth([{ kind: "solo", line: { tokens: [["a".repeat(100)]] } }, ...sides], "solo"), Math.ceil(52 + 100 * 7.25 + 16));
+assert.deepEqual(soloItems.map(item => [item.kind, item.lines?.length ?? 0]), [["file", 0], ["solo", 2]]);
+assert.equal(contentWidth([{ kind: "solo", lines: [{ tokens: [["a".repeat(100)]] }] }, ...sides], "solo"), Math.ceil(52 + 100 * 7.25 + 16));
 assert.equal(pageLabel("/branch/fix%2Fa", review), "fix/a vs origin/main");
 assert.equal(pageLabel("/worktree", review), "Uncommitted changes");
 // A range reads as what the Review bar calls it: to push, to pull, or a branch against what it's compared to.
@@ -98,7 +105,7 @@ const env = {
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
   run: (name, args) => calls.push([name, args]), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
-  watchFolder: () => new Promise(() => {}), FILE: 32, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth,
+  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth,
   // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going.
   review: async (_root, route, body) => {
     routes.push(route);

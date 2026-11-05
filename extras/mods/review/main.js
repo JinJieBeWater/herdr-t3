@@ -7,7 +7,7 @@ import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
 import { exec, focused, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
 import { request, review } from "./daemon.js";
-import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel } from "./rows.js";
+import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel, ROW } from "./rows.js";
 
 const PANE = "review";
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
@@ -1331,15 +1331,20 @@ export default class ReviewPane extends View {
       case "empty":
         return div().w_full().h(item.size).pl(codeInset(this.splitShown())).pr(12).gap(8).flex().items_center().text_color(t.dim)
           .when(Boolean(item.loading), el => el.child(svg(`${PH}/spinner-duotone.svg`).size(14).flex_none().spin(900))).child(item.text);
-      case "pair":
-        return h_flex().w_full().h(item.size)
-          .child(this.code(t, item.line.left, [item.line.left?.old], Math.min(this.shift[0], this.sideMax(0))))
-          .child(div().w(1).h_full().flex_none().bg(t.border))
-          .child(this.code(t, item.line.right, [item.line.right?.new], Math.min(this.shift[1], this.sideMax(1))));
-      case "solo":
-        return h_flex().w_full().h(item.size).child(this.code(t, item.line, [item.line.kind === "-" ? item.line.old : item.line.new], Math.min(this.shift[2], this.sideMax(2))));
       default:
-        return h_flex().w_full().h(item.size).child(this.code(t, item.line, [item.line.old, item.line.new], Math.min(this.shift[2], this.sideMax(2))));
+        return v_flex().w_full().h(item.size).children(item.lines.map(line => this.line(t, item.kind, line)));
     }
+  }
+
+  // One code line of a run, ROW tall.
+  line(t, kind, line) {
+    if (kind === "pair") {
+      return h_flex().w_full().h(ROW)
+        .child(this.code(t, line.left, [line.left?.old], Math.min(this.shift[0], this.sideMax(0))))
+        .child(div().w(1).h_full().flex_none().bg(t.border))
+        .child(this.code(t, line.right, [line.right?.new], Math.min(this.shift[1], this.sideMax(1))));
+    }
+    const numbers = kind === "solo" ? [line.kind === "-" ? line.old : line.new] : [line.old, line.new];
+    return h_flex().w_full().h(ROW).child(this.code(t, line, numbers, Math.min(this.shift[2], this.sideMax(2))));
   }
 }
