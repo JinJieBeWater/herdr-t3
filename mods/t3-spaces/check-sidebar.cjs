@@ -722,6 +722,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([..."abcd"].map(w), [240, 100, 144, 144], "squeezed: the active tab stops at 240, the rest at 144, and the strip scrolls");
     pick("b");
     assert.deepEqual([..."abcd"].map(w), [144, 100, 144, 144], "a short active tab asks for no more");
+    name("b", 33 + 14);
+    assert.equal(w("b"), 96, "a name as short as `Pi` still gets a tab 96px wide");
     for (const id of "abcd") name(id, 100);
     pick("a");
     room(250);

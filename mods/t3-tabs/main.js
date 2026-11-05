@@ -23,7 +23,8 @@ const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg"
 const WORDS = { working: "Working", blocked: "Needs you", done: "Done" };
 const TAB_GAP = 4;
 // A tab's name gives way to T3's 144px at most, the active one's to 240px; past that the strip scrolls.
-const TAB_FLOOR = 144, TAB_ACTIVE = 240;
+// Unlike T3's, a tab is 96px at least: a short name (`Pi`) left one too small to aim at.
+const TAB_FLOOR = 144, TAB_ACTIVE = 240, TAB_MIN = 96;
 // A tab around its name: padding, the icon's slot and the gaps; a status mark's slot on top.
 const TAB_CHROME = 33, TAB_MARK = 18;
 
@@ -213,7 +214,7 @@ export default class Tabs extends View {
         : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
     };
-    const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0) : TAB_FLOOR);
+    const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.max(TAB_MIN, Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0)) : TAB_FLOOR);
     const item = (c, i) => {
       const lead = leadOf(ps.filter(p => p.tab === c.id));
       const program = lead && programOf(lead);
