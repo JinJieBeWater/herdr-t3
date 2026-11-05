@@ -3,7 +3,7 @@ import { h_flex, Popup } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
-import { tip, tipMark } from "./tip.js";
+import { tip } from "./tip.js";
 import { detailsFor } from "./details.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
@@ -30,8 +30,8 @@ const TAB_GAP = 4;
 // A tab's name gives way to T3's 144px at most, the active one's to 240px; past that the strip scrolls.
 // Unlike T3's, a tab is 96px at least: a short name (`Pi`) left one too small to aim at.
 const TAB_FLOOR = 144, TAB_ACTIVE = 240, TAB_MIN = 96;
-// A tab around its name: padding, the icon's slot and the gaps; a status mark's slot on top.
-const TAB_CHROME = 33, TAB_MARK = 18;
+// A tab around its name: padding, the icon's slot, the gaps and the slot its status mark and × share.
+const TAB_CHROME = 47;
 
 // The widest a tab may be for `wants` to fill `room`: the shorter keep all they want, the longest share what's left.
 function fairCap(wants, room) {
@@ -219,26 +219,26 @@ export default class Tabs extends View {
         : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
         : words.includes("working") ? "working" : null;
     };
-    const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.max(TAB_MIN, Math.ceil(this.nameW[c.id]) + TAB_CHROME + (statusOf(c) ? TAB_MARK : 0)) : TAB_FLOOR);
+    const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.max(TAB_MIN, Math.ceil(this.nameW[c.id]) + TAB_CHROME) : TAB_FLOOR);
     const item = (c, i) => {
       const lead = leadOf(ps.filter(p => p.tab === c.id));
       const program = lead && programOf(lead);
       const name = nameOf(c, lead);
       const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
-      // As T3's panel tabs: 24px, 12px words. The icon's slot is the close button: hovering the tab turns it to ×.
+      // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
       const over = this.overTab === c.id;
       const glyph = !program?.icon ? svg("mods/workspace-chrome/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
       // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
       // (the tab's 6px padding, 16px icon slot and 2px gap, less the label's 1px border and 8px padding). Up from the hover on: a Popup must
-      // have measured its anchor before the frame a label starts to fade in. A status mark lit in the tab speaks for itself instead.
+      // have measured its anchor before the frame a label starts to fade in. It says the status too, as × covers the mark while it shows.
       const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(6 + 16 + 2 - (1 + 8)).size(1)
         .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(div().id(`details-card-${c.id}`)
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
           .opacity(this.details === c.id && this.detailsIn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
-          .child(name)));
-      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+          .child(status ? `${name} · ${WORDS[status]}` : name)));
+      const tab = h_flex().id(`tab-${c.id}`).relative().h(24).w(widths.get(c.id)).pl(6).pr(4).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
@@ -267,15 +267,16 @@ export default class Tabs extends View {
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
-          .role("button").accessibility_label(`Close ${name}`)
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
-          .child(over ? svg("mods/pane/close.svg").size(12).text_color(t.foreground) : glyph))
+        .child(div().size(16).flex_none().flex().items_center().justify_center().child(glyph))
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().child(label))
-        .when(status != null, el => el.child(div().pl(2).flex_none().child(tipMark(this, t, `mark-${c.id}`, WORDS[status], mark(t, status), { below: true }))))
+        .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
+          .role("button").accessibility_label(`Close ${name}`)
+          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
+          .when(over, el => el.child(svg("mods/pane/close.svg").size(12).text_color(t.foreground)))
+          .when(!over && status != null, el => el.child(mark(t, status))))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
       return tab;
     };
