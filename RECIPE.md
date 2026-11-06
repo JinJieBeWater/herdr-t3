@@ -72,14 +72,14 @@ Left to right, divider 1px `border`:
 - Actions run through `sh -c`: your shell's aliases and functions aren't there (write `zsh -ic '…'` in the command for them), and plain Windows has no `sh`.
 - `t3-actions` and the bar's end (`t3-tabs` with `part: "end"`) size their own blocks: `run("layout.resize", { id: props().block, px })`, the width from `on_size_change` divided by `settings().zoom` (it reports zoomed pixels). `tabs-row` stays unresizable, or a drag would fight them. A layout naming a mod that isn't installed reports `no mod folder` in `herdr-app status`: copy every `mods/t3-*`, `t3-actions` included.
 - The tab strip keeps the active tab in view with the least move, as T3's `scrollIntoView({ inline: "nearest" })`. Herdr's scroll areas can't be moved from a script, so `tab-scroll` clips and `tab-strip` is offset with `.ml()`; a tab's whole width comes from a zero-height copy of its name, measured with `on_size_change`. It moves only when the active tab or the room changes, so a sideways swipe isn't pulled back; the wheel still walks the tabs.
-- `mods/t3-spaces/check-sidebar.cjs` and `mods/t3-pane/check-pane.cjs` load the mods in a fake `herdr`; run them with `node` from an installed home, since they look for the shipped icons there. `mods/t3-new-menu/check-new-menu.cjs` and `mods/t3-picker/check-picker.cjs` do the same for the New menu and Go to, from anywhere.
+- The `check*.cjs` beside a mod load it in a fake `herdr`. `scripts/check.sh` runs them all from an installed home, where some look for the shipped icons, with `herdr-app check` on each mod and a comparison of the shared modules' copies.
 
 - Home is known by the id in `shared("t3-home.space")`, never by what's in it: someone may have closed the default page. `t3-tabs`' strip copy answers its commands, as the tab bar always shows and the brand bar goes with the sidebar. `spaces()` catches up a frame or so after a command, so creating it waits to see each step. A space opens with a shell and can't lose its last tab, so the page goes in before the shell leaves. It keeps its place in the model's order, which `t3-spaces` keeps with the rows', so `ordered()` drops it only from the rows it returns.
 
 ## Done when
 
 - `herdr-app check` passes for every `mods/t3-*` and `layout.switch {"name": "herdr-t3"}` shows the window above.
-- `node mods/t3-spaces/check-sidebar.cjs` and `node mods/t3-pane/check-pane.cjs` print their `ok` lines.
+- `scripts/check.sh` prints `all checks passed`.
 - `cmd-shift-b` switches the sidebar between Lists and Inbox.
 - `cmd-shift-s` on a finished agent in view settles it and lands on Home, with no tab, `+` or Actions in the bar; Undo there brings it back and clears the label; `cmd-]` there opens the top card; `ctrl-1` still shows the first project.
 - Settling a finished agent in Inbox moves it to Settled and removes its done dot from the sidebar toggle's count; prompting it again brings it back.

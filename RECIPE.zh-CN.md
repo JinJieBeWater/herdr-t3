@@ -74,14 +74,14 @@ Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。
 - `t3-actions` 和标签栏末尾（`t3-tabs`，`part: "end"`）自己调整所在块的宽度：`run("layout.resize", { id: props().block, px })`，宽度取 `on_size_change` 的值除以 `settings().zoom`（它报的是乘过缩放的像素）。`tabs-row` 要保持不可拖动，否则拖动会和它们抢宽度。布局引用了没安装的 mod 时，`herdr-app status` 会报 `no mod folder`：把包括 `t3-actions` 在内的所有 `mods/t3-*` 复制过去。
 - 标签条让当前标签保持可见，移动量最小，和 T3 的 `scrollIntoView({ inline: "nearest" })` 一样。Herdr 的滚动容器不能由脚本移动，所以 `tab-scroll` 负责裁剪，`tab-strip` 用 `.ml()` 偏移；标签的完整宽度来自一份高度为 0 的名字副本，用 `on_size_change` 量出。只在当前标签或可用宽度变化时才移动，所以横向滑开的标签不会被拉回；滚轮仍然用来切换标签。
-- `mods/t3-spaces/check-sidebar.cjs` 和 `mods/t3-pane/check-pane.cjs` 用假的 `herdr` 加载 mod；要在已安装的 home 里用 `node` 运行，因为它们在那里找自带图标。 `mods/t3-new-menu/check-new-menu.cjs` 和 `mods/t3-picker/check-picker.cjs` 同样检查新建菜单和跳转，可在任意位置运行。
+- 每个 mod 旁边的 `check*.cjs` 用假的 `herdr` 加载它。`scripts/check.sh` 在已安装的 home 里运行全部检查（有些要在那里找自带图标），并对每个 mod 跑 `herdr-app check`、比对共享模块的副本。
 
 - 识别 Home 只靠 `shared("t3-home.space")` 里的 id，不看它里面有什么：默认页可能已被关掉。它的命令由 `t3-tabs` 的标签条副本处理，因为标签栏一直显示，而品牌栏会随侧栏隐藏。`spaces()` 要在命令后一帧左右才更新，所以创建时每一步都等上一步生效。新 space 自带一个 shell，且不能失去最后一个 tab，所以先放入默认页，再关掉 shell。它保留在模型顺序里，而 `t3-spaces` 让这个顺序和列表行保持一致，所以 `ordered()` 只从返回的行里去掉它。
 
 ## 完成标准
 
 - 每个 `mods/t3-*` 都通过 `herdr-app check`，`layout.switch {"name": "herdr-t3"}` 显示上面描述的窗口。
-- `node mods/t3-spaces/check-sidebar.cjs` 和 `node mods/t3-pane/check-pane.cjs` 输出各自的通过行。
+- `scripts/check.sh` 输出 `all checks passed`。
 - `cmd-shift-b` 在 Lists 和 Inbox 之间切换侧栏。
 - 对当前查看的已结束 agent 按 `cmd-shift-s`，它被 Settle 并落到 Home，标签栏没有 tab、`+` 和 Actions；在 Home 点 Undo，它回来且标签被清除；在 Home 按 `cmd-]` 打开最上面的卡片；`ctrl-1` 仍是第一个项目。
 - 在 Inbox 里 Settle 一个已结束的 agent，它移入 Settled，侧栏开关的计数里不再算它的完成圆点；再给它发提示，它回来。
