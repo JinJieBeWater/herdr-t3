@@ -4,8 +4,17 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 // rows.js runs as is; main.js runs on inert elements, to reach every render path with a review in hand.
+// Follow a pane's imports once, before what needs them; rows, daemon and tips are supplied by its fake env.
+function source(file, seen = new Set(file === "main.js" ? ["rows.js", "daemon.js", "tip.js"] : [])) {
+  if (seen.has(file)) return "";
+  seen.add(file);
+  const src = fs.readFileSync(path.join(__dirname, file), "utf8");
+  const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map(m => source(m[1], seen)).join("\n");
+  return needs + "\n" + src;
+}
+
 const load = (file, env) => {
-  const src = ((file === "main.js" ? fs.readFileSync(path.join(__dirname, "list.js"), "utf8") : "") + fs.readFileSync(path.join(__dirname, file), "utf8"))
+  const src = source(file)
     .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
   const context = vm.createContext(env);
   vm.runInContext(src, context, { filename: file });
@@ -133,7 +142,7 @@ const env = {
 };
 const mainScope = load("main.js", env), pane = new mainScope.Mod();
 // Every icon the pane names is on disk: a missing svg draws nothing, and its button shows blank.
-const mainSource = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");
+const mainSource = source("main.js");
 const icons = [
   ...[...mainSource.matchAll(/mods\/\$\{PANE\}\/([a-z/-]+)\.svg/g)].map(m => m[1]),
   ...[...mainSource.matchAll(/\$\{LU\}\/([a-z0-9-]+)\.svg/g)].map(m => `icons/${m[1]}`),
