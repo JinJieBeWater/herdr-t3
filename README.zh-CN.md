@@ -35,7 +35,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，悬停显示机器名。从侧栏底部的服务器图标添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
 - **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 在有程序运行时先询问，没有程序运行时直接关闭。
-- **Files 和 Changes**：Herdr 自带的 Files 和 Changes 面板，和 Herdr 默认布局一样放在窗格右侧。标签栏 `+` 前的面板按钮（或 `cmd-shift-e`）显示或隐藏它，面板顶部的标签在两者之间切换。默认隐藏。
+- **Files 和 Changes**：Herdr 自带的 Files 和 Changes 面板，和 Herdr 默认布局一样放在窗格右侧。标签栏 `+` 前的面板按钮（或 `cmd-shift-e`）显示或隐藏它，面板顶部的标签在两者之间切换。默认隐藏；每个 space 记住是否显示以及显示哪个，并且只提供 Herdr 欢迎页里开启的面板。
 - **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的标签和窗格标题用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一张卡片。
 
 ## 安装
@@ -61,7 +61,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | 下一个或上一个 agent。显示 Inbox 时照 T3：按 Inbox 画出来的行的顺序走（折叠的区只算当前查看的那一行），到两端停住。显示 Lists 时用 Herdr 的 `agent.next` / `agent.prev` |
 | `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，里面有程序在运行时先确认 |
 | `cmd-shift-w`、`ctrl-alt-x` | `t3-tabs.close-pane` | 关闭窗格，里面有程序在运行时先确认 |
-| `cmd-shift-e` | `layout.toggle:panel` | 显示或隐藏 Files 和 Changes 面板 |
+| `cmd-shift-e` | `t3-tabs.panel` | 显示或隐藏 Files 和 Changes 面板 |
 
 标签、space 和窗格沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
 
@@ -78,7 +78,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - 跳转现在归布局自己（`t3-picker`）：把新的 `mods/t3-picker` 也复制过去，并把 `"cmd-p": "mod.open:t3-picker"` 加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `mod.open:picker`。
 - `cmd-]` / `cmd-[` 现在归布局自己（`t3-chrome.next` / `.prev`）：把它们加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `agent.next`。
 - 关闭标签和窗格现在会先确认：把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `tab.close` 和 `pane.close`。
-- Files 和 Changes 现在在布局里：覆盖 `layouts/herdr-t3.json` 和 `mods/t3-tabs`，并把 `"cmd-shift-e": "layout.toggle:panel"` 加进你的 `layout:herdr-t3` 分区。
+- Files 和 Changes 现在在布局里：覆盖 `layouts/herdr-t3.json` 和 `mods/t3-tabs`，并把 `"cmd-shift-e": "t3-tabs.panel"` 加进你的 `layout:herdr-t3` 分区。
 - Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
 
 ## 它会运行什么

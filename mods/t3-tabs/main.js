@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
@@ -62,6 +62,11 @@ function find(node, id) {
   return null;
 }
 
+// Herdr's own Files and Changes, in the layout's `panel` column as the `panel-body` stack's children. Only those the welcome left
+// on (shared `workspace.panels`), as Herdr's tab bar reads it.
+const PANELS = { files: { label: "Files", icon: "mods/files/file.svg" }, changes: { label: "Changes", icon: "mods/changes/changes.svg" } };
+const panelsOn = () => (shared("workspace.panels") ?? ["files", "changes"]).filter(id => PANELS[id]);
+
 // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
 const leadOf = (mine) => mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
 const nameOf = (c, lead) => c.named ? c.name : lead ? namer()(lead) : "Terminal";
@@ -95,6 +100,16 @@ export default class Tabs extends View {
     this.strip = 0;
     this.nameW = {};
     if (props()?.part !== "measure") stopsInit(this, cx);
+    // The bar's end holds the panel's button, so its copy keeps each space's panel and answers the key.
+    if (props()?.part === "end") {
+      this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+      cx.spawn(async (cx) => {
+        for (;;) {
+          if (await nextCommand() === "panel") this.togglePanel();
+          cx.notify();
+        }
+      });
+    }
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
@@ -197,6 +212,46 @@ export default class Tabs extends View {
     run("layout.resize", { id, px });
   }
 
+  // Shown, it hides; hidden, it shows the panel the space had, else the first one on.
+  togglePanel() {
+    const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body"), on = panelsOn();
+    if (!panel) return;
+    if (!panel.hidden) return run("layout.hide", { id: "panel" });
+    const child = on.includes(body?.active) ? body.active : on[0];
+    if (!child) return;
+    if (child !== body?.active) run("layout.select", { stack: "panel-body", child });
+    run("layout.show", { id: "panel" });
+  }
+
+  // As Herdr's tab bar: the panel is remembered per space. Switching shows that space's choice (closed if it never had one),
+  // and opening, closing or switching it records it. A panel turned off since isn't brought back.
+  syncPanel(space, panel, body, on) {
+    if (!space || !panel) return;
+    const now = panel.hidden ? null : body?.active ?? null;
+    if (space.id !== this.space) {
+      const first = this.space === undefined;
+      this.space = space.id; this.pending = null;
+      // Opening the app keeps what the layout shows, unless this space has a choice of its own.
+      if (!(first && !(space.id in this.panels))) {
+        const stored = this.panels[space.id] ?? null, want = on.includes(stored) ? stored : null;
+        if (want !== now) {
+          this.pending = { want, until: Date.now() + 1000 };
+          if (want) { run("layout.select", { stack: "panel-body", child: want }); run("layout.show", { id: "panel" }); }
+          else run("layout.hide", { id: "panel" });
+          return;
+        }
+      }
+    }
+    // Until the restore lands (or something else won), the old state isn't a choice.
+    if (this.pending) {
+      if (this.pending.want !== now && Date.now() < this.pending.until) return;
+      this.pending = null;
+    }
+    if (this.panels[space.id] === now) return;
+    this.panels[space.id] = now;
+    localStorage.setItem("panels", JSON.stringify(this.panels));
+  }
+
   // Another layout's bar shouldn't stay compact because this one was narrow when it went.
   async close() {
     if (props()?.part === "measure") setShared("bar.compact", false);
@@ -208,6 +263,42 @@ export default class Tabs extends View {
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
       .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme();
+    const stopPress = (_e, cx) => cx.stop_propagation();
+    // `on` for a toggle that's on: a `selected` ground and a lit icon, as a tab that's active, which hovering doesn't change.
+    const button = (id, glyph, label, action, key, on) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id, on ? t.foreground : undefined)).when(on, el => el.bg(t.selected)).when(!on, el => el.hover(s => s.bg(t.hover))).on_hover(glow(this, id))
+      .role("button").accessibility_label(label)
+      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
+    // The panel's own tab strip, its stack's header: the panels that are on, as the bar's tabs.
+    if (props()?.part === "panel") {
+      const body = find(layout(), "panel-body");
+      return focusRoot(this, h_flex().size_full().gap(TAB_GAP).items_center().bg(t.chrome).children(panelsOn().map(id => {
+        const active = body?.active === id, tabId = `panel-${id}`;
+        return stop(this, t, tabId, h_flex().id(tabId).h(24).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
+          .bg(active ? t.selected : t.chrome).text_color(active || this.hot === tabId ? t.foreground : t.muted)
+          .when(!active, el => el.hover(s => s.bg(t.hover))).on_hover(glow(this, tabId))
+          .role("button").accessibility_label(PANELS[id].label)
+          .on_mouse_down("left", stopPress).on_click(() => run("layout.select", { stack: "panel-body", child: id }))
+          .child(div().size(16).flex_none().flex().items_center().justify_center().child(svg(PANELS[id].icon).size(12).text_color(t.muted)))
+          .child(PANELS[id].label));
+      })));
+    }
+    const root = layout(), w = window();
+    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
+    // however wide they are, and the window's own buttons stay last.
+    // Before +, with a `panel` in the layout: Herdr's own Files and Changes, as Herdr's tab bar has them, behind one button.
+    if (props()?.part === "end") {
+      const panel = find(root, "panel"), on = panelsOn();
+      this.syncPanel(spaces().find(p => p.active), panel, find(root, "panel-body"), on);
+      // With every panel turned off it shows only to close one left open.
+      const showsPanel = Boolean(panel) && (on.length > 0 || !panel.hidden), names = on.map(id => PANELS[id].label).join(" and ") || "panel";
+      return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
+        .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
+          .when(showsPanel, el => el.child(button("panel-toggle", svg("mods/t3-tabs/panel-right.svg").size(14), `${panel.hidden ? "Show" : "Hide"} ${names}`, () => this.togglePanel(), "t3-tabs.panel", !panel.hidden)))
+          .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
+          .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
+            .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
+            .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
+    }
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
@@ -217,11 +308,6 @@ export default class Tabs extends View {
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const live = awake(st);
     const ps = panes();
-    const stopPress = (_e, cx) => cx.stop_propagation();
-    // `on` for a toggle that's on: a `selected` ground and a lit icon, as a tab that's active.
-    const button = (id, glyph, label, action, key, on) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id, on ? t.foreground : undefined)).when(on, el => el.bg(t.selected)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
-      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
       const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
@@ -303,17 +389,7 @@ export default class Tabs extends View {
       // A tab goes by its mouse-up, which a key isn't.
       return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });
     };
-    const root = layout(), sidebar = find(root, "sidebar"), panel = find(root, "panel"), w = window();
-    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
-    // however wide they are, and the window's own buttons stay last.
-    // Before +, with a `panel` in the layout: Herdr's own Files and Changes, as Herdr's tab bar has them, behind one button.
-    if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
-      .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
-        .when(Boolean(panel), el => el.child(button("panel-toggle", svg("mods/t3-tabs/panel-right.svg").size(14), panel.hidden ? "Show Files and Changes" : "Hide Files and Changes", () => run("layout.toggle", { id: "panel" }), "layout.toggle:panel", !panel.hidden)))
-        .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
-        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
-          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
+    const sidebar = find(root, "sidebar");
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))

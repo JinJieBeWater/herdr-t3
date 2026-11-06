@@ -90,7 +90,7 @@
           "children": [
             { "id": "tabs", "type": "block", "size": { "weight": 1 }, "window_drag": true, "content": { "mod": "t3-tabs" } },
             { "id": "actions", "type": "block", "size": { "px": 108 }, "window_drag": true, "content": { "mod": "t3-actions", "props": { "block": "actions" } } },
-            { "id": "tabs-end", "type": "block", "size": { "px": 36 }, "window_drag": true, "content": { "mod": "t3-tabs", "props": { "part": "end", "block": "tabs-end" } } }
+            { "id": "tabs-end", "type": "block", "size": { "px": 66 }, "window_drag": true, "content": { "mod": "t3-tabs", "props": { "part": "end", "block": "tabs-end" } } }
           ]
         },
         {
@@ -133,17 +133,15 @@
               "size": { "px": 368 },
               "min": 280,
               "max": 900,
-              "background": "background",
-              "radius": 8,
               "children": [
                 {
                   "id": "panel-body",
                   "type": "stack",
                   "active": "files",
-                  "header": { "content": "tabs", "height": 30 },
+                  "header": { "content": { "mod": "t3-tabs", "props": { "part": "panel" } }, "height": 30 },
                   "children": [
-                    { "id": "files", "title": "Files", "type": "block", "content": { "mod": "files" } },
-                    { "id": "changes", "title": "Changes", "type": "block", "content": { "mod": "changes" } }
+                    { "id": "files", "type": "block", "content": { "mod": "files" } },
+                    { "id": "changes", "type": "block", "content": { "mod": "changes" } }
                   ]
                 }
               ]

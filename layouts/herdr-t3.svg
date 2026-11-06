@@ -29,15 +29,28 @@
   <g font-size="12"><text x="198" y="24" fill="#e6e6ea">Fix login</text><text x="288" y="24" fill="#a9a9b4">infra</text></g>
   <g fill="#a9a9b4"><rect x="184" y="15" width="10" height="10" rx="2"/><rect x="274" y="15" width="10" height="10" rx="2"/></g>
   <!-- The Actions control -->
-  <rect x="529.5" y="8.5" width="75" height="23" rx="6" fill="none" stroke="#353539"/>
-  <path d="M538 15.5v9l7-4.500z" fill="none" stroke="#83838f" stroke-width="1.5" stroke-linejoin="round"/>
-  <text x="551" y="24" font-size="12" fill="#a9a9b4">Dev</text>
-  <path d="M579.500 14v12" stroke="#353539"/>
-  <path d="M587 18l4 4 4-4" fill="none" stroke="#83838f" stroke-width="1.5"/>
+  <rect x="499.5" y="8.5" width="75" height="23" rx="6" fill="none" stroke="#353539"/>
+  <path d="M508 15.5v9l7-4.500z" fill="none" stroke="#83838f" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="521" y="24" font-size="12" fill="#a9a9b4">Dev</text>
+  <path d="M549.500 14v12" stroke="#353539"/>
+  <path d="M557 18l4 4 4-4" fill="none" stroke="#83838f" stroke-width="1.5"/>
+  <!-- The bar's end: the panel button, lit while Files and Changes show, then + -->
+  <rect x="581" y="8" width="24" height="24" rx="6" fill="#2c2c2f"/>
+  <g fill="none" stroke="#e6e6ea" stroke-width="1.5"><rect x="587" y="14" width="12" height="12" rx="2"/><path d="M595 14v12"/></g>
   <path d="M613 20h12M619 14v12" stroke="#83838f" stroke-width="1.5"/>
-  <rect x="176" y="42" width="456" height="350" rx="8" fill="#232328"/>
+  <rect x="176" y="42" width="290" height="350" rx="8" fill="#232328"/>
   <rect x="184" y="51" width="10" height="10" rx="2" fill="#a9a9b4"/>
   <text x="202" y="60" font-size="13" font-weight="500" fill="#e6e6ea">Pi <tspan font-weight="400" fill="#83838f">~/app</tspan></text>
-  <circle cx="620" cy="56" r="3.5" fill="#e6e6ea"/>
-  <g font-family="monospace" font-size="11" fill="#a9a9b4"><text x="184" y="88">$ pi</text><text x="184" y="106">Reading src/login.ts</text><text x="184" y="124">Edited 2 files</text><text x="184" y="148" fill="#e6e6ea">Fixed: the session cookie expired a day early.</text></g>
+  <circle cx="454" cy="56" r="3.5" fill="#e6e6ea"/>
+  <g font-family="monospace" font-size="11" fill="#a9a9b4"><text x="184" y="88">$ pi</text><text x="184" y="106">Reading src/login.ts</text><text x="184" y="124">Edited 2 files</text><text x="184" y="148" fill="#e6e6ea">Fixed: the cookie expired early.</text></g>
+  <!-- Files and Changes: the panel's tabs on chrome, then the shipped mod's own card -->
+  <rect x="474" y="42" width="54" height="20" rx="6" fill="#2c2c2f"/>
+  <g fill="none" stroke-width="1.2"><rect x="480" y="47" width="8" height="10" rx="1.5" stroke="#a9a9b4"/><rect x="536" y="47" width="8" height="10" rx="1.5" stroke="#83838f"/></g>
+  <g font-size="11"><text x="492" y="56" fill="#e6e6ea">Files</text><text x="548" y="56" fill="#a9a9b4">Changes</text></g>
+  <rect x="474.5" y="68.5" width="157" height="323" rx="10" fill="#232328" stroke="#353539"/>
+  <text x="486" y="89" font-size="12" font-weight="600" fill="#e6e6ea">Files</text><text x="620" y="89" font-size="11" fill="#83838f" text-anchor="end">app</text>
+  <path d="M475 99h156" stroke="#353539"/>
+  <path d="M484 113l3 3 3-3" fill="none" stroke="#83838f" stroke-width="1.2"/>
+  <g font-size="11" fill="#a9a9b4"><text x="496" y="118">src</text><text x="510" y="140">login.ts</text><text x="510" y="162">session.ts</text><text x="496" y="184">package.json</text><text x="496" y="206">README.md</text></g>
+  <g font-size="10"><text x="620" y="140" fill="#4fd17a" text-anchor="end">M</text><text x="620" y="162" fill="#4fd17a" text-anchor="end">M</text></g>
 </svg>

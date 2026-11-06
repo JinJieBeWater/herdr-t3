@@ -35,7 +35,7 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 - **Other machines**: spaces group by machine once there is more than one, and Inbox cards from elsewhere carry a server mark that names the machine on hover. Add a machine from the server icon in the sidebar footer; a rebuilt one offers Connect, and New space asks which machine.
 - **Project icons**: a space shows its repo's favicon, found on its own machine, else a monogram in one of T3's colors.
 - **Closing asks first**: a tab's or pane's ×, `cmd-w` and `cmd-shift-w` confirm while a program is running in it, and close at once when none is.
-- **Files and Changes**: Herdr's own Files and Changes panels, on the right of the panes as in Herdr's default layout. The panel button before the tab bar's `+` (or `cmd-shift-e`) shows or hides them; tabs at the panel's top switch between the two. Hidden at first.
+- **Files and Changes**: Herdr's own Files and Changes panels, on the right of the panes as in Herdr's default layout. The panel button before the tab bar's `+` (or `cmd-shift-e`) shows or hides them; tabs at the panel's top switch between the two. Hidden at first; each space remembers whether it shows and which, and only the panels Herdr's welcome left on are offered.
 - **Review** (optional, [see Extras](#pullsreview)): a bar in the tab row counts what there is to review in the focused worktree, and a click opens that review in a pane beside the agent. Its tab and pane header show the analysis with the layout's marks, and the Inbox gives a review in a tab of its own a card.
 
 ## Install
@@ -61,7 +61,7 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | The next or previous agent. With Inbox showing, as T3's: the rows it draws, in its order (a folded shelf only its row in view), stopping at either end. With Lists showing, Herdr's `agent.next` / `agent.prev` |
 | `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
 | `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if a program is running in it |
-| `cmd-shift-e` | `layout.toggle:panel` | Shows or hides the Files and Changes panel |
+| `cmd-shift-e` | `t3-tabs.panel` | Shows or hides the Files and Changes panel |
 
 Tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inbox are by mouse.
 
@@ -78,7 +78,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - Go to is the layout's own now (`t3-picker`): copy the new `mods/t3-picker` too, and add `"cmd-p": "mod.open:t3-picker"` to your `layout:herdr-t3` section; it wins over `mod.open:picker` in `global`.
 - `cmd-]` / `cmd-[` are the layout's own now (`t3-chrome.next` / `.prev`): add them to your `layout:herdr-t3` section; they win over `agent.next` in `global`.
 - Closing a tab or pane asks first: add the `cmd-w`, `ctrl-alt-shift-x`, `cmd-shift-w` and `ctrl-alt-x` lines from the repo's `keys.json` to your `layout:herdr-t3` section; they win over `tab.close` and `pane.close` in `global`.
-- Files and Changes are in the layout now: overwrite `layouts/herdr-t3.json` and `mods/t3-tabs`, and add `"cmd-shift-e": "layout.toggle:panel"` to your `layout:herdr-t3` section.
+- Files and Changes are in the layout now: overwrite `layouts/herdr-t3.json` and `mods/t3-tabs`, and add `"cmd-shift-e": "t3-tabs.panel"` to your `layout:herdr-t3` section.
 - The agent view is removed (last in commit `a8cbcd4`): after overwriting, delete `"cmd-shift-a": "t3-tabs.view"` from `keys.json`.
 
 ## What it runs

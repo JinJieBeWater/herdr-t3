@@ -4,8 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
-- Files and Changes, as in Herdr's default layout: a panel on the right of the panes with Herdr's own `files` and `changes` as tabs, hidden at first. The button before the tab bar's `+`, or `cmd-shift-e`, shows or hides it; the button is lit while it shows.
-- Updating: copy `mods/t3-tabs` and `layouts/herdr-t3.json`, and add `"cmd-shift-e": "layout.toggle:panel"` to your `layout:herdr-t3` keys.
+- Files and Changes, as in Herdr's default layout: a panel on the right of the panes with Herdr's own `files` and `changes` as tabs, hidden at first, remembered per space, and only the ones Herdr's welcome left on. The button before the tab bar's `+`, or `cmd-shift-e`, shows or hides it; the button is lit while it shows.
+- Updating: copy `mods/t3-tabs` and `layouts/herdr-t3.json`, and add `"cmd-shift-e": "t3-tabs.panel"` to your `layout:herdr-t3` keys.
 
 - A tab's hover card stays out of the way: it goes when the pointer reaches `×`, and a name the tab shows whole, with no status to tell, has none. `×` has its own `Close tab` label after 500ms.
 
