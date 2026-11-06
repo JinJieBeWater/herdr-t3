@@ -45,7 +45,6 @@ function step(command) {
   const i = view === null ? -1 : order.indexOf(view);
   const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
   if (to?.startsWith("pane:")) focusPane(to.slice(5));
-  else if (to && !agents().some(a => a.address === to) && terminals().some(k => k.address === to)) run("terminal.peek", { terminal: to });
   else if (to) focusAgent(to);
 }
 // A space by the keys. Out of view Herdr may have moved its active tab to a closed one's neighbour, and being shown costs an

@@ -2085,7 +2085,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.slots.lists.active = "lists";
     assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.focus", { terminal: "vps/t2" }]], "Lists use their drawn rows");
     assert.deepEqual(await press("prev", { order, view: "t0" }), [], "Lists stop at the beginning too");
-    assert.deepEqual(await press("next", { order: ["t0", "child", "vps/t2"], view: "t0" }), [["terminal.peek", { terminal: "child" }]], "an expanded sub-agent without a pane is a row too");
     f.slots.sidebar.hidden = true;
     assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.focus", { terminal: "vps/t2" }]], "hidden Lists keep their mode");
     assert.deepEqual(await press("next", { order, view: "t5" }), [], "and stop at the end");
@@ -2612,12 +2611,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     ag.folded["sp-s2"] = true; ag.folded.t0 = false;
     const tick = () => cx.watches.slice(firstWatch).find(t => t.ms === 1000).fn(cx);
     ag.render(cx);
-    assert.deepEqual(plain(f.state["t3-agents.rows"]), { order: ["t0", "child", "grandchild"], view: "child" });
+    assert.deepEqual(plain(f.state["t3-agents.rows"]), { order: ["t0", "vps/t2"], view: "t0" }, "a sub-agent, expanded and in view, isn't walked: its parent stands for it; a folded group's agents are");
     ag.render = () => { throw new Error("hidden Lists must compute without drawing"); };
     ag.folded.t0 = true; tick();
-    assert.deepEqual(plain(f.state["t3-agents.rows"].order), ["t0", "child"], "folded, only the stuck child stays");
+    assert.deepEqual(plain(f.state["t3-agents.rows"].order), ["t0", "vps/t2"], "nor a stuck child under a folded parent");
     f.terminals().find(k => k.address === "child").status = "idle"; tick();
-    assert.deepEqual(plain(f.state["t3-agents.rows"]), { order: ["t0"], view: "t0" }, "folded-away focus lights its ancestor");
+    assert.deepEqual(plain(f.state["t3-agents.rows"]), { order: ["t0", "vps/t2"], view: "t0" }, "folded-away focus lights its ancestor");
     const before = [f.orderWrites.length, f.sharedWrites.length]; tick(); tick();
     assert.deepEqual([f.orderWrites.length, f.sharedWrites.length], before, "unchanged hidden data causes no writes");
     f.slots.lists.active = "inbox"; ag.folded["sp-s2"] = false; tick();

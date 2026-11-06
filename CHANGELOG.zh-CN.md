@@ -7,7 +7,7 @@
 - 切到被 zoom 藏起的 pane 时，现在会直接显示它：zoom 移到这个 pane，旁边的 pane 继续隐藏。以前卡片亮了但画面还停在原来的 pane，键盘也失效，被 zoom 的 agent 还会丢掉未读的 done。通知和外部 `agent.focus` 仍会晚一帧修正，done 会还回来。
 - Lists 和 Inbox 现在用同一套规则，只是组织方式不同：按项目，或按注意力。见[行为模型](docs/layout-model.md)。
   - **关闭和返回，Lists 也一样**：关掉正在看的 agent 回到 Home，关掉其他标签回到你原来的标签，回到一个 space 时显示你离开时的标签。
-  - **`cmd-]` 和 `cmd-[`** 按侧栏画出来的行走，到两端停住。Lists 下以前会绕回去，还会算上折叠的行。
+  - **`cmd-]` 和 `cmd-[`** 按侧栏的顺序走顶层 agent，到两端停住，Lists 下以前会绕回去。Inbox 走它画出来的行；Lists 也走折叠的组。
   - **Settle 到处生效**：`cmd-shift-s` 在 Lists 和隐藏侧栏时都能用，并回到 Home。已 Settle 或 Snooze 的 agent 在 Lists、标签、窗格标题和 Go to 里都不再显示 done 圆点；在 Lists 里它留在原位，显示为 idle。
   - **隐藏侧栏后模式继续生效**：按键继续按该模式的行走，这些行隐藏时也保持最新；`Settled, Undo` 显示在标签栏 5 秒。
 - Review 属于 space，因为多个 agent 共用它的工作树。

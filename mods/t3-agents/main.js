@@ -290,11 +290,10 @@ export default class Agents extends View {
       if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
       else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", space: byPriority ? null : a.space, members: [a] });
     }
-    const visible = groups.flatMap(g => (!this.isFolded(g.id, g.id === "sec-1") ? g.members : g.members.filter(viewing)).flatMap(a => {
-      const subs = this.tree(all, a.address);
-      return [a.address, ...(!this.isFolded(a.address) ? subs : subs.filter(s => kidStatus(s.t, this.listed) === "blocked")).map(s => s.t.address)];
-    }));
-    const order = [...new Set(visible)], view = order.includes(shown) ? shown : order.includes(ancestor) ? ancestor : null;
+    // Every top-level agent, in its group or not. A sub-agent with no pane can only open as a peek, a popup over the work. A folded group
+    // counts: Idle folds by default, and leaving a row there would take it off the walk, with no key back.
+    const order = [...new Set(groups.flatMap(g => g.members.map(a => a.address)))];
+    const view = order.includes(ancestor) ? ancestor : null;
     const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
     if (find(layout())?.active !== "inbox") {
       const drawn = { order, view };

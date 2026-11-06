@@ -23,7 +23,7 @@
 | 关闭正在看的 agent | 回 Home | Lists 落到右邻 |
 | 关闭其他标签 | 回上一个显示过的标签 | Lists 落到右邻 |
 | 按键切回 space | 回到上次在那里显示的标签 | Lists 落到 Herdr 记的标签 |
-| `cmd-]` / `cmd-[` | 按当前侧栏画出来的行走，到头就停 | Lists 用 `agent.next`，会绕回去，还含折叠行 |
+| `cmd-]` / `cmd-[` | 按当前侧栏的顺序走顶层 agent，到头就停。子 agent 不算：没有窗格的只能弹窗打开。折叠的处理随组织方式不同：Inbox 只走画出来的行，折叠的 Working 是有意收起的；Lists 也走折叠的组，否则默认折叠的 Idle 走进去就回不来 | Lists 用 `agent.next`，会绕回去，还含折叠行 |
 | 切到被 zoom 藏起的 pane | zoom 跟到目标，不取消，其他 pane 不露面。Herdr 自己发起的聚焦（通知、外部命令）晚一帧修正，done 还回 | 高亮变了画面不变，键盘失效 |
 | Settle 和 Snooze | 两边都生效。`cmd-shift-s` 两边都能用，底栏 Undo 两边都有 | 只在 Inbox |
 | Lists 里已 Settle 或 Snooze 的行 | 留在原位，按 idle 显示，不分组，不加按钮；Snooze 中工作的 agent 不计入开关的工作数 | 普通行 |

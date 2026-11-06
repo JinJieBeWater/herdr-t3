@@ -64,7 +64,7 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-1…9`, `ctrl-alt-1…9` | `t3-tabs.tab:<n>` | The nth tab the bar shows |
 | `cmd-shift-]` / `cmd-shift-[`, `ctrl-tab` / `ctrl-shift-tab`, `ctrl-alt-]` / `ctrl-alt-[` | `t3-tabs.tab-next` / `t3-tabs.tab-prev` | The next or previous tab the bar shows |
 | `cmd-p` | `mod.open:t3-picker` | Go to any pane by its name or program, or back (the same as Inbox's Search) |
-| `cmd-]` / `cmd-[` | `t3-tabs.next` / `t3-tabs.prev` | The next or previous agent: the rows the selected sidebar draws, in its order (a folded group only its row in view), stopping at either end, shown or hidden |
+| `cmd-]` / `cmd-[` | `t3-tabs.next` / `t3-tabs.prev` | The next or previous top-level agent, in the selected sidebar's order, stopping at either end, shown or hidden. Inbox walks the rows it draws (a folded shelf only its row in view); Lists walks folded groups too |
 | `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
 | `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if a program is running in it |
 
