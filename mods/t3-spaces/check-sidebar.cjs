@@ -540,6 +540,19 @@ for (const width of [208, 240, 256, 320, 480]) {
   const snoozedCount = stuck();
   f.terminals().find(c => c.address === "t0").labels = {};
   assert.deepEqual(snoozedCount, stuck(), "the same count, snoozed or not");
+  // A hidden Inbox doesn't draw, so nothing clears a settled label: new work must count all the same.
+  f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
+  assert.deepEqual(stuck(), snoozedCount, "settled, with its sub-agent stuck, it needs the person");
+  f.terminals().find(c => c.address === "child").status = "idle"; f.terminals().find(c => c.address === "grandchild").status = "idle";
+  f.agents()[1].status = "idle";
+  const counted = (s) => find(f.load("t3-tabs").render(cx), `agents-${s}`);
+  assert.ok(!counted("done"), "settled and quiet, its done isn't news");
+  f.terminals().find(c => c.address === "t0").turn = 1;
+  assert.ok(counted("done"), "a turn ended since it was settled: its done is");
+  f.terminals().find(c => c.address === "t0").turn = 0;
+  f.agents()[0].status = "working";
+  assert.ok(counted("working"), "and so is working again");
+  f.agents()[0].status = "done";
   delete f.slots.sidebar.hidden;
 }
 

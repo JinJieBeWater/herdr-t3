@@ -8,7 +8,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { panes, terminals, agents, props, run, theme, home, layout } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { ownStatus, subAgents, treeStatus } from "./tree.js";
+import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark } from "./tip.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
 
@@ -23,12 +23,6 @@ function folder(cwd) {
   return cwd === h ? "~" : cwd.startsWith(h + "/") ? "~" + cwd.slice(h.length) : cwd;
 }
 
-// Settled or snoozed (until it wakes) in the inbox isn't news, so its done dot goes, as in the tabs.
-function settled(p) {
-  const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-  const labels = terminals().find((k) => k.address === p.terminal)?.labels;
-  return find(layout())?.active === "inbox" && Boolean(labels?.settled || Number(labels?.snoozed) > Date.now());
-}
 
 export default class Pane extends View {
   init(_props, cx) {
@@ -72,7 +66,8 @@ export default class Pane extends View {
     const pic = icon(programOf(p), 14, t.muted);
     // Its agent with the sub-agents it started (tree.js).
     const all = terminals();
-    const st = p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), subAgents(agents(), all)(p.terminal));
+    const kids = subAgents(agents(), all)(p.terminal);
+    const st = p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), kids);
     const pane = p.pane;
     // A mark takes the last button's 26px, so it, the × and the tab bar's + share one column.
     const slot = (mark) => div().w(26).flex_none().flex().items_center().justify_center().child(mark);
@@ -103,6 +98,6 @@ export default class Pane extends View {
       .when(st === "working", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))))
-      .when(st === "done" && !settled(p), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))))), 8));
+      .when(st === "done" && !notNews(layout(), all.find(k => k.address === p.terminal), p.status, kids), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))))), 8));
   }
 }

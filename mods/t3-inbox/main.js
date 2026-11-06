@@ -13,7 +13,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Popup, Select, InputState, Input, NumberInput } from "gpui-base";
 import { agents, terminals, panes, spaces, machines, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, openOverlay, closeOverlay } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
+import { kidStatus, descendants, ownStatus, stillSettled, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
@@ -475,10 +475,10 @@ export default class Inbox extends View {
     const kids = new Map(every.map((a) => [a.address, descendants(all, a.address).map((k) => kidStatus(k, listed))]));
     // It, or anything under it, is working or needs the person.
     const busy = (a) => BUSY.has(a.status) || kids.get(a.address).some((s) => BUSY.has(s));
-    // New work brings a settled agent back: busy now, or a turn ended since it was settled. Hidden ones too.
+    // New work brings a settled agent back (tree.js). Hidden ones too.
     for (const a of every) {
-      const s = settledAt(a);
-      if (s && (busy(a) || (term.get(a.address)?.turn ?? 0) > s[1])) this.setLabelDue("settled", a.address, "", cx);
+      const label = this.pending.settled[a.address] ?? term.get(a.address)?.labels?.settled;
+      if (label && !stillSettled({ labels: { settled: label }, turn: term.get(a.address)?.turn }, a.status, kids.get(a.address))) this.setLabelDue("settled", a.address, "", cx);
     }
     // It with what's under it (tree.js).
     const state = (a) => treeStatus(ownStatus(a.status, a.address, all), kids.get(a.address));

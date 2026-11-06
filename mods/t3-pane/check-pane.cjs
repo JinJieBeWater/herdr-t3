@@ -136,6 +136,11 @@ delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60
 assert.equal(dots(), shown - 1, "snoozed too");
 terms[0].labels.snoozed = String(Date.now() - 1);
 assert.equal(dots(), shown, "woken, it is news again");
+delete terms[0].labels.snoozed;
+// A hidden Inbox doesn't clear the label, so the label alone can't say: a turn ended since it was settled is news.
+terms[0].labels.settled = "1:1"; terms[0].turn = 2;
+assert.equal(dots(), shown, "a new turn's done shows, the label still on");
+delete terms[0].labels.settled; delete terms[0].turn;
 
 // The buttons come with the keyboard on the header, the stop that gets there, and only in keyboard mode.
 {

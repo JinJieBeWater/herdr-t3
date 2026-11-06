@@ -2,7 +2,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { descendants, ownStatus, subAgents, treeStatus } from "./tree.js";
+import { descendants, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
@@ -62,16 +62,15 @@ function walkSpaces(by) {
 
 const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
 
-// What the hidden sidebar's toggle counts. With the inbox showing (t3-inbox), an agent settled there isn't news: its
-// done is left out. One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one,
-// until it wakes, isn't news either, working or done; while it or what's under it needs the person it shows there, so
-// it counts here too.
-function awake(st) {
+// What the hidden sidebar's toggle counts. With the inbox showing (t3-inbox), an agent settled there isn't news while it
+// stays settled. A snoozed one, until it wakes, isn't news either, working or done; while it or what's under it needs the
+// person it shows there, so it counts here too.
+function awake(st, under) {
   if (!inboxShown()) return agents();
-  const now = Date.now(), labels = new Map(terminals().map((k) => [k.address, k.labels]));
+  const now = Date.now(), byAddress = new Map(terminals().map((k) => [k.address, k]));
   return agents().filter((a) => {
-    const l = labels.get(a.address);
-    return !l?.settled && (!(Number(l?.snoozed) > now) || st(a) === "blocked");
+    const k = byAddress.get(a.address);
+    return !stillSettled(k, a.status, under(a.address)) && (!(Number(k?.labels?.snoozed) > now) || st(a) === "blocked");
   });
 }
 
@@ -374,7 +373,7 @@ export default class Tabs extends View {
     // Each agent with its sub-agents (tree.js).
     const every = agents(), all = terminals(), under = subAgents(every, all);
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
-    const live = awake(st);
+    const live = awake(st, under);
     const ps = panes();
     const stopPress = (_e, cx) => cx.stop_propagation();
     const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))

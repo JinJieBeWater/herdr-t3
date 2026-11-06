@@ -6,7 +6,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
 import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, layout, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { ownStatus, subAgents, treeStatus } from "./tree.js";
+import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 
 const ROW = 46;
@@ -15,12 +15,6 @@ const SHOWN = 6; // rows before the list scrolls; a virtual list has no height o
 const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/terminal.svg").size(12).flex_none().text_color(t.muted)
   : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
 
-// Settled or snoozed (until it wakes) in the inbox isn't news, so its done dot goes, as in the tabs and pane headers.
-function settled(p) {
-  const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-  const labels = terminals().find((k) => k.address === p.terminal)?.labels;
-  return find(layout())?.active === "inbox" && Boolean(labels?.settled || Number(labels?.snoozed) > Date.now());
-}
 
 export default class Picker extends View {
   init() {
@@ -43,7 +37,7 @@ export default class Picker extends View {
       ps.filter((p) => p.tab === c.id && p.mod !== "t3-home").map((p) => {
         const under = p.terminal ? kids(p.terminal) : [];
         return {
-          key: `pane:${p.pane}`, p, s, label: name(p), program: programOf(p), team: under.length, here: s.active && c.active && p.focused,
+          key: `pane:${p.pane}`, p, s, label: name(p), program: programOf(p), team: under.length, under, here: s.active && c.active && p.focused,
           status: p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), under),
           // A tab's own name only if someone gave it: else it's its position ("4") or what it was first, not what runs in it.
           words: [s.name, s.machine ?? "", c.named ? c.name : "", name(p), programOf(p)?.name ?? "", p.program?.key ?? "", (p.cwd ?? "").split(/[\\/]/).pop()],
@@ -69,7 +63,7 @@ export default class Picker extends View {
     // The same marks as the pane headers, tabs and agents list.
     const mark = st === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
       : st === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
-      : st === "done" && !settled(item.p) ? div().size(7).flex_none().rounded_full().bg(t.done) : null;
+      : st === "done" && !notNews(layout(), terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(7).flex_none().rounded_full().bg(t.done) : null;
     return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(item.back ? `Back to ${item.label}` : item.label)
       .when(on, (el) => el.bg(t.selected))
