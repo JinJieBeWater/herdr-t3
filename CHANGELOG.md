@@ -5,6 +5,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 ## 2026-11-06
 
 - A tab's hover card stays out of the way: it goes when the pointer reaches `×`, and a name the tab shows whole, with no status to tell, has none. `×` has its own `Close tab` label after 500ms.
+- `t3-theme-export` no longer loses a color change that arrives during a write, and exports `{ name, colors }`, dropping `light`, which nothing read. Update `pi-herdr-theme` with it.
 
 ## 2026-11-05
 
