@@ -18,6 +18,11 @@ for d in mods/t3-*/ extras/mods/*/; do
   out=$(herdr-app check "$d" 2>&1) || { echo "FAIL herdr-app check $d"; echo "$out" | tail -20; fail=1; }
 done
 
+# A wrong icon path draws nothing and raises nothing. Paths built at runtime aren't caught here.
+for p in $(grep -rhoE --include='*.js' --exclude=gpui-kit.d.ts 'mods/(t3-[a-z-]+|review|pulls-review)/[a-z0-9/-]+\.svg' shared mods extras/mods | sort -u); do
+  [ -f "$p" ] || [ -f "extras/$p" ] || { echo "FAIL no such icon: $p"; fail=1; }
+done
+
 for f in $(find shared mods extras/mods -name 'check*.cjs'); do
   out=$(cd "$app" && node "$src/$f" 2>&1) || { echo "FAIL $f"; echo "$out" | tail -20; fail=1; }
 done

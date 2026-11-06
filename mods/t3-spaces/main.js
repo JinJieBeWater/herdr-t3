@@ -397,7 +397,7 @@ export default class Spaces extends View {
           cx.notify();
         })
         // -1: the glyph's own inset, so its edge meets the heading and the spaces' marks.
-        .child(svg(`mods/t3-inbox/${m ? "server" : "monitor"}.svg`).size(14).ml(-1).flex_none())
+        .child(svg(`mods/t3-spaces/icons/${m ? "server" : "monitor"}.svg`).size(14).ml(-1).flex_none())
         // The dot describes the machine, so it follows its name, however short.
         .child(h_flex().flex_1().min_w(0).gap(8).items_center()
           .child(div().min_w(0).truncate().child(m ?? "This computer"))
@@ -414,7 +414,7 @@ export default class Spaces extends View {
           .when(connected, el => el.child(tip(this, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, div().id(`machine-add-${id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8)
             .text_color(this.hot === `machine-add-${id}` ? t.foreground : t.dim).on_hover(glow(this, `machine-add-${id}`))
             .role("button").accessibility_label("New space here")
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/plus.svg").size(14)), 8),
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/icons/plus.svg").size(14)), 8),
             // The key makes a space on the current space's machine: it names this + only on that one.
             { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
           // An indicator, not a button: the whole row folds, so it lights with the row and has no label of its own.
@@ -425,7 +425,7 @@ export default class Spaces extends View {
         const el = h_flex().h(ROW).flex_none().px(10).gap(10).items_center().rounded(8)
           .text_color(this.hot === `machine-new-${id}` ? t.foreground : t.dim)
           // Laid out as a space's row: the + in the mark's 16px, the words where a name starts.
-          .child(div().size(16).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here");
+          .child(div().size(16).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/icons/plus.svg").size(12))).child("New space here");
         return ghost ? el : stop(this, t, `machine-new-${id}`, el.id(`machine-new-${id}`)
           .when(!lifting, el => el.hover(s => s.bg(t.hover)).active(s => s.bg(t.selected))).on_hover(glow(this, `machine-new-${id}`))
           .role("button").accessibility_label("New space here")
@@ -525,7 +525,7 @@ export default class Spaces extends View {
           .gap(10)
           .items_center()
           .when(Boolean(tree), el => el.pl(20).child(h_flex().size(16).flex_none().items_center().justify_center()
-            .child(svg("mods/t3-spaces/git-branch.svg").size(16).text_color(t.dim))))
+            .child(svg("mods/t3-spaces/icons/git-branch.svg").size(16).text_color(t.dim))))
           .when(!tree, el => el.child(projectMark(w, 16, t, ps)))
           .child(div().min_w(0).max_w(150).truncate().font_medium().text_color(t.foreground + "e6").child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t, w.id, ghost) : div().flex_1())
@@ -672,7 +672,7 @@ export default class Spaces extends View {
     this.landed = null;
     const asks = props()?.newMenu && machines().length > 1;
     const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(28).flex_none().flex().items_center().justify_center().rounded(8).text_color(this.hot === id ? t.foreground : t.dim).on_hover(glow(this, id)).on_mouse_down("left", () => pressed(this)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
-      .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(16)), 8), more);
+      .on_click(fn).child(svg(`mods/t3-spaces/icons/${icon}.svg`).size(16)), 8), more);
     return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(14)
       // As tall as Inbox's top row, T3's.
       .child(h_flex().id("spaces-heading").h(48).flex_none().pl(18).pr(8).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)

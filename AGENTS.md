@@ -4,6 +4,10 @@
 
 A `.js` found in several mods (`tip.js`, `focus.js`, …) has one source in `shared/`: a mod can't import outside its folder, so `scripts/sync.sh` copies it. Edit the source and its checks there, then sync. `scripts/check.sh` fails on a copy that differs.
 
+## Icons
+
+A mod's SVGs live in its own `icons/` and it names only those, or Herdr's shipped ones. A wrong path draws nothing and raises nothing: `scripts/check.sh` catches a literal path, and a path built at runtime has to be seen in the demo window.
+
 ## Finishing a change
 
 1. `RECIPE.md`, `RECIPE.zh-CN.md` and both changelogs say the new behaviour, in both languages.

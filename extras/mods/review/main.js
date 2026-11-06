@@ -101,7 +101,7 @@ function progressText(progress) {
   return "Starting…";
 }
 // Lucide's icons (lucide/), the layout's one set, and the catppuccin file icons (cat/), as the app draws them.
-const LU = `mods/${PANE}/lucide`, CAT = `mods/${PANE}/cat`;
+const LU = `mods/${PANE}/icons`, CAT = `mods/${PANE}/icons/cat`;
 
 // In the browser, as mods/pulls-review opens one.
 function openUrl(url) {
@@ -413,14 +413,14 @@ export default class ReviewPane extends View {
     const go = (id, icon, label, c) => this.iconButton(t, id, icon, label, (cx) => this.showPage(`/commit/${c.sha}`, cx), { disabled: !c, size: 24 });
     const place = !sha ? "All changes" : gone ? sha.slice(0, 7) : this.width < COMPACT ? `${at + 1}/${list.length}` : `Commit ${at + 1} of ${list.length}`;
     return h_flex().id("review-commit-switch").min_w(0).flex_shrink_1().overflow_hidden().gap(2).items_center()
-      .child(go("commit-older", "mods/review/chevron-left.svg", "Older commit", at > 0 ? list[at - 1] : null))
+      .child(go("commit-older", "mods/review/icons/chevron-left.svg", "Older commit", at > 0 ? list[at - 1] : null))
       .child(h_flex().id("commit-pick").h(24).min_w(0).flex_shrink_1().px(8).gap(4).items_center().rounded(8).text_size(12).font_medium().text_color(t.foreground)
         .when(this.popup === "commits", el => el.bg(ACTIVE)).hover(s => s.bg(HOVER))
         .role("button").accessibility_label(`Pick another commit of this review, ${place} shown`)
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); this.togglePopup("commits", cx); })
         .child(div().id("commit-place").min_w(0).truncate().child(place))
         .child(svg(`${LU}/chevron-down.svg`).size(14).flex_none().text_color(t.dim)))
-      .child(go("commit-newer", "mods/review/chevron-right.svg", "Newer commit", gone ? null : list[at + 1]));
+      .child(go("commit-newer", "mods/review/icons/chevron-right.svg", "Newer commit", gone ? null : list[at + 1]));
   }
 
   // The commits of this review and All changes, as the settings' model page: a search, ↑/↓ (`key`), Enter, Escape.
@@ -526,7 +526,7 @@ export default class ReviewPane extends View {
   }
 
   // A list's pick mark, as T3's MenuRadioItemIndicator, its slot kept so the rows line up.
-  pickMark(t, on) { return div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/check.svg").size(14))); }
+  pickMark(t, on) { return div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/icons/check.svg").size(14))); }
 
   // As T3's ComboboxSearchInput and MenuSearchInput, past the insets, which differ: a 26 field, 6 to the rule, its text 20 from the icon's start.
   searchField(t, state) {
@@ -561,7 +561,7 @@ export default class ReviewPane extends View {
       .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => this.openPage(id, cx))
       .child(div().flex_none().child(text))
       .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
-      .child(svg("mods/review/chevron-right.svg").size(16).mr(-2).flex_none().text_color(t.dim));
+      .child(svg("mods/review/icons/chevron-right.svg").size(16).mr(-2).flex_none().text_color(t.dim));
     const current = this.agents?.find(a => a.name === agent), typed = this.modelInput.value().trim();
     const options = page ? this.pageRows() : [];
     const rows = !page ? [
@@ -600,7 +600,7 @@ export default class ReviewPane extends View {
       rule(),
       // Credit, as the app's footer: pulls.review is antfu's; this pane draws from JinJieBeWater's fork of it.
       h_flex().id("settings-credit").h(28).px(8).gap(4).flex_none().items_center().text_size(11).text_color(t.dim)
-        .child(image(`mods/${PANE}/logo.svg`).w(12).h(12).flex_none())
+        .child(image(`mods/${PANE}/icons/logo.svg`).w(12).h(12).flex_none())
         .child(link("credit-upstream", "pulls.review", "https://github.com/antfu/pulls.review")).child("by")
         .child(link("credit-antfu", "@antfu", "https://github.com/antfu")).child("·")
         .child(link("credit-fork", "fork", "https://github.com/JinJieBeWater/pulls.review")).child("by")
@@ -608,7 +608,7 @@ export default class ReviewPane extends View {
     ] : [
       h_flex().id("settings-back").h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(HOVER))
         .role("button").accessibility_label("Back").on_click((_e, cx) => this.settingsBack(cx))
-        .child(svg("mods/review/chevron-left.svg").size(16).mx(-2).flex_none().text_color(t.dim))
+        .child(svg("mods/review/icons/chevron-left.svg").size(16).mx(-2).flex_none().text_color(t.dim))
         .child(div().font_medium().child({ language: "Language", agent: "Agent", model: "Model" }[page])),
       page !== "model" && rule(),
       // The search sits above the catalog, which runs to hundreds for some agents. Its own rule stands in for the page's.
@@ -761,8 +761,8 @@ export default class ReviewPane extends View {
     const fill = state === "changed" ? "#f97316" : state === "none" ? null : t.accent;
     return div().size(16).flex_none().rounded(4).border_1().border_color(fill ?? t.border).bg(fill ?? t.raised)
       .flex().items_center().justify_center().text_color("#ffffff")
-      .when(state === "all", el => el.child(svg("mods/review/check.svg").size(12)))
-      .when(state === "some" || state === "changed", el => el.child(svg("mods/review/minus.svg").size(12)));
+      .when(state === "all", el => el.child(svg("mods/review/icons/check.svg").size(12)))
+      .when(state === "some" || state === "changed", el => el.child(svg("mods/review/icons/minus.svg").size(12)));
   }
 
   // Rebuilt only when something it shows changed: render runs on every live change in Herdr.
@@ -848,7 +848,7 @@ export default class ReviewPane extends View {
     this.keep("titles", this.page ? pageLabel(this.page, this.switching ? null : this.review) : "review");
     // Its icon in pane headers and tabs (t3's name.js), pulls.review's own logo. In a tab of its own it has a card in t3-inbox,
     // whose Settle closes it: its marks and analysis are the daemon's, so that loses nothing.
-    if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/logo.svg` || shared(`${PANE}.program`).inbox !== true) setShared(`${PANE}.program`, { icon: `mods/${PANE}/logo.svg`, tint: false, name: "Review", inbox: true });
+    if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/icons/logo.svg` || shared(`${PANE}.program`).inbox !== true) setShared(`${PANE}.program`, { icon: `mods/${PANE}/icons/logo.svg`, tint: false, name: "Review", inbox: true });
     this.report();
     // A later open in this tab: another page, maybe another worktree.
     const request = shared(PANE);
@@ -1040,7 +1040,7 @@ export default class ReviewPane extends View {
       buttons.push({ id: "fold-menu", icon: `${LU}/chevrons-up-down.svg`, label: "Expand or collapse files", active: this.popup === "fold", run: (cx) => this.togglePopup("fold", cx) });
     }
     // The view (unified or split, files as a tree or a list) is set in the settings, with the analysis.
-    buttons.push({ id: "settings", icon: "mods/review/settings.svg", label: "Settings", active: this.popup === "settings", run: (cx) => this.togglePopup("settings", cx) });
+    buttons.push({ id: "settings", icon: "mods/review/icons/settings.svg", label: "Settings", active: this.popup === "settings", run: (cx) => this.togglePopup("settings", cx) });
     // The diff shown is named in the pane's own header (render's titles), so this one starts with the counts.
     return { parts, buttons };
   }
@@ -1484,8 +1484,8 @@ export default class ReviewPane extends View {
           .when(f.isBinary, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("binary")))
           .child(this.fileStatus(f.status))
           .child(h_flex().flex_none().gap(4)
-            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/review/file-text.svg").size(12).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
-            .child(slot().child(svg(`mods/review/chevron-${open ? "down" : "right"}.svg`).size(16).text_color(t.dim))));
+            .child(slot().when(this.canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/review/icons/file-text.svg").size(12).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
+            .child(slot().child(svg(`mods/review/icons/chevron-${open ? "down" : "right"}.svg`).size(16).text_color(t.dim))));
       }
       case "group":
         return h_flex().w_full().h(item.size).px(12).gap(8).items_center().font_semibold().text_color(t.ansi4)

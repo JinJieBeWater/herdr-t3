@@ -136,12 +136,12 @@ const mainScope = load("main.js", env), pane = new mainScope.Mod();
 const mainSource = fs.readFileSync(path.join(__dirname, "main.js"), "utf8");
 const icons = [
   ...[...mainSource.matchAll(/mods\/\$\{PANE\}\/([a-z/-]+)\.svg/g)].map(m => m[1]),
-  ...[...mainSource.matchAll(/\$\{LU\}\/([a-z0-9-]+)\.svg/g)].map(m => `lucide/${m[1]}`),
-  ...Object.values(vm.runInContext("CATEGORY", mainScope)).map(([icon]) => `lucide/${icon}`),
-  ...vm.runInContext("FILE_ICONS", mainScope).map(([, name]) => `cat/${name}`),
-  ...Object.values(vm.runInContext("FOLDER_ICONS", mainScope)).map(name => `cat/${name}`),
-  "cat/file", "cat/folder", "lucide/chevron-up", "lucide/chevron-down", "lucide/chevron-right",
-  ...vm.runInContext("FOLDS", mainScope).map(({ icon }) => `lucide/${icon}`),
+  ...[...mainSource.matchAll(/\$\{LU\}\/([a-z0-9-]+)\.svg/g)].map(m => `icons/${m[1]}`),
+  ...Object.values(vm.runInContext("CATEGORY", mainScope)).map(([icon]) => `icons/${icon}`),
+  ...vm.runInContext("FILE_ICONS", mainScope).map(([, name]) => `icons/cat/${name}`),
+  ...Object.values(vm.runInContext("FOLDER_ICONS", mainScope)).map(name => `icons/cat/${name}`),
+  "icons/cat/file", "icons/cat/folder", "icons/chevron-up", "icons/chevron-down", "icons/chevron-right",
+  ...vm.runInContext("FOLDS", mainScope).map(({ icon }) => `icons/${icon}`),
 ];
 for (const icon of icons) assert.ok(fs.existsSync(path.join(__dirname, `${icon}.svg`)), `icon on disk: ${icon}`);
 // File and folder icons by @antfu/design's rules, first match winning as there; a folder chain by its last name.

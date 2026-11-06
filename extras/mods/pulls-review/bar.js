@@ -268,7 +268,7 @@ export function reviewMenu(view) {
     })
     // As T3's MenuSearchInput: 8 in and 6 down less the 1 it shifts up, a 26 field, 6 to the rule, 4 and that 1 below it.
     .child(h_flex().mx(8).mt(5).mb(5).h(33).pb(6).gap(4).flex_none().items_center().border_b_1().border_color(t.border)
-      .child(svg(`mods/${MOD}/search.svg`).size(16).flex_none().text_color(t.dim))
+      .child(svg(`mods/${MOD}/icons/search.svg`).size(16).flex_none().text_color(t.dim))
       .child(Input.new(view.search).flex_1().h_full().text_size(14).text_color(t.foreground)))
     // Outside the list, so the pages' switch stays put.
     .when(tabs, el => el.child(h_flex().h(28).mx(8).mb(4).gap(8).flex_none().items_center()
@@ -279,7 +279,7 @@ export function reviewMenu(view) {
     .when(tab === "branches", el => el.child(list("review-branches", branches.map(b => {
       const id = `review-branch-${b.name}`;
       return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
-        svg("mods/pulls-review/git-branch.svg").size(16).mx(-2).flex_none().text_color(t.dim),
+        svg("mods/pulls-review/icons/git-branch.svg").size(16).mx(-2).flex_none().text_color(t.dim),
         h_flex().flex_1().min_w(0).gap(8)
           .child(div().flex_none().max_w(160).truncate().child(b.name))
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(b.subject ?? "")),
@@ -311,15 +311,15 @@ function commitCard(view, t, id, c, upstream, out, now) {
   const up = view.details === id || view.detailsOut === id;
   return Popup.new(`details-${id}`, div()).absolute().top(-1).left(-1).size(1).anchor("top_right")
     .when(up, pop => pop.content(detailsCard(view, t, id, c.subject, [
-      c.time && detailsLine(t, svg("mods/pulls-review/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
+      c.time && detailsLine(t, svg("mods/pulls-review/icons/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
       c.author && detailsLine(t, initial(t, c.author), c.author),
-      upstream && detailsLine(t, svg("mods/pulls-review/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
+      upstream && detailsLine(t, svg("mods/pulls-review/icons/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
     ], { wrap: true, from: 4 }).mr(4)));
 }
 
 // A branch's card, as a commit's: its last commit, then how it stands against the base and its upstream, and where it's checked out.
 function branchCard(view, t, id, b, base, now) {
-  const up = view.details === id || view.detailsOut === id, icon = (name, color = t.muted) => svg(`mods/pulls-review/${name}.svg`).size(12).flex_none().text_color(color);
+  const up = view.details === id || view.detailsOut === id, icon = (name, color = t.muted) => svg(`mods/pulls-review/icons/${name}.svg`).size(12).flex_none().text_color(color);
   const ahead = /ahead (\d+)/.exec(b.track ?? "")?.[1], behind = /behind (\d+)/.exec(b.track ?? "")?.[1];
   const upstream = !b.upstream ? "No upstream" : b.track === "gone" ? `${b.upstream} is gone`
     : !ahead && !behind ? `Up to date with ${b.upstream}` : `${[ahead && `${ahead} not pushed`, behind && `${behind} to pull`].filter(Boolean).join(", ")} · ${b.upstream}`;
@@ -356,7 +356,7 @@ export function reviewBar(view, t, stop) {
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover(glow(view, id))
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
-    .when(compact, el => el.child(svg(`mods/${MOD}/${icon}.svg`).size(14).flex_none()))
+    .when(compact, el => el.child(svg(`mods/${MOD}/icons/${icon}.svg`).size(14).flex_none()))
     .child(div().text_color(t.foreground).child(compact ? count : arrow + count))
     .when(Boolean(noun) && !compact, el => el.child(noun))
     .when(first, el => el.rounded_l(7)), { below: true });
@@ -395,5 +395,5 @@ export function reviewBar(view, t, stop) {
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
       .on_mouse_down("left", pressed).on_click(openMenu)
       // As T3's icon-xs, 24 with the outline's sides. image, not svg: svg would draw the logo in one tint.
-      .child(image(`mods/${MOD}/logo.svg`).w(14).h(14).flex_none()), { below: true }));
+      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()), { below: true }));
 }

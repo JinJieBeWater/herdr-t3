@@ -16,7 +16,7 @@ const ROW = 48;
 // The list's share of T3's 420 once its border, search, top and bottom insets and footer are in; the popup hugs its content.
 const LIST_MAX = 420 - 2 - 48 - 8 - 8 - 41;
 
-const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/terminal.svg").size(12).flex_none().text_color(t.muted)
+const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/icons/terminal.svg").size(12).flex_none().text_color(t.muted)
   : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
 
 
@@ -85,7 +85,7 @@ export default class Picker extends View {
           .child(div().flex_none().child("·"))
           // As T3 marks a remote thread: a server icon, then the name.
           .when(Boolean(s.machine), (el) => el
-            .child(svg("mods/t3-inbox/server.svg").size(12).flex_none().text_color(t.muted))
+            .child(svg("mods/t3-picker/icons/server.svg").size(12).flex_none().text_color(t.muted))
             .child(div().flex_none().text_color(t.muted).child(`${s.machine} ·`)))
           .child(div().min_w(0).truncate().child(s.name + (item.team ? ` · +${item.team}` : "")))))
       .when(Boolean(mark), (el) => el.child(mark))
@@ -113,7 +113,7 @@ export default class Picker extends View {
         cx.notify();
       })
       .child(h_flex().h(36).my(6).flex_none().pl(18).pr(20).gap(7).items_center()
-        .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
+        .child(svg("mods/t3-picker/icons/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.input).flex_1().h_full().text_size(14).text_color(t.foreground)))
       // No heading: there is one kind of row, and the room goes to the list.
       .child(div().flex_none().mt(8).mb(8).px(8)
@@ -131,7 +131,7 @@ export default class Picker extends View {
         .child(h_flex().id("picker-new").gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
           .role("button").accessibility_label("New tab").hover((s) => s.text_color(t.foreground))
           .on_click(() => { closeOverlay(props().overlay); run("mod.open", { name: "t3-new-menu" }); })
-          .child(svg("mods/t3-picker/square-pen.svg").size(14).text_color(t.muted))
+          .child(svg("mods/t3-picker/icons/square-pen.svg").size(14).text_color(t.muted))
           .child("New tab")));
   }
 }

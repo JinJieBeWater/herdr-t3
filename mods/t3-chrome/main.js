@@ -50,8 +50,8 @@ export default class WorkspaceChrome extends View {
         .child(glyph), 8), { action: key });
       // T3's footer: 8 in and 4 above its row, whatever height the layout gives the block.
       return focusRoot(this, div().size_full().bg(t.chrome).px(8).pt(4).child(h_flex().h(32).gap(4).items_center()
-        .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
-        .child(button("add-machine", svg("mods/t3-inbox/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
+        .child(button("settings", svg("mods/t3-chrome/icons/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
+        .child(button("add-machine", svg("mods/t3-chrome/icons/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(32).px(12).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow(this, "app-update"))
@@ -72,20 +72,20 @@ export default class WorkspaceChrome extends View {
         .role("button").accessibility_label("Home")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.home"))
-        .child(svg("mods/t3-chrome/house.svg").size(14)), 8), { action: "t3-tabs.home", below: true }))
+        .child(svg("mods/t3-chrome/icons/house.svg").size(14)), 8), { action: "t3-tabs.home", below: true }))
       .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.sidebar"))
         // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
-        .child(svg(`mods/t3-chrome/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true })))
+        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true })))
       .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/t3-chrome/panel-left.svg").size(14)), 8), { action: "layout.toggle:sidebar", below: true })));
+        .child(svg("mods/t3-chrome/icons/panel-left.svg").size(14)), 8), { action: "layout.toggle:sidebar", below: true })));
   }
 }

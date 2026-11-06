@@ -169,9 +169,9 @@ export default class Agents extends View {
         .when(i === this.at, el => el.bg(t.selected))
         .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
         .on_click(() => choose(s))
-        .child(svg(`mods/t3-agents/${s.icon}.svg`).size(16).mx(-2).flex_none().text_color(t.muted))
+        .child(svg(`mods/t3-agents/icons/${s.icon}.svg`).size(16).mx(-2).flex_none().text_color(t.muted))
         .child(div().flex_1().child(s.label))
-        .when(s.id === on, (el) => el.child(svg("mods/t3-agents/check.svg").size(14).flex_none().text_color(t.foreground)))));
+        .when(s.id === on, (el) => el.child(svg("mods/t3-agents/icons/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
@@ -375,8 +375,8 @@ export default class Agents extends View {
       return Popup.new(`details-${key}`, div()).absolute().top(-1).right(-1).size(1)
         .when(up, (pop) => pop.content(detailsCard(this, t, key, name, [
           a.space_name && detailsLine(t, projectMark(spaces().find((s) => s.id === a.space) ?? { name: a.space_name }, 12, t, ps, true), a.space_name),
-          machine && detailsLine(t, svg("mods/t3-agents/server.svg").size(12).flex_none().text_color(t.muted), machine),
-          branch && detailsLine(t, svg("mods/t3-agents/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
+          machine && detailsLine(t, svg("mods/t3-agents/icons/server.svg").size(12).flex_none().text_color(t.muted), machine),
+          branch && detailsLine(t, svg("mods/t3-agents/icons/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
           pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
         ], { hide: Boolean(this.hot) }).ml(4)));
     };
@@ -414,7 +414,7 @@ export default class Agents extends View {
             });
             cx.notify();
           }), 6))
-        .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
+        .child(svg(`mods/t3-agents/icons/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
       // A row leads with what the agent is on; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
       const full = byPriority || isPinned;
@@ -424,7 +424,7 @@ export default class Agents extends View {
       const fromKid = st !== "idle" && st !== own(a);
       const when = this.since(a);
       const lead = h_flex().size(16).flex_none().items_center().justify_center().when(Boolean(pic), el => el.child(pic));
-      const server = svg("mods/t3-agents/server.svg").size(14).flex_none().text_color(t.dim);
+      const server = svg("mods/t3-agents/icons/server.svg").size(14).flex_none().text_color(t.dim);
       const time = div().flex_none().text_size(12).text_color(t.dim).opacity(offer ? 0 : 1).transition("opacity", MOTION).when(Boolean(when), el => el.child(duration(now - when)));
       const base = h_flex()
         .relative()
@@ -586,7 +586,7 @@ export default class Agents extends View {
                   openOverlay({ mod: "t3-agents", kind: "popup", width: SORT_WIDTH, height: 140, ...(b ? { at: { x: b.x + b.width - SORT_WIDTH * z, y: b.y + b.height + 4 * z } } : {}), props: { sortMenu: true } });
                   cx.notify();
                 })
-                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(16)), 8)),
+                .child(svg(`mods/t3-agents/icons/${sort.icon}.svg`).size(16)), 8)),
             ),
       )
       .when(list.length === 0, (el) =>

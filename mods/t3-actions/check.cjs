@@ -58,7 +58,7 @@ const load = (props = {}) => {
 };
 
 // Every icon it names is on disk.
-for (const name of JSON.parse(/const ICONS = (\[[^\]]+\])/.exec(source)[1])) assert.ok(fs.existsSync(path.join(__dirname, `action-${name}.svg`)), `icon on disk: ${name}`);
+for (const name of JSON.parse(/const ICONS = (\[[^\]]+\])/.exec(source)[1])) assert.ok(fs.existsSync(path.join(__dirname, "icons", `action-${name}.svg`)), `icon on disk: ${name}`);
 
 // Home has no project to run them in; the same bar elsewhere shows them.
 state["t3-home.space"] = "home";

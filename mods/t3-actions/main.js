@@ -13,7 +13,7 @@ const KEY = "t3-actions";
 const MENU_CLOSED = `${MOD}.menuClosed`;
 const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
-const icon = (name) => svg(`mods/${MOD}/action-${ICONS.includes(name) ? name : "play"}.svg`);
+const icon = (name) => svg(`mods/${MOD}/icons/action-${ICONS.includes(name) ? name : "play"}.svg`);
 
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
@@ -54,7 +54,7 @@ function control(view, t, stopPress) {
   if (!main) return tip(view, t, "action-add", "Add action", stop(view, t, "action-add", ends(box("action-add"), !compact).when(Boolean(compact), el => el.w(24)).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     // The dialog covers it, before the pointer can report leaving it.
     .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
-    .child(svg("mods/t3-actions/plus.svg").size(14)).when(!compact, el => el.child("Add action")), 8), { below: true });
+    .child(svg("mods/t3-actions/icons/plus.svg").size(14)).when(!compact, el => el.child("Add action")), 8), { below: true });
   return box("actions").text_color(t.dim)
     // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill.
     .child(tip(view, t, "action-run", `Run ${main.name}`, stop(view, t, "action-run", ends(h_flex().id("action-run").h(22).items_center().rounded_l(8), !compact).when(Boolean(compact), el => el.w(23)).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
@@ -68,7 +68,7 @@ function control(view, t, stopPress) {
         cx.notify();
       })
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
-      .child(svg("mods/t3-actions/chevron-down.svg").size(16)), 8), { below: true }));
+      .child(svg("mods/t3-actions/icons/chevron-down.svg").size(16)), 8), { below: true }));
 }
 
 // The menu takes the keyboard, as the shipped menu does.
@@ -107,9 +107,9 @@ function menu(view) {
         .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/t3-actions/settings.svg").size(14)), 8), { below: true })); } }))
+          .child(svg("mods/t3-actions/icons/settings.svg").size(14)), 8), { below: true })); } }))
     .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
-    .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).mx(-2).text_color(t.muted), "Add action")));
+    .child(row("action-new", list.length, svg("mods/t3-actions/icons/plus.svg").size(16).mx(-2).text_color(t.muted), "Add action")));
 }
 
 // The editor dialog: this copy's own inputs, made once in init.
@@ -167,7 +167,7 @@ function editorView(view) {
     // T3's close: 32 square, 8 in from the corner.
     .child(stop(view, t, "action-close", div().id("action-close").absolute().top(8).right(8).size(32).flex().items_center().justify_center().rounded(8)
       .text_color(lit(view, "action-close")).hover(s => s.bg(t.hover)).on_hover(glow(view, "action-close"))
-      .role("button").accessibility_label("Close").on_click(done).child(svg("mods/t3-actions/x.svg").size(16)), 8))
+      .role("button").accessibility_label("Close").on_click(done).child(svg("mods/t3-actions/icons/x.svg").size(16)), 8))
     .child(v_flex().px(24).py(4).gap(16)
       .children(view.inputs.map(field))
       .child(h_flex().gap(16)

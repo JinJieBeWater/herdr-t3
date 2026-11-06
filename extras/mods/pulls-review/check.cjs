@@ -93,8 +93,8 @@ const load = (props = {}, setup = record) => {
   for (const n of walk(drawn)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
   // The logo, in its own colors and on disk: a missing file draws nothing, and the button shows blank.
   const logo = walk(find(drawn, "review-pick")).find(n => n.kind === "image");
-  assert.equal(logo.source, "mods/pulls-review/logo.svg");
-  assert.ok(fs.existsSync(path.join(__dirname, "logo.svg")));
+  assert.equal(logo.source, "mods/pulls-review/icons/logo.svg");
+  assert.ok(fs.existsSync(path.join(__dirname, "icons/logo.svg")));
   fire(find(drawn, "review-pick"), "on_hover", true, cx);
   fire(find(drawn, "tip-over-review-pick"), "on_hover", true, cx);
   assert.deepEqual(strings(find(bar.render(), "tip-review-pick").style.content), ["Change what to review"], "its card shows on hover");
@@ -139,8 +139,8 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(bar.render(), "review-open")), ["4"]);
   assert.deepEqual(strings(find(bar.render(), "review-ahead")), ["2"]);
   for (const [id, icon] of [["review-changes", "file-diff"], ["review-open", "git-branch"], ["review-ahead", "arrow-up"], ["review-behind", "arrow-down"]]) {
-    assert.equal(walk(find(bar.render(), id)).find(n => n.kind === "svg").source, `mods/pulls-review/${icon}.svg`);
-    assert.match(fs.readFileSync(path.join(__dirname, `${icon}.svg`), "utf8"), /stroke-width="1\.75"/, `${icon}: as the mod's other icons`);
+    assert.equal(walk(find(bar.render(), id)).find(n => n.kind === "svg").source, `mods/pulls-review/icons/${icon}.svg`);
+    assert.match(fs.readFileSync(path.join(__dirname, "icons", `${icon}.svg`), "utf8"), /stroke-width="1\.75"/, `${icon}: as the mod's other icons`);
   }
   assert.deepEqual(counted.map(id => countOf(id).style.text_color), counted.map(() => theme.foreground), "still no color");
   fire(find(bar.render(), "review-open"), "on_hover", true, cx);
@@ -518,7 +518,7 @@ const load = (props = {}, setup = record) => {
 
   // Every icon on disk is drawn: what a change orphans goes with it.
   const code = ["bar.js", "details.js", "tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n");
-  for (const file of fs.readdirSync(__dirname).filter(f => f.endsWith(".svg"))) assert.ok(code.includes(path.basename(file, ".svg")), `${file} is used`);
+  for (const file of fs.readdirSync(path.join(__dirname, "icons"))) assert.ok(code.includes(path.basename(file, ".svg")), `${file} is used`);
 
   console.log("ok: the Review bar's counts outlined and ruled, its block sized to fit, the branch menu and its search, opening a review");
 })().catch(e => { console.error(e); process.exit(1); });

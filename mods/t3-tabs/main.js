@@ -458,7 +458,7 @@ export default class Tabs extends View {
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stopPress).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-      .child(svg("mods/t3-tabs/panel-left.svg").size(16).flex_none())
+      .child(svg("mods/t3-tabs/icons/panel-left.svg").size(16).flex_none())
       .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), 8), { action: "layout.toggle:sidebar", below: true });
   }
 
@@ -492,10 +492,10 @@ export default class Tabs extends View {
     // however wide they are, and the window's own buttons stay last.
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pr(12).gap(4).items_center().on_size_change((size) => this.fit(size))
-        .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
-        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
-          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));
+        .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/icons/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
+          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-close.svg").size(16) : svg("mods/t3-tabs/icons/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));
     const space = spaces().find(p => p.active);
     // At Home, none: its place is told by the brand bar's button and its pane's header.
     if (!props()?.part) this.track();
@@ -528,7 +528,7 @@ export default class Tabs extends View {
       // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
       const tabId = `tab-${c.id}`, closeId = `close-${c.id}`;
       const over = this.overTab === c.id || within(this, [tabId, closeId]);
-      const glyph = !program?.icon ? svg("mods/t3-tabs/terminal.svg").size(12).text_color(t.muted)
+      const glyph = !program?.icon ? svg("mods/t3-tabs/icons/terminal.svg").size(12).text_color(t.muted)
         : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
       // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
@@ -589,7 +589,7 @@ export default class Tabs extends View {
         .child(tip(this, t, closeId, "Close tab", div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised)).on_hover(glow(this, closeId))
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stopPress).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
-          .when(over, el => el.child(svg("mods/t3-tabs/x.svg").size(12).text_color(t.foreground)))
+          .when(over, el => el.child(svg("mods/t3-tabs/icons/x.svg").size(12).text_color(t.foreground)))
           .when(!over && status != null, el => el.child(mark(t, status)))
           .when(over, el => stop(this, t, closeId, el, 4)), { action: c.active ? "t3-tabs.close-tab" : undefined, below: true, delay: 500 }))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));

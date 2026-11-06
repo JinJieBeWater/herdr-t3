@@ -170,7 +170,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(strings(find(at, "when-t0")), ["<1m"], "time in its state, as the shipped list");
   fire(agent, "on_hover", true, cx);
   const hoveredTree = ag.render(cx);
-  assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/chevron-down.svg", "hover leaves the icon alone");
+  assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/icons/chevron-down.svg", "hover leaves the icon alone");
   assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 16);
   assert.equal(find(hoveredTree, "pin-t0").style.size, 24, "T3's row control, over the time's slot");
   assert.equal(find(hoveredTree, "pin-t0").style.border, undefined, "pin is borderless like fold");
@@ -304,7 +304,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(f.state["agents.pins"].includes("t0"));
   assert.equal(find(ag.render(cx), "pin-t0").style.opacity, 0, "pinning does not leave a stale hover after reordering");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
-  assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/t3-agents/pin-off.svg", "pinned rows offer unpin");
+  assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/t3-agents/icons/pin-off.svg", "pinned rows offer unpin");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
   assert.equal(find(ag.render(cx), "pin-t0").style.opacity, 0, "pinned rows also hide their pin outside hover");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
@@ -468,7 +468,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const f = fixture(256), root = f.load("t3-inbox").render(cx);
   const card = find(root, "card-vps/t2"), mark = find(card, "machine-vps/t2");
   assert.ok(strings(find(root, "tip-machine-vps/t2")).includes("vps") === false && find(root, "tip-machine-vps/t2"), "its card waits for the hover");
-  assert.ok(walk(mark).some(n => n.source === "mods/t3-inbox/server.svg"));
+  assert.ok(walk(mark).some(n => n.source === "mods/t3-inbox/icons/server.svg"));
   assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
 }
@@ -580,11 +580,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   scope("all");
   assert.ok(find(inbox.render(run), "working-header"), "all spaces again");
   // The brand bar switches the sidebar, its icon the mode a click shows; with the inbox showing, a settled agent's done is no news.
-  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/inbox.svg", "in Lists it offers the Inbox");
+  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/icons/inbox.svg", "in Lists it offers the Inbox");
   fire(find(f.load("t3-chrome").render(cx), "sidebar-mode"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-tabs.sidebar", {}]);
   f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
-  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/layout-list.svg", "in the Inbox it offers the lists");
+  assert.equal((walk(find(f.load("t3-chrome").render(cx), "sidebar-mode")).find(n => n.kind === "svg")?.source), "mods/t3-chrome/icons/layout-list.svg", "in the Inbox it offers the lists");
   f.spaces()[0].tabs[0].status = "done"; f.agents()[0].status = "done";
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
@@ -692,7 +692,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(find(f.load("t3-agents").render(cx), "pinned"), "the agents list shows the same pin");
   assert.deepEqual(f.calls.pop(), ["pane.focus", { pane: "p9" }], "letting go hands the keyboard back to the pane that had it");
   assert.equal(h("pinned"), 0, "the labels close again");
-  assert.ok(walk(find(root(), "card-vps/t2")).some(n => n.source === "mods/t3-inbox/pin.svg"), "a pin shows its glyph");
+  assert.ok(walk(find(root(), "card-vps/t2")).some(n => n.source === "mods/t3-inbox/icons/pin.svg"), "a pin shows its glyph");
 
   lift("card-t0"); over("card-vps/t2", 10);
   assert.equal(h("gap-vps/t2"), 85, "the upper half of a pin opens a gap above it");
@@ -1001,7 +1001,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(arrow.style.mr + arrow.style.px, 0, "past its padding, its chevron ends where the row's content does, as a folder's");
     // T3 turns its arrow; Herdr can't, so the two directions cross-fade in one slot, ids stable so the fade plays.
     const way = (tree, name) => find(tree, `space-fold-s0-${name}`);
-    assert.deepEqual([way(arrow, "down").items[0].source, way(arrow, "down").style.opacity, way(arrow, "right").style.opacity, arrow.items.length], ["mods/t3-spaces/chevron-down.svg", 1, 0, 1], "a checkout shows its fold arrow at the end, as an agent parent");
+    assert.deepEqual([way(arrow, "down").items[0].source, way(arrow, "down").style.opacity, way(arrow, "right").style.opacity, arrow.items.length], ["mods/t3-spaces/icons/chevron-down.svg", 1, 0, 1], "a checkout shows its fold arrow at the end, as an agent parent");
     assert.equal(arrow.style.text_color, f.theme().dim, "the arrow is dim");
     assert.equal(arrow.hoverStyle.bg, undefined, "no ground, as T3's row controls");
     fire(arrow, "on_hover", true, cx);
@@ -1249,7 +1249,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(ag.render(cx), "sub-grandchild"), null, "missing icons do not disable folding");
   const menu = f.load("t3-agents", { sortMenu: true }).render(cx);
   assert.equal(find(menu, "sort-grouped").style.bg, undefined, "as T3's menus, nothing's lit until a key or the pointer arrives");
-  assert.ok(walk(find(menu, "sort-grouped")).some(n => n.source === "mods/t3-agents/check.svg"), "the current sort keeps its check");
+  assert.ok(walk(find(menu, "sort-grouped")).some(n => n.source === "mods/t3-agents/icons/check.svg"), "the current sort keeps its check");
   fire(find(menu, "sort-priority"), "on_click", {}, cx);
   assert.equal(f.state["agents.sort"], "priority");
   const byPriority = find(ag.render(cx), "ag-t0"), names = byPriority.items[1];
@@ -1863,12 +1863,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
-    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "the tab's icon, a terminal's when it has no program");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/icons/terminal.svg"), "the tab's icon, a terminal's when it has no program");
     // The pointer on a tab's name is on the tab too; the card goes by the name, the × by the tab.
     const hoverName = (id, on) => { fire(find(tabs.render(cx), `tab-${id}`), "on_hover", on, cx); fire(find(tabs.render(cx), `label-${id}`), "on_hover", on, cx); };
     hoverName("other", true);
-    assert.equal(close().items[0].source, "mods/t3-tabs/x.svg", "hovered, a ×");
-    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "and the icon stays");
+    assert.equal(close().items[0].source, "mods/t3-tabs/icons/x.svg", "hovered, a ×");
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/icons/terminal.svg"), "and the icon stays");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
     // Its whole name and nothing else, with an Inbox row's timing: after 150ms for the first and at once for the next.
     const tabCard = (id) => find(tabs.render(cx), `details-${id}`)?.style.content;
@@ -2157,7 +2157,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     on(tabs, "tab-b0");
     const tab = find(tabs.render(cx), "tab-b0");
     assert.equal(find(tab, "close-b0").style.tab_index, 0);
-    assert.ok(walk(find(tab, "close-b0")).some((n) => n.source === "mods/t3-tabs/x.svg"), "the × shows");
+    assert.ok(walk(find(tab, "close-b0")).some((n) => n.source === "mods/t3-tabs/icons/x.svg"), "the × shows");
     assert.ok(tab.items.some((n) => n.style?.border === 2 && n.style.border_color === f.theme().accent), "the ring is on the tab");
     // A tab and a space go by their mouse-ups: a key has to say so itself.
     fire(tab, "on_key_down", { keystroke: "enter" }, cx);

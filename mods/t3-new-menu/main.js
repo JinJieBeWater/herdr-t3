@@ -105,13 +105,13 @@ export default class NewMenu extends View {
       .on_click(() => this.choose(item))
       // As T3's CommandPaletteTitleIcon: level with the title, not the row.
       .child(h_flex().w(16).h(20).pt(2).self_start().flex_none().items_center().justify_center()
-        .child(s ? projectMark(s, 16, t, ps) : svg(`mods/t3-inbox/${item.machine ? "server" : "monitor"}.svg`).size(16).text_color(t.muted)))
+        .child(s ? projectMark(s, 16, t, ps) : svg(`mods/t3-new-menu/icons/${item.machine ? "server" : "monitor"}.svg`).size(16).text_color(t.muted)))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).child(s ? s.name : item.name))
         .child(h_flex().min_w(0).gap(4).items_center().text_size(12).line_height("16px").text_color(t.dim)
           // As T3 marks a remote thread: a server icon, then the name.
           .when(Boolean(s?.machine), el => el
-            .child(svg("mods/t3-inbox/server.svg").size(12).flex_none().text_color(t.muted))
+            .child(svg("mods/t3-new-menu/icons/server.svg").size(12).flex_none().text_color(t.muted))
             .child(div().flex_none().text_color(t.muted).child(`${s.machine} ·`)))
           .child(div().min_w(0).truncate().child(sub))))
       .when(Boolean(s) && i < 9, el => el.child(div().flex_none().text_size(12).font_medium().text_color(t.muted).child(`⌘${i + 1}`)));
@@ -137,7 +137,7 @@ export default class NewMenu extends View {
         cx.notify();
       })
       .child(h_flex().h(36).my(6).flex_none().pl(18).pr(20).gap(7).items_center()
-        .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
+        .child(svg("mods/t3-new-menu/icons/search.svg").size(16).flex_none().text_color(t.dim))
         .child(Input.new(this.picking ? this.machineInput : this.spaceInput).flex_1().h_full().text_size(14).text_color(t.foreground)))
       .child(div().mt(8).px(16).py(6).flex_none().text_size(12).line_height("16px").font_medium().text_color(t.muted).child(this.picking ? "Machines" : "Spaces"))
       .child(div().flex_none().mb(8).px(8)
@@ -151,7 +151,7 @@ export default class NewMenu extends View {
           .child(hint("Esc", "Close")))
         .when(this.picking, el => el.child(footButton("new-back", "Back to spaces").on_click((_e, cx) => this.showMachines(false, cx)).child("← Spaces")))
         .when(!this.picking, el => el.child(footButton("space-new", "New space").on_click((_e, cx) => this.newSpace(cx))
-          .child(svg("mods/t3-new-menu/folder-plus.svg").size(14).text_color(t.muted))
+          .child(svg("mods/t3-new-menu/icons/folder-plus.svg").size(14).text_color(t.muted))
           .child("New space")
           .when(Boolean(newKey), row => row.child(key(newKey))))));
   }
