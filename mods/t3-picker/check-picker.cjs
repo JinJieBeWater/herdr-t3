@@ -41,8 +41,7 @@ const panes = [
   { pane: "p3", tab: "c1", terminal: "t3", program: zsh, focused: false },
 ];
 const shared = {}, calls = [];
-const timers = [];
-const cx = { notify() {}, stop_propagation() {}, timer: { after: (ms, fn) => timers.push(fn) } };
+const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
@@ -103,10 +102,6 @@ assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]]);
 shared["t3-picker.back"] = "p9";
 assert.ok(!keys(open()).some((k) => k.startsWith("back:")));
 
-// As T3's palette it fades in: drawn clear first, then shown.
-timers.length = 0;
-const faded = open();
-assert.equal(faded.render().opacity, 0);
-timers.forEach((fn) => fn(cx));
-assert.equal(faded.render().opacity, 1);
+// Its contents are there from the first frame: a fade leaves the popup blank.
+assert.notEqual(typeof open().render().opacity, "number");
 console.log("ok picker");

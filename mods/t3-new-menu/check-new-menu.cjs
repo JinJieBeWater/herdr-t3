@@ -32,8 +32,7 @@ const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).joi
 let spaces, machines;
 let openProps = {};
 const calls = [], scrolled = [];
-const timers = [];
-const cx = { notify() {}, stop_propagation() {}, timer: { after: (ms, fn) => timers.push(fn) } };
+const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
@@ -115,10 +114,6 @@ find(m.render(), "space-new").handlers.click({}, cx);
 assert.deepEqual(take(), [["space.new", { machine: "" }]]);
 assert.ok(text(open().render()).includes("⌘N"), "⌘N beside a button that does the same");
 
-// As T3's palette it fades in: drawn clear first, then shown.
-timers.length = 0;
-m = open();
-assert.equal(m.render().opacity, 0);
-timers.forEach((fn) => fn(cx));
-assert.equal(m.render().opacity, 1);
+// Its contents are there from the first frame: a fade leaves the popup blank.
+assert.notEqual(typeof open().render().opacity, "number");
 console.log("ok new menu");

@@ -48,8 +48,7 @@ const env = {
 };
 const source = ["tip.js", "focus.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
-const timers = [];
-const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { after: (ms, fn) => timers.push(fn) } };
+const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }) };
 const load = (props = {}) => {
   const context = vm.createContext({ ...env, props: () => props });
   vm.runInContext(source, context, { filename: "main.js" });
@@ -97,11 +96,8 @@ assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
 
 // The editor saves an edit in place, and a new one at the end.
 fields.length = 0;
-timers.length = 0;
 const edit = load({ actions: "edit", id: "a" });
-assert.equal(edit.render().style.opacity, 0, "drawn clear first");
-timers.forEach((fn) => fn(cx));
-assert.equal(edit.render().style.opacity, 1, "then it fades in, as T3's dialog");
+assert.equal(edit.render().style.opacity, undefined, "its contents are there from the first frame");
 fields[1].text = "bun run dev";
 fire(find(edit.render(), "action-save"), "on_click");
 assert.equal(state["t3-actions"].list[0].command, "bun run dev");

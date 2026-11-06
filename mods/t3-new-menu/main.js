@@ -31,12 +31,9 @@ const SHOWN = 6; // rows before the list scrolls; a virtual list has no height o
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
 
 export default class NewMenu extends View {
-  init(_props, cx) {
+  init() {
     this.at = 0;
     this.filter = "";
-    // As T3's palette it fades in; a transition only eases later changes, so it draws clear first.
-    this.shown = false;
-    cx.timer.after(34, (cx) => { this.shown = true; cx.notify(); });
     this.picking = Boolean(props()?.pick); // choosing the machine for a new space; the sidebar's New space opens here
     this.scroll = VirtualListScrollHandle.new();
     const field = (placeholder) => {
@@ -129,7 +126,6 @@ export default class NewMenu extends View {
     const footButton = (id, label) => h_flex().id(id).gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(label).hover(s => s.bg(t.selected));
     return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)
-      .opacity(this.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down" || e.key === "up") {

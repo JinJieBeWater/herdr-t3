@@ -129,9 +129,6 @@ function initEditor(view, cx) {
     return [k, input];
   });
   view.inputs[0][1].focus();
-  // As T3's dialog it fades in; a transition only eases later changes, so it draws clear first.
-  view.shown = false;
-  cx.timer.after(34, (cx) => { view.shown = true; cx.notify(); });
 }
 
 function saveEditor(view) {
@@ -163,7 +160,6 @@ function editorView(view) {
       .cursor_pointer().hover(s => s.opacity(0.88)).role("button").accessibility_label(text).on_click(act).child(text), 8);
   };
   return focusRoot(view, v_flex().id("action-editor").size_full().p(18).gap(14).bg(t.popover).text_size(13)
-    .opacity(view.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
     .child(h_flex().items_center()
       .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child(view.action ? "Edit action" : "Add action"))
       .child(div().text_size(11).text_color(t.dim).child("Esc")))

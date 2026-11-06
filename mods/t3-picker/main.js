@@ -23,12 +23,9 @@ function settled(p) {
 }
 
 export default class Picker extends View {
-  init(_props, cx) {
+  init() {
     this.at = null;
     this.filter = "";
-    // As T3's palette it fades in; a transition only eases later changes, so it draws clear first.
-    this.shown = false;
-    cx.timer.after(34, (cx) => { this.shown = true; cx.notify(); });
     this.scroll = VirtualListScrollHandle.new();
     this.input = InputState.new({ placeholder: "Search terminals…" });
     this.input.on("change", (_e, cx) => { this.filter = this.input.value(); this.at = 0; this.scroll.scroll_to_item(0); cx.notify(); });
@@ -100,7 +97,6 @@ export default class Picker extends View {
     const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
     return v_flex().id("picker").size_full().min_h(0).bg(t.popover).text_size(13)
-      .opacity(this.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-in-out" })
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         if (e.key === "down" || e.key === "up") {
