@@ -139,7 +139,7 @@ export default class Tabs extends View {
     this.over = null;
     this.strip = 0;
     this.nameW = {};
-    this.lastAgent = {};
+    this.trail = {};
     if (props()?.part !== "measure") stopsInit(this, cx);
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
@@ -150,6 +150,9 @@ export default class Tabs extends View {
         else if (command === "close-pane") await this.closePane(focused()?.pane, cx);
         else if (command.startsWith("close-tab:")) await this.closeTab(command.slice("close-tab:".length), cx);
         else if (command.startsWith("close-pane:")) await this.closePane(command.slice("close-pane:".length), cx);
+        // What a close's dialog runs, once the person has said yes.
+        else if (command.startsWith("close-tab-now:")) await this.closeTabNow(command.slice("close-tab-now:".length), { confirmed: true }, cx);
+        else if (command.startsWith("close-pane-now:")) await this.closePaneNow(command.slice("close-pane-now:".length), cx);
         else if (command === "home") await goHome(cx);
         // New work doesn't start in Home: New picks its space.
         else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
@@ -167,7 +170,7 @@ export default class Tabs extends View {
   }
 
   // As T3's confirmTerminalClose: `Close terminal "Pi"?` or `Close 2 terminals?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
-  ask(names, more, command, args, cx) {
+  ask(names, more, command, cx) {
     // The dialog covers it, nothing reports the leaving until the pointer moves, and the × stops the press that would close the card.
     this.overTab = this.hot = null;
     detailsFor(this, null, cx);
@@ -176,7 +179,7 @@ export default class Tabs extends View {
     const [title, detail] = names.length === 1
       ? [`Close terminal "${fit(names[0])}"?`, "This stops the running process and clears its history."]
       : [`Close ${names.length} terminals?`, `This stops their running processes and clears their histories: ${names.map(n => `"${n}"`).join(", ")}.`];
-    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title, detail: detail + more, command: { name: command, args } } });
+    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title, detail: detail + more, command: { name: command } } });
   }
 
   // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
@@ -188,8 +191,36 @@ export default class Tabs extends View {
     const live = mine.filter(p => p.terminal), empty = await Promise.all(live.map(p => atPrompt(p.terminal)));
     // A lone pane goes by its tab's name, as the tab shows it.
     const names = live.filter((_, k) => !empty[k]).map(p => mine.length === 1 ? nameOf(c, p) : namer()(p));
-    if (names.length === 0) return run("tab.close", { id });
-    this.ask(names, space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : "", "tab.close", { id, confirmed: true }, cx);
+    if (names.length === 0) return this.closeTabNow(id, {}, cx);
+    this.ask(names, space.tabs.length === 1 ? " It's the space's last tab, so the space closes too." : "", `t3-tabs.close-tab-now:${id}`, cx);
+  }
+
+  async closeTabNow(id, args, cx) {
+    await this.leave(id, cx);
+    run("tab.close", { id, ...args });
+  }
+
+  async closePaneNow(pane, cx) {
+    const ps = panes(), tab = ps.find(p => p.pane === pane)?.tab;
+    if (ps.filter(p => p.tab === tab).length === 1) await this.leave(tab, cx);
+    run("pane.close", { pane });
+  }
+
+  // Going first, so Herdr's neighbour never shows: being shown costs an agent its unread done, one the bar hides included.
+  async leave(id, cx) {
+    const space = spaces().find(s => s.active);
+    // Out of view, closing it moves nothing. A space's last tab takes the space, and Herdr may still ask.
+    if (!inboxShown() || atHome() || !space?.tabs.find(c => c.id === id)?.active || space.tabs.length === 1) return;
+    if (agents().some(a => a.tab === id)) return goHome(cx);
+    this.goBack(space.id, id);
+  }
+
+  // Back to where the person was before a tab with no agent. Nowhere remembered: Herdr's pick stands.
+  goBack(space, from) {
+    const back = this.trail[space]?.find(id => id !== from && spaces().some(s => s.tabs.some(c => c.id === id)));
+    if (!back) return;
+    this.going = { tab: back, until: Date.now() + 500 };
+    run("tab.select", { id: back });
   }
 
   async closePane(pane, cx) {
@@ -203,32 +234,48 @@ export default class Tabs extends View {
       run("pane.split", { direction: "right", pane, mod: "t3-home" });
     }
     // A space's last pane closes the space, and Herdr asks that itself.
-    if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return run("pane.close", { pane });
-    this.ask([namer()(p)], "", "pane.close", { pane }, cx);
+    if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return this.closePaneNow(pane, cx);
+    this.ask([namer()(p)], "", `t3-tabs.close-pane-now:${pane}`, cx);
+  }
+
+  // Where the person has been, once a frame, by what the app reports: each space's tabs, latest shown first. The one memory
+  // the bar keeps; which agent it holds and where a close lands both read from it, so they can't disagree.
+  // shortcut: it's gone after a restart, so Herdr's pick stands until a tab has been shown; upgrade if that matters.
+  track() {
+    const all = spaces(), space = all.find(s => s.active), tab = space?.tabs.find(c => c.active), home = atHome();
+    const alive = (id) => all.some(s => s.tabs.some(c => c.id === id));
+    const was = this.inView;
+    // For the closes this mod doesn't make, which leave() can't go ahead of: the tab's menu, the program ending. Herdr has
+    // already picked the neighbour, and it may have been shown.
+    if (was && all.length && !alive(was.tab) && inboxShown() && !home) {
+      // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
+      if (was.agent) run("t3-tabs.home");
+      else if (space?.id === was.space) this.goBack(was.space, was.tab);
+    }
+    if (this.going && (tab?.id === this.going.tab || Date.now() > this.going.until)) this.going = null;
+    // Until a close's target shows, what shows is Herdr's pick, not somewhere the person went.
+    if (space && tab && !home && !this.going) this.trail[space.id] = [tab.id, ...(this.trail[space.id] ?? []).filter(id => id !== tab.id && alive(id))];
+    this.inView = tab && !home ? { tab: tab.id, space: space.id, agent: agents().some(a => a.tab === tab.id) } : null;
   }
 
   // With the Inbox showing, cards lead to the agents, so the bar holds what's around the work in view: the agent, its
-  // sub-agents' tabs, then the tabs with no agent in their own order. In a program's tab the agent is the one last looked
-  // at in this space, so the way back stays in reach. Home has no tabs to show.
-  // shortcut: that memory is gone after a restart, until an agent is looked at again; upgrade if landing in a program's tab after one matters.
+  // sub-agents' tabs, then the tabs with no agent in their own order. In a tab with no agent, the agent is the one last
+  // looked at in this space, so the way back stays in reach. Home has no tabs to show.
   visibleTabs() {
     const space = spaces().find(s => s.active);
     if (!space || atHome()) return [];
     if (!inboxShown()) return space.tabs;
     const every = agents(), all = terminals(), f = focused();
-    const here = every.filter(a => a.tab === space.tabs.find(c => c.active)?.id);
+    const shownTab = this.going?.tab ?? space.tabs.find(c => c.active)?.id;
+    const inTab = [shownTab, ...(this.trail[space.id] ?? [])].find(id => every.some(a => a.tab === id));
+    const here = every.filter(a => a.tab === inTab);
     const viewed = here.find(a => a.focused) ?? here.find(a => a.address === f?.agent) ?? here[0];
-    if (viewed) {
-      // A sub-agent counts as the agent at its top.
-      const byAddress = new Map(all.map(k => [k.address, k]));
-      const seen = new Set();
-      let top = viewed.address;
-      while (!seen.has(top) && byAddress.get(byAddress.get(top)?.parent)?.state === "live") { seen.add(top); top = byAddress.get(top).parent; }
-      this.lastAgent[space.id] = top;
-    }
-    const current = this.lastAgent[space.id];
-    const family = new Set([current, ...descendants(all, current).map(k => k.address)]);
-    const lead = space.tabs.find(c => c.id === every.find(a => a.address === current)?.tab);
+    // A sub-agent counts as the agent at its top.
+    const byAddress = new Map(all.map(k => [k.address, k])), seen = new Set();
+    let top = viewed?.address;
+    while (!seen.has(top) && byAddress.get(byAddress.get(top)?.parent)?.state === "live") { seen.add(top); top = byAddress.get(top).parent; }
+    const family = new Set([top, ...descendants(all, top).map(k => k.address)]);
+    const lead = space.tabs.find(c => c.id === every.find(a => a.address === top)?.tab);
     const kin = space.tabs.filter(c => c !== lead && every.some(a => a.tab === c.id && family.has(a.address)));
     return [...(lead ? [lead] : []), ...kin, ...space.tabs.filter(c => !every.some(a => a.tab === c.id))];
   }
@@ -239,15 +286,6 @@ export default class Tabs extends View {
     const list = this.visibleTabs();
     if (!list.length) return;
     run("tab.select", { id: list[(list.findIndex(c => c.active) + by + list.length) % list.length].id });
-  }
-
-  // Closing the agent in view lands on Home, as settling it does: what to look at next stays the person's to say. By what
-  // the app reports, so every way to close counts: ×, a key, the tab's menu, the picker, its dialog, the program ending.
-  // Herdr has picked a neighbour by then, which may show for a frame.
-  landOnClose() {
-    const all = spaces(), tab = all.find(s => s.active)?.tabs.find(c => c.active);
-    if (this.viewedTab && all.length && !atHome() && !all.some(s => s.tabs.some(c => c.id === this.viewedTab))) run("t3-tabs.home");
-    this.viewedTab = inboxShown() && !atHome() && tab && agents().some(a => a.tab === tab.id) ? tab.id : null;
   }
 
   // Each tab's width: its whole name while the room allows, else the longest names give way first.
@@ -318,8 +356,8 @@ export default class Tabs extends View {
     const t = theme();
     const space = spaces().find(p => p.active);
     // At Home, none: its place is told by the brand bar's button and its pane's header.
+    if (!props()?.part) this.track();
     const shown = this.visibleTabs(), inbox = inboxShown();
-    if (!props()?.part) this.landOnClose();
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
     if (this.hot?.startsWith("close-") && !shown.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).

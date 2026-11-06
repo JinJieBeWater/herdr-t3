@@ -1644,13 +1644,17 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([asked.mod, asked.props.title], ["confirm", "Close 2 terminals?"], "as T3's: what ends, counted");
     assert.match(asked.props.detail, /^This stops their running processes and clears their histories: ".+", ".+"\.$/);
     assert.doesNotMatch(asked.props.detail, /space closes/);
-    assert.deepEqual(plain(asked.props.command), { name: "tab.close", args: { id: "a", confirmed: true } }, "so the space's own ask can't follow");
+    assert.deepEqual(plain(asked.props.command), { name: "t3-tabs.close-tab-now:a" });
+    await say("close-tab-now:a");
+    assert.deepEqual(f.calls.pop(), ["tab.close", { id: "a", confirmed: true }], "so the space's own ask can't follow");
     await say("close-pane");
     assert.deepEqual(f.closed.length, 1, "a second ask replaces the first");
     asked = f.overlays.pop();
-    assert.deepEqual(plain(asked.props.command), { name: "pane.close", args: { pane: "p1" } });
+    assert.deepEqual(plain(asked.props.command), { name: "t3-tabs.close-pane-now:p1" });
+    await say("close-pane-now:p1");
+    assert.deepEqual(f.calls.pop(), ["pane.close", { pane: "p1" }]);
     await say("close-pane:p2");
-    assert.deepEqual(plain(f.overlays.pop().props.command.args), { pane: "p2" }, "the pane header's × names its pane");
+    assert.deepEqual(plain(f.overlays.pop().props.command), { name: "t3-tabs.close-pane-now:p2" }, "the pane header's × names its pane");
     assert.deepEqual(f.calls, [], "nothing closes before the answer");
     Object.assign(view, { overTab: "a", details: "a" });
     await say("close-tab");
@@ -1689,10 +1693,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.overlays.pop().props.title.startsWith("Close terminal "), true, "only what's running counts");
     fg = () => own;
     await say("close-pane:p1");
-    assert.equal(f.overlays.pop().props.command.name, "pane.close", "a program that is the terminal is no prompt");
+    assert.ok(f.overlays.pop().props.command.name.startsWith("t3-tabs.close-pane-now:"), "a program that is the terminal is no prompt");
     fg = () => { throw new Error("no answer"); };
     await say("close-pane:p1");
-    assert.equal(f.overlays.pop().props.command.name, "pane.close", "no answer asks");
+    assert.ok(f.overlays.pop().props.command.name.startsWith("t3-tabs.close-pane-now:"), "no answer asks");
     Object.assign(f.shown, { tab: undefined, pane: undefined });
     f.calls.length = 0;
     await say("close-tab"); await say("close-pane");
@@ -1940,7 +1944,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     close("other"); view.render(cx);
     assert.deepEqual(taken(), [], "another tab closing stays put");
     pick("prog"); view.render(cx); close("rev"); view.render(cx);
-    assert.deepEqual(taken(), [], "so does a program's tab");
+    assert.deepEqual(taken(), [], "so does a tab with no agent that isn't in view");
     pick("mine", "A"); view.render(cx);
     close("mine"); pick("prog"); view.render(cx);
     assert.deepEqual(taken(), [["t3-tabs.home", {}]], "the agent in view closing goes Home, past Herdr's neighbour");
@@ -1948,6 +1952,67 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken(), [], "once");
     inbox(false); pick("kid", "K"); view.render(cx); close("kid"); pick("prog"); view.render(cx);
     assert.deepEqual(taken(), [], "Lists keeps Herdr's neighbour");
+  }
+
+  // Closing a tab with no agent goes back where the person was, not to the neighbour Herdr picks, which isn't somewhere they went.
+  {
+    const f = fixture(256), program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs, ctx = cx;
+    tabs.splice(0, tabs.length, ...["mine", "prog", "new", "other"].map(id => ({ id, name: id, named: true, active: false })));
+    const list = [["A", "mine"], ["B", "other"]].map(([address, tab]) => ({ address, pane: `p-${tab}`, tab, space: "s0", space_name: "project 0", title: tab, status: "idle", program, state: "live", focused: false }));
+    f.agents().splice(0, f.agents().length, ...list);
+    f.terminals().splice(0, f.terminals().length, ...list);
+    f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+    const view = f.load("t3-tabs");
+    const taken = () => JSON.parse(JSON.stringify(f.calls.splice(0)));
+    const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; view.render(ctx); };
+    const shown = () => find(view.render(ctx), "tab-strip").items.map(n => walk(n).map(x => x.key).find(k => /^tab-/.test(k ?? "")).slice(4));
+    const gone = (id) => tabs.splice(tabs.findIndex(c => c.id === id), 1);
+
+    pick("mine", "A"); pick("new"); taken();
+    gone("new"); pick("prog");
+    assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "opened from the agent, closed: back to the agent");
+    pick("mine", "A"); taken();
+
+    tabs.splice(2, 0, { id: "new", name: "new", named: true, active: false });
+    pick("prog"); pick("new"); taken();
+    gone("new"); pick("other", "B");
+    assert.deepEqual(taken(), [["tab.select", { id: "prog" }]], "the neighbour's an agent: still back to where they were");
+    assert.deepEqual(shown(), ["mine", "prog"], "and while it goes, the neighbour doesn't take the bar's place");
+    pick("prog"); taken();
+    assert.deepEqual(shown(), ["mine", "prog"], "the agent the bar holds is still the one they last looked at");
+
+    // A close this mod makes goes first, so Herdr's neighbour is never shown: that would cost an agent its unread done.
+    {
+      const spawn = ctx.spawn, jobs = [];
+      ctx.spawn = fn => jobs.push(fn);
+      const closer = f.load("t3-tabs");
+      ctx.spawn = spawn;
+      const say = async command => { f.commands.push(command); jobs[0](ctx); await new Promise(resolve => setImmediate(resolve)); };
+      const see = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; closer.render(ctx); };
+      tabs.splice(2, 0, { id: "new", name: "new", named: true, active: false });
+      f.panes().push({ pane: "p-new", terminal: null, mod: "x", tab: "new", title: "x" });
+      see("mine", "A"); see("new"); taken();
+      await say("close-tab:new");
+      assert.deepEqual(taken(), [["tab.select", { id: "mine" }], ["tab.close", { id: "new" }]], "back first, then the close");
+      await say("close-pane:p-new");
+      assert.deepEqual(taken(), [["tab.select", { id: "mine" }], ["pane.close", { pane: "p-new" }]], "a tab's lone pane too");
+      see("prog"); taken();
+      await say("close-tab:new");
+      assert.deepEqual(taken(), [["tab.close", { id: "new" }]], "out of view, closing it moves nothing");
+      f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [{ id: "hp", name: "Home" }] });
+      see("mine", "A"); taken();
+      await say("close-tab-now:mine");
+      assert.deepEqual(taken(), [["space.select", { id: "h" }], ["tab.close", { id: "mine", confirmed: true }]], "the agent in view: Home first, then the close");
+      f.spaces().pop(); delete f.state["t3-home.space"]; f.panes().pop(); gone("new");
+    }
+
+    // Nowhere to go back to, as after a restart: Herdr's pick stands.
+    const fresh = f.load("t3-tabs");
+    fresh.render(ctx); taken();
+    gone("prog"); tabs.forEach(c => { c.active = c.id === "mine"; }); fresh.render(ctx);
+    assert.deepEqual(taken(), [], "no memory, no jump");
   }
 
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle, Home.");
