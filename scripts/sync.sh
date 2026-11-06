@@ -9,28 +9,17 @@ review=${HERDR_PULLS_REVIEW:-$src/../herdr-pulls-review}
 app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 
-# t3-inbox/name.js and tree.js are the one naming and status rules; a mod can't import outside its folder, so each gets a copy.
-for m in t3-agents t3-tabs t3-pane t3-picker; do cp "$src/mods/t3-inbox/name.js" "$src/mods/t3-inbox/tree.js" "$src/mods/$m/"; done
-# t3-inbox/project.js is the one space mark.
-for m in t3-agents t3-picker t3-spaces t3-new-menu; do cp "$src/mods/t3-inbox/project.js" "$src/mods/$m/"; done
-
-# t3-inbox/tip.js is the one hover label.
-for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home extras/mods/pulls-review extras/mods/review; do cp "$src/mods/t3-inbox/tip.js" "$src/$d/"; done
-
-# t3-inbox/details.js is the one details card and its timing.
-for d in mods/t3-agents mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/t3-inbox/details.js" "$src/$d/"; done
-
-# t3-inbox/motion.js is the one list motion and fold arrow.
-for d in mods/t3-agents mods/t3-spaces; do cp "$src/mods/t3-inbox/motion.js" "$src/$d/"; done
-
-# t3-inbox/focus.js is the one keyboard focus.
-for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home; do cp "$src/mods/t3-inbox/focus.js" "$src/$d/"; done
-
-# t3-inbox/list.js is the one way a popup's list moves.
-for d in mods/t3-agents mods/t3-actions mods/t3-new-menu mods/t3-picker extras/mods/pulls-review extras/mods/review; do cp "$src/mods/t3-inbox/list.js" "$src/$d/"; done
-
-# t3-inbox/zoom.js is the one way focus brings a zoom along.
-for d in mods/t3-agents mods/t3-tabs mods/t3-picker extras/mods/pulls-review; do cp "$src/mods/t3-inbox/zoom.js" "$src/$d/"; done
+# shared/ holds one source for what several mods use; a mod can't import outside its folder, so each gets a copy.
+share() { f=$1; shift; for d; do cp "$src/shared/$f.js" "$src/$d/"; done; }
+share name mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
+share tree mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
+share project mods/t3-inbox mods/t3-agents mods/t3-picker mods/t3-spaces mods/t3-new-menu
+share tip mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home extras/mods/pulls-review extras/mods/review
+share details mods/t3-inbox mods/t3-agents mods/t3-tabs extras/mods/pulls-review
+share motion mods/t3-inbox mods/t3-agents mods/t3-spaces
+share focus mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home
+share list mods/t3-inbox mods/t3-agents mods/t3-actions mods/t3-new-menu mods/t3-picker extras/mods/pulls-review extras/mods/review
+share zoom mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-picker extras/mods/pulls-review
 
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$inbox/mods/t3-inbox/"

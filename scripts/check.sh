@@ -7,10 +7,10 @@ app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 cd "$src"
 fail=0
 
-# t3-inbox holds the one source; scripts/sync.sh makes the copies.
-for m in name tree project tip details motion focus list zoom; do
-  for c in $(find mods extras/mods -name "$m.js"); do
-    cmp -s "mods/t3-inbox/$m.js" "$c" || { echo "FAIL $c differs from mods/t3-inbox/$m.js: edit that one, then run scripts/sync.sh"; fail=1; }
+# shared/ holds the one source; scripts/sync.sh makes the copies.
+for s in shared/*.js; do
+  for c in $(find mods extras/mods -name "$(basename "$s")"); do
+    cmp -s "$s" "$c" || { echo "FAIL $c differs from $s: edit that one, then run scripts/sync.sh"; fail=1; }
   done
 done
 
@@ -18,7 +18,7 @@ for d in mods/t3-*/ extras/mods/*/; do
   out=$(herdr-app check "$d" 2>&1) || { echo "FAIL herdr-app check $d"; echo "$out" | tail -20; fail=1; }
 done
 
-for f in $(find mods extras/mods -name 'check*.cjs'); do
+for f in $(find shared mods extras/mods -name 'check*.cjs'); do
   out=$(cd "$app" && node "$src/$f" 2>&1) || { echo "FAIL $f"; echo "$out" | tail -20; fail=1; }
 done
 

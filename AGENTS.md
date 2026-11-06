@@ -2,7 +2,7 @@
 
 ## Shared modules
 
-A `.js` found in several mods (`tip.js`, `focus.js`, …) has one source in `mods/t3-inbox/`: a mod can't import outside its folder, so `scripts/sync.sh` copies it. Edit the source, then sync. `scripts/check.sh` fails on a copy that differs.
+A `.js` found in several mods (`tip.js`, `focus.js`, …) has one source in `shared/`: a mod can't import outside its folder, so `scripts/sync.sh` copies it. Edit the source and its checks there, then sync. `scripts/check.sh` fails on a copy that differs.
 
 ## Finishing a change
 
