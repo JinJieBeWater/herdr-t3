@@ -111,7 +111,7 @@ export default class Tabs extends View {
   // As T3's confirmTerminalClose: `Close terminal "Pi"?` or `Close 2 terminals?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
   ask(names, more, command, args, cx) {
     // The dialog hides the pointer's leaving, and the × stops the press that would close the card.
-    this.overTab = null;
+    this.overTab = this.hot = null;
     detailsFor(this, null, cx);
     cx.notify();
     if (this.asking) closeOverlay(this.asking);
@@ -210,6 +210,8 @@ export default class Tabs extends View {
     const t = theme();
     const space = spaces().find(p => p.active);
     const shown = space?.tabs ?? [];
+    // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
+    if (this.hot?.startsWith("close-") && !shown.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).
     const every = agents(), all = terminals(), under = subAgents(every, all);
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
@@ -242,6 +244,8 @@ export default class Tabs extends View {
       // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
       // (the tab's 6px padding, 16px icon slot and 2px gap, less the label's 1px border and 8px padding). Up from the hover on: a Popup must
       // have measured its anchor before the frame a label starts to fade in. It says the status too, as × covers the mark while it shows.
+      // Only what the tab isn't showing: a name cut short or that status. Not yet measured counts as cut.
+      const says = status || !(widths.get(c.id) >= Math.ceil(this.nameW[c.id]) + TAB_CHROME);
       const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(6 + 16 + 2 - (1 + 8)).size(1)
         .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(div().id(`details-card-${c.id}`)
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
@@ -251,7 +255,7 @@ export default class Tabs extends View {
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
-          if (on) { this.overTab = c.id; detailsFor(this, c.id, cx); }
+          if (on) this.overTab = c.id;
           else if (this.overTab === c.id) { this.overTab = null; detailsFor(this, null, cx); }
           cx.notify();
         })
@@ -279,17 +283,21 @@ export default class Tabs extends View {
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .child(div().size(16).flex_none().flex().items_center().justify_center().child(glyph))
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
-        .child(div().flex_1().min_w(0).truncate().child(label))
-        .child(div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised))
+        // The card belongs to the icon and name, as T3's and Zed's: on the way to the × it goes.
+        .child(h_flex().id(`label-${c.id}`).flex_1().min_w(0).h_full().gap(2).items_center()
+          .on_hover((on, cx) => { detailsFor(this, on && says ? c.id : null, cx); cx.notify(); })
+          .child(div().size(16).flex_none().flex().items_center().justify_center().child(glyph))
+          .child(div().flex_1().min_w(0).truncate().child(label)))
+        // Its label waits longer than a card's 150ms, so a straight click never meets it. Its key closes the active tab only.
+        .child(tip(this.hot, t, closeId, "Close tab", div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised)).on_hover(glow(this, closeId))
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stopPress).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
           .when(over, el => el.child(svg("mods/t3-tabs/x.svg").size(12).text_color(t.foreground)))
           .when(!over && status != null, el => el.child(mark(t, status)))
-          .when(over, el => stop(this, t, closeId, el, 4)))
+          .when(over, el => stop(this, t, closeId, el, 4)), { action: c.active ? "t3-tabs.close-tab" : undefined, below: true, delay: 500 }))
         .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
       // A tab goes by its mouse-up, which a key isn't.
       return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });

@@ -1149,7 +1149,9 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
     assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "the tab's icon, a terminal's when it has no program");
-    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
+    // The pointer on a tab's name is on the tab too; the card goes by the name, the × by the tab.
+    const hoverName = (id, on) => { fire(find(tabs.render(cx), `tab-${id}`), "on_hover", on, cx); fire(find(tabs.render(cx), `label-${id}`), "on_hover", on, cx); };
+    hoverName("other", true);
     assert.equal(close().items[0].source, "mods/t3-tabs/x.svg", "hovered, a ×");
     assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/terminal.svg"), "and the icon stays");
     assert.equal(find(tabs.render(cx), "tab-other").style.text_color, f.theme().foreground);
@@ -1163,16 +1165,16 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(tabCard("other").style.mt, 4);
     assert.deepEqual(strings(tabCard("other")), ["other"], "only its whole name: the project and branch are in the sidebar");
     assert.deepEqual([find(tabs.render(cx), "details-other").style.bottom, find(tabs.render(cx), "details-other").style.left, find(tabs.render(cx), "details-other").style.size], [0, 15, 1], "a Popup hangs from the tab's bottom, its words under the tab's name");
-    fire(find(tabs.render(cx), "tab-b0"), "on_hover", true, cx);
+    hoverName("b0", true);
     assert.equal(tabCard("b0").style.opacity, 1, "the next tab's opens at once");
-    fire(find(tabs.render(cx), "tab-b0"), "on_hover", false, cx);
-    fire(find(tabs.render(cx), "tab-other"), "on_hover", true, cx);
+    hoverName("b0", false);
+    hoverName("other", true);
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_down:left", { click_count: 1 }, cx);
     assert.equal(tabCard("other"), undefined, "a press puts it away");
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_up:left", {}, cx);
     f.calls.pop();
-    assert.ok(find(tabs.render(cx), "tab-other").items.some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
-    fire(find(tabs.render(cx), "tab-other"), "on_hover", false, cx);
+    assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
+    hoverName("other", false);
     assert.equal(close().items.length, 0, "the × goes with the pointer");
     fire(close(), "on_click", {}, cx);
     assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:other", {}], "the × goes through the tab bar's answer");
@@ -1190,6 +1192,41 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(spaces.render(cx), id), "on_mouse_down:left", {}, cx);
     fire(find(spaces.render(cx), "space-list"), "on_hover", false, cx);
     assert.equal(spaces.pressed, null, "leaving the list ends a space's drag");
+  }
+  {
+    // On the way to a tab's ×, nothing in the way: the name's card goes, and its own label waits.
+    const f = fixture(256), tabs = f.load("t3-tabs");
+    f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
+    const pending = () => cx.timers.filter(t => !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+    const card = () => find(tabs.render(cx), "details-other")?.style.content;
+    const hoverName = (on) => { fire(find(tabs.render(cx), "tab-other"), "on_hover", on, cx); fire(find(tabs.render(cx), "label-other"), "on_hover", on, cx); };
+    tabs.room = 2000;
+    tabs.nameW = Object.fromEntries(f.spaces().flatMap(s => s.tabs).map(c => [c.id, 40]));
+    hoverName(true);
+    pending();
+    assert.equal(card(), undefined, "a name the tab shows whole has no card: it would only repeat it");
+    assert.equal(tabs.details ?? null, null, "nor does it open the next tab's at once");
+    hoverName(false);
+    tabs.room = 300;
+    tabs.nameW.other = 400;
+    hoverName(true);
+    pending();
+    assert.deepEqual(strings(card()), ["other"], "a name cut short does");
+    // The pointer moves on within the tab: off the name, onto the ×.
+    fire(find(tabs.render(cx), "label-other"), "on_hover", false, cx);
+    fire(find(tabs.render(cx), "close-other"), "on_hover", true, cx);
+    assert.equal(card(), undefined, "the × puts the card away at once");
+    const label = find(tabs.render(cx), "tip-close-other");
+    assert.deepEqual(strings(label.style.content), ["Close tab"], "and has its own label, without the key: it closes the active tab only");
+    assert.deepEqual([label.style.open_delay, label.style.anchor], [500, "top_center"], "waiting long enough for a straight click");
+    fire(find(tabs.render(cx), "close-other"), "on_hover", false, cx);
+    fire(find(tabs.render(cx), "label-other"), "on_hover", true, cx);
+    pending();
+    assert.deepEqual(strings(card()), ["other"], "back on the name, it returns");
+    // A tab gone from under the pointer reports no leaving; every other tab's card still has to open.
+    tabs.hot = "close-gone";
+    tabs.render(cx);
+    assert.equal(tabs.hot, null);
   }
   {
     // A person's close asks when it ends terminals, as T3's; only the dialog's command closes.
