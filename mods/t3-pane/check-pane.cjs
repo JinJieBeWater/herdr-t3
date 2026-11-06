@@ -71,7 +71,7 @@ find(header.render(), "ph-z-p2").handlers.click({}, cx);
 assert.deepEqual(take(), [["pane.zoom", { pane: "p2" }]]);
 header.hot = "ph-x-p2";
 find(header.render(), "ph-x-p2").handlers.click({}, cx);
-assert.equal(header.hot, null, "the dialog hides the pointer's leaving, so its label goes with the click");
+assert.equal(header.hot, null, "the dialog covers it and the pointer may not move, so its label goes with the click");
 assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]], "the tab bar asks first");
 
 // Names: Pi session, else (agents only) a named tab, else a telling title, else the program.

@@ -105,8 +105,8 @@ function fixture() {
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async (args) => { f.labelled.push(args.join(" ")); return { code: 0 }; }, nextCommand: () => new Promise(() => {}),
   };
-  // tree.js, project.js, tip.js, details.js and focus.js, the shared status, space-mark, hover-label, details and keyboard rules, are inlined as each mod's own copies are.
-  const tree = ["tree.js", "project.js", "tip.js", "details.js", "focus.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  // tree.js, project.js, tip.js, details.js, focus.js and motion.js, the shared status, space-mark, hover-label, details, keyboard and motion rules, are inlined as each mod's own copies are.
+  const tree = ["tree.js", "project.js", "tip.js", "details.js", "focus.js", "motion.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
@@ -1241,4 +1241,29 @@ test("a far-off snooze wakes on time: its timer is re-armed a day at a time", ()
   assert.ok(armed().includes(86400000));
   assert.ok(!armed().some((ms) => ms > 86400000));
   assert.equal(f.mod.nextWake, 1000 + 3 * 86400000);
+});
+
+test("a hover label fades in once laid out, afresh each time it opens", () => {
+  const f = fixture(); f.add("A", "idle", 100);
+  const walk = (n) => (n && typeof n === "object" ? [n, ...n.items.flatMap(walk)] : []);
+  const body = () => walk(f.mod.render(f.cx)).find((n) => n.key?.startsWith("tip-body-inbox-scope-"));
+  assert.equal(body(), undefined, "closed: no label");
+  f.mod.hot = "inbox-scope";
+  const first = body();
+  assert.deepEqual(first.style.opacity, [0], "drawn clear first: a transition adopts the first value it sees");
+  assert.equal(body().key, first.key, "the same opening keeps its id");
+  first.handlers.on_size_change({ width: 40, height: 20 }, f.cx);
+  assert.deepEqual(body().style.opacity, [1]);
+  f.mod.hot = null; f.mod.render(f.cx);
+  f.mod.hot = "inbox-scope";
+  const again = body();
+  assert.notEqual(again.key, first.key, "reopened, a new id: a size reports only an id's first layout");
+  assert.deepEqual(again.style.opacity, [0]);
+});
+
+test("past 40 rows coming and going at once, they just show", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  for (let i = 0; i < 41; i++) f.add(`N${i}`, "idle", 200 + i);
+  f.render();
+  assert.equal(Object.keys(f.mod.motion.fly).length, 0);
 });

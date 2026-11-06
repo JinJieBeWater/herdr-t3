@@ -16,6 +16,7 @@ import { modStatus, namer, programOf } from "./name.js";
 import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
+import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
 
@@ -614,7 +615,7 @@ export default class Inbox extends View {
     // As T3's pick: a duration counts from the click; a time that passed since the menu was drawn is refused.
     const pick = (a, p, cx) => {
       if (p.custom) {
-        // A dialog over the card hides the pointer's leaving it.
+        // A dialog covers the card, and nothing reports leaving it until the pointer moves.
         this.napMenu = this.hovered = this.hot = null;
         this.detailsFor(null, cx);
         openOverlay({ mod: "t3-inbox", kind: "dialog", width: 384, height: 310, props: { customSnooze: a.address } });
@@ -710,7 +711,6 @@ export default class Inbox extends View {
       return pinTo(xs.slice(upper && a.address !== d?.from ? i : i + 1).find((x) => x !== d?.from));
     };
     // The gap: a card and the list's 2px in Pinned and Active, a slim row in Settled (stacked without gaps).
-    const MOTION = { duration: 150, easing: "ease-out" };
     const cardH = lifted && !fromShelf ? d.height : this.cardH ?? 78;
     const gap = (key) => div().id(`gap-${key}`).flex_none().h(plan?.gap !== key ? 0 : plan.section === "settled" ? SLIM : cardH + 2)
       .when(dragging, (el) => el.transition("height", MOTION));
@@ -970,7 +970,7 @@ export default class Inbox extends View {
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a))
         .on_click(open(a)).on_size_change((size) => { this.cardH = size.height; }))
         .when(on, (el) => el.bg(t.selected))
-        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
+        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
           .child(avatar(a.space, a.space_name, 16))
           // Lifted, a pin keeps its glyph only while it stays among the pins.
@@ -1016,7 +1016,7 @@ export default class Inbox extends View {
       const base = h_flex().id(`${ghost ? "ghost-" : ""}slim-${a.address}`).h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6);
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
         .when(on, (el) => el.bg(t.selected))
-        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)))
+        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
         .child(h_flex().id(`slim-mark-${a.address}`).size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.4).transition("opacity", MOTION).child(ghost ? mark : tipMark(this, t, `slim-space-${a.address}`, a.space_name, mark, { delay })))
         .child(div().flex_1().min_w(0).truncate().text_color(bright ? t.foreground : t.muted).child(title(a)))
         .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge(this.sweep.action === "unsnooze" ? "wake" : "unsettle")
@@ -1082,47 +1082,12 @@ export default class Inbox extends View {
       return at;
     };
     {
-      const at = place(), sig = [...at].map(([k, v]) => `${k}:${v.kind}`).join("\n"), m = this.motion;
-      if (!m || dragging || this.sweep?.moved || sig === m.sig) this.motion = { exits: [], fly: {}, gen: {}, ...m, sig, at };
-      else {
-        const fly = {}, gen = m.gen, exits = [...m.at].filter(([k]) => !at.has(k)).map(([key, v]) => ({ key, ...v }));
-        const fresh = [...at.keys()].filter((k) => !m.at.has(k));
-        if (fresh.length + exits.length <= 40) {
-          // A row that comes or goes rides with the nearest kept row above it (still, it just fades); with none, 40px.
-          let riding;
-          for (const [k, v] of at) {
-            const was = m.at.get(k), from = this.landed?.key === k ? this.landed.y : was?.y;
-            if (from === undefined) {
-              gen[k] = (gen[k] ?? 0) + 1;
-              fly[k] = { top: riding ?? -Math.min(v.h, 40), fade: true };
-              continue;
-            }
-            riding = from - v.y;
-            if (riding === 0) continue;
-            gen[k] = (gen[k] ?? 0) + 1;
-            fly[k] = { top: riding };
-          }
-          const old = [...m.at.keys()];
-          for (const x of exits) {
-            const above = old.slice(0, old.indexOf(x.key)).reverse().find((k) => at.has(k));
-            x.travel = above === undefined ? Math.min(x.h, 40) : -(fly[above]?.top ?? 0);
-          }
-        }
-        const step = (m.step ?? 0) + 1;
-        this.motion = { sig, at, gen, fly, exits: fresh.length + exits.length <= 40 ? exits : [], step, leaving: false };
-        // A frame drawn where they were, then let go.
-        cx.timer.after(16, (cx) => { if (this.motion.step !== step) return; this.motion.fly = {}; this.motion.leaving = true; cx.notify(); });
-        cx.timer.after(MOTION.duration + 50, (cx) => { if (this.motion.step !== step) return; this.motion.exits = []; cx.notify(); });
-      }
+      planMotion(this, [...place()].map(([key, v]) => ({ key, ...v })), cx, { freeze: dragging || this.sweep?.moved, from: this.landed });
       this.landed = null;
     }
     // A row in its wrapper, which flies: drawn first where it was (or 40px up and clear, coming in), then let go.
     const fly = (key, kind, child) => {
-      const f = this.motion.fly[key];
-      return div().id(`fly-${key}-${this.motion.gen[key] ?? 0}`).flex_none().relative()
-        .top(f?.top ?? 0).opacity(f?.fade ? 0 : 1).transition("top", MOTION).transition("opacity", MOTION)
-        .on_size_change((size) => { this.rowH[`${kind}:${key}`] = size.height / zoom + (kind === "card" || kind === "work" ? 2 : 0); })
-        .child(child);
+      return flying(this, key, child).on_size_change((size) => { this.rowH[`${kind}:${key}`] = size.height / zoom + (kind === "card" || kind === "work" ? 2 : 0); });
     };
     // A row that left, drawn inert where it was and fading out, riding as T3's clones do.
     const leaving = (x) => {
@@ -1212,7 +1177,7 @@ export default class Inbox extends View {
         .child(plan?.gap === "head-settled" ? gap("head-settled") : placeholder("settled", "Settled")))
       .children(lane("settled", rows, (a) => slim(a), 0))
       .when(this.open && put.length > this.limit, (el) => el.child(fly("m:more", "marker", stop(this, t, "settled-more", h_flex().id("settled-more").h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6)
-        .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("settled-more"))
+        .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)).on_hover(glow("settled-more"))
         .role("button").accessibility_label("Show more settled agents")
         .on_click((_e, cx) => {
           this.hot = null; // It may go, before the pointer can report leaving it.

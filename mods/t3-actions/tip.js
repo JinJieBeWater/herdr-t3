@@ -22,12 +22,19 @@ function keyOf(action) {
   }).join(" ");
 }
 
+// The label fades in, as T3's (which also scales, which Herdr can't). A transition adopts the first value it sees, so it draws clear
+// until laid out, which a closed HoverCard isn't. A new id per opening: a size reports only the first time an id is laid out.
+let up = null, opened = 0;
+
 // Above, as T3's. `below` for what has no room up there: a HoverCard doesn't flip as T3's does, it is pushed back over its trigger and closes.
 export function tip(hot, t, id, label, trigger, { action, hint, below, delay = 150 } = {}) {
   const key = action ? keyOf(action) : "";
+  if (hot !== id && up?.id === id) up = null;
+  if (hot === id && up?.id !== id) up = { id, n: ++opened, drawn: false };
   return HoverCard.new(`tip-${id}`).anchor(below ? "top_center" : "bottom_center").open_delay(delay).close_delay(0).trigger(trigger)
-    // Only while lit: a dialog opened from the button hides the pointer's leaving, and the card would stay up over it.
-    .content(hot !== id ? div() : v_flex().when(below, el => el.mt(4)).when(!below, el => el.mb(4)).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
+    // Only while lit: a dialog opened from the button covers it, nothing reports the leaving until the pointer moves, and the card would stay up over it.
+    .content(hot !== id ? div() : v_flex().id(`tip-body-${id}-${up.n}`).opacity(up.drawn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
+      .on_size_change((_size, cx) => { if (up?.id !== id || up.drawn) return; up.drawn = true; cx.notify(); }).when(below, el => el.mt(4)).when(!below, el => el.mb(4)).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
       .child(div().child(key ? `${label} (${key})` : label))
       .when(Boolean(hint), el => el.child(div().text_color(t.muted).child(hint))));
 }

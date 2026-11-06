@@ -92,8 +92,8 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js, project.js, tip.js, details.js and focus.js, the shared naming, status, space-mark, hover-label, details and keyboard rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js, project.js, tip.js, details.js, focus.js and motion.js, the shared naming, status, space-mark, hover-label, details, keyboard and motion rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "motion.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -165,7 +165,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(agent, "pin-t0").handlers.on_click, undefined, "faded out, the pin has no click target");
   assert.equal(find(agent, "pin-t0").style.opacity, 0);
   assert.deepEqual(find(at, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "a parent shows its fold arrow and time before the status, as the shipped list");
-  assert.equal(find(at, "fold-t0").items[0].source, "mods/t3-agents/chevron-down.svg");
+  // T3 turns its arrow; here the two directions cross-fade in one slot.
+  const arrow = (tree, id) => ["down", "right"].filter(w => find(tree, `${id}-${w}`)?.style.opacity === 1);
+  assert.deepEqual(arrow(at, "fold-t0-arrow"), ["down"]);
   assert.deepEqual(strings(find(at, "when-t0")), ["<1m"], "time in its state, as the shipped list");
   fire(agent, "on_hover", true, cx);
   const hoveredTree = ag.render(cx);
@@ -193,15 +195,14 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(at, "fold-t0").style.min_w, 20);
   assert.equal(find(at, "fold-t0").style.h, 20);
   assert.ok(strings(find(at, "fold-t0")).includes("2"), "folded badge counts descendants");
-  assert.equal(find(at, "fold-t0").items[0].source, "mods/t3-agents/chevron-right.svg", "folded, the arrow points right");
-  assert.equal(find(at, "fold-t0").items[1], "2", "and the count follows");
+  assert.deepEqual(arrow(at, "fold-t0-arrow"), ["right"], "folded, the arrow points right");
   assert.equal(find(at, "fold-t0").style.text_color, f.theme().dim, "count is dim");
   // Inside a hovered row a button's own fill doesn't show: its arrow and count brighten together instead.
   fire(find(at, "fold-t0"), "on_hover", true, cx);
   const lit = find(ag.render(cx), "fold-t0");
-  assert.deepEqual([lit.style.text_color, lit.items[0].style.text_color], [f.theme().foreground, f.theme().foreground], "hovered, the arrow and the count brighten together");
+  assert.deepEqual([lit.style.text_color, find(lit, "fold-t0-arrow-right").items[0].style.text_color], [f.theme().foreground, f.theme().foreground], "hovered, the arrow and the count brighten together");
   fire(lit, "on_hover", false, cx);
-  assert.equal(find(ag.render(cx), "fold-t0").items[0].style.text_color, f.theme().dim);
+  assert.equal(find(ag.render(cx), "fold-t0-arrow-right").items[0].style.text_color, f.theme().dim);
   assert.equal(find(at, "status-t0").style.accessibility_label, "Needs you (sub-agent)", "folded status carries a more urgent hidden child");
   f.agents()[0].status = "blocked";
   assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Needs you", "a row as urgent as its children shows its own status");
@@ -366,7 +367,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // A space's group is T3's project folder: its mark and name, the chevron in the status column.
   const group = find(at, "sp-s0"), chevron = inFlow(group).at(-1);
   assert.deepEqual([group.style.pr + chevron.style.w / 2, group.style.rounded], [find(at, "ag-t0").style.pr + 14 / 2, 8]);
-  assert.equal(chevron.items[0].source, "mods/t3-agents/chevron-down.svg", "open, it points down, as T3's");
+  assert.deepEqual(["down", "right"].map(w => find(chevron, `chevron-sp-s0-${w}`).style.opacity), [1, 0], "open, it points down, as T3's");
   assert.ok(strings(group).includes("project 0") && !strings(group).includes("1"), "open, it holds no count");
   fire(group, "on_hover", true, cx);
   const lit = find(ag.render(cx), "sp-s0");
@@ -384,26 +385,53 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(inFlow(closed).find(n => n.style.size === 6).style.bg, f.theme().blocked, "the dot speaks for what's hidden");
   ag.toggleFold("sp-s0", cx, false);
   f.agents().splice(1, 1); f.terminals().pop();
-  // The list's motion: a row that moved is drawn where it was under a new id, then let go; a fold doesn't play it.
+  // The list's motion: a row that moved is drawn where it was under a new id, then let go; one that left fades out where it
+  // was, drawn inert; folds and the sort play it too, as this list starts at the top (T3 skips only a bottom shelf's opening).
   const y = (tree, id) => walk(tree).find(n => String(n.key).startsWith(`fly-${id}-`));
+  const leaving = (tree, key) => walk(tree).find(n => String(n.key).startsWith(`leaving-${key}-`));
+  const fireTimers = ms => { const due = cx.timers.filter(t => t.ms === ms); cx.timers = cx.timers.filter(t => t.ms !== ms); for (const t of due) if (!t.gone) t.fn(cx); };
+  // Drawn for its leaving: no handlers, no tooltip, and no id the list uses.
+  const inert = n => walk(n.items[0]).every(c => !Object.keys(c.handlers).length && c.kind !== "hovercard" && typeof c.key !== "string");
+  cx.timers.length = 0;
   const remote = f.agents().find(a => a.address === "vps/t2"), wasStatus = remote.status;
   remote.status = "working";
   f.state["agents.sort"] = "priority";
-  ag.render(cx);
+  const folder = leaving(ag.render(cx), "m:sp-s0");
+  assert.ok(folder && strings(folder).includes("project 0") && inert(folder), "a space's folder leaves inert");
   const before = y(ag.render(cx), "t0");
   remote.status = "blocked";
   const moved = y(ag.render(cx), "t0");
   assert.ok(moved.key !== before.key && moved.style.top < 0, "the moved row starts from above, where it was");
-  cx.timers.at(-1).fn(cx);
+  fireTimers(16);
   assert.equal(y(ag.render(cx), "t0").style.top, 0, "then it's let go");
   remote.status = wasStatus;
   f.state["agents.sort"] = "grouped";
-  ag.render(cx);
-  const foldBefore = y(ag.render(cx), "t0").key;
-  ag.toggleFold("sp-s0", cx, false);
-  ag.render(cx);
-  ag.toggleFold("sp-s0", cx, false);
-  assert.equal(y(ag.render(cx), "t0").key, foldBefore, "a fold plays no motion");
+  const sorted = ag.render(cx), head = leaving(sorted, "m:sec-4");
+  assert.ok(head && strings(head).includes("Needs you") && inert(head), "switching the sort, the old headers fade out");
+  assert.ok("relative" in find(sorted, "ag-content").style && find(sorted, "ag-content").items.includes(head), "in the rows' box, so they scroll with it");
+  assert.equal(y(sorted, "m:sp-s0").style.opacity, 0, "and the new ones fade in");
+  fireTimers(16);
+  assert.deepEqual([leaving(ag.render(cx), "m:sec-4").style.opacity, y(ag.render(cx), "m:sp-s0").style.opacity], [0, 1]);
+  fireTimers(200);
+  assert.equal(leaving(ag.render(cx), "m:sec-4"), undefined, "faded, they go");
+  // Unfolding sub-agents: the new one fades in, the rows under it slide down from where they were.
+  const below = y(ag.render(cx), "m:sp-s2").key;
+  ag.toggleFold("t0", cx);
+  const unfolded = ag.render(cx);
+  assert.equal(y(unfolded, "sub-grandchild").style.opacity, 0, "a fold fades its rows in");
+  assert.ok(y(unfolded, "m:sp-s2").key !== below && y(unfolded, "m:sp-s2").style.top < 0, "and slides the rows under it");
+  fireTimers(16);
+  ag.toggleFold("t0", cx);
+  const gone = leaving(ag.render(cx), "sub-grandchild");
+  assert.ok(gone && strings(gone).includes("grandchild task") && inert(gone), "folding, they fade out");
+  fireTimers(16);
+  fireTimers(200);
+  // Closing a space's folder, its rows leave inert too.
+  ag.toggleFold("sp-s2", cx, false);
+  assert.ok(inert(leaving(ag.render(cx), "vps/t2")), "an agent's row leaves inert too");
+  fireTimers(16); fireTimers(200);
+  ag.toggleFold("sp-s2", cx, false);
+  ag.render(cx); fireTimers(16); fireTimers(200);
   // The sort menu, as T3's: nothing lit until a key or the pointer arrives.
   const f2 = fixture(256), menu = f2.load("t3-agents", { sortMenu: true, overlay: "o" });
   const m0 = menu.render(cx);
@@ -468,7 +496,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "lit under the pointer");
     fire(find(inbox.render(run), "settled-clear"), "on_click", {}, run);
     assert.equal(f.calls.length, n, "the click only asks");
-    assert.notEqual(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "the dialog hides the pointer's leaving from it: it doesn't stay lit");
+    assert.notEqual(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "the dialog covers it and the pointer may not move: it doesn't stay lit");
     const { mod, kind, props } = f.overlays.pop();
     assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"]);
     f.panes().push({ pane: "p9", tab: "b2", terminal: "t9" });
@@ -716,16 +744,136 @@ for (const width of [208, 240, 256, 320, 480]) {
   // The Spaces/Agents divider is the layout's own, as upstream: neither list sizes it.
   for (const tree of [root, ag.render(cx)]) assert.equal(walk(tree).filter(n => "on_size_change" in n.handlers).length, 0, "no list measures itself to move the divider");
   assert.ok(!f.calls.some(([name]) => name === "layout.resize"), "rendering never resizes the layout");
+  // Dragging, as the inbox's: rows are 32px, this computer's header, s0, s1, then vps's header and s2.
+  const press = (id, y = 0) => fire(find(sp.render(cx), id), "on_mouse_down:left", { position: { x: 0, y } }, cx);
+  const move = (y, x = 0) => fire(find(sp.render(cx), "space-list"), "on_mouse_move", { position: { x, y } }, cx);
+  const release = () => fire(find(sp.render(cx), "space-list"), "on_mouse_up:left", {}, cx);
+  const keyOf = n => "key" in n ? n.key : null;
+  const rows = tree => find(tree, "space-rows").items.filter(n => keyOf(n)?.startsWith("fly-")).map(n => keyOf(n.items[0]) ?? `gap-${n.items[0].style.h}`);
+  const fly = (tree, key) => walk(tree).find(n => keyOf(n)?.startsWith(`fly-${key}-`));
+  const moves = () => f.calls.filter(([name]) => name === "space.move");
+  press("space-s0"); move(4, 3);
+  assert.equal(find(sp.render(cx), "space-lifted"), null, "under 6px it's still a click");
+  const still = find(sp.render(cx), "space-s0");
+  fire(still, "on_mouse_up:left", {}, cx);
+  assert.deepEqual(f.calls.pop(), ["space.select", { id: "s0" }], "a press that didn't move selects");
+  release();
+  // The first frame lifted is the list as it was, the gap in its place, nothing fading; the next opens the gap where it lands.
+  press("space-s0"); move(40);
   root = sp.render(cx);
-  fire(find(root, "space-s0"), "on_mouse_down:left", {}, cx);
-  fire(find(root, "space-s1"), "on_mouse_move", {}, cx);
-  fire(find(root, "space-s1"), "on_mouse_up:left", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["space.move", { id: "s0", index: 2 }]);
-  const n2 = f.calls.length;
-  fire(find(root, "space-s0"), "on_mouse_down:left", {}, cx);
-  fire(find(root, "space-s2"), "on_mouse_move", {}, cx);
-  fire(find(root, "space-s2"), "on_mouse_up:left", {}, cx);
-  assert.equal(f.calls.length, n2, "cross-machine drag remains rejected");
+  assert.deepEqual(rows(root), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"]);
+  assert.ok(!find(root, "space-rows").items.some(n => keyOf(n)?.startsWith("leaving-")), "nothing leaves: the lifted row is still there");
+  root = sp.render(cx);
+  assert.deepEqual([rows(root)[2], fly(root, "space-s1").style.top], ["gap-32", 32], "then the rows make way, sliding");
+  release();
+  f.calls.splice(0); sp.landing = null;
+  press("space-s0"); move(10);
+  root = sp.render(cx);
+  assert.deepEqual(rows(root), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"], "lifted, its place holds a gap");
+  const lifted = find(root, "space-lifted");
+  assert.equal(lifted.style.top, 42, "it rides the pointer");
+  assert.ok(strings(lifted).includes("project 0"));
+  sp.hot = "space-new"; sp.overMachine = "machine-local";
+  root = sp.render(cx);
+  assert.deepEqual([sp.hot, sp.overMachine, find(root, "space-s1").hoverStyle.bg, find(root, "space-s1").style.active], [null, null, undefined, undefined], "while lifted, nothing lights under it");
+  fire(still, "on_mouse_up:left", {}, cx);
+  assert.ok(!f.calls.some(([name]) => name === "space.select"), "a drag's release doesn't select");
+  // Past s1's middle, measured from the rows without the lifted one, s1 makes way, sliding up.
+  move(24);
+  root = sp.render(cx);
+  assert.deepEqual(rows(root), ["machine-local", "space-s1", "gap-32", "machine-vps", "space-s2"], "the list opens where it would land");
+  assert.equal(fly(root, "space-s1").style.top, 32, "s1 slides up from where it was");
+  assert.equal(find(root, "space-lifted").style.top, 56);
+  // Half a row onto vps's rows: no machine takes another's space, so it goes back where it was.
+  move(60);
+  assert.deepEqual(rows(sp.render(cx)), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"], "over another machine, the gap goes home");
+  release();
+  assert.deepEqual(moves(), [], "cross-machine drag remains rejected");
+  assert.equal(fly(sp.render(cx), "space-s0").style.top, 92 - 32, "and it slides back from where it was let go");
+  press("space-s0"); move(10); sp.render(cx); move(24); sp.render(cx);
+  release();
+  assert.deepEqual(moves(), [["space.move", { id: "s0", index: 2 }]], "let go, it lands where the gap was");
+  root = sp.render(cx);
+  assert.deepEqual(rows(root), ["machine-local", "space-s1", "space-s0", "machine-vps", "space-s2"], "until the move's echo, the rows stay as they were let go");
+  assert.deepEqual([fly(root, "space-s0").style.top, fly(root, "space-s0").style.opacity], [56 - 64, 1], "it slides from where it was let go to its place");
+  f.spaces().splice(1, 0, f.spaces().shift()); // The move's echo.
+  assert.deepEqual(rows(sp.render(cx)), ["machine-local", "space-s1", "space-s0", "machine-vps", "space-s2"]);
+  assert.equal(sp.landing, null, "once it's arrived the model's order is the list's");
+  f.spaces().splice(0, 0, f.spaces().splice(1, 1)[0]);
+  sp.render(cx);
+  // vps's one space has nowhere to go in its machine; pulled up into this computer's rows, it stays.
+  press("space-s2", 0); move(-10); sp.render(cx); move(-60); sp.render(cx);
+  assert.deepEqual(rows(sp.render(cx)), ["machine-local", "space-s0", "space-s1", "machine-vps", "gap-32"]);
+  release();
+  assert.deepEqual(moves().length, 1, "nor into another machine from below");
+  // Leaving the list puts it back.
+  press("space-s1"); move(-10); sp.render(cx); move(-30); sp.render(cx);
+  fire(find(sp.render(cx), "space-list"), "on_hover", false, cx);
+  assert.equal(sp.drag, null, "leaving ends the drag");
+  assert.equal(moves().length, 1, "and moves nothing");
+  assert.equal(fly(sp.render(cx), "space-s1").style.top, 34 - 64, "it slides back");
+  // A space that leaves the list while lifted ends the drag.
+  press("space-s1"); move(20); sp.render(cx);
+  sp.folded.add(null);
+  assert.equal(find(sp.render(cx), "space-lifted"), null);
+  assert.equal(sp.drag, null);
+  sp.folded.delete(null);
+}
+
+{
+  // The list's motion, as T3's: a row that comes fades in riding the kept row above it, one that goes fades out as an inert
+  // ghost of itself, the rest slide; 150ms ease-out.
+  const f = fixture(256), sp = f.load("t3-spaces"), list = f.spaces();
+  const keyOf = n => "key" in n ? n.key : null;
+  const fly = (tree, key) => walk(tree).find(n => keyOf(n)?.startsWith(`fly-${key}-`));
+  const leaving = (tree, key) => find(tree, "space-rows").items.find(n => keyOf(n)?.startsWith(`leaving-${key}-`));
+  const settle = () => cx.timers.filter(t => t.ms === 16 && !t.gone).forEach(t => { t.gone = true; t.fn(cx); });
+  let tree = sp.render(cx);
+  assert.deepEqual([fly(tree, "space-s1").style.opacity, fly(tree, "space-s1").style.top], [1, 0], "the first frame plays nothing");
+  // A new space joins when it's shown (its git known, or a moment gone), and its fade starts then.
+  list.splice(2, 0, { id: "s3", name: "project 3", active: false, folder: "/work/p3", machine: null, tabs: [] });
+  tree = sp.render(cx);
+  assert.equal(fly(tree, "space-s3"), undefined, "waiting for its git, it isn't drawn");
+  sp.born.s3 = Date.now() - 2000;
+  tree = sp.render(cx);
+  assert.deepEqual([fly(tree, "space-s3").style.opacity, fly(tree, "space-s3").style.top], [0, 0], "shown, it starts clear, riding s1 (still)");
+  assert.equal(fly(tree, "machine-vps").style.top, -32, "the rows below make room");
+  settle();
+  tree = sp.render(cx);
+  assert.deepEqual([fly(tree, "space-s3").style.opacity, fly(tree, "machine-vps").style.top], [1, 0], "then let go");
+  // Closed, it fades out where it was, lined up with the rows inside the list's padding.
+  list.splice(2, 1);
+  tree = sp.render(cx);
+  const gone = leaving(tree, "space-s3");
+  assert.deepEqual([gone.style.top, gone.style.opacity], [96, 1]);
+  assert.ok("relative" in find(tree, "space-rows").style && find(tree, "space-content").items[0] === find(tree, "space-rows"), "clones are placed in the rows' own box");
+  assert.equal(fly(tree, "machine-vps").style.top, 32, "the rows below close up");
+  settle();
+  assert.equal(leaving(sp.render(cx), "space-s3").style.opacity, 0, "it fades out");
+  // A machine folding: its rows go the same way, its header stays.
+  fire(find(sp.render(cx), "machine-vps"), "on_click", {}, cx);
+  tree = sp.render(cx);
+  assert.ok(leaving(tree, "space-s2") && fly(tree, "machine-vps") && !fly(tree, "space-s2"), "its spaces leave");
+}
+
+{
+  // A ghost (a lifted or leaving row) is drawn as its row, without the list's ids, handlers, labels or keyboard stops.
+  const o = fixture(256), view = o.load("t3-spaces"), list = o.spaces(), repo = JSON.stringify([null, "/w/E/.git"]);
+  const keyOf = n => "key" in n ? n.key : null;
+  o.state["t3-focus"] = "elsewhere"; // Keyboard mode: the list's rows are stops.
+  list[2].machine = null;
+  const wt = { repo, linked: true, name: "E", branch: "x", ahead: 0, behind: 0 };
+  view.git[JSON.stringify([null, "/work/p1"])] = wt;
+  view.git[JSON.stringify([null, "/work/s2"])] = { ...wt, branch: "y" };
+  view.git[JSON.stringify([null, "/work/s0"])] = { repo: "r0", linked: false, name: "p", branch: "feat", ahead: 2, behind: 1 };
+  view.machines = [{ name: "busy", state: "connected" }, { name: "spare", state: "asleep" }];
+  view.render(cx);
+  assert.deepEqual(plain(view.rows.map(e => e.key)), ["machine-local", "space-s0", `repo-${repo}`, "space-s1", "space-s2", "machine-busy", "machine-loading-busy", "machine-spare", "machine-new-spare"]);
+  for (const e of view.rows.filter(e => e.ghost)) {
+    const ghost = e.ghost();
+    assert.ok(walk(ghost).every(n => !Object.keys(n.handlers).length && n.kind !== "hovercard" && !("track_focus" in n.style) && !keyOf(n)), `${e.key}'s ghost is inert`);
+    assert.deepEqual(strings(ghost), strings(e.el), `${e.key}'s ghost reads as its row`);
+  }
 }
 
 {
@@ -746,11 +894,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
     const arrow = find(sp.render(cx), "space-fold-s0");
     assert.equal(8 + 8 + arrow.style.mr + arrow.style.min_w / 2, 23, "its center is the column of the heading's last button");
-    assert.deepEqual([arrow.items[0].source, arrow.items.length], ["mods/t3-spaces/chevron-down.svg", 1], "a checkout shows its fold arrow at the end, as an agent parent");
+    // T3 turns its arrow; Herdr can't, so the two directions cross-fade in one slot, ids stable so the fade plays.
+    const way = (tree, name) => find(tree, `space-fold-s0-${name}`);
+    assert.deepEqual([way(arrow, "down").items[0].source, way(arrow, "down").style.opacity, way(arrow, "right").style.opacity, arrow.items.length], ["mods/t3-spaces/chevron-down.svg", 1, 0, 1], "a checkout shows its fold arrow at the end, as an agent parent");
     assert.equal(arrow.style.text_color, f.theme().dim, "the arrow is dim");
     assert.equal(arrow.hoverStyle.bg, undefined, "no ground, as T3's row controls");
     fire(arrow, "on_hover", true, cx);
-    assert.equal(find(sp.render(cx), "space-fold-s0").items[0].style.text_color, f.theme().foreground, "hovered, it brightens");
+    assert.equal(way(find(sp.render(cx), "space-fold-s0"), "down").items[0].style.text_color, f.theme().foreground, "hovered, it brightens");
     fire(arrow, "on_hover", false, cx);
     let stopped = false;
     fire(arrow, "on_mouse_down:left", {}, { ...cx, stop_propagation() { stopped = true; } });
@@ -761,7 +911,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.calls.length, before, "folding runs no command");
     assert.equal(f.stores.get("t3-spaces").get("repos.folded"), JSON.stringify(["/r"]), "folding persists");
     const count = find(sp.render(cx), "space-fold-s0");
-    assert.equal(count.items[0].source, "mods/t3-spaces/chevron-right.svg");
+    assert.deepEqual([way(count, "down").style.opacity, way(count, "right").style.opacity], [0, 1], "folded, it points right");
     assert.deepEqual([count.items[1], count.style.text_color], ["1", f.theme().dim], "folded, a dim count says how many");
     fire(count, "on_click", {}, cx);
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
@@ -780,6 +930,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([...view.ordered().map(r => r.tree ?? null)], [null, null, "├─", "└─"]);
     const moves = () => o.calls.filter(([name]) => name === "space.move");
     assert.deepEqual(moves(), [], "a row with no space never reaches the model's order");
+    // Dragged past it, a space goes past the whole group: its worktrees count, though the head isn't a space.
+    fire(find(view.render(cx), "space-s0"), "on_mouse_down:left", { position: { x: 0, y: 0 } }, cx);
+    for (const y of [10, 100]) fire(find(view.render(cx), "space-list"), "on_mouse_move", { position: { x: 0, y } }, cx);
+    view.render(cx);
+    fire(find(view.render(cx), "space-list"), "on_mouse_up:left", {}, cx);
+    assert.deepEqual(moves(), [["space.move", { id: "s0", index: 3 }]], "after the group's last worktree");
+    view.landing = null;
     let root = view.render(cx), head = find(root, headId);
     assert.ok(strings(head).includes("Engineer"), "named for its repo");
     // Its arrow is a checkout's: dim until itself hovered, in the same column.
@@ -862,13 +1019,75 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(moves().pop(), ["space.move", { id: "s2", index: 2 }], "a folded worktree still keeps its place");
     list.splice(1, 0, list.splice(2, 1)[0]);
     view.foldedRepos.clear();
+    // Dragging: rows are 32px, and the model moves as the rows did, worktrees after their checkout.
+    const keyOf = n => "key" in n ? n.key : null;
+    const order = tree => find(tree, "space-rows").items.filter(n => keyOf(n)?.startsWith("fly-")).map(n => keyOf(n.items[0]) ?? `gap-${n.items[0].style.h}`);
+    const lift = (id, ...ys) => {
+      fire(find(view.render(cx), id), "on_mouse_down:left", { position: { x: 0, y: 0 } }, cx);
+      for (const y of [Math.sign(ys[0]) * 10, ...ys]) fire(find(view.render(cx), "space-list"), "on_mouse_move", { position: { x: 0, y } }, cx);
+      return view.render(cx);
+    };
+    const drop = () => fire(find(view.render(cx), "space-list"), "on_mouse_up:left", {}, cx);
+    assert.deepEqual(list.map(s => s.id), ["s0", "s2", "s1"]);
+    // A checkout lifts with its worktrees and lands as a group, between groups.
+    let tree = lift("space-s0", 40);
+    assert.deepEqual(order(tree), ["space-s1", "gap-64"], "the gap is the group's");
+    assert.equal(find(tree, "space-lifted").style.top, 32, "it stays inside the list");
+    assert.deepEqual(find(tree, "space-lifted").items.map(n => strings(n).find(x => x.startsWith("project"))), ["project 0", "project 2"], "its worktree rides with it");
     // A drag holds its space, not an index a move can shift under it.
-    const rows = view.render(cx);
-    fire(find(rows, "space-s1"), "on_mouse_down:left", {}, cx);
-    list.push(list.shift());
-    fire(find(rows, "space-s0"), "on_mouse_move", {}, cx);
-    fire(find(rows, "space-s0"), "on_mouse_up:left", {}, cx);
-    assert.deepEqual(o.calls.pop(), ["space.move", { id: "s1", index: 3 }]);
+    const up = find(view.render(cx), "space-list");
+    list.unshift(list.pop());
+    fire(up, "on_mouse_up:left", {}, cx);
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s0", index: 2 }], "after s1, in the model as it is when let go");
+    list.splice(0, Infinity, ...["s0", "s2", "s1"].map(id => list.find(s => s.id === id)));
+    view.landing = null;
+    tree = lift("space-s1", -40);
+    assert.deepEqual(order(tree), ["gap-32", "space-s0", "space-s2"], "a space goes over a group, not into it");
+    drop();
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s1", index: 1 }]);
+    view.landing = null;
+    tree = lift("space-s1", -20);
+    assert.deepEqual(order(tree), ["space-s0", "space-s2", "gap-32"], "halfway into a group it stays below it");
+    drop();
+    // A worktree moves among its own: past the group's ends it stops at them, as ordered() would put it back there.
+    view.git[JSON.stringify([null, "/work/p1"])] = { ...g, linked: true, branch: "y" };
+    assert.deepEqual(ids(), ["s0", "s2", "s1"]);
+    tree = lift("space-s2", 60);
+    assert.deepEqual(order(tree), ["space-s0", "space-s1", "gap-32"], "below its last sibling");
+    drop();
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s2", index: 3 }]);
+    view.landing = null;
+    tree = lift("space-s1", -90);
+    assert.deepEqual(order(tree), ["space-s0", "gap-32", "space-s2"], "never above its checkout");
+    drop();
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s1", index: 2 }]);
+    view.landing = null;
+    delete view.git[JSON.stringify([null, "/work/p1"])];
+    tree = lift("space-s2", 60);
+    assert.deepEqual(order(tree), ["space-s0", "gap-32", "space-s1"], "a lone worktree has nowhere else to go");
+    const n = moves().length;
+    drop();
+    assert.equal(moves().length, n, "so it moves nothing");
+    // Without worktrees, a space dropped between two lands between them.
+    for (const id of ["s0", "s2"]) delete view.git[JSON.stringify([null, `/work/${id}`])];
+    tree = lift("space-s0", 40);
+    assert.deepEqual(order(tree), ["space-s2", "gap-32", "space-s1"]);
+    drop();
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s0", index: 2 }]);
+    // Folded, a group's hidden worktrees still count: a space dropped after it goes after them all.
+    const s3 = { id: "s3", name: "project 3", active: false, folder: "/work/p3", machine: null, tabs: [] };
+    list.splice(0, Infinity, s3, ...["s0", "s2", "s1"].map(id => list.find(s => s.id === id)));
+    view.shown.add("s3");
+    view.git[JSON.stringify([null, "/work/s0"])] = g;
+    for (const k of ["/work/s2", "/work/p1"]) view.git[JSON.stringify([null, k])] = { ...g, linked: true };
+    view.foldedRepos.add("/r");
+    list.forEach(s => { s.active = s.id === "s2"; });
+    view.landing = null;
+    assert.deepEqual(ids(), ["s3", "s0", "s2"]);
+    tree = lift("space-s3", 70);
+    assert.deepEqual(order(tree), ["space-s0", "space-s2", "gap-32"]);
+    drop();
+    assert.deepEqual(moves().pop(), ["space.move", { id: "s3", index: 4 }]);
   }
   delete f.agents()[0].program.icon;
   ag.toggleFold("t0", cx);
@@ -1156,7 +1375,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(footer.render(cx), "tip-add-machine").style.anchor, "bottom_center");
   }
   {
-    // Whatever opens over its button hides the pointer's leaving from it: it doesn't stay lit.
+    // Whatever opens over its button covers it, and the pointer may not move: it doesn't stay lit.
     const f = fixture(256), footer = f.load("t3-chrome", { footer: true }), agents = f.load("t3-agents"), inbox = f.load("t3-inbox");
     for (const [view, id] of [[footer, "settings"], [footer, "add-machine"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
       fire(find(view.render(cx), id), "on_hover", true, cx);
@@ -1355,7 +1574,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const id = `space-${f.spaces()[0].id}`;
     fire(find(spaces.render(cx), id), "on_mouse_down:left", {}, cx);
     fire(find(spaces.render(cx), "space-list"), "on_hover", false, cx);
-    assert.equal(spaces.pressed, null, "leaving the list ends a space's drag");
+    assert.equal(spaces.drag, null, "leaving the list ends a space's drag");
   }
   {
     // On the way to a tab's ×, nothing in the way: the name's card goes, and its own label waits.

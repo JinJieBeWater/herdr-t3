@@ -4,6 +4,10 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Spaces and Agents now move as Inbox does. Folding, sorting, new and closed spaces and ended agents slide and fade over 150ms, where most used to jump.
+- Dragging a space lifts it and the list opens where it will land, instead of drawing a line; a checkout brings its open worktrees.
+- Rows in Lists and Inbox show a press, fold arrows in Lists cross-fade, and hover labels fade in.
+
 - New, Go to and the Actions editor show their contents as soon as they open; their fade left them blank for a moment.
 - A sub-agent's row shows its own details card; its parent's used to stay up over it.
 - Closing a checkout no longer scatters its worktrees. Two or more with the checkout not open fold under a dim row for their repo: a click opens the checkout, which takes its place, and the arrow folds. The fold is kept by repo, and a closed group still shows the worktree you're on.

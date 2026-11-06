@@ -110,7 +110,7 @@ export default class Tabs extends View {
 
   // As T3's confirmTerminalClose: `Close terminal "Pi"?` or `Close 2 terminals?`, then what that ends. A held cmd-w replaces the dialog rather than stacking it.
   ask(names, more, command, args, cx) {
-    // The dialog hides the pointer's leaving, and the × stops the press that would close the card.
+    // The dialog covers it, nothing reports the leaving until the pointer moves, and the × stops the press that would close the card.
     this.overTab = this.hot = null;
     detailsFor(this, null, cx);
     cx.notify();

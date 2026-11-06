@@ -4,6 +4,10 @@
 
 ## 2026-11-06
 
+- Spaces 和 Agents 现在和 Inbox 一样有动画。折叠、排序、新建或关闭 space、agent 结束时，行在 150ms 内滑动和淡入淡出，大多数情况以前是瞬间跳变。
+- 拖动 space 时行会抬起跟随指针，列表在落点让出位置，不再只画一条线；checkout 会带上展开的 worktree。
+- Lists 和 Inbox 的行有了按下反馈，Lists 的折叠箭头交叉淡变，悬停提示淡入。
+
 - New、Go to 和 Actions 编辑框打开时直接显示内容；原来的淡入会让它们先空白一下。
 - 子 agent 行有了自己的详情卡，父行的卡片不再停留在它旁边。
 - 关掉 checkout 后，它的 worktree 不再散开。checkout 没开且有两个以上时，它们折叠在一行代表仓库的暗色行下：点击打开 checkout 并由它接替这一行，箭头负责折叠。折叠状态按仓库保存；折叠后仍显示当前所在的 worktree。

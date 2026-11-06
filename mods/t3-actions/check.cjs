@@ -133,7 +133,7 @@ state["t3-actions"] = added;
 delete state["bar.compact"];
 
 (async () => {
-  // What opens over its button drops its hover: the pointer can't report leaving.
+  // What opens over its button drops its hover: nothing reports the leaving until the pointer moves.
   state["t3-actions"] = { list: [{ id: "a1", name: "Dev", command: "x" }, { id: "a2", name: "Test", command: "y" }] };
   const view = load();
   fire(find(view.render(), "action-more"), "on_hover", true, cx);
