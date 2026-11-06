@@ -1,9 +1,9 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
+import { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { descendants, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
-import { tip } from "./tip.js";
+import { tip, glow } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
 
@@ -14,7 +14,8 @@ const homeId = () => shared("t3-home.space");
 const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
 // spaces() catches up a frame or so after a command, so each step waits to see the one before.
 async function seen(cx, look) {
-  for (let i = 0; i < 80; i++) {
+  // 10s: past this a slow core's Home would be there with nothing knowing it's Home, an orphan in the lists.
+  for (let i = 0; i < 400; i++) {
     const found = look();
     if (found) return found;
     await new Promise(resolve => cx.timer.after(25, () => resolve()));
@@ -22,6 +23,9 @@ async function seen(cx, look) {
   return null;
 }
 async function goHome(cx) {
+  // Before this computer's layout is read, a Home that exists reads as missing.
+  const here = machines().find(m => m.name === null);
+  if (here && here.layout !== "ready") return;
   if (spaces().some(s => s.id === homeId())) return run("space.select", { id: homeId() });
   const before = new Set(spaces().map(s => s.id));
   run("space.new", { name: "Home", machine: "", folder: home() });
@@ -39,28 +43,36 @@ async function goHome(cx) {
 // Otherwise, Lists or a hidden sidebar (where the Inbox draws nothing, so its rows go stale), Herdr's agent.next, which wraps.
 // Here because the tab bar always shows. A row can be a mod pane's (`pane:<id>`), which has no agent to focus.
 function step(command) {
-  if (!inboxShown() || find(layout(), "sidebar")?.hidden) return run(command === "next" ? "agent.next" : "agent.prev");
+  if (!inboxDrawn()) return run(command === "next" ? "agent.next" : "agent.prev");
   const { order = [], view = null } = shared("t3-inbox.rows") ?? {};
   const i = view === null ? -1 : order.indexOf(view);
   const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
   if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
   else if (to) run("agent.focus", { terminal: to });
 }
-// The spaces the keys count and walk: all but Home, wrapping as space.next does.
-function selectSpace(index) {
-  const s = spaces().filter(s => s.id !== homeId())[index - 1];
-  if (s) run("space.select", { id: s.id });
+// A space by the keys. Out of view Herdr may have moved its active tab to a closed one's neighbour, and being shown costs an
+// agent its unread done: with the Inbox showing, the tab last shown there. Space first, in one tick, as leave() relies on.
+function showSpace(s, trail) {
+  run("space.select", { id: s.id });
+  const back = inboxShown() && trail[s.id]?.find(id => s.tabs.some(c => c.id === id));
+  if (back) run("tab.select", { id: back });
 }
-function walkSpaces(by) {
+// The spaces the keys count and walk: all but Home, wrapping as space.next does.
+function selectSpace(index, trail) {
+  const s = spaces().filter(s => s.id !== homeId())[index - 1];
+  if (s) showSpace(s, trail);
+}
+function walkSpaces(by, trail) {
   const list = spaces().filter(s => s.id !== homeId());
   if (!list.length) return;
   const i = list.findIndex(s => s.active);
   // From Home, the first going forward, the last going back.
-  const s = list[i < 0 ? (by > 0 ? 0 : list.length - 1) : (i + by + list.length) % list.length];
-  run("space.select", { id: s.id });
+  showSpace(list[i < 0 ? (by > 0 ? 0 : list.length - 1) : (i + by + list.length) % list.length], trail);
 }
 
 const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
+// A hidden sidebar draws no Inbox: its rows go stale and `t3-inbox.<command>` doesn't reach it.
+const inboxDrawn = () => inboxShown() && !find(layout(), "sidebar")?.hidden;
 
 // What the hidden sidebar's toggle counts. With the inbox showing (t3-inbox), an agent settled there isn't news while it
 // stays settled. A snoozed one, until it wakes, isn't news either, working or done; while it or what's under it needs the
@@ -99,12 +111,6 @@ function fairCap(wants, room) {
   return Infinity;
 }
 
-// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
-const glow = (view, id) => (on, cx) => {
-  if (on) view.hot = id;
-  else if (view.hot === id) view.hot = null;
-  cx.notify();
-};
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 function find(node, id) {
@@ -149,7 +155,7 @@ export default class Tabs extends View {
     this.strip = 0;
     this.nameW = {};
     this.trail = {};
-    if (props()?.part !== "measure") stopsInit(this, cx);
+    if (props()?.part !== "measure") stopsInit(this, cx, props()?.part ? undefined : "boot");
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
@@ -164,11 +170,14 @@ export default class Tabs extends View {
         else if (command.startsWith("close-pane-now:")) await this.closePaneNow(command.slice("close-pane-now:".length), cx);
         else if (command === "home") await goHome(cx);
         else if (command === "next" || command === "prev") step(command);
+        // Here because the tab bar always shows; the brand bar goes with the sidebar. Settling elsewhere does nothing, where a run to the Inbox would be a red toast.
+        else if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
+        else if (command === "settle") { if (inboxDrawn()) run("t3-inbox.settle"); }
         // New work doesn't start in Home: New picks its space.
         else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
-        else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)));
-        else if (command === "space-next") walkSpaces(1);
-        else if (command === "space-prev") walkSpaces(-1);
+        else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)), this.trail);
+        else if (command === "space-next") walkSpaces(1, this.trail);
+        else if (command === "space-prev") walkSpaces(-1, this.trail);
         else if (command.startsWith("tab:")) {
           const c = this.visibleTabs()[Number(command.slice("tab:".length)) - 1];
           if (c) run("tab.select", { id: c.id });
@@ -212,6 +221,9 @@ export default class Tabs extends View {
 
   async closePaneNow(pane, cx) {
     const ps = panes(), tab = ps.find(p => p.pane === pane)?.tab;
+    const homeTabs = spaces().find(s => s.id === homeId())?.tabs.map(c => c.id) ?? [];
+    // Home's last pane gives way to the default page, which is how Home is reset.
+    if (homeTabs.includes(tab) && ps.filter(p => homeTabs.includes(p.tab)).length === 1) run("pane.split", { direction: "right", pane, mod: "t3-home" });
     if (ps.filter(p => p.tab === tab).length === 1) await this.leave(tab, cx);
     run("pane.close", { pane });
   }
@@ -238,11 +250,8 @@ export default class Tabs extends View {
     if (!p) return;
     const space = spaces().find(s => s.tabs.some(c => c.id === p.tab)), tabs = space?.tabs.map(c => c.id) ?? [];
     const last = ps.filter(q => tabs.includes(q.tab)).length === 1, inHome = space?.id === homeId();
-    // Home's last pane gives way to the default page, which is how Home is reset; that page itself stays.
-    if (inHome && last) {
-      if (p.mod === "t3-home") return;
-      run("pane.split", { direction: "right", pane, mod: "t3-home" });
-    }
+    // The default page itself stays.
+    if (inHome && last && p.mod === "t3-home") return;
     // A space's last pane closes the space, and Herdr asks that itself.
     if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return this.closePaneNow(pane, cx);
     this.ask([namer()(p)], "", `t3-tabs.close-pane-now:${pane}`, cx);
@@ -255,11 +264,16 @@ export default class Tabs extends View {
     const all = spaces(), space = all.find(s => s.active), tab = space?.tabs.find(c => c.active), home = atHome();
     const alive = (id) => all.some(s => s.tabs.some(c => c.id === id));
     const was = this.inView;
+    // Herdr's pick shows until Home does, and that isn't somewhere the person went.
+    const toHome = () => { this.going = { until: Date.now() + 500 }; run("t3-tabs.home"); };
+    // Home's last program ended, past closePane: the space went with it.
+    if (this.wasHome && all.length && !all.some(s => s.id === homeId())) toHome();
+    this.wasHome = home;
     // For the closes this mod doesn't make, which leave() can't go ahead of: the tab's menu, the program ending. Herdr has
     // already picked the neighbour, and it may have been shown.
     if (was && all.length && !alive(was.tab) && inboxShown() && !home) {
       // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
-      if (was.agent) run("t3-tabs.home");
+      if (was.agent) toHome();
       else if (space?.id === was.space) this.goBack(was.space, was.tab);
     }
     if (this.going && (tab?.id === this.going.tab || Date.now() > this.going.until)) this.going = null;
@@ -363,7 +377,19 @@ export default class Tabs extends View {
     // on_size_change reports zoomed pixels. Past T3's 768 for the same controls: here they share the row with the tabs.
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
       .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
-    const t = theme();
+    const t = theme(), w = window();
+    const stopPress = (_e, cx) => cx.stop_propagation();
+    const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+      .role("button").accessibility_label(label)
+      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
+    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
+    // however wide they are, and the window's own buttons stay last.
+    if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
+      .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
+        .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
+          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
     const space = spaces().find(p => p.active);
     // At Home, none: its place is told by the brand bar's button and its pane's header.
     if (!props()?.part) this.track();
@@ -375,10 +401,6 @@ export default class Tabs extends View {
     const st = (a) => treeStatus(ownStatus(a.status, a.address, all), under(a.address));
     const live = awake(st, under);
     const ps = panes();
-    const stopPress = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
-      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
       const words = [...every.filter(a => a.tab === c.id).map(st), ...ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p))];
@@ -389,6 +411,8 @@ export default class Tabs extends View {
     const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.max(TAB_MIN, Math.ceil(this.nameW[c.id]) + TAB_CHROME) : TAB_FLOOR);
     // With the Inbox showing, agents' tabs hold their place at the front: only the rest drag, among themselves.
     const loose = (c) => !inbox || !every.some(a => a.tab === c.id);
+    // A press holds a tab's id: an agent starting or a tab closing can change the bar under it.
+    const pressedAt = shown.findIndex(c => c.id === this.pressed);
     const item = (c, i) => {
       const lead = leadOf(ps.filter(p => p.tab === c.id));
       const program = lead && programOf(lead);
@@ -422,27 +446,28 @@ export default class Tabs extends View {
         })
         .when(!c.active, el => el.hover(s => s.bg(t.hover)))
         // Dragged as a space is: the source fades, a line shows where it lands. `over` is null until the drag starts.
-        .when(this.pressed === i && this.over !== null && this.over !== i, el => el.opacity(0.5))
-        .when(this.pressed !== null && this.over === i && this.pressed !== i, el => el.child(
+        .when(pressedAt === i && this.over !== null && this.over !== c.id, el => el.opacity(0.5))
+        .when(pressedAt >= 0 && this.over === c.id && pressedAt !== i, el => el.child(
           div().absolute().top(0).bottom(0).w(2).bg(t.accent)
-            .when(this.pressed < i, line => line.right(0))
-            .when(this.pressed > i, line => line.left(0)),
+            .when(pressedAt < i, line => line.right(0))
+            .when(pressedAt > i, line => line.left(0)),
         ))
-        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = i; this.over = null; this.pressAt = e.position; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = c.id; this.over = null; this.pressAt = e.position; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_move((e, cx) => {
           detailsAt(this, c.id, e);
-          if (this.pressed === null || this.over === i || !loose(shown[this.pressed]) || !loose(c)) return;
+          const held = shown.find(x => x.id === this.pressed);
+          if (!held || this.over === c.id || !loose(held) || !loose(c)) return;
           // As T3's tabs: a drag starts 6px from the press, so a click's wobble only selects.
           if (this.over === null && Math.hypot(e.position.x - this.pressAt.x, e.position.y - this.pressAt.y) < 6 * settings().zoom) return;
-          this.over = i;
+          this.over = c.id;
           cx.notify();
         })
         .on_mouse_up("left", (_e, cx) => {
-          const from = this.pressed, to = this.over; this.pressed = this.over = null;
+          const from = this.pressed ?? c.id, to = this.over; this.pressed = this.over = null;
           // To the line it shows: past a tab that can't take a drop, the last one that can.
-          if (to !== null && from !== to) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === shown[to].id) + 1 });
-          // Short of a drag it was a click on the pressed tab, wherever the release lands.
-          else run("tab.select", { id: shown[from ?? i].id });
+          if (from !== to && shown.some(x => x.id === from) && shown.some(x => x.id === to)) run("tab.move", { id: from, index: space.tabs.findIndex(x => x.id === to) + 1 });
+          // Short of a drag it was a click on the pressed tab, wherever the release lands. A tab gone from the bar took its press along.
+          else if (shown.some(x => x.id === from)) run("tab.select", { id: from });
           cx.notify();
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
@@ -465,15 +490,7 @@ export default class Tabs extends View {
       // A tab goes by its mouse-up, which a key isn't.
       return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });
     };
-    const root = layout(), sidebar = find(root, "sidebar"), w = window();
-    // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
-    // however wide they are, and the window's own buttons stay last.
-    if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
-      .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
-        .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
-        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
-          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
+    const root = layout(), sidebar = find(root, "sidebar");
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))

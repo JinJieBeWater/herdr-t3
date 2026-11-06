@@ -24,24 +24,27 @@ export function keyOf(action) {
 
 // Herdr drops a leave while the pointer's last known place is in the element's last box (should_dispatch_hover), and GPUI has by then marked it left,
 // so none comes after: the pointer leaving the window, a key press or a press dragged out strand a hover. So what shows on hover also watches where the
-// pointer is. No box yet: no word either way. An inactive window hears nothing once the pointer's out, so it shows nothing.
+// pointer is. No box yet, as for what slid under a still pointer: its moving from `from`, where it was then, means off, as a move still on it would have
+// reported a box first; with no `from`, no word either way. An inactive window hears nothing once the pointer's out, so it shows nothing.
 // macOS sends an active window no moves once the pointer is out either, and its last place stays put: one whose last step, twice over, crosses the
 // window's edge has left. shortcut: a pointer stopped dead just short of an edge after a fast step counts as gone; drop all this if Herdr's filter goes.
 export const POINTER_WATCH = 100;
+export const pointerAt = () => globalThis.window.mouse_position?.();
 const track = { at: null, step: { x: 0, y: 0 } };
 export function pointerMoved(p) {
   if (!p) return;
   if (track.at) track.step = { x: p.x - track.at.x, y: p.y - track.at.y };
   track.at = p;
 }
-export function pointerGone(box) {
+export function pointerGone(box, from) {
   if (window()?.active === false) return true;
-  const p = globalThis.window.mouse_position?.(), size = globalThis.window.viewport_size?.();
+  const p = pointerAt(), size = globalThis.window.viewport_size?.();
   if (p && size && track.at?.x === p.x && track.at.y === p.y) {
     const x = p.x + 2 * track.step.x, y = p.y + 2 * track.step.y;
     if (x < 0 || y < 0 || x >= size.width || y >= size.height) return true;
   }
-  return Boolean(box && p) && !(p.x >= box.x && p.x < box.x + box.width && p.y >= box.y && p.y < box.y + box.height);
+  if (!box) return Boolean(p && from) && (p.x !== from.x || p.y !== from.y);
+  return Boolean(p) && !(p.x >= box.x && p.x < box.x + box.width && p.y >= box.y && p.y < box.y + box.height);
 }
 
 // The label fades and slides 4px off its control, in and out: T3's also scales, which Herdr can't. A transition adopts the first value it sees,
@@ -70,7 +73,7 @@ export function tip(view, t, id, label, trigger, { action, hint, below, delay = 
   const key = action ? keyOf(action) : "", hot = off ? null : view.hot, s = tips.get(id), shown = hot === id && s?.drawn;
   const watch = (s, cx) => {
     s.watch = cx.timer.every(POINTER_WATCH, (cx) => {
-      if (!pointerGone(s.box)) return;
+      if (!pointerGone(s.box, s.from)) return;
       if (view.hot === id) view.hot = null;
       leaveTip(id, s, cx);
       cx.notify();
@@ -86,7 +89,7 @@ export function tip(view, t, id, label, trigger, { action, hint, below, delay = 
     }
     if (was) dropTip(id, was);
     if (window()?.active === false) return;
-    const next = { n: ++opened };
+    const next = { n: ++opened, from: pointerAt() };
     tips.set(id, next);
     next.timer = cx.timer.after(delay, (cx) => { next.open = true; cx.notify(); });
     watch(next, cx);
@@ -100,13 +103,16 @@ export function tip(view, t, id, label, trigger, { action, hint, below, delay = 
       .when(Boolean(hint), el => el.child(div().text_color(t.muted).child(hint)))));
 }
 
+// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state.
+export const glow = (view, id) => (on, cx) => {
+  if (on) view.hot = id;
+  else if (view.hot === id) view.hot = null;
+  cx.notify();
+};
+
 // A mark with no words of its own (a status, a machine) says what it is on hover too, lit only to show its label.
 export function tipMark(view, t, id, label, mark, options) {
   if (!label) return mark;
-  const lit = div().id(id).flex_none().on_hover((on, cx) => {
-    if (on) view.hot = id;
-    else if (view.hot === id) view.hot = null;
-    cx.notify();
-  }).child(mark);
+  const lit = div().id(id).flex_none().on_hover(glow(view, id)).child(mark);
   return tip(view, t, id, label, lit, options);
 }

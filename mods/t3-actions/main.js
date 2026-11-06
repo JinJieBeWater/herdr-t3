@@ -3,7 +3,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
-import { tip } from "./tip.js";
+import { tip, glow } from "./tip.js";
 import { stopsInit, stop, focusRoot, onStop } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 
@@ -14,12 +14,6 @@ const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
 const icon = (name) => svg(`mods/${MOD}/action-${ICONS.includes(name) ? name : "play"}.svg`);
 
-// A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state, as in the inbox.
-const glow = (view, id) => (on, cx) => {
-  if (on) view.hot = id;
-  else if (view.hot === id) view.hot = null;
-  cx.notify();
-};
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 // { list: [{ id, name, command, icon, place, cwd }], last: id }

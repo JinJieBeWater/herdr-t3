@@ -7,7 +7,7 @@ import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shar
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { tip, tipMark } from "./tip.js";
+import { glow, tip, tipMark } from "./tip.js";
 import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
 import { menuJump } from "./list.js";
@@ -47,7 +47,7 @@ export default class Agents extends View {
       cx.timer.after(16, (cx) => { this.shown = true; cx.notify(); });
       return;
     }
-    stopsInit(this, cx, "entry");
+    stopsInit(this, cx);
     // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
     cx.spawn(async (cx) => {
       for (;;) if (await nextCommand() === "focus") enter(this, cx, "ag-sort");
@@ -295,11 +295,6 @@ export default class Agents extends View {
 
     // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state,
     // as in the inbox. Inside a hovered row a button's own hover fill doesn't show, so this is the cue.
-    const glow = (id) => (on, cx) => {
-      if (on) this.hot = id;
-      else if (this.hot === id) this.hot = null;
-      cx.notify();
-    };
     const lit = (id) => (this.hot === id ? t.foreground : t.dim);
     // As the shipped agents list: a parent's fold arrow, and folded, the count. Dim: the row's status
     // carries any hidden child's urgency.
@@ -322,7 +317,7 @@ export default class Agents extends View {
         .id(id)
         // As T3's row controls, hover only lights it: no ground.
         .role("button").accessibility_label(open ? "Collapse sub-agents" : "Expand sub-agents")
-        .on_hover(glow(id))
+        .on_hover(glow(this, id))
         .on_click((_e, cx) => {
           cx.stop_propagation();
           this.toggleFold(a.address, cx);
@@ -372,7 +367,7 @@ export default class Agents extends View {
         .opacity(offer ? 1 : 0).transition("opacity", MOTION)
         .when(offer, (el) => stop(this, t, pinId, el.role("button")
           .accessibility_label(isPinned ? "Unpin" : "Pin")
-          .on_hover(glow(pinId))
+          .on_hover(glow(this, pinId))
           .on_click((_e, cx) => {
             cx.stop_propagation();
             // The row's about to move from under the pointer.
@@ -566,7 +561,7 @@ export default class Agents extends View {
                 .text_size(11)
                 .text_color(lit("ag-sort"))
                 .hover((s) => s.bg(t.hover))
-                .on_hover(glow("ag-sort"))
+                .on_hover(glow(this, "ag-sort"))
                 .on_click((_e, cx) => {
                   this.hot = null; // The menu covers it, before the pointer can report leaving it.
                   openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });

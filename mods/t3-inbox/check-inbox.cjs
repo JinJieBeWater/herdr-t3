@@ -1607,12 +1607,15 @@ test("a row's card goes when the pointer heads out of the window from it, and st
   assert.deepEqual(card().style.opacity, [0], "its last step was on its way past the window's left edge: macOS says no more, and it fades");
 });
 
-test("a card with no box yet stays: no move has said where its row is", () => {
+test("a card with no box yet stays while the pointer holds still; moving, with no move reported on the row, it has left", () => {
   const f = fixture(); f.add("A", "idle", 100); f.render();
+  f.pointer = { x: 40, y: 120 };
   f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  f.tick(); f.render();
+  assert.deepEqual(find(f.tree, "details-card-A").style.opacity, [1], "it slid under a still pointer");
   f.pointer = { x: 900, y: 900 };
   f.tick(); f.render();
-  assert.deepEqual(find(f.tree, "details-card-A").style.opacity, [1]);
+  assert.deepEqual(find(f.tree, "details-card-A").style.opacity, [0]);
 });
 
 test("a hover label goes when its leave never comes, and its control stops being lit", () => {

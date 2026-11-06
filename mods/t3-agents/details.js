@@ -2,7 +2,7 @@
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { window } from "herdr";
-import { POINTER_WATCH, pointerGone, pointerMoved } from "./tip.js";
+import { POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
 
 // The program's icon from the app's table: a one-color glyph or a picture.
 export function programIcon(p, size, color) {
@@ -29,9 +29,11 @@ export const detailsAt = (view, key, e) => { pointerMoved(e.position); view.deta
 export function detailsWatch(view, key, cx) {
   view.detailsWatch?.cancel();
   const stop = () => { view.detailsWatch.cancel(); view.detailsWatch = null; };
+  // What slid under a still pointer has no box until a move: see pointerGone.
+  const from = pointerAt();
   view.detailsWatch = cx.timer.every(POINTER_WATCH, (cx) => {
     if (![view.hovered, view.overTab, view.details].includes(key) && !view.detailsWait) return stop();
-    if (!pointerGone(view.detailsBox?.key === key ? view.detailsBox.box : null)) return;
+    if (!pointerGone(view.detailsBox?.key === key ? view.detailsBox.box : null, from)) return;
     stop();
     if (view.hovered === key) view.hovered = null;
     if (view.overTab === key) view.overTab = null;

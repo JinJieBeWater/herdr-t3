@@ -25,10 +25,10 @@ let holding = null, now = 0;
 const FakeDate = { now: () => now };
 const src = fs.readFileSync(path.join(__dirname, "focus.js"), "utf8")
   .replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.focus = { stopsInit, stop, focusRoot, onStop, within, enter };";
+  + "\nglobalThis.focus = { stopsInit, stopsEnd, stop, focusRoot, onStop, within, enter };";
 const context = vm.createContext({ div: element, shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, Date: FakeDate });
 vm.runInContext(src, context);
-const { stopsInit, stop, focusRoot, onStop, within, enter } = context.focus;
+const { stopsInit, stopsEnd, stop, focusRoot, onStop, within, enter } = context.focus;
 
 function fakeCx() {
   const cx = { notified: 0, ticks: [], notify() { cx.notified++; }, stop_propagation() {} };
@@ -52,7 +52,8 @@ const view = (kind) => { const v = {}, cx = fakeCx(); stopsInit(v, cx, kind); re
   assert.equal(within(v, ["a"]), false);
 }
 
-// A mode left in shared state by a quit doesn't outlive the restart; only a mod that can start one clears it.
+// A mode left in shared state by a quit doesn't outlive the restart: the copy sure to be there at the start clears it.
+// One starting later (Lists, first shown by a key in the mode) must not: that mode is someone's.
 {
   state["t3-focus"] = "old";
   view();
@@ -60,11 +61,13 @@ const view = (kind) => { const v = {}, cx = fakeCx(); stopsInit(v, cx, kind); re
   view("modal");
   assert.equal(state["t3-focus"], "old");
   view("entry");
+  assert.equal(state["t3-focus"], "old", "a list starting up leaves the mode alone");
+  view("boot");
   assert.equal(state["t3-focus"], null);
 }
 
 // pane.go lands: the mode's on, the first stop has the keyboard, 2px and inset, in accent; only the stop it's on.
-const a = view("entry"), b = view();
+const a = view(), b = view();
 {
   enter(a.v, a.cx, "first");
   assert.ok(state["t3-focus"]);
@@ -141,9 +144,20 @@ const a = view("entry"), b = view();
   assert.equal(b.v.fs.free.length, before + 1);
 }
 
+// The mode's owner closes (Enter on a pane's ×): its timers go with it, so its close ends the mode; another's stays.
+{
+  const owner = view(), other = view();
+  enter(owner.v, owner.cx, "first");
+  stopsEnd(other.v);
+  assert.equal(state["t3-focus"], owner.v.fs.me);
+  stopsEnd(owner.v);
+  assert.equal(state["t3-focus"], null);
+  holding = null;
+}
+
 // A menu of the mod's own holds the mode while the keyboard's in it, and back on its stop afterwards the ring's there.
 {
-  const { v, cx } = view("entry");
+  const { v, cx } = view();
   let open = true;
   v.fs.hold = () => open;
   enter(v, cx, "first");

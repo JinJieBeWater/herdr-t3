@@ -14,11 +14,17 @@ const TICK = 150;
 // Long enough for the mod Tab landed in to take over before the one it left gives up the mode.
 const LOST_TICKS = 3;
 
-// kind: "modal" for an overlay's copy, whose stops are always up: nothing's behind it to press. "entry" for a mod pane.go can
-// land on, which also clears the mode a quit left in shared state.
+// kind: "modal" for an overlay's copy, whose stops are always up: nothing's behind it to press. "boot" for the one copy sure to
+// start with the window (the tab strip), which clears the mode a quit left in shared state: one starting later may find it live.
+// shortcut: t3-inbox alone has no tab strip, so a quit in the mode lasts until the next walk ends; upgrade if that ever bites.
 export function stopsInit(view, cx, kind) {
   view.fs = { handles: new Map(), free: Array.from({ length: POOL }, () => cx.focus_handle()), modal: kind === "modal", me: String(Math.random()), keyboard: false, watch: null, last: null, hold: null };
-  if (kind === "entry" && shared(MODE)) setShared(MODE, null);
+  if (kind === "boot" && shared(MODE)) setShared(MODE, null);
+}
+
+// For a copy that can go while the mode's its own (a pane's × closes the pane it's on): its watch goes with it, and nothing else ends the mode.
+export function stopsEnd(view) {
+  if (shared(MODE) === view.fs.me) setShared(MODE, null);
 }
 
 function handleOf(s, id) {

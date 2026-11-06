@@ -8,7 +8,7 @@ import { h_flex, v_flex, InputState, Input, Popup } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, window, openOverlay, closeOverlay, props, setShared, shared, theme, settings, home } from "herdr";
 import { launch } from "./open.js";
 import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { tip } from "./tip.js";
+import { glow, tip } from "./tip.js";
 import { step, scrollList } from "./list.js";
 
 const MOD = "pulls-review";
@@ -18,12 +18,6 @@ const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
 const MENU_CLOSED = `${MOD}.menuClosed`;
 export const menuClosed = () => setShared(MENU_CLOSED, Date.now());
 
-// The hovered button, as state: its hover label reads it.
-const glow = (view, id) => (on, cx) => {
-  if (on) view.hot = id;
-  else if (view.hot === id) view.hot = null;
-  cx.notify();
-};
 // A menu hangs from the bar (40px, as Herdr T3's tab bar) under the click, not on the pointer, where it would cover the
 // bar; the app keeps it in the window. With no press to read (assistive tech clicks without one), the app's default: the pointer.
 const underBar = (press) => press && { x: press.x - 8, y: 40 * settings().zoom };

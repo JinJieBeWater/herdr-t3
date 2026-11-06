@@ -4,7 +4,7 @@ import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, layout, run, shared, theme } from "herdr";
 import { keyOf } from "./tip.js";
-import { stopsInit, stop, focusRoot } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -30,6 +30,10 @@ const caps = (key) => key.match(/[⌃⌥⇧⌘]|[^⌃⌥⇧⌘+]+/gu);
 export default class Home extends View {
   init(_props, cx) {
     stopsInit(this, cx);
+  }
+
+  async close() {
+    stopsEnd(this);
   }
 
   render() {

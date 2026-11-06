@@ -9,8 +9,8 @@ import { h_flex } from "gpui-base";
 import { panes, terminals, agents, props, run, theme, home, layout } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
-import { tip, tipMark } from "./tip.js";
-import { stopsInit, stop, focusRoot, within } from "./focus.js";
+import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
+import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
 
 function icon(p, size, color) {
   if (!p?.icon) return null;
@@ -30,6 +30,27 @@ export default class Pane extends View {
     stopsInit(this, cx);
   }
 
+  async close() {
+    stopsEnd(this);
+  }
+
+  // What shows on hover also watches where the pointer is: its leave can be dropped (tip.js).
+  headHover(on, cx) {
+    this.hovered = on;
+    this.box = null;
+    this.hoverWatch?.cancel();
+    if (on) {
+      const from = pointerAt();
+      this.hoverWatch = cx.timer.every(POINTER_WATCH, (cx) => {
+        if (!pointerGone(this.box, from)) return;
+        this.hoverWatch.cancel();
+        this.hovered = false;
+        cx.notify();
+      });
+    }
+    cx.notify();
+  }
+
   me() {
     return panes().find((p) => p.pane === props()?.pane);
   }
@@ -43,11 +64,7 @@ export default class Pane extends View {
       .text_color(this.hot === id ? t.foreground : t.dim)
       .role("button").accessibility_label(label)
       .hover((s) => s.bg(t.hover))
-      .on_hover((on, cx) => {
-        if (on) this.hot = id;
-        else if (this.hot === id) this.hot = null;
-        cx.notify();
-      })
+      .on_hover(glow(this, id))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();
@@ -82,7 +99,8 @@ export default class Pane extends View {
       .gap(8)
       .items_center()
       .text_size(13)
-      .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
+      .on_hover((on, cx) => this.headHover(on, cx))
+      .on_mouse_move((e) => { pointerMoved(e.position); this.box = e.bounds; })
       .on_click(() => run("pane.focus", { pane }))
       .child(div().size(16).mr(-6).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))

@@ -13,6 +13,7 @@ function element() {
       else if (key === "children") node.items.push(...args[0]);
       else if (key === "on_click") node.handlers.click = args[0];
       else if (key === "on_mouse_down") node.handlers[args[0]] = args[1];
+      else if (key === "on_hover" || key === "on_mouse_move") node.handlers[key] = args[0];
       else if (key === "id") node.key = args[0];
       return proxy;
     };
@@ -43,13 +44,17 @@ let terms = [{ address: "t2", labels: {} }, { address: "t3", labels: {} }];
 let tab = { id: "b", name: "Release", named: true };
 let sidebar = { id: "root", children: [{ id: "sidebar-lists", active: "lists" }] };
 let props = { pane: "p2" };
+let pointer = { x: 50, y: 10 };
 const env = {
   View: class {}, div: element, svg: element, image: (src) => { images.push(src); return element(); }, h_flex: element, v_flex: element, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, keys: () => [],
   theme: () => ({}), props: () => props, panes: () => [pane, shell, review], shared: (k) => sharedValues[k] ?? null, home: () => "/home/me",
   terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
-  run: (name, args) => calls.push([name, args]),
+  run: (name, args) => calls.push([name, args]), setShared: (k, v) => { sharedValues[k] = v; },
+  window: Object.assign(() => ({ platform: "macos", active: true }), { mouse_position: () => pointer, viewport_size: () => ({ width: 1000, height: 800 }) }),
 };
-const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }) };
+const ticks = [];
+const tick = () => ticks.filter((w) => !w.gone).forEach((w) => w.fn(cx));
+const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every(_ms, fn) { const w = { fn, cancel() { w.gone = true; } }; ticks.push(w); return w; } } };
 // name.js, tree.js, tip.js and focus.js are inlined as the mod's own copies are.
 function load(...files) {
   const src = files.map((f) => fs.readFileSync(f, "utf8")).join("\n")
@@ -141,6 +146,34 @@ delete terms[0].labels.snoozed;
 terms[0].labels.settled = "1:1"; terms[0].turn = 2;
 assert.equal(dots(), shown, "a new turn's done shows, the label still on");
 delete terms[0].labels.settled; delete terms[0].turn;
+
+// The buttons go with the pointer, even when the header's leave never comes (tip.js).
+{
+  const hover = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "focus.js"), path.join(__dirname, "main.js"));
+  const head = () => find(hover.render(), "pane-head-p2");
+  head().handlers.on_hover(true, cx);
+  head().handlers.on_mouse_move({ position: pointer, bounds: { x: 0, y: 0, width: 100, height: 30 } });
+  tick();
+  assert.ok(find(hover.render(), "ph-x-p2"), "the pointer on the header keeps them");
+  pointer = { x: 50, y: 200 };
+  tick();
+  assert.equal(find(hover.render(), "ph-x-p2"), null, "off it with no leave reported, they go");
+  // Under a still pointer, no move yet: no box to go by, so the first move away decides.
+  head().handlers.on_hover(true, cx);
+  tick();
+  assert.ok(find(hover.render(), "ph-x-p2"));
+  pointer = { x: 60, y: 300 };
+  tick();
+  assert.equal(find(hover.render(), "ph-x-p2"), null);
+}
+
+// The mode's owner closing ends the mode: a pane's × can close the pane it's on, and its timers go with it.
+{
+  const owner = load(path.join(__dirname, "name.js"), path.join(__dirname, "tree.js"), path.join(__dirname, "tip.js"), path.join(__dirname, "focus.js"), path.join(__dirname, "main.js"));
+  sharedValues["t3-focus"] = owner.fs.me;
+  owner.close();
+  assert.equal(sharedValues["t3-focus"], null);
+}
 
 // The buttons come with the keyboard on the header, the stop that gets there, and only in keyboard mode.
 {

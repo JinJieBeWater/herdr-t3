@@ -69,7 +69,7 @@ export default class Picker extends View {
       .when(on, (el) => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(() => this.choose(item))
-      .child(h_flex().size(16).flex_none().items_center().justify_center().child(projectMark(s, 16, t, ps)))
+      .child(h_flex().size(16).flex_none().items_center().justify_center().child(projectMark(s, 16, t, ps, true)))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).when(Boolean(item.here), (d) => d.font_medium()).child(item.label))
         .child(h_flex().min_w(0).gap(4).items_center().text_size(11.5).text_color(t.dim)

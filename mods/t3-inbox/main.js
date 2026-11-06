@@ -15,7 +15,7 @@ import { agents, terminals, panes, spaces, machines, focused, run, hc, notify, t
 import { modStatus, namer, programOf } from "./name.js";
 import { kidStatus, descendants, ownStatus, stillSettled, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { POINTER_WATCH, pointerGone, pointerMoved, tip, tipMark } from "./tip.js";
+import { glow, POINTER_WATCH, pointerGone, pointerMoved, tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
@@ -262,7 +262,7 @@ function customView(view) {
 export default class Inbox extends View {
   init(_props, cx) {
     if (props()?.customSnooze) return initCustom(this, cx);
-    stopsInit(this, cx, "entry");
+    stopsInit(this, cx);
     // A menu of its own holds the keyboard off every stop for as long as it's open, and gives it back to the one it opened from.
     this.fs.hold = () => this.napMenu || this.scopeOpen;
     // Each agent's last state, when we saw it set going or come back (ms; 0: before we were watching), the turns
@@ -576,11 +576,6 @@ export default class Inbox extends View {
       cx.notify();
     };
     // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state.
-    const glow = (id) => (on, cx) => {
-      if (on) this.hot = id;
-      else if (this.hot === id) this.hot = null;
-      cx.notify();
-    };
     const lit = (id, color) => (this.hot === id ? t.foreground : color);
     // A space's mark, as t3-spaces draws it.
     const avatar = (id, name, size) => projectMark(sp.find((s) => s.id === id) ?? { name: name ?? "" }, size, t, ps);
@@ -886,7 +881,7 @@ export default class Inbox extends View {
       const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
         // Another machine's agent, as in T3: a server mark before its program, the machine named on hover.
         .when(Boolean(machine), (el) => {
-          const server = div().when(!ghost, (m) => m.id(`machine-${a.address}`).on_hover(glow(`machine-${a.address}`)).accessibility_label(`On ${machine}`))
+          const server = div().when(!ghost, (m) => m.id(`machine-${a.address}`).on_hover(glow(this, `machine-${a.address}`)).accessibility_label(`On ${machine}`))
             .flex_none().child(svg("mods/t3-inbox/server.svg").size(14).text_color(t.dim));
           return el.child(ghost ? server : tip(this, t, `machine-${a.address}`, machine, server, { delay }));
         })
@@ -905,7 +900,7 @@ export default class Inbox extends View {
         .when(Boolean(time), (el) => el.children(time.split(" ").map((part) => div().font_family(settings().font_family ?? "JetBrains Mono").child(part))));
       // It wakes where it was, so this carries the weight, as T3's; a click dismisses it, and it stays on hover.
       const wokeMark = woke(a) && tip(this, t, `woke-${a.address}`, "Dismiss Woke notification", stop(this, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
-        .hover((s) => s.underline()).on_hover(glow(`woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
+        .hover((s) => s.underline()).on_hover(glow(this, `woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -941,7 +936,7 @@ export default class Inbox extends View {
           cx.notify();
         })
         .trigger(h_flex().id(napId).size(20).flex_none().items_center().justify_center().rounded(4)
-          .opacity(napOffer ? 1 : 0).transition("opacity", MOTION).on_hover(glow(napId))
+          .opacity(napOffer ? 1 : 0).transition("opacity", MOTION).on_hover(glow(this, napId))
           .role("button").accessibility_label("Snooze agent")
           .child(svg("mods/t3-inbox/clock.svg").size(12).flex_none().text_color(menu ? t.foreground : lit(napId, t.muted)))
           .when(napOffer, (el) => stop(this, t, napId, el, 4)))
@@ -991,7 +986,7 @@ export default class Inbox extends View {
           .child(div().when(!offer, (el) => el.absolute().top(0).right(0)).child(tip(this, t, id, a.mod ? "Settle and close" : "Settle agent", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
           .text_size(12).text_color(lit(id, t.muted)).opacity(offer ? 1 : 0).transition("opacity", MOTION)
           // Faded out it's no button: a click there is the card's. As T3's row controls, hover only lights it: no ground.
-          .when(offer, (el) => el.on_hover(glow(id)).role("button").accessibility_label(a.mod ? "Settle and close" : "Settle").when(!a.mod, (b) => b.on_mouse_down("left", sweepFrom("settle", a))).on_click((_e, cx) => {
+          .when(offer, (el) => el.on_hover(glow(this, id)).role("button").accessibility_label(a.mod ? "Settle and close" : "Settle").when(!a.mod, (b) => b.on_mouse_down("left", sweepFrom("settle", a))).on_click((_e, cx) => {
             cx.stop_propagation();
             if (justDropped()) return;
             // A click is no sweep. Its release stops here, so the sidebar's mouse-up won't end the one the press began.
@@ -1001,7 +996,7 @@ export default class Inbox extends View {
           }))
           .child(svg("mods/t3-inbox/check.svg").size(12).flex_none().text_color(lit(id, t.muted)))
           .child("Settle")
-          .when(offer, (el) => stop(this, t, id, el, 4)), { action: "t3-inbox.settle", delay }))));
+          .when(offer, (el) => stop(this, t, id, el, 4)), { action: "t3-tabs.settle", delay }))));
       // T3's multiline row: px-2.5 py-1.5, rounded-md.
       const base = v_flex().id(`${ghost ? "ghost-" : ""}card-${a.address}`).px(10).py(6).gap(2).flex_none().rounded(6)
         // A working row recedes until it's hovered or in view, as T3's.
@@ -1037,7 +1032,7 @@ export default class Inbox extends View {
       const undo = h_flex().id(undoId).size(20).flex_none().items_center().justify_center().rounded(4)
         .opacity(over ? 1 : 0).transition("opacity", MOTION)
         // Faded out it's no button: a click there is the row's.
-        .when(over, (el) => el.on_hover(glow(undoId)).role("button").accessibility_label(undoLabel)
+        .when(over, (el) => el.on_hover(glow(this, undoId)).role("button").accessibility_label(undoLabel)
           .on_mouse_down("left", sweepFrom(napping ? "unsnooze" : "unsettle", a)).on_click((_e, cx) => {
           cx.stop_propagation();
           if (justDropped()) return;
@@ -1189,7 +1184,7 @@ export default class Inbox extends View {
       if (tabNow) { run("space.select", { id: spaceNow.id }); run("tab.select", { id: tabNow }); }
     };
     const clearButton = doomed.length > 0 && tip(this, t, "settled-clear", "Clear settled agents", stop(this, t, "settled-clear", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
-      .text_color(lit("settled-clear", t.dim)).on_hover(glow("settled-clear"))
+      .text_color(lit("settled-clear", t.dim)).on_hover(glow(this, "settled-clear"))
       .role("button").accessibility_label("Clear settled agents")
       .on_click((_e, cx) => {
         cx.stop_propagation();
@@ -1214,7 +1209,7 @@ export default class Inbox extends View {
         .child(plan?.gap === "head-settled" ? gap("head-settled") : placeholder("settled", "Settled")))
       .children(lane("settled", rows, (a) => slim(a), 0))
       .when(this.open && put.length > this.limit, (el) => el.child(fly("m:more", "marker", stop(this, t, "settled-more", h_flex().id("settled-more").h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6)
-        .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)).on_hover(glow("settled-more"))
+        .text_color(lit("settled-more", t.dim)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)).on_hover(glow(this, "settled-more"))
         .role("button").accessibility_label("Show more settled agents")
         .on_click((_e, cx) => {
           this.hot = null; // It may go, before the pointer can report leaving it.
@@ -1227,7 +1222,7 @@ export default class Inbox extends View {
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const asks = props()?.newMenu && machines().length > 1;
     const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
-      .hover((s) => s.bg(t.hover)).on_hover(glow(id))
+      .hover((s) => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label).on_click(fn)
       .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim)))), more);
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
@@ -1259,7 +1254,7 @@ export default class Inbox extends View {
         cx.notify();
       })
       .trigger(stop(this, t, "inbox-scope", h_flex().id("inbox-scope").size(26).flex_none().items_center().justify_center().rounded(6)
-        .hover((s) => s.bg(t.hover)).on_hover(glow("inbox-scope"))
+        .hover((s) => s.bg(t.hover)).on_hover(glow(this, "inbox-scope"))
         .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space")
         .child(scoped.length > 1
           ? h_flex().children(scoped.slice(0, 2).map((s, i) => avatar(s.id, s.name, 14).when(i > 0, (el) => el.ml(-6))))
@@ -1287,7 +1282,7 @@ export default class Inbox extends View {
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
       // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
       .child(stop(this, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
-        .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("inbox-search"))
+        .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow(this, "inbox-search"))
         // Each opens over its button, before the pointer can report leaving it.
         .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: props()?.picker ?? "picker" }); cx.notify(); })
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(lit("inbox-search", t.dim)))
