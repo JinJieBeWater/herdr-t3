@@ -4,6 +4,13 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- State that went stale or disagreed, fixed across the layout:
+  - **With the sidebar hidden**: a settled agent with new work counts on the toggle, its done dot shows, and `cmd-shift-b` and `cmd-shift-s` work or stay quiet instead of reporting an error (change them in yours: see Update). Agents that ended while Inbox or Lists wasn't showing keep their real order and times.
+  - **Inbox**: dragging a pinned, snoozed agent out wakes it and keeps its pin; Undo no longer drops a pin made since; a quick Undo doesn't flash; a drag ends even if its leave never comes, and follows the pointer at any zoom.
+  - **Lists**: `cd` in a worktree no longer reorders your spaces or changes `ctrl-N`. Machines connected another way come back. Temporary machines show their real state, and a machine's state updates at once. A row dragged out of the window goes back. Fewer `git status` runs, and one hung machine no longer holds up the others.
+  - **Tabs and Home**: going back to a space by key shows the tab you were on, not Herdr's neighbour. Go to's Back works across tabs. Cancelling a close at Home leaves it as it was, and a second Home isn't created at startup. A tab that changes during a drag no longer selects or moves the wrong one.
+  - **Keyboard**: closing the pane you're on ends keyboard mode, and first showing Lists or Inbox no longer ends it.
+  - **Review**: Retry no longer wedges the pane. Closing a review pane clears the bar's counts and steps. Turning off automatic analysis applies to every pane at once, so another pane won't start a paid run. A dead daemon shows a failure instead of spinning, and a run finishing in the background keeps its mark until you're back.
 - Every popup's list now moves the same way. ↑/↓ keep the highlight in view in the Inbox space filter, the Actions menu and the Review pane's model list, where it used to run off the bottom; hovering a row in New and Go to now lights it, and the wheel takes the highlight along, as the other menus do. ↑ with nothing lit in the sort menu now goes to the last row.
 - Home's default page is three buttons now: Next agent, Go to and New tab, with their keys. New tab replaces New space, which started a space in your home folder from there. Next agent dims when it has nowhere to go.
 - `cmd-]` and `cmd-[` work with the sidebar hidden, going by Herdr's order as Lists does. They're `t3-tabs.next` and `.prev` now: change them in your keys (see Update).

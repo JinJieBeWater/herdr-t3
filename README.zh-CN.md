@@ -55,8 +55,8 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 
 | 快捷键 | 命令 | 作用 |
 | --- | --- | --- |
-| `cmd-shift-b` | `t3-chrome.sidebar` | 侧栏在 Lists 和 Inbox 之间切换 |
-| `cmd-shift-s` | `t3-inbox.settle` | Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
+| `cmd-shift-b` | `t3-tabs.sidebar` | 侧栏在 Lists 和 Inbox 之间切换 |
+| `cmd-shift-s` | `t3-tabs.settle` | Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
 | `cmd-shift-h` | `t3-tabs.home` | 回到 Home |
 | `cmd-t`、`ctrl-alt-c` | `t3-tabs.new` | 在当前位置新建标签；在 Home 时打开新建菜单，先选 space |
 | `ctrl-1…9`、`ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | 第 n 个 space，不算 Home |
@@ -79,6 +79,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 新增 Home：`mods/t3-home` 随其他 `mods/t3-*` 一起覆盖，布局会启用它。把上面新增的按键加进你的 `layout:herdr-t3` 分区，否则 `ctrl-1…9` 会把 Home 算进去。如果想继续跳到下一张卡片，从布局里 `t3-inbox` 的 props 删掉 `"home"`。
+- `cmd-shift-b` 和 `cmd-shift-s` 现在在布局显示的任何时候都可用：把你 `layout:herdr-t3` 分区里的这两项改成 `t3-tabs.sidebar` 和 `t3-tabs.settle`（以前是 `t3-chrome.sidebar` 和 `t3-inbox.settle`），否则会提示未知命令。
 - 显示 Inbox 时，标签栏只放当前 agent 和它周边的标签：把仓库 `keys.json` 里 `cmd-1…9`、`ctrl-alt-1…9`、`ctrl-tab`、`ctrl-shift-tab`、`cmd-shift-]`、`cmd-shift-[`、`ctrl-alt-]`、`ctrl-alt-[` 这几行加进你的 `layout:herdr-t3` 分区，否则这些键会算上被隐藏的标签。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
 - 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，用本仓库的 `extras/mods/pulls-review` 覆盖 `mods/pulls-review`，再加上 `extras/mods/review`（见下文）。

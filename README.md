@@ -55,8 +55,8 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 
 | Key | Command | Does |
 | --- | --- | --- |
-| `cmd-shift-b` | `t3-chrome.sidebar` | Switches the sidebar between Lists and Inbox |
-| `cmd-shift-s` | `t3-inbox.settle` | Settles the agent in view and goes to Home, or brings it back if it's settled. Only while Inbox shows; a busy or pinned agent stays |
+| `cmd-shift-b` | `t3-tabs.sidebar` | Switches the sidebar between Lists and Inbox |
+| `cmd-shift-s` | `t3-tabs.settle` | Settles the agent in view and goes to Home, or brings it back if it's settled. Only while Inbox shows; a busy or pinned agent stays |
 | `cmd-shift-h` | `t3-tabs.home` | Goes to Home |
 | `cmd-t`, `ctrl-alt-c` | `t3-tabs.new` | A new tab here; at Home, New, which picks the space first |
 | `ctrl-1…9`, `ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | Your nth space, not counting Home |
@@ -79,6 +79,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - Kept: pins, folds, sort, the Settled shelf and settled agents. They live in `data/`, `shared.json` and terminal labels, not in the mod folders. Lost: your own edits to the overwritten files, including the focus ring color; set it again after overwriting the layout.
 - `keys.json` and the extras stay as they are; compare them with the repo only if the commit log mentions them. Commits marked `!` rename things (for example `refactor!: rename the layout and theme to herdr-t3`); follow what they rename.
 - With Inbox showing, the tab bar holds the agent in view and what's around it: add the `cmd-1…9`, `ctrl-alt-1…9`, `ctrl-tab`, `ctrl-shift-tab`, `cmd-shift-]`, `cmd-shift-[`, `ctrl-alt-]` and `ctrl-alt-[` lines from the repo's `keys.json` to your `layout:herdr-t3` section, or those keys will count tabs the bar hides.
+- `cmd-shift-b` and `cmd-shift-s` work wherever the layout shows now: in your `layout:herdr-t3` section change them to `t3-tabs.sidebar` and `t3-tabs.settle` (once `t3-chrome.sidebar` and `t3-inbox.settle`), or they'll report an unknown command.
 - Home is new: `mods/t3-home` comes with the other `mods/t3-*`, and the layout turns it on. Add the keys above to your `layout:herdr-t3` section, or `ctrl-1…9` will count Home. To keep moving on to the next card instead, remove `"home"` from `t3-inbox`'s props in the layout.
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
 - Actions and the Review bar moved out of `t3-tabs`: copy the new `mods/t3-actions` too (your actions are kept: they live in `shared.json`), and for Review overwrite `mods/pulls-review` with this repo's `extras/mods/pulls-review` and add `extras/mods/review` (below).
