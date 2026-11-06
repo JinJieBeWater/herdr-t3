@@ -15,7 +15,7 @@ import { agents, terminals, panes, spaces, machines, focused, run, hc, notify, t
 import { modStatus, namer, programOf } from "./name.js";
 import { kidStatus, descendants, ownStatus, stillSettled, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { tip, tipMark } from "./tip.js";
+import { POINTER_WATCH, pointerGone, pointerMoved, tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
@@ -126,9 +126,8 @@ function submitCustom(view) {
     view.error = view.mode === "date" ? "Choose a valid date and time in the future." : "Enter a positive duration.";
     return;
   }
-  setShared("t3-inbox.custom", { address: props().customSnooze, at });
   closeOverlay(props().overlay);
-  run("t3-inbox.custom-snooze");
+  run(`t3-inbox.custom-snooze:${props().customSnooze}:${at}`);
 }
 
 // A month to pick a day from; days gone by can't be picked. The kit has no calendar of its own.
@@ -279,6 +278,8 @@ export default class Inbox extends View {
     this.limit = FIRST;
     // Labels written but not back from the core yet: label → address → value ("" = removed).
     this.pending = { settled: {}, snoozed: {} };
+    // Labels with writes under way, by `key address`: how many, and whether the label can't yet be taken at its word.
+    this.writing = {};
     // Writes that failed, and when.
     this.refused = {};
     this.hovered = null;
@@ -294,18 +295,19 @@ export default class Inbox extends View {
     // Takes the keyboard while a row is lifted, so Esc can put it back.
     this.keys = cx.focus_handle();
     // "Working 9s" counts up only while such a card shows.
-    cx.timer.every(1000, (cx) => { if (this.ticking) cx.notify(); });
+    // Render says so again each time, so a list hidden meanwhile draws nothing.
+    cx.timer.every(1000, (cx) => { if (this.ticking) { this.ticking = false; cx.notify(); } });
     // The cards' times (5m, 2h) move on by the minute, as T3's do.
     cx.timer.every(60000, (cx) => cx.notify());
     // `t3-inbox.settle` (cmd-shift-s in keys.json): see settleKey in render. `t3-inbox.clear`: Clear's confirm dialog.
-    // `t3-inbox.custom-snooze`: the Custom dialog, a copy of this mod with no loop of its own.
+    // `t3-inbox.custom-snooze:<address>:<wake ms>`: the Custom dialog, a copy of this mod with no loop of its own.
     // `t3-inbox.undo`: the undo notice's Undo, when the sidebar footer (t3-chrome) shows it.
     cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
         if (command === "settle") this.settleKey?.(cx);
         else if (command === "clear") this.clearSettled?.();
-        else if (command === "custom-snooze") this.customSnooze?.(cx);
+        else if (command.startsWith("custom-snooze:")) this.customSnooze?.(command.slice("custom-snooze:".length), cx);
         else if (command === "undo") this.undo(cx);
         // pane.go onto this list (mod.json's "focusable"): the keyboard starts at Search.
         else if (command === "focus") enter(this, cx, "inbox-search");
@@ -333,10 +335,11 @@ export default class Inbox extends View {
   // Takes each agent's state as working, blocked or idle (done counts as idle: looking at it isn't news).
   // A run's place in Working is when it started, as T3's is the person's message: a pause for them, or a stop
   // that goes on within the grace, is the same run. Pinned and settled ones skip the grace, as in T3: their
-  // place doesn't hang on it. A turn ended while we weren't watching is news too.
+  // place doesn't hang on it. A turn ended while we weren't watching is news too. Hidden, nothing draws, so it goes by
+  // `changed`, when it really changed; a time no later than the last we saw is about something else, so then it's now.
   track(list, all, now, cx) {
     let dirty = false;
-    for (const { address, s, turn, excluded, first } of list) {
+    for (const { address, s, turn, excluded, first, changed } of list) {
       let was = this.changed[address];
       // The grace ran out: back with the person as of then, so it lands on top, and the run is over.
       if (was?.s === "idle" && was.start != null && (excluded || now - was.at >= GRACE)) {
@@ -344,15 +347,16 @@ export default class Inbox extends View {
         dirty = true;
       }
       if (was?.s === s && (s !== "idle" || turn <= (was.turn ?? turn))) continue;
-      const grace = was?.s === "working" && s === "idle" && !excluded;
-      if (grace) cx.timer.after(GRACE, (cx) => cx.notify());
+      const when = changed > (was?.at ?? 0) ? changed : now;
+      const grace = was?.s === "working" && s === "idle" && !excluded && now - when < GRACE;
+      if (grace) cx.timer.after(GRACE - (now - when), (cx) => cx.notify());
       this.changed[address] = !was ? { s, at: first ?? 0, turn } // First sight says nothing about when it changed.
-        : s === "working" ? { s, at: was.start ?? now, turn }
+        : s === "working" ? { s, at: was.start ?? when, turn }
         // A pause for the person, stuck or replying while its sub-agents work: the run keeps its start.
-        : s === "blocked" || s === "done" ? { s, at: now, turn, start: was.s === "working" ? was.at : was.start }
-        : grace ? { s, at: now, turn, start: was.at } // Stopped: the grace begins.
+        : s === "blocked" || s === "done" ? { s, at: when, turn, start: was.s === "working" ? was.at : was.start }
+        : grace ? { s, at: when, turn, start: was.at } // Stopped: the grace begins.
         : was.start != null && was.s === "idle" ? { ...was, turn } // The turn's end arriving within it.
-        : { s, at: now, turn };
+        : { s, at: when, turn };
       dirty = true;
     }
     if (!dirty) return;
@@ -366,12 +370,19 @@ export default class Inbox extends View {
   // Shown at once; the label comes back from the core a moment later.
   setLabel(key, addr, value, cx) {
     this.pending[key][addr] = value;
+    const slot = `${key} ${addr}`, w = this.writing[slot] ?? (this.writing[slot] = { out: 0, unsure: false });
+    // Undone before the first write has landed: the label says this already, and the two can land either way round.
+    w.unsure = w.unsure || (w.out > 0 && (terminals().find((k) => k.address === addr)?.labels?.[key] ?? "") === value);
+    w.out++;
     cx.spawn(async (cx) => {
       const r = await hc(["label", addr, `${key}=${value}`]).catch((e) => ({ code: 1, stderr: String(e) }));
-      if (r.code === 0) return;
-      delete this.pending[key][addr];
-      this.refused[`${key} ${addr} ${value}`] = Date.now();
-      notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
+      if (--w.out === 0) delete this.writing[slot];
+      if (r.code !== 0) {
+        if (this.pending[key][addr] === value) delete this.pending[key][addr];
+        this.refused[`${key} ${addr} ${value}`] = Date.now();
+        notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
+      }
+      if (w.out === 0 && w.unsure && this.pending[key][addr] !== undefined) this.setLabel(key, addr, this.pending[key][addr], cx);
       cx.notify();
     });
   }
@@ -423,12 +434,20 @@ export default class Inbox extends View {
     return null;
   }
 
-  detailsLive() { return detailsLive(this); }
-  detailsFor(address, cx) { detailsFor(this, address, cx); }
+  // Its leave can get lost (see pointerGone), and the release out there is never reported: this says it left.
+  watchDrag(cx) {
+    this.dragWatch?.cancel();
+    this.dragWatch = cx.timer.every(POINTER_WATCH, (cx) => {
+      if (!(this.drag || this.sweep || this.back)) this.dragWatch.cancel();
+      else if (pointerGone(this.dragBox)) this.leftSidebar(cx);
+    });
+  }
 
   render(cx) {
     if (props()?.customSnooze) return customView(this);
     const t = theme(), now = Date.now();
+    // Herdr scales what a mod sets, and reports sizes and pointer places as drawn: what's kept here is the mod's own, unscaled.
+    const zoom = Number(settings()?.zoom) || 1;
     const runs = agents(), all = terminals(), ps = panes(), sp = spaces(), f = focused();
     // Mod panes that ask for a card (see the top), one a tab. `pane:<id>` is their address, in t3-inbox.rows too.
     const every = [...runs, ...sp.flatMap((s) => s.tabs.flatMap((c) => {
@@ -468,7 +487,7 @@ export default class Inbox extends View {
     const listed = new Map(every.map((a) => [a.address, a.status]));
     const term = new Map(all.map((k) => [k.address, k]));
     for (const [key, of] of Object.entries(this.pending)) {
-      for (const [k, v] of Object.entries(of)) if (!term.has(k) || (term.get(k).labels?.[key] ?? "") === v) delete of[k];
+      for (const [k, v] of Object.entries(of)) if (!term.has(k) || (!this.writing[`${key} ${k}`]?.unsure && (term.get(k).labels?.[key] ?? "") === v)) delete of[k];
     }
     const settledAt = (a) => {
       const v = this.pending.settled[a.address] ?? term.get(a.address)?.labels?.settled;
@@ -491,25 +510,27 @@ export default class Inbox extends View {
     const napUntil = (a) => Number(this.pending.snoozed[a.address] ?? term.get(a.address)?.labels?.snoozed) || 0;
     const wake = (a, cx) => this.setLabel("snoozed", a.address, "", cx);
     // A snooze ends on a failure in its tree (a program's error doesn't stay said), a new turn in view (the person gave
-    // it work), a pin, or being looked at once it has woken.
+    // it work), or being looked at once it has woken. A pin ends it too, as the pinning writes the label.
     const failed = (a) => term.get(a.address)?.status === "error" || descendants(all, a.address).some((k) => k.status === "error");
-    const pinnedNow = new Set(pins);
     for (const a of every) {
       const until = napUntil(a);
       if (!until) continue;
       const turned = viewing(a) && running(a) && ["idle", "done"].includes(this.changed[a.address]?.s);
-      if (failed(a) || turned || (viewing(a) && until <= now) || (this.pinsSeen && pinnedNow.has(a.address) && !this.pinsSeen.has(a.address))) this.setLabelDue("snoozed", a.address, "", cx);
+      if (failed(a) || turned || (viewing(a) && until <= now)) this.setLabelDue("snoozed", a.address, "", cx);
     }
-    this.pinsSeen = pinnedNow;
     // Out of sight until then, unless it needs the person.
     const hidden = (a) => !settledAt(a) && napUntil(a) > now && state(a) !== "blocked";
     const woke = (a) => napUntil(a) > 0 && napUntil(a) <= now;
+    const tabs = new Map(sp.flatMap((s) => s.tabs.map((c) => [c.id, c])));
     this.track(every.map((a) => ({
       address: a.address, s: state(a) === "blocked" ? "blocked" : running(a) ? "working"
         : state(a) === "done" && kids.get(a.address).includes("working") ? "done" : "idle",
       turn: term.get(a.address)?.turn ?? 0, excluded: pins.includes(a.address) || Boolean(settledAt(a)) || hidden(a),
       // A mod pane first seen is one just opened.
       first: a.mod ? now : 0,
+      // Its own word's change: with a sub-agent speaking for it, the tab's time needn't be about that.
+      // shortcut: a tab's time is its latest agent's, so two agents changing in one hidden tab both read the later; fine until agents() gives each its own.
+      changed: state(a) === ownStatus(a.status, a.address, all) ? tabs.get(a.tab)?.changed_at : null,
     })), all, now, cx);
     const mark = (a) => this.changed[a.address];
     // Seen changing, then; before that, the core's time of its last change. terminals() only has that as of
@@ -545,14 +566,13 @@ export default class Inbox extends View {
       this.nextWake = next;
       this.wakeTimer = next < Infinity ? cx.timer.after(Math.min(next - now, DAY), (cx) => { this.nextWake = null; cx.notify(); }) : null;
     }
-    // agent.next goes as the list reads. Only while this list shows: the agents list (t3-agents) sets its own.
-    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-    if (find(layout())?.active !== "lists") setAgentOrder([...pinned, ...out, ...work, ...nap, ...put].filter((a) => !a.mod).map((a) => a.address));
+    // agent.next goes as the list reads. Only the list showing draws, so the agents list (t3-agents) sets its own.
+    setAgentOrder([...pinned, ...out, ...work, ...nap, ...put].filter((a) => !a.mod).map((a) => a.address));
 
     const title = namer();
     const hover = (a) => (on, cx) => {
-      if (on) { this.hovered = a.address; this.detailsFor(a.address, cx); }
-      else if (this.hovered === a.address) { this.hovered = null; this.detailsFor(null, cx); }
+      if (on) { this.hovered = a.address; detailsFor(this, a.address, cx); }
+      else if (this.hovered === a.address) { this.hovered = null; detailsFor(this, null, cx); }
       cx.notify();
     };
     // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state.
@@ -564,8 +584,24 @@ export default class Inbox extends View {
     const lit = (id, color) => (this.hot === id ? t.foreground : color);
     // A space's mark, as t3-spaces draws it.
     const avatar = (id, name, size) => projectMark(sp.find((s) => s.id === id) ?? { name: name ?? "" }, size, t, ps);
+    // A row moving away from under the pointer reports no leave.
+    const away = (a, cx) => {
+      if (this.hovered !== a.address) return;
+      this.hovered = null;
+      detailsFor(this, null, cx);
+    };
+    // Undo puts back only the pins it took, where they were: pins made since stay.
+    const repin = (before, took) => {
+      const current = [...(shared("agents.pins") ?? [])];
+      for (const p of before.filter((p) => took.includes(p) && !current.includes(p))) {
+        const next = before.slice(before.indexOf(p) + 1).find((q) => current.includes(q));
+        current.splice(next ? current.indexOf(next) : current.length, 0, p);
+      }
+      setShared("agents.pins", current);
+    };
     // Brought back, it's news again: the top of the list.
     const unsettle = (a, cx) => {
+      away(a, cx);
       this.setLabel("settled", a.address, "", cx);
       this.changed[a.address] = { ...this.changed[a.address], at: Date.now(), start: null };
       localStorage.setItem("changes", JSON.stringify(this.changed));
@@ -587,6 +623,7 @@ export default class Inbox extends View {
     // Settling ends a snooze and a pin, as T3's. A mod pane closes, once the view has moved on from it.
     const settle = (xs, cx) => {
       const panes = xs.filter((a) => a.mod), kept = xs.filter((a) => !a.mod), seen = kept.find(viewing);
+      for (const a of xs) away(a, cx);
       const naps = new Map(kept.map((a) => [a, napUntil(a)]));
       const before = [...pins], unpinned = pins.filter((p) => !kept.some((a) => a.address === p));
       if (unpinned.length < before.length) setShared("agents.pins", unpinned);
@@ -595,12 +632,9 @@ export default class Inbox extends View {
         if (naps.get(a)) wake(a, cx);
       }
       // Undone, they're back where they were: no news, as T3 restores a thread, with its pin and a snooze that hasn't
-      // run out. A pin coming back isn't a new pin, which would wake that snooze.
+      // run out.
       if (kept.length) this.remember("Settled", kept.length, (cx) => {
-        if (unpinned.length < before.length) {
-          setShared("agents.pins", before);
-          for (const a of kept) this.pinsSeen.add(a.address);
-        }
+        repin(before, kept.map((a) => a.address));
         for (const a of kept) {
           this.setLabel("settled", a.address, "", cx);
           if (naps.get(a) > Date.now()) this.setLabel("snoozed", a.address, String(naps.get(a)), cx);
@@ -617,7 +651,7 @@ export default class Inbox extends View {
       this.remember("Snoozed", 1, (cx) => { wake(a, cx); if (seen) bringBack(a); }, cx);
       // The card moves away without a pointer-leave event, for it or for the clock under the pointer.
       this.napMenu = this.hovered = this.hot = null;
-      this.detailsFor(null, cx);
+      detailsFor(this, null, cx);
       moveOn([a]);
     };
     // As T3's pick: a duration counts from the click; a time that passed since the menu was drawn is refused.
@@ -625,7 +659,7 @@ export default class Inbox extends View {
       if (p.custom) {
         // A dialog covers the card, and nothing reports leaving it until the pointer moves.
         this.napMenu = this.hovered = this.hot = null;
-        this.detailsFor(null, cx);
+        detailsFor(this, null, cx);
         openOverlay({ mod: "t3-inbox", kind: "dialog", width: 384, height: 310, props: { customSnooze: a.address } });
         return;
       }
@@ -634,13 +668,10 @@ export default class Inbox extends View {
       this.napAt = -1;
       notify({ title: "Couldn't snooze the agent", body: "That time has passed. Choose another.", level: "warning" });
     };
-    // The Custom dialog leaves its answer in shared. By then it may have come to need the person, which T3 refuses too.
-    this.customSnooze = (cx) => {
-      const c = shared("t3-inbox.custom");
-      if (!c) return;
-      setShared("t3-inbox.custom", null);
-      const a = every.find((x) => x.address === c.address);
-      if (a && state(a) !== "blocked" && c.at > Date.now()) snooze(a, c.at, cx);
+    // The Custom dialog's answer. By then it may have come to need the person, which T3 refuses too.
+    this.customSnooze = (answer, cx) => {
+      const i = answer.lastIndexOf(":"), at = Number(answer.slice(i + 1)), a = every.find((x) => x.address === answer.slice(0, i));
+      if (a && state(a) !== "blocked" && at > Date.now()) snooze(a, at, cx);
     };
     // The settle key: the agent in view, as its card's Settle (finished) or its settled row's undo.
     this.settleKey = (cx) => {
@@ -750,10 +781,11 @@ export default class Inbox extends View {
       .when([this.hovered, this.details, this.detailsOut].includes(a.address), (r) => r.child(details(a)))
       .on_mouse_down("left", (e) => {
         if (a.mod || sectionOf(a) === "working" || this.pending.settled[a.address] !== undefined || this.pending.snoozed[a.address] !== undefined || this.hot === `snooze-${a.address}`) return;
-        this.drag = { from: a.address, at: e.position, grab: e.local_position?.y ?? 0, height: e.bounds?.height ?? 0, moved: false, target: null };
+        this.drag = { from: a.address, at: e.position, grab: (e.local_position?.y ?? 0) / zoom, height: (e.bounds?.height ?? 0) / zoom, moved: false, target: null };
       })
       .on_mouse_move((e, cx) => {
-        detailsAt(this, a.address, e);
+        // Lifted, the root tracks the pointer: a second report of one place would read as having stopped.
+        if (!this.drag?.moved && !this.sweep?.moved) detailsAt(this, a.address, e);
         if (this.sweep?.moved) return sweepTo(a, cx);
         const s = sectionOf(a);
         // Nothing lands in Snoozed: a drop can't say when it wakes, as T3's.
@@ -765,7 +797,7 @@ export default class Inbox extends View {
       if (justDropped() || this.hot === `snooze-${a.address}`) return;
       go(a);
       // As a T3 tooltip, a click takes its card down until the pointer comes back.
-      this.detailsFor(null, cx);
+      detailsFor(this, null, cx);
       cx.notify();
     };
     // Says whether it moved on to another agent.
@@ -774,10 +806,11 @@ export default class Inbox extends View {
       const a = lifted;
       if (plan.section === "settled") return settle([a], cx);
       if (plan.section === "pinned") setShared("agents.pins", plan.order);
-      else if (pins.includes(a.address)) {
+      // Out of Snoozed it's a Wake, which keeps the pin.
+      else if (pins.includes(a.address) && from !== "snoozed") {
         const before = [...pins];
         setShared("agents.pins", pins.filter((p) => p !== a.address));
-        this.remember("Unpinned", 1, () => setShared("agents.pins", before), cx);
+        this.remember("Unpinned", 1, () => repin(before, [a.address]), cx);
       }
       if (settledAt(a)) unsettle(a, cx);
       if (napUntil(a)) wake(a, cx);
@@ -804,7 +837,7 @@ export default class Inbox extends View {
     const finish = (cx) => {
       if (!this.drag && !this.sweep && !this.back) return;
       const moved = (dragging && drop(cx)) || (Boolean(this.sweep?.moved) && applySweep(cx));
-      if (dragging && moved) this.landed = { key: d.from, y: ghostTop() - TOP };
+      if (dragging) this.landed = { key: d.from, y: ghostTop() - TOP };
       if (dragging || this.sweep?.moved) this.dropped = Date.now();
       this.endDrag(!moved);
     };
@@ -816,7 +849,7 @@ export default class Inbox extends View {
     };
 
     // A control's label in a row belongs to the same group as the row's card, so it too opens at once.
-    const delay = this.detailsLive() ? 0 : 150;
+    const delay = detailsLive(this) ? 0 : 150;
     const machineOf = (a) => a.address.includes("/") ? a.address.split("/")[0] : null;
     const branchOf = (a) => ps.find((p) => p.pane === a.pane)?.branch;
     // A row's details, as T3's thread card: on the row's right from its top. A 1px anchor just outside its top right corner, as
@@ -963,9 +996,6 @@ export default class Inbox extends View {
             if (justDropped()) return;
             // A click is no sweep. Its release stops here, so the sidebar's mouse-up won't end the one the press began.
             this.sweep = null;
-            // The card moves away without a pointer-leave event.
-            this.hovered = null;
-            this.detailsFor(null, cx);
             settle([a], cx);
             cx.notify();
           }))
@@ -977,7 +1007,7 @@ export default class Inbox extends View {
         // A working row recedes until it's hovered or in view, as T3's.
         .when(!ghost, (el) => el.opacity(running(a) && !woke(a) && !on && !over ? 0.7 : 1).transition("opacity", MOTION));
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a))
-        .on_click(open(a)).on_size_change((size) => { this.cardH = size.height; }))
+        .on_click(open(a)).on_size_change((size) => { this.cardH = size.height / zoom; }))
         .when(on, (el) => el.bg(t.selected))
         .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.when(menu, (m) => m.bg(t.hover)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
@@ -1012,8 +1042,7 @@ export default class Inbox extends View {
           cx.stop_propagation();
           if (justDropped()) return;
           this.sweep = null;
-          this.hovered = null;
-          this.detailsFor(null, cx);
+          away(a, cx);
           if (napping) wake(a, cx); else unsettle(a, cx);
           cx.notify();
         }))
@@ -1059,10 +1088,9 @@ export default class Inbox extends View {
     // where it was, one that's new fades in from 40px above, one that left fades out where it was; 150ms ease-out. Not
     // while dragging (the lanes' gaps move then), and a change of more than 40 rows just shows. Herdr eases only later
     // changes to an element: a row that moves gets a new id, first drawn where it was, then let go to its place.
-    const zoom = Number(settings()?.zoom) || 1;
     const TOP = 32; // The top row above the list.
     const ghostTop = () => Math.max(TOP + 8 + 24, Math.min(d.y - d.grab, (this.height ?? Infinity) - d.height - 8));
-    const heightOf = (kind, key) => this.rowH[`${kind}:${key}`] ?? (kind === "slim" ? SLIM : kind === "marker" ? SHELF : (this.cardH ?? 78) / zoom + 2);
+    const heightOf = (kind, key) => this.rowH[`${kind}:${key}`] ?? (kind === "slim" ? SLIM : kind === "marker" ? SHELF : (this.cardH ?? 78) + 2);
     // Where each row sits in the list (logical px from its top, padding included): Pinned and Active from the top, the
     // shelves from the bottom once there's room, below the rest when there isn't. While dragging, with the labels,
     // the gap and the lifted row as the lanes draw them, so a drop goes on from there. The shelves' headers, Show more
@@ -1275,8 +1303,18 @@ export default class Inbox extends View {
       // The layout passes its own menu; docked alone, the shipped one.
       .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }));
 
+    // Herdr reports no release outside the sidebar, so leaving decides. Off the top or bottom edge (the Pinned
+    // label or the Settled shelf sit there) it lands where the badge says, as T3 keeps the last target past the
+    // list's ends; off a side it goes back.
+    this.leftSidebar = (cx) => {
+      if (!(this.drag || this.sweep || this.back)) return;
+      const p = (this.drag ?? this.sweep)?.last, w = this.width ?? Infinity, h = this.height ?? Infinity;
+      const side = !p || Math.min(p.x, w - p.x) < Math.min(p.y, h - p.y);
+      if (side) this.endDrag(); else finish(cx);
+      cx.notify();
+    };
     const tree = v_flex().id("t3-inbox-root").relative().size_full().min_h(0).bg(t.chrome).text_size(13)
-      .on_size_change((size) => { this.height = size.height; this.width = size.width; })
+      .on_size_change((size) => { this.height = size.height / zoom; this.width = size.width / zoom; })
       // Esc puts a lifted row back (the sidebar holds the keyboard only while something is lifted).
       .track_focus(this.keys).on_key_down((e, cx) => {
         if (e.keystroke !== "escape" || !(this.drag || this.sweep || this.back)) return;
@@ -1286,24 +1324,17 @@ export default class Inbox extends View {
       .on_mouse_move((e, cx) => {
         const g = this.drag ?? this.sweep;
         if (!g || (!g.moved && Math.hypot(e.position.x - g.at.x, e.position.y - g.at.y) <= 6)) return;
-        if (!g.moved) { this.back = focused(); this.keys.focus(); }
+        if (!g.moved) { this.back = focused(); this.keys.focus(); this.watchDrag(cx); }
+        else pointerMoved(e.position);
         g.moved = true;
-        g.last = e.local_position ?? g.last;
-        if (this.drag) this.drag.y = e.local_position?.y ?? this.drag.y;
+        this.dragBox = e.bounds;
+        g.last = e.local_position ? { x: e.local_position.x / zoom, y: e.local_position.y / zoom } : g.last;
+        if (this.drag) this.drag.y = g.last?.y ?? this.drag.y;
         cx.notify();
       })
       // Released anywhere in the sidebar, it lands where the gap shows.
       .on_mouse_up("left", (_e, cx) => { finish(cx); cx.notify(); })
-      // Herdr reports no release outside the sidebar, so leaving decides. Off the top or bottom edge (the Pinned
-      // label or the Settled shelf sit there) it lands where the badge says, as T3 keeps the last target past the
-      // list's ends; off a side it goes back.
-      .on_hover((on, cx) => {
-        if (on || !(this.drag || this.sweep || this.back)) return;
-        const p = (this.drag ?? this.sweep)?.last, w = this.width ?? Infinity, h = this.height ?? Infinity;
-        const side = !p || Math.min(p.x, w - p.x) < Math.min(p.y, h - p.y);
-        if (side) this.endDrag(); else finish(cx);
-        cx.notify();
-      })
+      .on_hover((on, cx) => { if (!on) this.leftSidebar(cx); })
       .child(top)
       .child(v_flex().id("inbox-list").relative().flex_1().min_h(0).px(8).py(8).overflow_y_scroll()
         .on_size_change((size) => { this.listH = size.height / zoom; })

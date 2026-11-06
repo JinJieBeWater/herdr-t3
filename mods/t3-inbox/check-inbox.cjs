@@ -75,8 +75,8 @@ function fixture() {
     focus_handle: () => ({ focus() { f.keys = true; }, is_focused: () => false }),
     spawn: (fn) => f.jobs.push(fn),
     timer: {
-      every(_ms, fn) {
-        const watch = { fn, cancelled: false, cancel() { this.cancelled = true; } };
+      every(ms, fn) {
+        const watch = { ms, fn, cancelled: false, cancel() { this.cancelled = true; } };
         f.watches.push(watch);
         return watch;
       },
@@ -219,6 +219,37 @@ test("a short absence and a restart keep each agent's place", () => {
   assert.equal(f.mod.changed.A, undefined);
 });
 
+// A hidden list doesn't draw: what happened meanwhile goes by each tab's changed_at, not by when it comes back into view.
+function inTabs(f, at) {
+  f.context.spaces = () => [{ id: "s1", name: "One", tabs: Object.entries(at).map(([id, changed_at]) => ({ id, changed_at })) }];
+}
+
+test("what ended or began while the list wasn't drawn goes by when it did", () => {
+  const f = fixture(), z = f.add("Z", "working"), b = f.add("B", "working"), c = f.add("C"), at = {}; f.mod.workOpen = true;
+  z.tab = "tz"; b.tab = "tb"; c.tab = "tc"; inTabs(f, at);
+  f.render();
+  z.status = b.status = "idle"; c.status = "working";
+  Object.assign(at, { tz: 3000000, tb: 300000, tc: 1800000 });
+  f.render(3600000);
+  assert.deepEqual(f.active(), ["Z", "B"], "over long since: no grace, and the later one on top");
+  assert.ok(texts(find(f.tree, "state-C")).includes("30m"), "not Working 0s");
+  // One that stopped a moment ago still gets what's left of its grace.
+  const y = f.add("Y", "working"); y.tab = "ty"; f.render(3600100);
+  y.status = "idle"; at.ty = 3600000; f.render(3600500);
+  assert.ok(f.working().includes("Y"));
+  f.render(3601999); assert.ok(f.working().includes("Y"));
+  f.render(3602000); assert.equal(f.active()[0], "Y");
+});
+
+test("a tab's time that isn't about the change goes unused: a sub-agent with no pane starting or stopping", () => {
+  const f = fixture(), a = f.add("A"), at = { ta: 500 }; f.mod.workOpen = true;
+  a.tab = "ta"; inTabs(f, at); f.render();
+  const kid = { address: "kid", parent: "A", state: "live", status: "working" }; f.terms.push(kid);
+  f.render(9000); assert.equal(f.mod.changed.A.at, 9000, "A's own last change is older than its sub-agent's start");
+  kid.state = "exited"; f.render(20000); assert.equal(f.mod.changed.A.at, 20000);
+});
+
+
 test("a turn that ended unseen is news; unsettling doesn't land on Working", () => {
   const f = fixture(), a = f.add("A", "idle", 200); f.add("B", "idle", 100);
   f.render(); assert.deepEqual(f.order, ["A", "B"]);
@@ -230,12 +261,12 @@ test("a turn that ended unseen is news; unsettling doesn't land on Working", () 
 
 // Synced alone to herdr-t3-inbox, there's no agents list to load.
 const lists = fs.existsSync(path.join(__dirname, "../t3-agents/main.js"));
-test("only the sidebar list in view sets agent.next order", { skip: !lists && "t3-agents isn't here" }, () => {
+// A hidden list isn't drawn, so whichever draws sets it.
+test("the sidebar list in view sets agent.next order", { skip: !lists && "t3-agents isn't here" }, () => {
   const f = fixture(); f.add("A", "working"); f.add("B", "idle", 200); f.render();
-  const order = [...f.order], renderAgents = f.loadAgents(); renderAgents();
-  assert.deepEqual(f.order, order);
-  f.mode = "lists"; renderAgents(); const lists = [...f.order];
-  f.render(1500); assert.deepEqual(f.order, lists);
+  const order = [...f.order], renderAgents = f.loadAgents();
+  f.mode = "lists"; renderAgents(); assert.notDeepEqual(f.order, order);
+  f.mode = "inbox"; f.render(1500); assert.deepEqual(f.order, order);
 });
 
 test("a pause for the person keeps the run's Working place", () => {
@@ -252,6 +283,15 @@ test("a reply while sub-agents work comes to Active; read, the run goes on from 
   a.status = "idle"; f.render(4000); assert.deepEqual(f.working(), ["A"]);
   assert.equal(f.mod.changed.A.at, 2000);
 });
+
+test("a hidden list's Working clock goes quiet: only a draw starts it again", () => {
+  const f = fixture(); f.add("A", "working"); f.mod.workOpen = true; f.render();
+  const second = () => { f.notified = false; f.watches.find((w) => w.ms === 1000).fn(f.cx); return f.notified; };
+  assert.equal(second(), true);
+  assert.equal(second(), false);
+  f.render(); assert.equal(second(), true);
+});
+
 
 test("a run out of its grace lands on top of Active, over one that came back meanwhile", () => {
   const f = fixture(), a = f.add("A", "working"), b = f.add("B", "working"); f.mod.workOpen = true;
@@ -503,11 +543,54 @@ test("a dropped row slides from where it was let go, and nothing moves while dra
   f.mod.drag = { from: "B", moved: true, y: 400, grab: 10, height: 82, target: { section: "settled" } };
   f.render(1050);
   assert.equal(flyOf(f, "B").key, "fly-B-0", "dragging: the lanes' gaps move, the rows don't fly");
-  // finish() leaves where the ghost was, in the list's terms, then the label lands.
-  f.mod.drag = null; f.mod.landed = { key: "B", y: 300 }; f.terms[1].labels.settled = "1100:0"; f.render(1100);
+  // Let go, from where the ghost was (390, below the list's top row), in the list's terms. B isn't the one in view.
+  f.event("t3-inbox-root", "on_mouse_up:left"); f.render(1100);
   const b = flyOf(f, "B"), y = f.mod.motion.at.get("B").y;
-  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 300 - y]);
+  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 390 - 32 - y]);
 });
+
+// Herdr scales what a mod sets and reports what it measures as drawn, so at a zoom a drag has to go by one or the other.
+test("at a zoom, the lifted row stays under the pointer and the gap is the card's height", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.add("C", "idle", 100); f.mod.listH = 600;
+  f.context.settings = () => ({ zoom: 2 }); f.render();
+  const leave = () => find(f.tree, "t3-inbox-root").handlers.on_hover(false, f.cx);
+  const down = { position: { x: 40, y: 400 }, local_position: { x: 40, y: 60 }, bounds: { x: 0, y: 340, width: 500, height: 164 } };
+  f.event("card-C", "on_mouse_down:left", down);
+  f.event("t3-inbox-root", "on_size_change", { width: 600, height: 1600 });
+  f.event("t3-inbox-root", "on_mouse_move", { position: { x: 40, y: 900 }, local_position: { x: 40, y: 900 }, bounds: { x: 0, y: 0, width: 600, height: 1600 } });
+  f.mod.drag.target = { section: "pinned", before: null }; f.render();
+  assert.equal(find(f.tree, "drag-ghost").style.top[0], (900 - 60) / 2, "in the values top() scales");
+  assert.equal(find(f.tree, "gap-head-pinned").style.h[0], 164 / 2 + 2);
+  // Measured as drawn too, a press near the bottom of the 1600 drawn is near the bottom, off the edge it lands.
+  f.event("t3-inbox-root", "on_mouse_move", { position: { x: 300, y: 1590 }, local_position: { x: 300, y: 1590 }, bounds: { x: 0, y: 0, width: 600, height: 1600 } });
+  f.render(); leave();
+  assert.deepEqual(f.pins, ["C"], "it lands where its badge said");
+  f.pins = []; f.render(2000);
+  f.mod.cardH = null; f.event("card-A", "on_size_change", { width: 500, height: 164 }); f.render();
+  assert.equal(f.mod.cardH, 82);
+  f.mod.dropped = 0;
+  f.event("card-A", "on_mouse_down:left", down);
+  f.event("t3-inbox-root", "on_mouse_move", { position: { x: 5, y: 800 }, local_position: { x: 5, y: 800 }, bounds: { x: 0, y: 0, width: 600, height: 1600 } });
+  f.mod.drag.target = { section: "pinned", before: null }; f.render();
+  leave();
+  assert.deepEqual(f.pins, [], "off a side it goes back");
+});
+
+test("the settle key takes the row the pointer's on along: no hover left on its settled row, far from the pointer", () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.open = true; a.focused = true; f.render();
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  assert.ok(find(f.tree, "details-card-A"));
+  f.settle(); f.render();
+  assert.equal(f.mod.hovered, null);
+  assert.equal(find(f.tree, "unsettle-A").style.opacity[0], 0, "no undo arrow");
+  // And back: an unsettled row is no longer under the pointer either.
+  f.mod.hovered = "A"; f.render(); f.settle(); f.render();
+  assert.equal(f.mod.hovered, null);
+  // The pointer on another row stays on it.
+  f.event("card-B", "on_hover", true); f.settle(); f.render();
+  assert.equal(f.mod.hovered, "B");
+});
+
 
 test("settling shows T3's undo notice over the first shelf for 5s; Undo puts them back where they were", () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); a.focused = true; f.mod.listH = 600;
@@ -710,7 +793,7 @@ test("with a Home, Settle and Snooze on the agent in view land there, not on the
   const s = fixture(), b = s.add("A", "idle", 300); s.add("B", "idle", 200);
   s.state["t3-home.space"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" });
   b.focused = true; s.render(); s.calls.length = 0;
-  s.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; s.mod.customSnooze(s.cx);
+  s.mod.customSnooze(`A:${Date.now() + 3600000}`, s.cx);
   assert.deepEqual(plain(s.calls), [["t3-tabs.home"]]);
 });
 
@@ -727,7 +810,7 @@ test("with a Home, Undo brings the agent back while the person is still there, a
     f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
     a.focused = true; f.render();
     if (put === "settle") f.settle();
-    else { f.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; f.mod.customSnooze(f.cx); }
+    else f.mod.customSnooze(`A:${Date.now() + 3600000}`, f.cx);
     a.focused = false; atHome(f, where); f.render(); f.calls.length = 0;
     f.mod.undo(f.cx);
     assert.deepEqual(plain(f.calls), back ? [["agent.focus", { terminal: "A" }]] : [], `${put} from ${where}`);
@@ -739,7 +822,7 @@ test("with a Home, an agent put away in the background moves nothing, nor does t
   atHome(f); f.render(); f.calls.length = 0;
   f.settle();
   assert.deepEqual(plain(f.calls), [], "the key at Home takes no agent with it");
-  f.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; f.mod.customSnooze(f.cx);
+  f.mod.customSnooze(`A:${Date.now() + 3600000}`, f.cx);
   assert.deepEqual(plain(f.calls), [], "nor does putting one away from there");
 });
 
@@ -912,7 +995,7 @@ test("an open snooze menu holds its card as hovered: the pointer going into the 
   assert.deepEqual(look("W"), working, "a working card doesn't recede under its menu");
 });
 
-test("a snoozed agent leaves the cards, working or not; undoing is no news, and it wakes where it was, marked Woke", () => {
+test("a snoozed agent leaves the cards, working or not; undoing is no news, and it wakes where it was, marked Woke", async () => {
   const f = fixture(), b = f.add("B", "idle", 200); f.add("A", "working", 100); f.add("C", "idle", 300);
   f.mod.workOpen = true; f.mod.napOpen = true; f.mod.listH = 600;
   f.render(); f.mod.hovered = "A"; f.mod.napMenu = "A"; f.render();
@@ -923,6 +1006,7 @@ test("a snoozed agent leaves the cards, working or not; undoing is no news, and 
   const undo = find(f.tree, "undo-notice-undo");
   assert.ok(undo, "T3's undo notice"); undo.handlers.on_click({}, f.cx); f.flush();
   assert.equal(f.labelled.at(-1), "label A snoozed=");
+  await new Promise(setImmediate); f.flush();
   f.render(); assert.deepEqual([f.working(), f.napping()], [["A"], []]);
   f.label("A", "snoozed", String(1000 + 3600000)); f.label("B", "snoozed", String(1000 + 600000)); f.render(1000);
   assert.deepEqual(f.napping(), ["B", "A"], "soonest first");
@@ -995,10 +1079,13 @@ test("Wake, pinning and Settle end a snooze; a pinned agent snoozes and keeps it
   assert.equal(f.labelled.at(-1), "label A snoozed=");
   f.label("A", "snoozed", ""); f.render(5000);
   assert.deepEqual(f.active(), ["B", "A"]);
-  // Pinning a snoozed agent wakes it.
-  f.label("B", "snoozed", String(3600000)); f.render(6000);
-  f.pins = ["P", "B"]; f.render(7000); f.flush();
+  // Pinning a snoozed agent wakes it: the drag does, as the agents list's pin does (it's the action's, not a pin seen later).
+  f.label("B", "snoozed", String(3600000)); f.mod.listH = 600; f.render(6000);
+  f.mod.drag = { from: "B", moved: true, y: 100, grab: 10, height: 30, target: { section: "pinned", before: null } }; f.render(7000);
+  f.event("t3-inbox-root", "on_mouse_up:left"); f.flush();
   assert.equal(f.labelled.at(-1), "label B snoozed=");
+  assert.deepEqual(f.pins, ["P", "B"]);
+  f.mod.dropped = 0;
   // Settling a woken agent ends its snooze too.
   f.pins = ["P"]; f.label("B", "snoozed", ""); f.render(7400); f.label("B", "snoozed", "7500"); f.render(8000);
   assert.ok(find(f.tree, "woke-B"));
@@ -1038,6 +1125,13 @@ test("a drag wakes a row out of the shelf, with its badge; nothing drags in, and
   assert.deepEqual(f.labelled, ["label A snoozed="]);
   f.label("A", "snoozed", ""); f.mod.dropped = 0; f.render(2000);
   assert.deepEqual([f.active(), f.napping()], [["A", "C"], ["B"]]);
+  // A pinned one dragged out wakes where it was, as Wake does: its badge says Wake, not Unpin.
+  const g = fixture(); g.add("P", "idle", 300); g.add("Q", "idle", 200); g.pins = ["P"]; g.mod.napOpen = true; g.mod.listH = 600;
+  g.label("P", "snoozed", "3600000"); g.render();
+  g.mod.drag = { from: "P", moved: true, y: 100, grab: 10, height: 30, target: { section: "active" } }; g.render();
+  assert.ok(find(g.tree, "badge-wake"));
+  g.event("t3-inbox-root", "on_mouse_up:left"); g.flush();
+  assert.deepEqual([g.pins, g.labelled, g.mod.notice ?? null], [["P"], ["label P snoozed="], null]);
   // A sweep over the shelf's rows wakes them all.
   f.label("A", "snoozed", "3600000"); f.labelled.length = 0; f.render(3000); f.mod.hovered = "A"; f.render(3000);
   f.event("wake-A", "on_mouse_down:left");
@@ -1123,6 +1217,27 @@ test("a label write that keeps failing is tried once a minute from render, and a
   assert.equal(writes, 3, "the person asked");
 });
 
+test("a quick Undo stays undone while its writes are under way, whichever lands last", async () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.mod.open = true; a.focused = true; f.render();
+  const held = []; f.context.hc = (args) => new Promise((done) => { f.labelled.push(args.join(" ")); held.push(done); });
+  const shown = () => [f.active(), slims(find(f.tree, "settled"))];
+  const answer = async (i) => { held[i]({ code: 0 }); await new Promise(setImmediate); f.flush(); };
+  f.settle(); f.flush(); f.render();
+  assert.deepEqual(shown(), [[], ["A"]]);
+  f.mod.undo(f.cx); f.flush(); f.render(1100);
+  assert.deepEqual(shown(), [["A"], []]);
+  f.label("A", "settled", "1000:0"); f.render(1200);
+  assert.deepEqual(shown(), [["A"], []], "the settle lands: still as the Undo left it");
+  // Out of order: the Undo's write lands, then the settle's over it.
+  f.label("A", "settled", ""); await answer(1); f.render(1300);
+  f.label("A", "settled", "1000:0"); await answer(0); f.render(1400);
+  assert.deepEqual(shown(), [["A"], []]);
+  assert.deepEqual(f.labelled, ["label A settled=1000:0", "label A settled=", "label A settled="], "the latest is said again");
+  f.label("A", "settled", ""); await answer(2); f.render(1500);
+  assert.deepEqual(shown(), [["A"], []]);
+  assert.deepEqual([f.labelled.length, Object.keys(f.mod.pending.settled)], [3, []]);
+});
+
 test("undoing a Settle brings back a snooze that hasn't run out", () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); f.label("A", "snoozed", "3600000"); a.focused = true; f.render();
   f.settle(); f.flush();
@@ -1181,6 +1296,27 @@ test("a pinned card offers Settle beside the clock, as T3's; settling drops the 
   f.label("P", "settled", ""); f.label("Q", "settled", ""); f.render(1300);
   assert.deepEqual(cards(f.tree), ["P", "Q", "A"]);
 });
+
+test("Undo puts back the pin it took, in its place, and leaves one made since", () => {
+  const f = fixture(); f.add("P", "idle", 300); f.add("Q", "idle", 200); f.add("B", "idle", 100); f.pins = ["P", "Q"];
+  f.render(); f.mod.hovered = "P"; f.render();
+  f.event("settle-P", "on_click"); f.flush(); f.render(1100);
+  f.pins = ["Q", "B"]; f.render(1200);
+  f.mod.undo(f.cx);
+  assert.deepEqual(f.pins, ["P", "Q", "B"]);
+  // A drag's unpin too; one pinned again meanwhile is left alone.
+  f.flush(); f.label("P", "settled", ""); f.mod.dropped = 0; f.render(7000); f.mod.listH = 600; f.render(7000);
+  f.mod.drag = { from: "P", moved: true, y: 300, grab: 10, height: 30, target: { section: "active" } }; f.render(7000);
+  f.event("t3-inbox-root", "on_mouse_up:left"); f.render(7100);
+  assert.deepEqual([f.pins, f.mod.notice.action], [["Q", "B"], "Unpinned"]);
+  f.pins = ["Q", "C", "B"]; f.mod.undo(f.cx);
+  assert.deepEqual(f.pins, ["P", "Q", "C", "B"]);
+  f.pins = ["Q", "P"]; f.mod.notice = null; f.render(7200);
+  f.mod.drag = { from: "Q", moved: true, y: 300, grab: 10, height: 30, target: { section: "active" } }; f.render(7200);
+  f.event("t3-inbox-root", "on_mouse_up:left"); f.pins = ["Q", "P"]; f.mod.undo(f.cx);
+  assert.deepEqual(f.pins, ["Q", "P"]);
+});
+
 
 test("the settle key and a drag to Settled take a pinned agent too; Undo restores its pin and its snooze", () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); f.pins = ["A"]; a.focused = true; f.render();
@@ -1243,15 +1379,16 @@ test("Custom… opens the dialog; its answer snoozes as a preset does, with its 
   f.event(`snooze-${i}-A`, "on_click"); f.flush();
   assert.deepEqual([opened[0].mod, opened[0].kind, opened[0].props.customSnooze], ["t3-inbox", "dialog", "A"]);
   assert.deepEqual([f.mod.napMenu, f.labelled], [null, []]);
-  f.state["t3-inbox.custom"] = { address: "A", at: 9000000 };
-  f.mod.customSnooze(f.cx); f.flush();
+  f.mod.customSnooze("A:9000000", f.cx); f.flush();
   assert.deepEqual(f.labelled, ["label A snoozed=9000000"]);
   assert.equal(f.mod.notice.action, "Snoozed");
-  assert.equal(f.state["t3-inbox.custom"], null, "taken once");
   f.labelled.length = 0; f.mod.pending.snoozed = {}; a.status = "blocked"; f.render(2000);
-  f.state["t3-inbox.custom"] = { address: "A", at: 9000000 };
-  f.mod.customSnooze(f.cx); f.flush();
+  f.mod.customSnooze("A:9000000", f.cx); f.flush();
   assert.deepEqual(f.labelled, []);
+  // A machine's address has its own separators.
+  f.add("m.1/a:b", "idle", 100); f.render(2100);
+  f.mod.customSnooze("m.1/a:b:9000000", f.cx); f.flush();
+  assert.deepEqual(f.labelled, ["label m.1/a:b snoozed=9000000"]);
 });
 
 test("the custom time follows T3's rules: a real local time in the future, or a positive duration", () => {
@@ -1301,10 +1438,8 @@ test("the Custom dialog says what's wrong, stays open, and on a good answer hand
   d.amount.set_value("30"); fire("unit-minutes");
   assert.deepEqual([d.unit, d.unitOpen, texts(find(tree, "custom-unit-button")).includes("Minutes")], ["minutes", false, true], "a click picks and closes");
   fire("custom-submit");
-  assert.equal(f.state["t3-inbox.custom"].at, f.now + 1800000);
-  assert.equal(f.state["t3-inbox.custom"].address, "A");
   assert.deepEqual(closed, ["o1"]);
-  assert.equal(f.calls.at(-1)[0], "t3-inbox.custom-snooze");
+  assert.equal(f.calls.at(-1)[0], `t3-inbox.custom-snooze:A:${f.now + 1800000}`);
 });
 
 test("the Custom dialog's calendar lets days gone by be seen but not picked, and turns the month", () => {
@@ -1322,7 +1457,7 @@ test("the Custom dialog's calendar lets days gone by be seen but not picked, and
   assert.ok(texts(find(tree, "custom-calendar")).includes("December 2026"));
   find(tree, "day-2026-12-25").handlers.on_click({}, f.cx);
   d.time.set_value("09:00"); tree = d.render(f.cx); find(tree, "custom-submit").handlers.on_click({}, f.cx);
-  assert.equal(f.state["t3-inbox.custom"].at, new Date(2026, 11, 25, 9, 0).getTime());
+  assert.ok(f.calls.at(-1)[0].endsWith(`:${new Date(2026, 11, 25, 9, 0).getTime()}`));
 });
 
 test("a far-off snooze wakes on time: its timer is re-armed a day at a time", () => {
@@ -1415,6 +1550,48 @@ test("a row's card goes when its leave never comes: the pointer's elsewhere, or 
     assert.equal(polling(), before, "nothing left polling");
   }
 });
+
+test("a drag or sweep ends when its leave never comes, by the same rule as a leave", () => {
+  const box = { x: 0, y: 0, width: 300, height: 800 };
+  const lift = (f, x, y) => {
+    f.event("t3-inbox-root", "on_size_change", { width: 300, height: 800 });
+    f.event("slim-A", "on_mouse_down:left");
+    f.pointer = { x, y };
+    f.event("t3-inbox-root", "on_mouse_move", { position: f.pointer, local_position: f.pointer, bounds: box });
+  };
+  const build = () => { const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.label("A", "settled", "500:0"); f.mod.open = true; f.mod.listH = 600; f.render(); return f; };
+  // Past the right edge from near it: back where it was, the keyboard back with it.
+  const f = build(), polling = () => f.watches.filter((w) => !w.cancelled).length, before = polling();
+  f.context.focused = () => ({ pane: "pm", terminal: "A" });
+  lift(f, 280, 400); f.mod.drag.target = { section: "active" }; f.render();
+  assert.equal(polling(), before + 1);
+  f.tick(); assert.ok(f.mod.drag, "the pointer's in the sidebar: nothing yet");
+  f.pointer = { x: 900, y: 400 }; f.tick(); f.flush();
+  assert.deepEqual([f.mod.drag, f.labelled, plain(f.calls.at(-1))], [null, [], ["pane.focus", { pane: "pm" }]]);
+  f.tick(); assert.equal(polling(), before, "nothing left polling");
+  // Off the bottom edge: it lands where its badge says.
+  const g = build(); lift(g, 150, 790); g.mod.drag.target = { section: "active" }; g.render();
+  g.pointer = { x: 150, y: 900 }; g.tick(); g.flush();
+  assert.deepEqual([g.mod.drag, g.labelled], [null, ["label A settled="]]);
+  // The window going inactive with the release out of its sight ends it too.
+  const h = build(); lift(h, 280, 400); h.render(); h.active = false; h.tick();
+  assert.equal(h.mod.drag, null);
+  // The pointer stopped on the sidebar's edge heading out of the window, which reports no more: gone too.
+  const k = build(); lift(k, 280, 400); k.render();
+  for (const y of [640, 700, 701]) { k.pointer = { x: 280, y }; k.event("t3-inbox-root", "on_mouse_move", { position: k.pointer, local_position: k.pointer, bounds: box }); }
+  k.tick(); assert.ok(k.mod.drag, "a slow last step isn't heading out");
+  // One move reaches a row and then the root, and must count once for that step to show.
+  for (const y of [760, 795]) { k.pointer = { x: 280, y }; for (const id of ["slim-A", "t3-inbox-root"]) k.event(id, "on_mouse_move", { position: k.pointer, local_position: k.pointer, bounds: box }); }
+  k.tick(); assert.equal(k.mod.drag, null);
+  // A sweep off a side: nothing it marked happens.
+  const m = build(); m.mod.hovered = "A"; m.render();
+  m.event("unsettle-A", "on_mouse_down:left"); m.pointer = { x: 280, y: 400 };
+  m.event("t3-inbox-root", "on_size_change", { width: 300, height: 800 });
+  m.event("t3-inbox-root", "on_mouse_move", { position: m.pointer, local_position: m.pointer, bounds: box }); m.render();
+  m.pointer = { x: 900, y: 400 }; m.tick(); m.flush();
+  assert.deepEqual([m.mod.sweep, m.labelled], [null, []]);
+});
+
 
 test("a row's card goes when the pointer heads out of the window from it, and stays when it stops on the row", () => {
   const box = { x: 0, y: 100, width: 200, height: 36 };
