@@ -23,7 +23,7 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 ## Features
 
 - **Two sidebars, one key apart** (`cmd-shift-b`): Lists, or Inbox.
-  - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their checkout; grouped by machine once there's more than one.
+  - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their repo, checkout open or not; grouped by machine once there's more than one.
   - Agents: grouped by space or by priority, pins, sub-agents nested under their parent.
   - Inbox: T3-style Settle. Agents that need you stay up top as cards; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf. Snooze hides any agent that doesn't need you until a time you pick.
 - **One name everywhere**: Inbox cards, the agents list, tabs and pane headers name a terminal the same way: its Pi session while Pi runs in it, then a tab you named, then a telling terminal title, else the program. Two Pis in one tab read as their own sessions; lazygit started where Pi was reads as lazygit, not the old session.
@@ -83,7 +83,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - `t3-spaces`: read-only `git status` / `git rev-parse` in your spaces' folders, watches those repos for changes (`watchFolder`), and `hc machine ls --json`. Clicking Connect on a rebuilt machine runs `hc machine rm` and `hc machine add`.
 - `t3-inbox`: `hc label <agent> settled=<ms>:<turn>` when an agent is settled or unsettled.
 - `t3-inbox`: `hc label <agent> snoozed=<ms>` when an agent is snoozed or wakes.
-- `t3-spaces`, `t3-inbox`, `t3-new-menu`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
+- `t3-spaces`, `t3-agents`, `t3-inbox`, `t3-new-menu`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
 
 No network requests.
 

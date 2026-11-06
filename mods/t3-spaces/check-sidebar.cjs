@@ -114,10 +114,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   let at = ag.render(cx);
   assert.ok(find(at, "fold-t0") && !find(at, "sub-grandchild"), "sub-agents start folded");
   // The child is in error: folded, it still shows, one step in, hung from the parent.
-  assert.equal(find(at, "sub-child").style.pl, 28, "a stuck sub-agent shows under its folded parent");
+  assert.equal(find(at, "sub-child").style.pl, 30, "a stuck sub-agent shows under its folded parent");
   f.terminals().find(k => k.address === "grandchild").status = "blocked";
   const stuck = ag.render(cx);
-  assert.deepEqual([find(stuck, "sub-child").style.pl, find(stuck, "sub-grandchild").style.pl], [28, 28], "every stuck one hangs straight from the parent");
+  assert.deepEqual([find(stuck, "sub-child").style.pl, find(stuck, "sub-grandchild").style.pl], [30, 30], "every stuck one hangs straight from the parent");
   f.terminals().find(k => k.address === "grandchild").status = "working";
   ag.toggleFold("t0", cx);
   Object.assign(ag.folded, { gone: false, "vps/gone": false, "far/t1": false, "sp-gone": true });
@@ -130,54 +130,57 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(space.style.bg, "#2c2c2f");
   assert.equal(agent.style.bg, "#2c2c2f");
   const child = find(at, "sub-child"), grandchild = find(at, "sub-grandchild");
-  assert.ok(child.style.pl > agent.style.px, "child is indented from its parent");
+  assert.ok(child.style.pl > agent.style.pl, "child is indented from its parent");
   assert.ok(grandchild.style.pl > child.style.pl, "each descendant level is indented");
   assert.ok(strings(child).includes("child task"), "sub-agent keeps its name");
   assert.equal(child.style.bg, f.theme().selected, "parent and peeked child share the selection color");
   for (const row of [space, agent, child]) assert.equal(row.hoverStyle.bg, undefined, "hover preserves a selected row");
   for (const row of [find(st, "space-s1"), find(at, "ag-vps/t2"), grandchild]) assert.equal(row.hoverStyle.bg, f.theme().hover);
-  assert.equal(child.style.pl, 28, "first child sits one 20px step in, its turn hung from the parent icon");
+  assert.equal(child.style.pl, 30, "first child sits one 20px step in, its turn hung from the parent icon");
   assert.equal(grandchild.style.pl - child.style.pl, 20);
   assert.equal(child.style.text_size, 13);
   for (const row of [agent, child, grandchild]) {
-    assert.equal(inFlow(row)[0].style.size, 18, "icons share a fixed column");
-    assert.equal(row.style.gap, 8);
+    assert.equal(inFlow(row)[0].style.size, 16, "icons share a fixed column");
+    assert.equal(row.style.gap, 10);
+    assert.equal(row.style.h, 36, "T3's one-line row");
   }
   const lines = row => row.items.filter(n => "absolute" in n.style).map(n => [n.style.left, "border_b" in n.style ? "elbow" : "line"]);
-  assert.deepEqual(lines(child), [[16.25, "elbow"]], "a last child turns in from under its parent's icon");
-  assert.deepEqual(lines(grandchild), [[36.25, "elbow"]], "no line continues past a last child");
+  assert.deepEqual(lines(child), [[17.25, "elbow"]], "a last child turns in from under its parent's icon");
+  assert.deepEqual(lines(grandchild), [[37.25, "elbow"]], "no line continues past a last child");
   f.terminals().push({ address: "child2", parent: "t0", name: "second child", state: "live", status: "idle", program: f.agents()[0].program });
   const branched = ag.render(cx);
-  assert.deepEqual(lines(find(branched, "sub-child")), [[16.25, "line"], [16.25, "elbow"]], "a middle child keeps the line going");
-  assert.deepEqual(lines(find(branched, "sub-grandchild")), [[16.25, "line"], [36.25, "elbow"]], "descendants carry their ancestors' lines");
-  assert.deepEqual(lines(find(branched, "sub-child2")), [[16.25, "elbow"]]);
+  assert.deepEqual(lines(find(branched, "sub-child")), [[17.25, "line"], [17.25, "elbow"]], "a middle child keeps the line going");
+  assert.deepEqual(lines(find(branched, "sub-grandchild")), [[17.25, "line"], [37.25, "elbow"]], "descendants carry their ancestors' lines");
+  assert.deepEqual(lines(find(branched, "sub-child2")), [[17.25, "elbow"]]);
   const elbow = find(child, "sub-child").items.find(n => "border_b" in n.style).style;
   assert.deepEqual([elbow.w, elbow.rounded_bl], [9.75, 6], "upstream-size turn: ends 4px before the icon, 6px radius");
-  assert.equal(elbow.left + 1.5 / 2, agent.style.px + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
-  assert.equal(elbow.left + elbow.w + 4, child.style.pl + (18 - 14) / 2, "the turn stops 4px before the child icon");
+  assert.equal(elbow.left + 1.5 / 2, agent.style.pl + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
+  assert.equal(elbow.left + elbow.w + 4, child.style.pl + (16 - 14) / 2, "the turn stops 4px before the child icon");
   f.terminals().pop();
-  assert.equal(space.items[0].style.gap, 8);
-  assert.equal(space.items[0].items[0].style.size, 18);
+  assert.equal(space.items[0].style.gap, 10);
+  assert.equal(space.style.h, 32, "a space's row is T3's project row");
   assert.equal(find(st, "spaces-heading").style.pr, find(at, "agents-heading").style.pr, "header actions share a right edge");
   assert.equal(find(at, "controls-t0").style.gap, 4);
   for (const id of ["status-t0", "status-vps/t2", "sub-status-child", "sub-status-grandchild"]) assert.equal(find(at, id).style.size, 20);
-  assert.equal(find(agent, "pin-t0"), null, "hidden pin has no click target");
+  assert.equal(find(agent, "pin-t0").handlers.on_click, undefined, "faded out, the pin has no click target");
+  assert.equal(find(agent, "pin-t0").style.opacity, 0);
   assert.deepEqual(find(at, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "a parent shows its fold arrow and time before the status, as the shipped list");
   assert.equal(find(at, "fold-t0").items[0].source, "mods/t3-agents/chevron-down.svg");
   assert.deepEqual(strings(find(at, "when-t0")), ["<1m"], "time in its state, as the shipped list");
   fire(agent, "on_hover", true, cx);
   const hoveredTree = ag.render(cx);
   assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/chevron-down.svg", "hover leaves the icon alone");
-  assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 18);
+  assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 16);
   assert.equal(find(hoveredTree, "pin-t0").style.size, 20, "pin is as wide as the time's slot");
   assert.equal(find(hoveredTree, "pin-t0").style.border, undefined, "pin is borderless like fold");
   fire(find(hoveredTree, "pin-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].style.text_color, f.theme().foreground, "hovered, the pin brightens");
   fire(find(hoveredTree, "pin-t0"), "on_hover", false, cx);
-  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "tip-pin-t0", "tip-status-t0-mark"], "pin takes the time's slot, the status stays, as the shipped list");
+  assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "pin shares the time's slot, the status stays, as the shipped list");
+  assert.deepEqual([find(hoveredTree, "pin-t0").style.opacity, find(hoveredTree, "when-t0").items[0].style.opacity], [1, 0], "time and pin cross-fade, as T3's corner");
   assert.equal(find(at, "when-t0").style.min_w, 20, "the time's slot is the pin's width, so hovering moves nothing");
   fire(find(hoveredTree, "ag-t0"), "on_hover", false, cx);
-  assert.ok(find(ag.render(cx), "when-t0") && !find(ag.render(cx), "pin-t0"), "leaving restores the time");
+  assert.equal(find(ag.render(cx), "when-t0").items[0].style.opacity, 1, "leaving restores the time");
   assert.equal(find(at, "agent-menu-t0"), null, "no extra context menu");
   assert.equal(space.items[0].style.justify_center, undefined, "space content stays left aligned");
   assert.equal(agent.style.justify_center, undefined, "agent content stays left aligned");
@@ -235,24 +238,79 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(ag.render(cx), "sub-grandchild"), null);
   fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
   assert.ok(find(ag.render(cx), "sub-child"));
+  // Moving down, the next row reports before the last one's leaving: a sub-agent's row takes over from its parent's card, up or still on its way.
+  const settle = () => { while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); } };
+  for (const opened of [true, false]) {
+    fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
+    if (opened) { settle(); assert.ok(find(ag.render(cx), "details-t0")?.style.content, "a row's card opens"); }
+    fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
+    fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
+    settle();
+    const open = ag.render(cx);
+    assert.equal(find(open, "details-t0"), null, "a parent's card doesn't stay over its sub-agent's row");
+    assert.deepEqual(strings(find(open, "details-sub-child").style.content), ["child task", "P", "project 0", "Pi"], "a sub-agent's card: its name, and the space it hangs in");
+    fire(find(open, "sub-child"), "on_hover", false, cx);
+    settle();
+    assert.equal(find(ag.render(cx), "details-sub-child"), null, "and it goes with the pointer");
+  }
+  // Its click opens the peek where the card stands: the card goes at once, with no fade under it, and the row redraws to show that.
+  fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
+  settle();
+  let redrawn = false;
+  fire(find(ag.render(cx), "sub-child"), "on_click", {}, { ...cx, notify() { redrawn = true; } });
+  assert.ok(redrawn, "the click redraws the row");
+  assert.equal(find(ag.render(cx), "details-sub-child").style.content, undefined, "no card under the peek");
+  assert.deepEqual(f.calls.pop(), ["terminal.peek", { terminal: "child" }]);
+  fire(find(ag.render(cx), "sub-child"), "on_hover", false, cx);
+  settle();
+  // A row that goes from under the pointer never reports its leaving: its card doesn't come back with it.
+  const kid = f.terminals().find(k => k.address === "child");
+  fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
+  fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
+  settle();
+  kid.status = "working";
+  assert.equal(find(ag.render(cx), "sub-child"), null, "folded, a sub-agent that's fine again has no row");
+  kid.status = "error";
+  assert.equal(find(ag.render(cx), "details-sub-child")?.style.content, undefined, "its row is back, with the pointer long gone: no card");
+  fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
+  // A sub-agent with a pane has two rows: hovering one isn't hovering the other, and the next one reporting first keeps the hover and the card.
+  f.agents().push({ address: "child", pane: "pn", space: "s1", space_name: "project 1", tab: "b1", title: "child task", seq: 9, program: f.agents()[0].program, focused: false, status: "working" });
+  fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
+  settle();
+  let both = ag.render(cx);
+  assert.equal(find(both, "pin-child").style.opacity, 0, "its listed row doesn't look hovered");
+  assert.equal(find(both, "details-child")?.style.content, undefined);
+  assert.ok(find(both, "details-sub-child").style.content, "only the row hovered has a card");
+  fire(find(both, "ag-child"), "on_hover", true, cx);
+  fire(find(ag.render(cx), "sub-child"), "on_hover", false, cx);
+  settle();
+  both = ag.render(cx);
+  assert.equal(find(both, "pin-child").style.opacity, 1, "the row now hovered keeps its hover");
+  assert.ok(find(both, "details-child").style.content, "and shows its card");
+  assert.equal(find(both, "details-sub-child")?.style.content, undefined);
+  fire(find(both, "ag-child"), "on_hover", false, cx);
+  settle();
+  f.agents().pop();
+  ag.render(cx);
+  settle();
   const beforePin = f.calls.length;
   let stopped = false;
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
   fire(find(ag.render(cx), "pin-t0"), "on_click", {}, { ...cx, stop_propagation() { stopped = true; } });
   assert.ok(stopped, "pin button stops propagation to the row");
   assert.ok(f.state["agents.pins"].includes("t0"));
-  assert.equal(find(ag.render(cx), "pin-t0"), null, "pinning does not leave a stale hover after reordering");
+  assert.equal(find(ag.render(cx), "pin-t0").style.opacity, 0, "pinning does not leave a stale hover after reordering");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/t3-agents/pin-off.svg", "pinned rows offer unpin");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
-  assert.equal(find(ag.render(cx), "pin-t0"), null, "pinned rows also hide their pin outside hover");
+  assert.equal(find(ag.render(cx), "pin-t0").style.opacity, 0, "pinned rows also hide their pin outside hover");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
   fire(find(ag.render(cx), "pin-t0"), "on_click", {}, cx);
   assert.equal(f.state["agents.pins"].includes("t0"), false, "unpin still persists");
   assert.equal(f.calls.length, beforePin, "pin and unpin do not focus a pane");
   fire(find(ag.render(cx), "ag-vps/t2"), "on_hover", true, cx);
   fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
-  assert.equal(find(ag.render(cx), "pin-t0"), null);
+  assert.equal(find(ag.render(cx), "pin-t0").handlers.on_click, undefined);
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
@@ -286,8 +344,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   delete f.state["t3-inbox.notice"];
   delete f.slots["sidebar-lists"];
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
-  assert.deepEqual([groups[0].h, groups[0].pt], [30, 8], "the first group keeps 8px under the heading, as Spaces' first machine does");
-  assert.deepEqual([groups[1].h, groups[1].pt], [30, 8], "later groups keep their 8px separation");
+  assert.deepEqual([groups[0].h, groups[1].h], [32, 32], "T3's shelf and folder header");
   fire(settings, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["app.settings", {}]);
 }
@@ -304,14 +361,54 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   const at = ag.render(cx), heading = find(at, "agents-heading");
   // Header icon: 14 inside a 26 button, inset by pr. Status mark: flush right inside list px 8 + row px 8.
-  assert.equal(heading.style.pr + (26 - 14) / 2, 8 + find(at, "ag-t0").style.px, "status column ends under the header icons");
+  assert.equal(heading.style.pr + (26 - 14) / 2, 8 + find(at, "ag-t0").style.pr, "status column ends under the header icons");
   assert.equal(heading.items[0].style.text_color, f.theme().muted, "section titles are a step brighter than group labels");
-  // A group header is drawn as Inbox's shelves and Spaces' machines: dim 12px, the count and a chevron at the end, in the status column.
-  const group = find(at, "sp-s0"), chevron = group.items.at(-1);
-  assert.deepEqual([group.style.text_color, group.style.text_size, group.style.pr + chevron.style.w / 2], [f.theme().dim, 12, find(at, "ag-t0").style.px + 14 / 2]);
+  // A space's group is T3's project folder: its mark and name, the chevron in the status column.
+  const group = find(at, "sp-s0"), chevron = inFlow(group).at(-1);
+  assert.deepEqual([group.style.pr + chevron.style.w / 2, group.style.rounded], [find(at, "ag-t0").style.pr + 14 / 2, 8]);
   assert.equal(chevron.items[0].source, "mods/t3-agents/chevron-down.svg", "open, it points down, as T3's");
+  assert.ok(strings(group).includes("project 0") && !strings(group).includes("1"), "open, it holds no count");
   fire(group, "on_hover", true, cx);
-  assert.equal(find(ag.render(cx), "sp-s0").items.at(-1).style.text_color, f.theme().foreground, "it lights with its row");
+  const lit = find(ag.render(cx), "sp-s0");
+  assert.equal(inFlow(lit).at(-1).style.text_color, f.theme().foreground, "it lights with its row");
+  fire(lit, "on_mouse_down:right", {}, cx);
+  assert.deepEqual(plain(f.overlays.pop().props), { tab: "space", target: { id: "s0" } }, "right-click is the space's menu");
+  fire(group, "on_hover", false, cx);
+  // Closed, it says how many it hides and whether one wants you, and still shows the row you're on.
+  f.agents().splice(1, 0, { ...f.agents()[0], address: "t9", pane: "p9", seq: 9, focused: false, status: "blocked", title: "stuck" });
+  f.terminals().push({ address: "t9", state: "live", status: "blocked" });
+  ag.toggleFold("sp-s0", cx, false);
+  const shut = ag.render(cx), closed = find(shut, "sp-s0");
+  assert.ok(find(shut, "ag-t0") && !find(shut, "ag-t9"), "a closed folder keeps the row in view, and only it");
+  assert.ok(strings(closed).includes("1"), "the count leaves out the row still showing");
+  assert.equal(inFlow(closed).find(n => n.style.size === 6).style.bg, f.theme().blocked, "the dot speaks for what's hidden");
+  ag.toggleFold("sp-s0", cx, false);
+  f.agents().splice(1, 1); f.terminals().pop();
+  // The list's motion: a row that moved is drawn where it was under a new id, then let go; a fold doesn't play it.
+  const y = (tree, id) => walk(tree).find(n => String(n.key).startsWith(`fly-${id}-`));
+  const remote = f.agents().find(a => a.address === "vps/t2"), wasStatus = remote.status;
+  remote.status = "working";
+  f.state["agents.sort"] = "priority";
+  ag.render(cx);
+  const before = y(ag.render(cx), "t0");
+  remote.status = "blocked";
+  const moved = y(ag.render(cx), "t0");
+  assert.ok(moved.key !== before.key && moved.style.top < 0, "the moved row starts from above, where it was");
+  cx.timers.at(-1).fn(cx);
+  assert.equal(y(ag.render(cx), "t0").style.top, 0, "then it's let go");
+  remote.status = wasStatus;
+  f.state["agents.sort"] = "grouped";
+  ag.render(cx);
+  const foldBefore = y(ag.render(cx), "t0").key;
+  ag.toggleFold("sp-s0", cx, false);
+  ag.render(cx);
+  ag.toggleFold("sp-s0", cx, false);
+  assert.equal(y(ag.render(cx), "t0").key, foldBefore, "a fold plays no motion");
+  // The sort menu, as T3's: nothing lit until a key or the pointer arrives.
+  const f2 = fixture(256), menu = f2.load("t3-agents", { sortMenu: true, overlay: "o" });
+  const m0 = menu.render(cx);
+  assert.equal(find(m0, "sort-priority").style.bg, undefined, "no highlight on opening");
+  assert.equal(find(m0, "sort-priority").style.h, 28);
   assert.equal(find(f.load("t3-spaces").render(cx), "spaces-heading").items[0].style.text_color, f.theme().muted);
 }
 
@@ -635,10 +732,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   const f = fixture(240), ag = f.load("t3-agents"), sp = f.load("t3-spaces");
   const worktree = sp.row({ w: f.spaces()[1], i: 1, g: null, tree: "└─" }, f.theme());
   assert.equal(inFlow(worktree)[0].style.pl, 20, "worktree icon lines up with a sub-agent's");
-  assert.equal(inFlow(worktree)[0].items[0].style.size, 18);
-  const treeLines = row => row.items.filter(n => "absolute" in n.style).map(n => [n.style.left, "border_b" in n.style ? "elbow" : "line"]);
-  assert.deepEqual(treeLines(worktree), [[16.25, "elbow"]], "last worktree turns in from under its checkout");
-  assert.deepEqual(treeLines(sp.row({ w: f.spaces()[1], i: 1, g: null, tree: "├─" }, f.theme())), [[16.25, "line"], [16.25, "elbow"]], "a middle worktree keeps the line going");
+  assert.equal(inFlow(worktree)[0].items[0].style.size, 16);
+  const treeLines = row => row.items.filter(n => "absolute" in n.style && "left" in n.style).map(n => [n.style.left, "border_b" in n.style ? "elbow" : "line"]);
+  assert.deepEqual(treeLines(worktree), [[17.25, "elbow"]], "last worktree turns in from under its checkout");
+  assert.deepEqual(treeLines(sp.row({ w: f.spaces()[1], i: 1, g: null, tree: "├─" }, f.theme())), [[17.25, "line"], [17.25, "elbow"]], "a middle worktree keeps the line going");
   assert.deepEqual(treeLines(sp.row({ w: f.spaces()[1], i: 1, g: null, tree: null }, f.theme())), [], "checkouts draw no lines");
   {
     // project 1 is a worktree of project 0's repo.
@@ -670,6 +767,73 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
     assert.equal(find(sp.render(cx), "space-fold-s0").items.length, 1);
     sp.git = {};
+  }
+  {
+    // A repo's worktrees hang together with its checkout closed, under a dim row standing for it.
+    const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces"), repo = JSON.stringify([null, "/w/Engineer/.git"]);
+    list[2].machine = null;
+    const set = (id, g) => { view.git[JSON.stringify([null, `/work/${id}`])] = g; };
+    const tree = { repo, linked: true, name: "Engineer", branch: "x", ahead: 0, behind: 0 };
+    set("p1", tree); set("s2", { ...tree, branch: "y" });
+    const headId = `repo-${repo}`, rows = () => [...view.ordered().map(r => r.w.id)];
+    assert.deepEqual(rows(), ["s0", headId, "s1", "s2"], "the head takes its first worktree's place");
+    assert.deepEqual([...view.ordered().map(r => r.tree ?? null)], [null, null, "├─", "└─"]);
+    const moves = () => o.calls.filter(([name]) => name === "space.move");
+    assert.deepEqual(moves(), [], "a row with no space never reaches the model's order");
+    let root = view.render(cx), head = find(root, headId);
+    assert.ok(strings(head).includes("Engineer"), "named for its repo");
+    // Its arrow is a checkout's: dim until itself hovered, in the same column.
+    const foldId = `${headId}-fold`;
+    assert.equal(find(root, foldId).style.text_color, o.theme().dim, "the arrow is dim, as a checkout's");
+    assert.equal(find(root, foldId).style.mr, -3);
+    // Its arrow folds, and makes nothing.
+    const before = o.calls.length;
+    let halted = false;
+    fire(find(root, foldId), "on_click", {}, { ...cx, stop_propagation() { halted = true; } });
+    assert.ok(halted, "the arrow's click isn't the row's");
+    assert.equal(o.calls.length, before, "folding makes no space");
+    assert.deepEqual(rows(), ["s0", headId], "folded, its worktrees go");
+    assert.ok(strings(find(view.render(cx), headId)).includes("2"), "and it says how many");
+    // Closed, the worktree you're on still shows, last in the tree, and isn't counted.
+    list.forEach(s => { s.active = s.id === "s2"; });
+    assert.deepEqual(rows(), ["s0", headId, "s2"], "the worktree in view stays");
+    assert.equal(view.ordered().at(-1).tree, "└─");
+    assert.ok(strings(find(view.render(cx), headId)).includes("1"));
+    list.forEach(s => { s.active = s.id === "s0"; });
+    fire(find(view.render(cx), foldId), "on_click", {}, cx);
+    // No tab to go to: the click opens the checkout, once however often it's pressed.
+    assert.equal(find(view.render(cx), headId).style.accessibility_label, "Open Engineer");
+    const opens = () => o.calls.filter(([name]) => name === "space.new").length;
+    fire(find(view.render(cx), headId), "on_click", {}, cx);
+    assert.deepEqual(o.calls.at(-1), ["space.new", { folder: "/w/Engineer", machine: "" }]);
+    fire(find(view.render(cx), headId), "on_click", {}, cx);
+    assert.equal(opens(), 1, "a second press doesn't make a second space");
+    // It arrives last, and takes the head's place, the fold kept: the group doesn't jump to the end.
+    fire(find(view.render(cx), foldId), "on_click", {}, cx);
+    list.push({ id: "s9", name: "Engineer", active: false, folder: "/w/Engineer", machine: null, tabs: [] });
+    view.shown.add("s9");
+    view.git[JSON.stringify([null, "/w/Engineer"])] = { ...tree, linked: false, branch: "main" };
+    assert.deepEqual(rows(), ["s0", "s9"], "with its checkout open the head is gone, the fold kept");
+    assert.deepEqual(moves().at(-1), ["space.move", { id: "s9", index: 2 }], "the checkout moves to where the head was");
+    list.splice(1, 0, list.pop());
+    assert.deepEqual(rows(), ["s0", "s9"]);
+    assert.equal(view.opening, null, "in place, it's done");
+    fire(find(view.render(cx), "space-fold-s9"), "on_click", {}, cx);
+    assert.deepEqual(rows(), ["s0", "s9", "s1", "s2"]);
+    list.splice(1, 1);
+    delete view.git[JSON.stringify([null, "/w/Engineer"])];
+    // One worktree alone stays a plain row.
+    set("s0", null);
+    delete view.git[JSON.stringify([null, "/work/s2"])];
+    assert.deepEqual(rows(), ["s0", "s1", "s2"], "one alone gets no row over it");
+    assert.equal(view.ordered()[1].tree, null);
+    // No .git folder (a bare repo): nothing to open, so no pen.
+    const bare = JSON.stringify([null, "/w/bare.git"]);
+    set("p1", { ...tree, repo: bare }); set("s2", { ...tree, repo: bare });
+    const made = opens();
+    fire(find(view.render(cx), `repo-${bare}`), "on_click", {}, cx);
+    assert.equal(opens(), made, "there the click folds");
+    assert.ok(view.foldedRepos.has(bare));
   }
   {
     // A worktree away from its checkout: the model moves to the rows' order, so space keys go down the list.
@@ -709,13 +873,13 @@ for (const width of [208, 240, 256, 320, 480]) {
   delete f.agents()[0].program.icon;
   ag.toggleFold("t0", cx);
   const tree = ag.render(cx);
-  assert.equal(find(tree, "ag-t0").items[0].style.size, 18, "missing icons do not shift names");
-  assert.equal(inFlow(find(tree, "sub-child"))[0].style.size, 18);
+  assert.equal(find(tree, "ag-t0").items[0].style.size, 16, "missing icons do not shift names");
+  assert.equal(inFlow(find(tree, "sub-child"))[0].style.size, 16);
   fire(find(tree, "agent-fold-t0"), "on_click", {}, cx);
   assert.equal(find(ag.render(cx), "sub-grandchild"), null, "missing icons do not disable folding");
   const menu = f.load("t3-agents", { sortMenu: true }).render(cx);
-  assert.equal(find(menu, "sort-grouped").style.bg, f.theme().selected);
-  assert.equal(find(menu, "sort-grouped").hoverStyle.bg, undefined);
+  assert.equal(find(menu, "sort-grouped").style.bg, undefined, "as T3's menus, nothing's lit until a key or the pointer arrives");
+  assert.ok(walk(find(menu, "sort-grouped")).some(n => n.source === "mods/t3-agents/check.svg"), "the current sort keeps its check");
   fire(find(menu, "sort-priority"), "on_click", {}, cx);
   assert.equal(f.state["agents.sort"], "priority");
   const byPriority = find(ag.render(cx), "ag-t0"), names = byPriority.items[1];
@@ -1026,7 +1190,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Hover labels name the control, and its key only when the key does the same.
     lists.machines = [{ name: "spare", state: "asleep" }];
     const blank = find(lists.render(cx), "machine-new-spare");
-    assert.deepEqual([blank.style.px, blank.items[0].style.size, blank.style.gap], [8, 18, 8], "New space here lays out as a space's row");
+    assert.deepEqual([blank.style.pl, blank.items[0].style.size, blank.style.gap], [10, 16, 10], "New space here lays out as a space's row");
     lists.machines = [{ name: "vps", state: "connected" }];
     const label = (id) => { lists.hot = id; return strings(find(lists.render(cx), `tip-${id}`).style.content); };
     assert.deepEqual(label("space-new"), ["New space"], "⌘N doesn't ask, as this does");
@@ -1339,9 +1503,9 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Every menu goes by arrows and Enter, and says when a search finds nothing.
     const f = fixture(256), key = (view, id, k) => fire(find(view.render(cx), id), "on_key_down", { key: k }, cx);
     const sort = f.load("t3-agents", { sortMenu: true });
-    assert.equal(find(sort.render(cx), "sort-grouped").style.bg, f.theme().selected, "it opens on the current sort");
+    assert.equal(find(sort.render(cx), "sort-grouped").style.bg, undefined, "it opens with nothing lit");
     key(sort, "sort-menu", "down");
-    assert.equal(find(sort.render(cx), "sort-priority").style.bg, f.theme().selected, "down wraps to the first row");
+    assert.equal(find(sort.render(cx), "sort-priority").style.bg, f.theme().selected, "down lights the first row");
     key(sort, "sort-menu", "enter");
     assert.equal(f.state["agents.sort"], "priority");
     const inbox = f.load("t3-inbox");
@@ -1379,7 +1543,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     on(sp, "space-s0");
     fire(find(sp.render(cx), "space-s0"), "on_key_down", { keystroke: "space" }, cx);
     assert.deepEqual(f.calls.pop(), ["space.select", { id: "s0" }]);
-    assert.equal(find(ag.render(cx), "pin-t0"), null);
+    assert.equal(find(ag.render(cx), "pin-t0").style.tab_index, undefined);
     on(ag, "ag-t0");
     assert.equal(find(ag.render(cx), "pin-t0").style.tab_index, 0, "a hidden control is there once the keyboard's on its row");
     // Menus: Home, End and typing, with the same highlight the arrows move.

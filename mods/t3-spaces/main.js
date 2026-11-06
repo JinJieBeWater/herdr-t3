@@ -22,6 +22,8 @@ const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
 const FALLBACK = 60000;
+// How long a checkout being opened may take to show up before it's asked for again.
+const OPENING = 5000;
 
 export default class Spaces extends View {
   init(_props, cx) {
@@ -246,40 +248,64 @@ export default class Spaces extends View {
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
-    const nested = (r) => r.g?.linked && mains.has(r.g.repo);
+    const worktrees = (repo) => list.filter((k) => k.g?.linked && k.g.repo === repo);
+    // A checkout just opened from its dim row arrives last: it takes that row's place, so the group doesn't jump to the list's end.
+    if (this.opening) {
+      const main = list.findIndex((r) => r.g && !r.g.linked && r.g.repo === this.opening.repo);
+      const first = list.findIndex((r) => r.g?.linked && r.g.repo === this.opening.repo);
+      if (main >= 0 && first >= 0 && main > first) list.splice(first, 0, list.splice(main, 1)[0]);
+      else if (main >= 0 || Date.now() - this.opening.at > OPENING) this.opening = null;
+    }
+    // Grouped by repo, as T3's projects, so closing a checkout doesn't scatter its worktrees. One alone isn't worth a row over it.
+    const nested = (r) => r.g?.linked && (mains.has(r.g.repo) || worktrees(r.g.repo).length > 1);
     const out = [];
     const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
+    const hang = (top) => {
+      const kids = worktrees(top.g.repo), folded = this.foldedRepos.has(top.g.repo);
+      // Closed, the one you're on still shows, as T3's route row, and the count leaves it out.
+      const keep = (k) => folded && k.w.active;
+      top.kids = kids.length;
+      top.hiding = kids.filter((k) => !keep(k)).length;
+      kids.forEach((k, n) => out.push({ ...k, folded: folded && !keep(k), tree: folded || n === kids.length - 1 ? "└─" : "├─" }));
+    };
     for (const r of list) {
-      if (nested(r)) continue;
+      if (nested(r)) {
+        if (mains.has(r.g.repo) || placed.has(r.g.repo)) continue;
+        placed.add(r.g.repo);
+        // Its checkout isn't a space: a row stands for it, where its first worktree was. No .git folder (a bare repo): nothing to open.
+        const [, common] = JSON.parse(r.g.repo);
+        const head = { head: true, g: r.g, w: { id: `repo-${r.g.repo}`, name: r.g.name, machine: r.w.machine ?? null, folder: common.endsWith("/.git") ? common.slice(0, -5) : null } };
+        out.push(head);
+        hang(head);
+        continue;
+      }
       const top = { ...r, tree: null, kids: 0 };
       out.push(top);
       if (!r.g || r.g.linked || placed.has(r.g.repo)) continue;
       placed.add(r.g.repo);
-      const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
-      top.kids = kids.length;
-      const folded = this.foldedRepos.has(r.g.repo);
-      kids.forEach((k, n) => out.push({ ...k, folded, tree: n === kids.length - 1 ? "└─" : "├─" }));
+      hang(top);
     }
-    // space.next/prev and ctrl-N follow the model, so it keeps the rows' order, folded rows included: folding moves nothing.
+    // space.next/prev and ctrl-N follow the model, so it keeps the rows' order, folded rows included: folding moves nothing. A row with no space isn't in it.
     // Simulate the batch so later indexes include earlier moves. An attempted write can lose a sync conflict: let its echo settle before retrying.
+    const real = out.filter((r) => !r.head);
     const order = sp.map(w => w.id);
-    const target = out.map(r => r.w.id);
+    const target = real.map(r => r.w.id);
     const key = JSON.stringify([order, target, machines()]);
     if (order.every((id, i) => id === target[i])) {
       this.ordering = null;
     } else if (this.ordering?.key !== key || this.orderingDue(Date.now())) {
       const moved = new Set();
       this.ordering = { key, at: Date.now(), machines: [] };
-      for (let i = 0; i < out.length; i++) {
-        const from = order.indexOf(out[i].w.id);
+      for (let i = 0; i < real.length; i++) {
+        const from = order.indexOf(real[i].w.id);
         if (from === i) continue;
-        run("space.move", { id: out[i].w.id, index: i + 1 });
-        moved.add(out[i].w.machine ?? null);
+        run("space.move", { id: real[i].w.id, index: i + 1 });
+        moved.add(real[i].w.machine ?? null);
         order.splice(i, 0, order.splice(from, 1)[0]);
       }
       this.ordering.machines = [...moved];
     }
-    return out.filter(r => this.shown.has(r.w.id) && !r.folded);
+    return out.filter(r => (r.head || this.shown.has(r.w.id)) && !r.folded);
   }
 
   toggleRepo(repo, cx) {
@@ -300,14 +326,14 @@ export default class Spaces extends View {
 
   grouped(t) {
     const rows = this.ordered(), ps = panes();
-    const draw = (r) => this.row(r, t, ps);
+    const draw = (r) => r.head ? this.repoHead(r, t, ps) : this.row(r, t, ps);
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
       return layout === "loading" || (!layout && this.machines.some(k => k.name === m && k.state === "connected"))
         || spaces().some(s => (s.machine ?? null) === m && !this.shown.has(s.id));
     };
-    const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(30).flex_none().px(8).text_size(13).text_color(t.dim).child("Loading…");
+    const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(32).flex_none().px(10).text_size(13).text_color(t.dim).child("Loading…");
     if (!remote.length) return loading(null) && !rows.length ? [loadingRow(null)] : rows.map(draw);
     const machineNames = [null, ...remote];
     return machineNames.flatMap((m, i) => {
@@ -317,10 +343,9 @@ export default class Spaces extends View {
       const connected = !m || machine?.state === "connected";
       const rebuilt = this.rebuilt(machine) || !!repair;
       const folded = this.folded.has(m);
-      // Drawn as the agents list's group headers, each 8px below what's above it, the heading included: right under it,
-      // its + and chevron crowded the heading's buttons, a column of icons unevenly spaced.
+      // Drawn as the agents list's shelves, T3's 32px.
       // Its + and chevron stand under the heading's two buttons, in slots built as those are (26px, 2px apart, 10px from the edge), so any zoom rounds them alike.
-      const head = h_flex().id(`machine-${m ?? "local"}`).pt(8).h(30).flex_none().pl(8).pr(2).gap(4).items_center()
+      const head = h_flex().id(`machine-${m ?? "local"}`).h(32).flex_none().pl(10).pr(2).gap(4).items_center()
         .text_size(12).font_medium().text_color(t.dim)
         .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`)
         .on_hover((on, cx) => {
@@ -359,12 +384,12 @@ export default class Spaces extends View {
           .child(div().id(`machine-fold-${m ?? "local"}`).w(26).flex_none().flex().items_center().justify_center()
             .text_color(this.overMachine === `machine-${m ?? "local"}` ? t.foreground : t.dim)
             .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none())));
-      const empty = stop(this, t, `machine-new-${m ?? "local"}`, h_flex().id(`machine-new-${m ?? "local"}`).h(30).flex_none().px(8).gap(8).items_center().rounded(8)
+      const empty = stop(this, t, `machine-new-${m ?? "local"}`, h_flex().id(`machine-new-${m ?? "local"}`).h(32).flex_none().pl(10).pr(8).gap(10).items_center().rounded(8)
         .text_size(13).text_color(this.hot === `machine-new-${m ?? "local"}` ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(this.glow(`machine-new-${m ?? "local"}`))
         .role("button").accessibility_label("New space here")
         .on_click(() => run("space.new", { machine: m ?? "" }))
-        // Laid out as a space's row: the + in the mark's 18px, the words where a name starts.
-        .child(div().size(18).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here"), 8);
+        // Laid out as a space's row: the + in the mark's 16px, the words where a name starts.
+        .child(div().size(16).flex_none().flex().items_center().justify_center().child(svg("mods/t3-spaces/plus.svg").size(12))).child("New space here"), 8);
       const heading = stop(this, t, `machine-${m ?? "local"}`, head, 8);
       if (rebuilt) return [heading];
       return [heading, ...(folded ? [] : mine.length ? mine.map(draw) : [loading(m) ? loadingRow(m) : empty])];
@@ -394,18 +419,55 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(tipMark(this, t, `behind-${id}`, n(g.behind, "pull"), div().text_color(t.ansi1).child(`\u2193${g.behind}`))));
   }
 
-  row({ w, i, g, tree, kids = 0 }, t, ps) {
+  // A checkout's fold arrow: at the row's end, and folded, the count, as an agent parent's; dim, brightening when hovered.
+  // -3: its chevron stands in the column of the heading's last button and a machine's chevron, 23 from the edge.
+  foldButton(t, id, repo, hiding) {
+    const folded = this.foldedRepos.has(repo), lit = this.hot === id ? t.foreground : t.dim;
+    return tip(this.hot, t, id, folded ? "Expand worktrees" : "Collapse worktrees", stop(this, t, id, div().id(id).h(20).min_w(20).mr(-3).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
+      // raised: the row under it already shows hover or selected.
+      .text_size(11).text_color(lit)
+      .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
+      .on_hover(this.glow(id))
+      // Pressing it neither selects nor drags the space.
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(repo, cx); })
+      .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
+      .when(folded && hiding > 0, el => el.child(String(hiding))), 4));
+  }
+
+  // Once, however often it's pressed: the new space takes a moment to show.
+  openCheckout({ w, g }) {
+    if (this.opening?.repo === g.repo && Date.now() - this.opening.at < OPENING) return;
+    this.opening = { repo: g.repo, at: Date.now() };
+    run("space.new", { folder: w.folder, machine: w.machine ?? "" });
+  }
+
+  // A repo's worktrees with its checkout not open: the checkout's row, dimmed, with its fold arrow. It has no tab to go to,
+  // so a click opens it, and it becomes the checkout's own row. A bare repo has nothing to open: there the click folds.
+  repoHead(r, t, ps) {
+    const { w, g, hiding = 0 } = r, rowId = w.id, foldId = `${rowId}-fold`;
+    return stop(this, t, rowId, h_flex().id(rowId).h(32).flex_none().pl(10).pr(8).gap(10).items_center().rounded(8)
+      .hover(s => s.bg(t.hover))
+      .role("button").accessibility_label(w.folder ? `Open ${w.name}` : `${this.foldedRepos.has(g.repo) ? "Expand" : "Collapse"} ${w.name}`)
+      .on_click((_e, cx) => { if (w.folder) this.openCheckout(r); else this.toggleRepo(g.repo, cx); cx.notify(); })
+      .child(div().flex_none().opacity(0.5).child(projectMark(w, 16, t, ps)))
+      .child(div().flex_1().min_w(0).truncate().font_medium().text_color(t.dim).child(w.name))
+      .child(this.foldButton(t, foldId, g.repo, hiding)), 8);
+  }
+
+  row({ w, i, g, tree, kids = 0, hiding = kids }, t, ps) {
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const on = w.active;
     // A checkout with worktrees folds them as an agent folds its sub-agents: an arrow at the
     // end, and folded, the count; dim, brightening when hovered.
     const folded = kids > 0 && this.foldedRepos.has(g.repo);
-    const foldId = `space-fold-${w.id}`, lit = this.hot === foldId ? t.foreground : t.dim;
-    return stop(this, t, `space-${w.id}`, v_flex()
+    const foldId = `space-fold-${w.id}`;
+    const rowId = `space-${w.id}`;
+    return stop(this, t, rowId, v_flex()
       .relative()
-      .id(`space-${w.id}`)
-      .px(8)
-      .h(30)
+      .id(rowId)
+      .pl(10).pr(8)
+      .h(32)
       .flex_none()
       .justify_center()
       .rounded(8)
@@ -444,33 +506,19 @@ export default class Spaces extends View {
       })
       .on_mouse_down("right", () => this.menu(w))
       // The same tree lines as sub-agents: from the checkout's avatar center, turning into the branch icon.
-      .when(tree === "├─", el => el.child(div().absolute().left(16.25).top(0).bottom(0).w(1.5).bg(t.input)))
-      .when(Boolean(tree), el => el.child(div().absolute().left(16.25).top(-4).h(19).w(9.75).border_l(1.5).border_b(1.5).rounded_bl(6).border_color(t.input)))
+      .when(tree === "├─", el => el.child(div().absolute().left(17.25).top(0).bottom(0).w(1.5).bg(t.input)))
+      .when(Boolean(tree), el => el.child(div().absolute().left(17.25).top(-4).h(20).w(9.75).border_l(1.5).border_b(1.5).rounded_bl(6).border_color(t.input)))
       .child(
         h_flex()
           .w_full().min_w(0)
-          .gap(8)
+          .gap(10)
           .items_center()
-          .when(Boolean(tree), el => el.pl(20).child(h_flex().size(18).flex_none().items_center().justify_center()
+          .when(Boolean(tree), el => el.pl(20).child(h_flex().size(16).flex_none().items_center().justify_center()
             .child(svg("mods/t3-spaces/git-branch.svg").size(16).text_color(t.dim))))
-          .when(!tree, el => el.child(projectMark(w, 18, t, ps)))
-          .child(div().min_w(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
+          .when(!tree, el => el.child(projectMark(w, 16, t, ps)))
+          .child(div().min_w(0).max_w(150).truncate().font_medium().text_color(t.foreground + "e6").child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t, w.id) : div().flex_1())
-          // -3: its chevron stands in the column of the heading's last button and a machine's chevron, 23 from the edge.
-          .when(kids > 0, el => el.child(tip(this.hot, t, foldId, folded ? "Expand worktrees" : "Collapse worktrees", stop(this, t, foldId, div().id(foldId).h(20).min_w(20).mr(-3).px(4).gap(3).flex_none().flex().items_center().justify_center().rounded(4)
-            // raised: the row under it already shows hover or selected.
-            .text_size(11).text_color(lit)
-            .role("button").accessibility_label(folded ? "Expand worktrees" : "Collapse worktrees")
-            .on_hover((over, cx) => {
-              if (over) this.hot = foldId;
-              else if (this.hot === foldId) this.hot = null;
-              cx.notify();
-            })
-            // Pressing it neither selects nor drags the space.
-            .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-            .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(g.repo, cx); })
-            .child(svg(`mods/t3-spaces/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none().text_color(lit))
-            .when(folded, el => el.child(String(kids))), 4)))),
+          .when(kids > 0, el => el.child(this.foldButton(t, foldId, g.repo, hiding))),
       // A space goes by its mouse-up, which a key isn't.
       ), 8, { enter: () => run("space.select", { id: w.id }) });
   }
@@ -485,7 +533,7 @@ export default class Spaces extends View {
     const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
       .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(14))), more);
     return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
-      .child(h_flex().id("spaces-heading").h(32).flex_none().pl(16).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
+      .child(h_flex().id("spaces-heading").h(32).flex_none().pl(18).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
         // The same two as Inbox's top row, so switching modes moves nothing.
         .child(h_flex().flex_none().gap(2).items_center()

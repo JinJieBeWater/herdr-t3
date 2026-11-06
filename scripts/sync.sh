@@ -13,12 +13,13 @@ gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 for m in t3-agents t3-tabs t3-pane t3-picker; do cp "$src/mods/t3-inbox/name.js" "$src/mods/t3-inbox/tree.js" "$src/mods/$m/"; done
 # t3-inbox/project.js is the one space mark; t3-spaces and t3-new-menu keep their copies by hand.
 cp "$src/mods/t3-inbox/project.js" "$src/mods/t3-picker/"
+cp "$src/mods/t3-inbox/project.js" "$src/mods/t3-agents/"
 
 # t3-inbox/tip.js is the one hover label.
 for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions extras/mods/pulls-review; do cp "$src/mods/t3-inbox/tip.js" "$src/$d/"; done
 
 # t3-inbox/details.js is the one details card and its timing.
-for d in mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/t3-inbox/details.js" "$src/$d/"; done
+for d in mods/t3-agents mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/t3-inbox/details.js" "$src/$d/"; done
 
 # t3-inbox/focus.js is the one keyboard focus.
 for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions; do cp "$src/mods/t3-inbox/focus.js" "$src/$d/"; done

@@ -4,6 +4,9 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- A sub-agent's row shows its own details card; its parent's used to stay up over it.
+- Closing a checkout no longer scatters its worktrees. Two or more with the checkout not open fold under a dim row for their repo: a click opens the checkout, which takes its place, and the arrow folds. The fold is kept by repo, and a closed group still shows the worktree you're on.
+- Lists is drawn and behaves as T3's sidebar, keeping Herdr's Spaces and Agents. Agent rows are 36px and recede until they matter (a working one at 70%), the time and pin cross-fade, and hovering shows the details card. Grouped by space, a group is T3's project folder: the space's mark and name, a count and status dot only while closed, the space's menu on right-click. A closed group still shows the row you're on, and a folded sub-agent in view lights its parent. Rows slide when they reorder. Spaces' rows are 32px. Shelves and machine rows are 32px, and the sort menu fades in with nothing lit until a key or the pointer arrives.
 - A tab's hover card stays out of the way: it goes when the pointer reaches `×`, and a name the tab shows whole, with no status to tell, has none. `×` has its own `Close tab` label after 500ms.
 - `t3-theme-export` no longer loses a color change that arrives during a write, and exports `{ name, colors }`, dropping `light`, which nothing read. Update `pi-herdr-theme` with it.
 
