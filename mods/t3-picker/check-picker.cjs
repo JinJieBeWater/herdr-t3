@@ -98,6 +98,12 @@ assert.deepEqual(take(), [["pane.focus", { pane: "p3" }]]);
 m = open(); m.input.type("lazygit"); m.render().handlers.key({ key: "d", modifiers: { control: true } }, cx);
 assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]]);
 
+// Back across tabs: `focused` is each tab's own, so a pane another tab holds focus in is still somewhere to go back to.
+shared["t3-picker.back"] = "p4";
+assert.equal(keys(open())[0], "back:p4");
+shared["t3-picker.back"] = "p1";
+assert.ok(!keys(open()).some((k) => k.startsWith("back:")), "the pane you're in is no way back");
+
 // Back to a pane that's gone shows nothing.
 shared["t3-picker.back"] = "p9";
 assert.ok(!keys(open()).some((k) => k.startsWith("back:")));

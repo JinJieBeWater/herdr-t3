@@ -43,7 +43,8 @@ export default class Picker extends View {
           words: [s.name, s.machine ?? "", c.named ? c.name : "", name(p), programOf(p)?.name ?? "", p.program?.key ?? "", (p.cwd ?? "").split(/[\\/]/).pop()],
         };
       })));
-    const back = !q && rows.find((r) => r.p.pane === shared("t3-picker.back") && !r.p.focused);
+    // Not by `focused`: each tab has its own, so another tab's pane would never be a way back.
+    const back = !q && rows.find((r) => r.p.pane === shared("t3-picker.back") && r.p.pane !== focused()?.pane);
     const found = rows.filter((r) => !q || r.words.join(" ").toLowerCase().includes(q));
     return back ? [{ ...back, key: `back:${back.p.pane}`, back: true }, ...found] : found;
   }
