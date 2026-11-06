@@ -4,6 +4,10 @@
 
 ## 2026-11-06
 
+- 再次点击打开弹窗的按钮，现在会关闭弹窗，不再关了又开：Actions ▾；Inbox 的 Search、New tab、New space；Spaces 的 New tab、New space；Home 的 Go to、New tab。
+- Review 面板的设置和折叠菜单可以用键盘操作，和其他弹窗一致。Model 页打开后可以直接打字，Enter 选中高亮的行；悬停会移动高亮；↑/↓ 能到 Default 和自定义模型。Language、Agent 页和折叠菜单支持 ↑/↓、Home、End、打字、Enter 和 Space。折叠菜单或分析状态开着时，`j`、`k`、`r`、`f`、`c`、`s` 不再作用到下层的 diff。
+- Custom snooze 的日历支持方向键。以前在日期或翻月按钮上按 Enter 只会关掉日历，现在和点击效果相同；日历打开时定位到已选日期。
+- Agents 分组的箭头和 Review 分组的类别图标，在指针离开事件丢失时不再一直亮着。
 - Herdr 不是活动窗口时悬停也能正常工作：卡片的控件、提示和详情卡会留在屏幕上，不再闪一下就消失。
 - 修复了整个布局里过期或互相矛盾的状态：
   - **隐藏侧栏时**：已 Settle 的 agent 有新工作会计入开关，done 圆点也会显示；`cmd-shift-b` 和 `cmd-shift-s` 正常工作或不响应，不再报错（请改你的按键，见「更新」）。Inbox 或 Lists 没显示期间结束的 agent，保持真实的顺序和时间。

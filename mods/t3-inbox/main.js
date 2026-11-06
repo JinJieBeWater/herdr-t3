@@ -18,7 +18,7 @@ import { projectMark } from "./project.js";
 import { dragGone, glow, POINTER_WATCH, pointerMoved, tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
+import { stopsInit, stop, focusRoot, within, enter, onStop, pressed, justClosed } from "./focus.js";
 import { step, menuJump, scrollList } from "./list.js";
 
 const icon = programIcon;
@@ -106,6 +106,8 @@ function initCustom(view, cx) {
   view.date = soon;
   view.month = new Date(soon.getFullYear(), soon.getMonth(), 1);
   view.calendarOpen = false;
+  view.dayKeys = cx.focus_handle();
+  view.dayAt = null;
   view.error = null;
   const field = (placeholder, value) => {
     const input = InputState.new({ placeholder, value });
@@ -135,6 +137,7 @@ function calendar(view, t) {
   const y = view.month.getFullYear(), m = view.month.getMonth(), lead = new Date(y, m, 1).getDay();
   const now = new Date(Date.now()), today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const pick = (d) => { view.date = d; view.calendarOpen = false; view.error = null; };
   const turn = (id, glyph, label, by) => stop(view, t, id, h_flex().id(id).size(28).flex_none().items_center().justify_center().rounded(6).hover((s) => s.bg(t.hover))
     .role("button").accessibility_label(label)
     .on_click((_e, cx) => { view.month = new Date(y, m + by, 1); cx.notify(); })
@@ -146,12 +149,31 @@ function calendar(view, t) {
       .when(past, (el) => el.opacity(0.5))
       .when(on, (el) => el.bg(t.solid))
       .when(!past, (el) => el.when(!on, (b) => b.hover((s) => s.bg(t.hover))).role("button").accessibility_label(`${MONTHS[d.getMonth()]} ${d.getDate()}`)
-        .on_click((_e, cx) => { view.date = d; view.calendarOpen = false; view.error = null; cx.notify(); }))
+        .on_click((_e, cx) => { pick(d); cx.notify(); }))
       .child(String(d.getDate()))
-      .when(!past, (el) => stop(view, t, id, el));
+      .when(Boolean(view.dayAt) && same(d, view.dayAt), (el) => el.relative().child(div().absolute().inset_0().rounded(6).border(2).border_color(t.accent)));
   };
   const weeks = Array.from({ length: 6 }, (_, w) => h_flex().children(Array.from({ length: 7 }, (_, i) => day(new Date(y, m, 1 - lead + w * 7 + i)))));
+  // One stop for the month's days, as T3's: the panel holds the keyboard and the arrows walk them, the month following.
   return v_flex().id("custom-calendar").mt(4).p(8).gap(4).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(12)
+    .track_focus(view.dayKeys).key_context("InboxCalendar")
+    .on_action("t3_inbox_day_pick", (_e, cx) => {
+      const by = { "month-back": -1, "month-on": 1 }[onStop(view)];
+      if (by) view.month = new Date(y, m + by, 1);
+      else pick(view.dayAt ?? view.date);
+      cx.notify();
+    })
+    .on_key_down((e, cx) => {
+      const by = { left: -1, right: 1, up: -7, down: 7 }[e.key];
+      if (!by) return;
+      cx.stop_propagation();
+      const from = view.dayAt ?? view.date, to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + by);
+      if (to.getTime() < today) return;
+      view.dayAt = to;
+      view.month = new Date(to.getFullYear(), to.getMonth(), 1);
+      view.dayKeys.focus();
+      cx.notify();
+    })
     .child(h_flex().h(28).items_center()
       .child(turn("month-back", "left", "Previous month", -1))
       .child(div().flex_1().text_center().font_medium().text_color(t.foreground).child(`${MONTHS[m]} ${y}`))
@@ -227,8 +249,17 @@ function customView(view) {
   const when = view.mode === "date"
     ? h_flex().gap(12)
       .child(v_flex().flex_1().min_w(0).gap(6).child(label("Date"))
-        .child(Popover.new("custom-date").anchor("top_left").open(view.calendarOpen)
-          .on_open_change((open, cx) => { view.calendarOpen = open; cx.notify(); })
+        .child(Popover.new("custom-date").anchor("top_left").open(view.calendarOpen).track_focus(view.dayKeys)
+          .on_open_change((open, cx) => {
+            view.calendarOpen = open;
+            if (open) {
+              view.dayAt = null;
+              view.month = new Date(view.date.getFullYear(), view.date.getMonth(), 1);
+              // Enter and Space are the Popover's, which would only close it: a binding of ours, deeper in, comes first (as the snooze menu's).
+              cx.bind_keys(["enter", "space"].map((keystroke) => ({ keystroke, action: "t3_inbox_day_pick", context: "InboxCalendar" })));
+            }
+            cx.notify();
+          })
           .trigger(stop(view, t, "custom-date-button", h_flex().id("custom-date-button").h(32).px(10).gap(8).rounded(6).border(1).border_color(t.border).bg(t.input).items_center().cursor_pointer()
             .role("button").accessibility_label("Choose snooze date")
             .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(`${MONTHS[view.date.getMonth()].slice(0, 3)} ${view.date.getDate()}, ${view.date.getFullYear()}`))
@@ -1222,7 +1253,7 @@ export default class Inbox extends View {
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const asks = props()?.newMenu && machines().length > 1;
     const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
-      .hover((s) => s.bg(t.hover)).on_hover(glow(this, id))
+      .hover((s) => s.bg(t.hover)).on_hover(glow(this, id)).on_mouse_down("left", () => pressed(this))
       .role("button").accessibility_label(label).on_click(fn)
       .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim)))), more);
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
@@ -1282,21 +1313,22 @@ export default class Inbox extends View {
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
       // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
       .child(stop(this, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
-        .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow(this, "inbox-search"))
+        .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow(this, "inbox-search")).on_mouse_down("left", () => pressed(this))
         // Each opens over its button, before the pointer can report leaving it.
-        .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: props()?.picker ?? "picker" }); cx.notify(); })
+        .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; const picker = props()?.picker ?? "picker"; if (!justClosed(this, `${picker}.closed`)) run("mod.open", { name: picker }); cx.notify(); })
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(lit("inbox-search", t.dim)))
         .child(div().child("Search"))))
       .child(tip(this, t, "inbox-scope", "Filter by space", filter, { off: this.scopeOpen, hint: "Shift+click to pick several", below: true }))
       .child(tool("inbox-new-space", "New space", "folder-plus", (_e, cx) => {
         this.hot = null;
         // The layout's menu asks which machine, as its mod.json places it; the shipped one can't, so docked alone it's the active space's.
-        if (asks) openOverlay({ mod: props().newMenu, kind: "popup", at: "top", offset: 40, width: 576, height: 420, props: { pick: true } });
-        else run("space.new");
+        const closing = justClosed(this, `${props()?.newMenu}.pickClosed`);
+        if (!asks) run("space.new");
+        else if (!closing) openOverlay({ mod: props().newMenu, kind: "popup", at: "top", offset: 40, width: 576, height: 420, props: { pick: true } });
         cx.notify();
       }, { action: asks ? null : "space.new" }))
       // The layout passes its own menu; docked alone, the shipped one.
-      .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; run("mod.open", { name: props()?.newMenu ?? "new-menu" }); cx.notify(); }));
+      .child(tool("inbox-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; const menu = props()?.newMenu ?? "new-menu"; if (!justClosed(this, `${menu}.closed`)) run("mod.open", { name: menu }); cx.notify(); }));
 
     // Herdr reports no release outside the sidebar, so leaving decides. Off the top or bottom edge (the Pinned
     // label or the Settled shelf sit there) it lands where the badge says, as T3 keeps the last target past the

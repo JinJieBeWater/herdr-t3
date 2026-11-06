@@ -16,7 +16,7 @@ cp "$src/mods/t3-inbox/project.js" "$src/mods/t3-picker/"
 cp "$src/mods/t3-inbox/project.js" "$src/mods/t3-agents/"
 
 # t3-inbox/tip.js is the one hover label.
-for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home extras/mods/pulls-review; do cp "$src/mods/t3-inbox/tip.js" "$src/$d/"; done
+for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home extras/mods/pulls-review extras/mods/review; do cp "$src/mods/t3-inbox/tip.js" "$src/$d/"; done
 
 # t3-inbox/details.js is the one details card and its timing.
 for d in mods/t3-agents mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/t3-inbox/details.js" "$src/$d/"; done

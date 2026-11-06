@@ -39,7 +39,7 @@ const context = vm.createContext({
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
   settings: () => ({ zoom: 1 }),
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
-  shared: (k) => state[k], closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder,
+  shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder,
 });
 const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
@@ -130,4 +130,10 @@ assert.ok(text(open().render()).includes("⌘N"), "⌘N beside a button that doe
 
 // Its contents are there from the first frame: a fade leaves the popup blank.
 assert.notEqual(typeof open().render().opacity, "number");
+// Closing says which step it was on, for the buttons that open each to toggle.
+openProps = {}; open().close();
+assert.ok(state["t3-new-menu.closed"] && !state["t3-new-menu.pickClosed"]);
+openProps = { pick: true }; open().close();
+assert.ok(state["t3-new-menu.pickClosed"]);
+openProps = {};
 console.log("ok new menu");

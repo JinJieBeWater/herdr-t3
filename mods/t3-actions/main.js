@@ -4,12 +4,13 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
 import { tip, glow } from "./tip.js";
-import { stopsInit, stop, focusRoot, onStop } from "./focus.js";
+import { stopsInit, stop, focusRoot, onStop, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
 const KEY = "t3-actions";
+const MENU_CLOSED = `${MOD}.menuClosed`;
 const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
 const icon = (name) => svg(`mods/${MOD}/action-${ICONS.includes(name) ? name : "play"}.svg`);
@@ -60,10 +61,10 @@ function control(view, t, stopPress) {
     .child(tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
-        openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
+        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
         cx.notify();
       })
-      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; stopPress(e, cx); })
+      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
       .child(svg("mods/t3-actions/chevron-down.svg").size(14))), { below: true }));
 }
 
@@ -191,6 +192,8 @@ export default class Actions extends View {
       }
     });
   }
+
+  close() { if (this.keys) setShared(MENU_CLOSED, Date.now()); }
 
   render() {
     const overlay = props()?.actions;

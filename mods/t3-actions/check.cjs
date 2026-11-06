@@ -94,6 +94,19 @@ fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 40 * zoom });
 assert.equal(overlays.at(-1).mod, "t3-actions");
+// The button toggles: the press closed the open menu on its way in, so its click doesn't open another.
+{
+  const open = load({ actions: "menu" }), count = overlays.length;
+  fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
+  open.close();
+  fire(find(bar.render(), "action-more"), "on_click", {}, cx);
+  assert.equal(overlays.length, count, "closed by its own button");
+  fire(find(bar.render(), "action-more"), "on_click", {}, cx);
+  assert.equal(overlays.length, count + 1, "the keyboard's click has no press: it opens");
+  delete state["t3-actions.menuClosed"];
+  load({ actions: "edit" }).close();
+  assert.equal(state["t3-actions.menuClosed"], undefined, "the editor isn't the menu");
+}
 
 // The menu: a row runs its action and makes it the one ▶ runs; a gear edits it.
 const menu = load({ actions: "menu" });

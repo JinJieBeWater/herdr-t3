@@ -4,6 +4,10 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Clicking the button that opened a popup now closes it, instead of closing and opening it again: Actions ▾; Inbox's Search, New tab and New space; Spaces' New tab and New space; Home's Go to and New tab.
+- The Review pane's settings and fold menu work by keyboard, as the other popups do. The Model page opens ready to type and Enter picks the row lit; hovering moves the highlight; Default and a custom model are rows ↑/↓ reach. The Language and Agent pages and the fold menu take ↑/↓, Home, End, typing, Enter and Space. While the fold menu or the analysis status is up, `j`, `k`, `r`, `f`, `c` and `s` no longer act on the diff under it.
+- Custom snooze's calendar takes the arrow keys. Enter on a day or month button in it used to just close it; now it does what a click does, and the calendar opens on the date chosen.
+- An Agents group's chevron and a Review group's category icon no longer stay lit when the pointer's leave is lost.
 - Hovering works while Herdr isn't the active window: a card's controls, labels and details cards stay up instead of flashing and going.
 - State that went stale or disagreed, fixed across the layout:
   - **With the sidebar hidden**: a settled agent with new work counts on the toggle, its done dot shows, and `cmd-shift-b` and `cmd-shift-s` work or stay quiet instead of reporting an error (change them in yours: see Update). Agents that ended while Inbox or Lists wasn't showing keep their real order and times.

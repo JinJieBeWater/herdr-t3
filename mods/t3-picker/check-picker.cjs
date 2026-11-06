@@ -114,4 +114,6 @@ panes.push({ pane: "ph", tab: "c1", mod: "t3-home", title: "Home", program: {}, 
 panes.splice(-2);
 // Its contents are there from the first frame: a fade leaves the popup blank.
 assert.notEqual(typeof open().render().opacity, "number");
+// Closing says so, for the buttons that open it to toggle.
+{ const before = Date.now(); open().close(); assert.ok(shared["t3-picker.closed"] >= before); }
 console.log("ok picker");

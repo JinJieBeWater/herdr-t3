@@ -1,7 +1,7 @@
 // New: pick the space and open a terminal tab there, or start a new space, on a machine picked as T3 picks an environment.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared } from "herdr";
+import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared, setShared } from "herdr";
 import { projectMark, placeOf } from "./project.js";
 import { step, scrollList } from "./list.js";
 
@@ -41,6 +41,9 @@ export default class NewMenu extends View {
     this.machineInput = field("Search machines…");
     (this.picking ? this.machineInput : this.spaceInput).focus();
   }
+
+  // For the buttons that open this: see justClosed in focus.js. New space's and New tab's apart, as each opens the other's step.
+  close() { setShared(this.picking ? "t3-new-menu.pickClosed" : "t3-new-menu.closed", Date.now()); }
 
   // The active space's machine first, as ⌘N would use it.
   machineRows() {

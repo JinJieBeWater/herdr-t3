@@ -73,6 +73,16 @@ export function enter(view, cx, first) {
   cx.notify();
 }
 
+// A popup's button toggles it. The press that brings the click is a press outside it too, which already closed it, so the click
+// mustn't reopen it. The button calls pressed on its press and justClosed on its click, naming the shared key the popup's close()
+// stamps. 50 ms, for a close reported just before the press. No press (the keyboard, assistive tech), nothing to tell.
+export const pressed = (view) => { view.pressAt = Date.now(); };
+export function justClosed(view, key) {
+  const closing = view.pressAt != null && (shared(key) ?? 0) >= view.pressAt - 50;
+  view.pressAt = null;
+  return closing;
+}
+
 // The mod's root: hears Tab land here and a press end the ring, and takes back the handles when the mode ends.
 export function focusRoot(view, el) {
   const s = view.fs;

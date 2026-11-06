@@ -404,6 +404,28 @@ for (const width of [208, 240, 256, 320, 480]) {
   fireTimers(16);
   assert.equal(y(ag.render(cx), "t0").style.top, 0, "then it's let go");
   remote.status = wasStatus;
+  {
+    // A group's lit chevron goes with the pointer even when its leave never comes.
+    const every = cx.timer.every, watches = [], scope = f.scopes.get("t3-agents");
+    cx.timer.every = (ms, fn) => { const t = { ms, fn, cancel() { t.gone = true; } }; watches.push(t); return t; };
+    const box = { x: 0, y: 100, width: 208, height: 32 }, wasPointer = scope.window.mouse_position, row = () => find(ag.render(cx), "sec-4");
+    scope.window.mouse_position = () => ({ x: 10, y: 110 });
+    fire(row(), "on_hover", true, cx);
+    fire(row(), "on_mouse_move", { position: { x: 10, y: 110 }, bounds: box }, cx);
+    watches.at(-1).fn(cx);
+    assert.equal(ag.overGroup, "sec-4", "on it, it stays lit");
+    scope.window.mouse_position = () => ({ x: 10, y: 300 });
+    watches.at(-1).fn(cx);
+    assert.deepEqual([ag.overGroup, watches.at(-1).gone], [null, true], "off it, no leave needed");
+    scope.window.mouse_position = () => ({ x: 10, y: 110 });
+    fire(row(), "on_hover", true, cx);
+    fire(row(), "on_hover", false, cx);
+    assert.equal(ag.overGroup, null);
+    watches.at(-1).fn(cx);
+    assert.equal(watches.at(-1).gone, true, "a real leave ends the watch too");
+    scope.window.mouse_position = wasPointer;
+    cx.timer.every = every;
+  }
   f.state["agents.sort"] = "grouped";
   const sorted = ag.render(cx), head = leaving(sorted, "m:sec-4");
   assert.ok(head && strings(head).includes("Needs you") && inert(head), "switching the sort, the old headers fade out");
@@ -1681,6 +1703,25 @@ for (const width of [208, 240, 256, 320, 480]) {
       fire(find(f.load(mod).render(cx), space), "on_click", {}, cx);
       assert.deepEqual(f.calls.splice(0), [["space.new", {}]], `${space} docked alone`);
       assert.equal(f.overlays.length, 0);
+      // A popup's button toggles: the press closed it on its way in, so the click opens nothing. The other button's still opens its step.
+      const pressClick = (id) => { fire(find(view.render(cx), id), "on_mouse_down:left", {}, cx); f.state[`t3-new-menu.${id === space ? "pickClosed" : "closed"}`] = Date.now(); fire(find(view.render(cx), id), "on_click", {}, cx); };
+      pressClick(space); pressClick(tab);
+      assert.deepEqual([f.calls.length, f.overlays.length], [0, 0], `${space} and ${tab} close what they opened`);
+      delete f.state["t3-new-menu.closed"];
+      fire(find(view.render(cx), tab), "on_mouse_down:left", {}, cx);
+      f.state["t3-new-menu.pickClosed"] = Date.now();
+      fire(find(view.render(cx), tab), "on_click", {}, cx);
+      assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-new-menu" }]], "New tab over New space's step changes step");
+      delete f.state["t3-new-menu.closed"]; delete f.state["t3-new-menu.pickClosed"];
+    }
+    {
+      const inbox = f.load("t3-inbox", { picker: "t3-picker" }), search = () => find(inbox.render(cx), "inbox-search");
+      f.calls.length = 0;
+      fire(search(), "on_mouse_down:left", {}, cx); f.state["t3-picker.closed"] = Date.now(); fire(search(), "on_click", {}, cx);
+      assert.deepEqual(f.calls, [], "Search closes Go to");
+      fire(search(), "on_click", {}, cx);
+      assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-picker" }]], "the keyboard's click has no press: it opens");
+      delete f.state["t3-picker.closed"];
     }
     // A machine's + and chevron stand under the heading's two buttons: centers 51 and 23 from the sidebar's edge. Its dot follows its name.
     const lists = f.load("t3-spaces", menu), heading = find(lists.render(cx), "spaces-heading").style, row = find(lists.render(cx), "machine-local");
@@ -2197,6 +2238,12 @@ for (const width of [208, 240, 256, 320, 480]) {
       fire(find(tree(), "home-goto"), "on_click", {}, cx);
       fire(find(tree(), "home-new"), "on_click", {}, cx);
       assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.next", {}], ["mod.open", { name: "t3-picker" }], ["t3-tabs.new", {}]]);
+      // Go to and New tab are popups' buttons here too; Next agent has none to toggle.
+      for (const [id, key] of [["home-goto", "t3-picker.closed"], ["home-new", "t3-new-menu.closed"], ["home-next", "t3-picker.closed"]]) {
+        fire(find(tree(), id), "on_mouse_down:left", {}, cx); f.state[key] = Date.now(); fire(find(tree(), id), "on_click", {}, cx);
+      }
+      assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.next", {}]]);
+      delete f.state["t3-picker.closed"]; delete f.state["t3-new-menu.closed"];
       f.state["t3-inbox.rows"] = { order: [], view: null };
       assert.equal(find(tree(), "home-next").handlers.on_click, undefined, "nowhere to go: no button");
       assert.ok(find(tree(), "home-next").style.opacity < 1);

@@ -27,6 +27,9 @@ export default class Picker extends View {
     this.input.focus();
   }
 
+  // For the buttons that open this: see justClosed in focus.js.
+  close() { setShared("t3-picker.closed", Date.now()); }
+
   // Every pane, the current space's first, then its machine's, as New orders spaces; each space's in tab order.
   items() {
     const q = this.filter.toLowerCase(), ps = panes(), all = terminals(), name = namer(), kids = subAgents(agents(), all);

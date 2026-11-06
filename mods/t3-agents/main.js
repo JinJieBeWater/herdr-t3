@@ -7,7 +7,7 @@ import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shar
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { glow, tip, tipMark } from "./tip.js";
+import { glow, hoverKept, tip, tipMark } from "./tip.js";
 import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
 import { menuJump } from "./list.js";
@@ -455,11 +455,6 @@ export default class Agents extends View {
 
     // A group no longer drawn never reports the pointer leaving it, so it would come back lit.
     if (!groups.some((g) => g.id === this.overGroup)) this.overGroup = null;
-    const groupHover = (g) => (on, cx) => {
-      if (on) this.overGroup = g.id;
-      else if (this.overGroup === g.id) this.overGroup = null;
-      cx.notify();
-    };
     const chevron = (g, open, ghost) => {
       const color = !ghost && this.overGroup === g.id ? t.foreground : t.dim;
       return div().w(26).flex_none().flex().items_center().justify_center().text_color(color).child(foldArrow("t3-agents", ghost ? null : `chevron-${g.id}`, open, 12, color));
@@ -480,11 +475,10 @@ export default class Agents extends View {
         .child(div().flex_none().font_normal().child(String(g.members.length)))
         .child(chevron(g, open, ghost));
       if (ghost) return base;
-      return stop(this, t, g.id, base
+      return stop(this, t, g.id, hoverKept(this, "overGroup", g.id, base
         .id(g.id)
         .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
-        .on_hover(groupHover(g))
-        .on_click((_e, cx) => this.toggleFold(g.id, cx, g.id === "sec-1")));
+        .on_click((_e, cx) => this.toggleFold(g.id, cx, g.id === "sec-1"))));
     };
     // A space's group, as T3's project folder: its mark and name; closed, how many it hides and a dot if one of them wants you.
     // Right-click: the space's menu, as in Spaces.
@@ -506,14 +500,13 @@ export default class Agents extends View {
         .when(hiding.length > 0, (el) => el.child(div().flex_none().text_size(12).text_color(t.dim).child(String(hiding.length))))
         .child(chevron(g, open, ghost));
       if (ghost) return base;
-      return stop(this, t, g.id, base
+      return stop(this, t, g.id, hoverKept(this, "overGroup", g.id, base
         .id(g.id)
         .hover((s) => s.bg(t.hover))
         .active((s) => s.bg(t.selected))
         .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
-        .on_hover(groupHover(g))
         .on_click((_e, cx) => this.toggleFold(g.id, cx, false))
-        .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: g.space } } })), 8);
+        .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
     };
     // A closed group still shows the row you're on, as T3's route row, and hints at the rest.
     const entries = groups.flatMap((g, i) => {

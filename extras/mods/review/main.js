@@ -7,7 +7,8 @@ import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
 import { exec, focused, notify, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
 import { request, review } from "./daemon.js";
-import { step, scrollList } from "./list.js";
+import { step, menuJump, scrollList } from "./list.js";
+import { hoverKept } from "./tip.js";
 import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel, ROW } from "./rows.js";
 
 const PANE = "review";
@@ -48,6 +49,13 @@ const sunken = (t) => isLight(t.background) ? "#0000000a" : "#ffffff0f", raised 
 const LISTED = 200;
 const MODEL_ROW = 30; // a row and its 2px gap
 // As the app's LOCALES (core/locales.ts): the languages an analysis can write in, by their own names.
+// As the app's DiffCollapseMenu: every file of the diff at once, not just the group shown.
+const FOLDS = [
+  { id: "expand-all", label: "Expand all files", icon: "unfold-vertical", collapse: false, applies: () => true },
+  { id: "collapse-all", label: "Collapse all files", icon: "fold-vertical", collapse: true, applies: () => true },
+  { id: "collapse-reviewed", label: "Collapse reviewed files", icon: "square-check", collapse: true, applies: f => f.reviewed && !f.changed },
+  { id: "collapse-tests", label: "Collapse test files", icon: "flask", collapse: true, applies: f => f.test },
+];
 const LOCALES = [["en", "English"], ["zh-CN", "简体中文"], ["zh-TW", "繁體中文"], ["ja", "日本語"], ["ko", "한국어"], ["es", "Español"], ["fr", "Français"],
   ["de", "Deutsch"], ["pt-BR", "Português (Brasil)"], ["ru", "Русский"], ["it", "Italiano"], ["id", "Bahasa Indonesia"]];
 // Responsive widths, the app's: the sidebar from WIDE (its `lg`; narrower, the groups are tabs over the diff), split from
@@ -131,17 +139,10 @@ export default class ReviewPane extends View {
     this.height = 600; this.headerHidden = false; this.scrolledDownBy = 0; this.baseCommits = null;
     // The model field searches the agent's catalog; Enter picks the model it names exactly, else the text as typed.
     this.modelInput = InputState.new({ placeholder: "Search or type a model" });
-    // ↑ ↓ move a highlight through the listed models; Enter on one picks it.
-    this.modelIndex = -1;
-    this.modelInput.on("change", (_e, cx) => { this.modelIndex = -1; cx.notify(); });
-    this.modelInput.on("submit", (_e, cx) => {
-      const typed = this.modelInput.value().trim(), { catalog, shown } = this.models();
-      const lit = shown[this.modelIndex];
-      if (!this.shared || (!typed && !lit)) return;
-      const hit = lit ?? catalog.find(m => [m.id, m.name].some(x => x.toLowerCase() === typed.toLowerCase()));
-      this.modelInput.set_value(""); this.modelIndex = -1; this.settingsPage = null;
-      this.saveLlm({ agentModel: hit?.id ?? typed }, cx);
-    });
+    // The row lit on a settings page and in the fold menu, by keys or the pointer; Enter on one picks it.
+    this.pageAt = -1; this.foldAt = -1;
+    this.modelInput.on("change", (_e, cx) => { this.pageAt = -1; cx.notify(); });
+    this.modelInput.on("submit", (_e, cx) => this.submitModel(cx));
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.listHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
@@ -401,7 +402,43 @@ export default class ReviewPane extends View {
     const catalog = this.agents?.find(a => a.name === agent)?.models ?? [];
     const query = this.modelInput.value().trim().toLowerCase();
     const matches = query ? catalog.filter(m => `${m.id} ${m.name}`.toLowerCase().includes(query)) : catalog;
-    return { agent, model, catalog, matches, shown: matches.slice(0, LISTED) };
+    const shown = matches.slice(0, LISTED);
+    // The rows above the catalog, while a search names them too: else ↓ would stop on Default before the first match.
+    const lead = [{ key: "model-default", id: "", name: "Default" }, ...(model && !catalog.some(m => m.id === model) ? [{ key: "model-custom", id: model, name: model, detail: "Custom" }] : [])]
+      .filter(m => m.name.toLowerCase().includes(query));
+    return { agent, model, catalog, matches, shown, rows: [...lead, ...shown] };
+  }
+
+  // Enter in the model field: the lit row, else the model it names exactly, else the text as typed.
+  submitModel(cx) {
+    const typed = this.modelInput.value().trim(), { catalog, rows } = this.models(), lit = rows[this.pageAt];
+    if (!this.shared || (!typed && !lit)) return;
+    const hit = lit ?? catalog.find(m => [m.id, m.name].some(x => x.toLowerCase() === typed.toLowerCase()));
+    this.settingsBack(cx);
+    this.saveLlm({ agentModel: hit?.id ?? typed }, cx);
+  }
+
+  // The rows of the settings page shown, each with what picking it writes.
+  pageRows() {
+    const page = this.settingsPage, locale = this.locale(), { agent, model, rows } = this.models();
+    if (page === "language") return LOCALES.map(([code, name]) => ({ id: `locale-${code}`, name, on: code === locale, pick: (cx) => this.saveShared({ ...this.shared, locale: code }, cx) }));
+    // One agent's model ids mean nothing to another: switching resets to its default.
+    if (page === "agent") return (this.agents ?? []).map(a => ({ id: `agent-${a.name}`, name: a.label, detail: a.version, on: a.name === agent, pick: (cx) => this.saveLlm({ agent: a.name, agentModel: "" }, cx) }));
+    return rows.map(m => ({ id: m.key ?? `model-${m.id}`, name: m.name, detail: m.detail, on: m.id === model, pick: (cx) => this.saveLlm({ agentModel: m.id }, cx) }));
+  }
+
+  // A press on the panel stops there, so the keyboard is sent where the page wants it: the model search, else the pane's keys.
+  openPage(id, cx) {
+    this.settingsPage = id; this.pageAt = -1;
+    (id === "model" ? this.modelInput : this.handle).focus();
+    cx.notify();
+  }
+
+  // Back to the settings' main page. The model field is going, and the keyboard with it unless it's sent back.
+  settingsBack(cx) {
+    this.settingsPage = null; this.modelInput.set_value(""); this.pageAt = -1;
+    this.handle.focus();
+    cx.notify();
   }
 
   /**
@@ -418,25 +455,20 @@ export default class ReviewPane extends View {
       .on_click((_e, cx) => { cx.stop_propagation(); openUrl(url); }).child(text);
     const note = (text, color = t.dim) => div().px(8).py(4).flex_none().text_color(color).child(text);
     const mark = (on) => div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/check.svg").size(12)));
-    const choice = (id, text, detail, on, pick, lit = false) => h_flex().id(id).h(28).px(8).gap(8).flex_none().items_center().rounded(6)
-      .when(lit, el => el.bg(HOVER)).hover(s => s.bg(HOVER)).role("radio_button").accessibility_label(text).on_click((_e, cx) => pick(cx))
-      .child(mark(on))
-      .child(div().flex_1().min_w(0).truncate().child(text))
-      .when(Boolean(detail), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(detail)));
+    const choice = (r, i) => h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(6)
+      .when(i === this.pageAt, el => el.bg(HOVER)).on_hover((on, cx) => { if (on && this.pageAt !== i) { this.pageAt = i; cx.notify(); } })
+      .role("radio_button").accessibility_label(r.name).on_click((_e, cx) => { this.settingsBack(cx); r.pick(cx); })
+      .child(mark(r.on))
+      .child(div().flex_1().min_w(0).truncate().child(r.name))
+      .when(Boolean(r.detail), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(r.detail)));
     // A setting that opens its page: its name, its value and a chevron.
     const nav = (id, text, value) => h_flex().id(`settings-${id}`).h(28).px(8).gap(8).flex_none().items_center().rounded(6).hover(s => s.bg(HOVER))
-      .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => { this.settingsPage = id; cx.notify(); })
+      .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => this.openPage(id, cx))
       .child(div().flex_none().child(text))
       .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
       .child(svg("mods/review/chevron-right.svg").size(11).flex_none().text_color(t.dim));
-    // A page's list scrolls where the panel runs short; everything above it stays put.
-    const list = (items) => v_flex().id(`${page}-list`).min_h(0).flex_shrink_1().gap(2).overflow_y_scroll().children(items);
-    const done = (cx) => { this.settingsPage = null; this.modelInput.set_value(""); this.modelIndex = -1; cx.notify(); };
-    const pickModel = (id) => (cx) => { done(cx); this.saveLlm({ agentModel: id }, cx); };
-    const current = this.agents?.find(a => a.name === agent);
-    const custom = model && !catalog.some(m => m.id === model), typed = this.modelInput.value().trim();
-    // The rows above the catalog, which ↑/↓ don't reach.
-    const lead = [() => choice("model-default", "Default", null, !model, pickModel("")), ...(custom ? [() => choice("model-custom", model, "Custom", true, done)] : [])];
+    const current = this.agents?.find(a => a.name === agent), typed = this.modelInput.value().trim();
+    const options = page ? this.pageRows() : [];
     const rows = !page ? [
       label("View"),
       // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
@@ -479,27 +511,18 @@ export default class ReviewPane extends View {
         .child(link("credit-jinjie", "@JinJieBeWater", "https://github.com/JinJieBeWater")),
     ] : [
       h_flex().id("settings-back").h(28).px(8).gap(6).flex_none().items_center().rounded(6).hover(s => s.bg(HOVER))
-        .role("button").accessibility_label("Back").on_click((_e, cx) => done(cx))
+        .role("button").accessibility_label("Back").on_click((_e, cx) => this.settingsBack(cx))
         .child(svg("mods/review/chevron-left.svg").size(11).flex_none().text_color(t.dim))
         .child(div().font_medium().child({ language: "Language", agent: "Agent", model: "Model" }[page])),
       rule(),
-      page === "language" && list(LOCALES.map(([code, name]) => choice(`locale-${code}`, name, null, code === locale, (cx) => {
-        done(cx); this.saveShared({ ...this.shared, locale: code }, cx);
-      }))),
-      page === "agent" && list((this.agents ?? []).map(a => choice(`agent-${a.name}`, a.label, a.version, a.name === agent, (cx) => {
-        // One agent's model ids mean nothing to another: switching resets to its default.
-        done(cx); this.saveLlm({ agent: a.name, agentModel: "" }, cx);
-      }))),
       // The search sits above the catalog, which runs to hundreds for some agents.
       page === "model" && h_flex().h(28).px(8).gap(8).flex_none().items_center()
         .child(svg(`${LU}/search.svg`).size(12).w(14).flex_none().text_color(t.dim))
         .child(div().flex_1().min_w(0).h(24).px(6).flex().items_center().rounded(6).border_1().border_color(t.border).cursor_text()
           .child(Input.new(this.modelInput).flex_1().h_full().text_size(12).text_color(t.foreground))),
-      // Pi lists hundreds: past LISTED the search finds the rest.
-      page === "model" && scrollList(this, "model-list", { count: lead.length + shown.length, row: MODEL_ROW, at: this.modelIndex < 0 ? -1 : this.modelIndex + lead.length,
-        draw: (i) => i < lead.length ? lead[i]() : (m => choice(`model-${m.id}`, m.name, null, m.id === model, pickModel(m.id), i - lead.length === this.modelIndex))(shown[i - lead.length]),
-        wheeled: (keep) => { this.modelIndex = keep < lead.length ? -1 : keep - lead.length; } })
-        .h((lead.length + shown.length) * MODEL_ROW).min_h(0).flex_shrink_1(),
+      // A page's list shrinks where the panel runs short; everything above it stays put. Pi lists hundreds: past LISTED the search finds the rest.
+      scrollList(this, `${page}-list`, { count: options.length, row: MODEL_ROW, at: this.pageAt, draw: (i) => choice(options[i], i), wheeled: (keep) => { this.pageAt = keep; } })
+        .h(options.length * MODEL_ROW).min_h(0).flex_shrink_1(),
       page === "model" && shown.length < matches.length && note(`${matches.length - LISTED} more: search to narrow`),
       page === "model" && Boolean(typed) && !matches.length && note(`Enter to use “${typed}”`),
     ];
@@ -514,9 +537,11 @@ export default class ReviewPane extends View {
   // A popup's button toggles it. A press on the button while open is also a press outside it, which already closed it:
   // that press mustn't reopen it. The settings read the daemon's agents and settings on opening: the browser may have changed them.
   togglePopup(name, cx) {
+    // The button's press stops there, short of the pane that would take the keyboard.
+    this.handle.focus();
     if (this.popup === name) return this.closePopup(cx);
     if (this.closedPopup === name && Date.now() - this.popupClosedAt <= 300) return;
-    this.popup = name;
+    this.popup = name; this.foldAt = -1;
     if (name === "settings") this.loadSettings(cx);
     cx.notify();
   }
@@ -524,7 +549,7 @@ export default class ReviewPane extends View {
   closePopup(cx) {
     if (!this.popup) return;
     this.closedPopup = this.popup; this.popup = null; this.popupClosedAt = Date.now();
-    this.modelInput.set_value(""); this.modelIndex = -1; this.settingsPage = null;
+    this.modelInput.set_value(""); this.pageAt = -1; this.settingsPage = null;
     cx.notify();
   }
 
@@ -537,28 +562,23 @@ export default class ReviewPane extends View {
       .on_mouse_down_out((_e, cx) => this.closePopup(cx));
   }
 
-  // As the app's DiffCollapseMenu: every file of the diff at once, not just the group shown. The file at the view's top
-  // (or its group's header) is brought back there, as folding the bodies above it would carry the view elsewhere.
+  // The file at the view's top (or its group's header) is brought back there, as folding the bodies above it would carry the view elsewhere.
+  foldAll({ collapse, applies }, cx) {
+    const top = (this.itemList ?? [])[this.visible?.start ?? 0];
+    const anchor = top && (top.kind === "group" ? top.key : `f:${this.itemFile.get(top.key)}`);
+    for (const f of this.review.files) if (applies(f)) collapse ? this.collapsed.add(f.path) : this.collapsed.delete(f.path);
+    this.version++; this.closePopup(cx);
+    const index = anchor ? this.items().findIndex(item => item.key === anchor) : -1;
+    if (index >= 0) this.scrollToTop(index, cx);
+  }
+
   foldMenu(t) {
-    const actions = [
-      ["expand-all", "Expand all files", "unfold-vertical", false, () => true],
-      ["collapse-all", "Collapse all files", "fold-vertical", true, () => true],
-      ["collapse-reviewed", "Collapse reviewed files", "square-check", true, f => f.reviewed && !f.changed],
-      ["collapse-tests", "Collapse test files", "flask", true, f => f.test],
-    ];
-    const run = (collapse, applies, cx) => {
-      const top = (this.itemList ?? [])[this.visible?.start ?? 0];
-      const anchor = top && (top.kind === "group" ? top.key : `f:${this.itemFile.get(top.key)}`);
-      for (const f of this.review.files) if (applies(f)) collapse ? this.collapsed.add(f.path) : this.collapsed.delete(f.path);
-      this.version++; this.closePopup(cx);
-      const index = anchor ? this.items().findIndex(item => item.key === anchor) : -1;
-      if (index >= 0) this.scrollToTop(index, cx);
-    };
     return this.popover(t, "review-fold-menu").min_w(192).p(4).gap(2)
-      .children(actions.map(([id, label, icon, collapse, applies]) => h_flex().id(`fold-${id}`).h(28).px(8).gap(8).items_center().rounded(6)
-        .hover(s => s.bg(HOVER)).role("button").accessibility_label(label).on_click((_e, cx) => run(collapse, applies, cx))
-        .child(svg(`${LU}/${icon}.svg`).size(14).flex_none().text_color(t.dim))
-        .child(label)));
+      .children(FOLDS.map((fold, i) => h_flex().id(`fold-${fold.id}`).h(28).px(8).gap(8).items_center().rounded(6)
+        .when(i === this.foldAt, el => el.bg(HOVER)).on_hover((on, cx) => { if (on && this.foldAt !== i) { this.foldAt = i; cx.notify(); } })
+        .role("button").accessibility_label(fold.label).on_click((_e, cx) => this.foldAll(fold, cx))
+        .child(svg(`${LU}/${fold.icon}.svg`).size(14).flex_none().text_color(t.dim))
+        .child(fold.label)));
   }
 
   // Running or failed: what the status shows; with neither, as the app's dialog, it isn't shown.
@@ -821,16 +841,35 @@ export default class ReviewPane extends View {
   key(e, cx) {
     // Typing a model name isn't a shortcut; Escape closes the panel.
     if (this.popup === "settings") {
-      const count = this.models().shown.length;
+      const page = this.settingsPage;
       // Escape goes back a page, then closes.
-      if (e.keystroke === "escape" && this.settingsPage) { this.settingsPage = null; cx.notify(); }
-      else if (e.keystroke === "escape") this.closePopup(cx);
-      else if (this.settingsPage === "model" && step(e, this.modelIndex, count) >= 0) {
-        this.modelIndex = step(e, this.modelIndex, count);
-        cx.stop_propagation(); cx.notify();
+      if (e.keystroke === "escape") return page ? this.settingsBack(cx) : this.closePopup(cx);
+      if (!page) return;
+      if (e.key === "enter" && page === "model") return this.submitModel(cx);
+      const rows = this.pageRows();
+      if ((e.key === "enter" || e.key === "space") && page !== "model") {
+        const row = rows[this.pageAt];
+        if (row) { this.settingsBack(cx); row.pick(cx); }
+        return;
       }
+      // In the search field, Home and End are the caret's and typing is the field's.
+      const to = page === "model" ? step(e, this.pageAt, rows.length) : menuJump(this, e, rows.map(r => r.name), this.pageAt);
+      if (to >= 0) { this.pageAt = to; cx.stop_propagation(); cx.notify(); }
       return;
     }
+    if (this.popup === "fold") {
+      if (e.keystroke === "escape") this.closePopup(cx);
+      else if (e.key === "enter" || e.key === "space") { if (this.review && !this.switching && FOLDS[this.foldAt]) this.foldAll(FOLDS[this.foldAt], cx); }
+      else {
+        const to = menuJump(this, e, FOLDS.map(fold => fold.label), this.foldAt);
+        if (to < 0) return;
+        this.foldAt = to;
+      }
+      cx.stop_propagation(); cx.notify();
+      return;
+    }
+    // The status has no keys of its own, and what's under it is out of reach while it's up.
+    if (this.popup && e.keystroke !== "escape") return;
     const actions = {
       escape: () => this.closePopup(cx),
       j: () => this.step(1, cx), k: () => this.step(-1, cx),
@@ -954,9 +993,7 @@ export default class ReviewPane extends View {
   }
 
   // Hovering an element colors the category icon in it, as the app's `group-hover:saturate-100`: Herdr has no group hover.
-  hoverable(el, key) {
-    return el.on_hover((on, cx) => { if (on) this.hovered = key; else if (this.hovered === key) this.hovered = null; cx.notify(); });
-  }
+  hoverable(el, key) { return hoverKept(this, "hovered", key, el); }
 
   // A group's category icon in its hue (Tailwind's 300 on dark, 800 on light); unless `lit`, grey, as the app's `saturate-0`.
   categoryIcon(t, category, size, lit) {

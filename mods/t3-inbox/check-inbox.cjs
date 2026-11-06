@@ -940,6 +940,36 @@ test("the snooze menu is T3's: soonest first, one row per wake minute, tonight g
   assert.deepEqual(f.labelled, [`label A snoozed=${at(4, 9)}`], "keys pick; tomorrow is the next calendar day at 9:00");
 });
 
+test("the Custom dialog's calendar walks by the arrows, stopping at today, and Enter picks where the keys are", () => {
+  const f = fixture(); f.now = new Date(2026, 10, 30, 10, 0).getTime();
+  f.context.props = () => ({ customSnooze: "A", overlay: "o1" });
+  const d = new f.context.Mod(); d.init({}, f.cx);
+  let tree = d.render(f.cx);
+  find(tree, "custom-date").handlers.on_open_change(true, f.cx); tree = d.render(f.cx);
+  const panel = () => find(tree, "custom-calendar");
+  const key = (k) => { panel().handlers.on_key_down({ key: k }, f.cx); tree = d.render(f.cx); };
+  const pickDay = () => { panel().handlers["on_action:t3_inbox_day_pick"]({}, f.cx); tree = d.render(f.cx); };
+  assert.deepEqual([d.calendarOpen, d.dayAt], [true, null], "nothing's walked yet");
+  assert.equal(panel().style.track_focus[0], find(tree, "custom-date").style.track_focus[0], "the keyboard moves to the panel");
+  assert.deepEqual(Array.from(f.bound, (b) => b.keystroke), ["enter", "space"], "bound deeper than the Popover's, which would only close it");
+  assert.equal(f.bound[0].context, panel().style.key_context[0]);
+  const from = d.date.getDate();
+  key("left");
+  assert.equal(d.dayAt, null, "yesterday's gone by");
+  key("right");
+  assert.ok(texts(panel()).includes("December 2026"), "the month follows");
+  assert.equal(d.dayAt.getDate(), 1);
+  assert.equal(d.date.getDate(), from, "keys move the walk, not the choice");
+  key("down"); key("up"); key("down");
+  assert.equal(d.dayAt.getDate(), 8);
+  pickDay();
+  assert.deepEqual([d.date.getMonth(), d.date.getDate(), d.calendarOpen], [11, 8, false]);
+  find(tree, "custom-date").handlers.on_open_change(true, f.cx); d.calendarOpen = true; tree = d.render(f.cx);
+  assert.ok(texts(panel()).includes("December 2026"), "it opens on the day chosen");
+  pickDay();
+  assert.deepEqual([d.date.getDate(), d.calendarOpen], [8, false], "with no walk, Enter keeps it");
+});
+
 // The fixture has no focus path. What it takes for keys to arrive at all: the handle a Popover moves the keyboard to is
 // on the panel, and Enter and Space, the Popover's own, are bound deeper in (checked for real against gpui-shell).
 test("the snooze menu's keys are wired to reach it", () => {

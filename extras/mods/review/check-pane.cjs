@@ -90,10 +90,14 @@ const pref = (key) => sharedStore.get("review.prefs")?.[key], setPref = (key, va
 let shownTab = "b", windowActive = true;
 const calls = [], bodies = [], routes = [], puts = [], browsed = [], notes = [];
 // A text field's state: its value, and its submit and blur handlers.
-const field = { text: "", events: {}, value() { return this.text; }, set_value(v) { this.text = v; }, on(event, h) { this.events[event] = h; return true; } };
+// Where the keyboard was last sent: the model field or the pane.
+let keyboard = null;
+const field = { text: "", events: {}, value() { return this.text; }, set_value(v) { this.text = v; }, on(event, h) { this.events[event] = h; return true; }, focus() { keyboard = "field"; } };
 const env = {
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, h_resizable: element, resizable_panel: element, Scrollbar: { vertical: element },
   Switch: { new: element }, settings: () => ({ zoom: 1 }),
+  // tip.js's own; its watch on the pointer is checked in t3-spaces/check-sidebar.cjs.
+  hoverKept: (view, key, id, el) => el.on_hover((on) => { if (on) view[key] = id; else if (view[key] === id) view[key] = null; }),
   // Paths build into nothing here; painting one is an element like any other.
   PathBuilder: (() => { const chain = new Proxy({}, { get: () => () => chain }); return { stroke: () => chain, fill: () => chain }; })(),
   window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: () => field },
@@ -148,7 +152,7 @@ assert.equal(vm.runInContext('progressText({ kind: "reading", paths: [".git/x/ag
 assert.equal(vm.runInContext('progressText({ kind: "thinking", step: 2 })', mainScope), "Thinking… (step 2)");
 // The 150ms timer is the scroll spy; the others, by period, each pane's in the order they started. A test runs them by hand.
 let spy; const every = {};
-const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {} }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (_ms, f) => timers.push(f) } };
+const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (_ms, f) => timers.push(f) } };
 // Timers wait until a test runs them.
 const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
 (async () => {
@@ -393,23 +397,44 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(puts.at(-1).llm.agentModel, "opus-x");
   assert.equal(field.value(), "");
   assert.equal(pane.settingsPage, null, "Enter's pick comes back too");
-  press("settings-model");
-  // ↑ ↓ move through the listed models, wrapping; Enter picks the highlighted one; typing clears the highlight.
-  pane.key({ key: "down", keystroke: "down" }, cx);
-  assert.equal(pane.modelIndex, 0);
-  pane.key({ key: "up", keystroke: "up" }, cx);
-  assert.equal(pane.modelIndex, 0, "one model: up wraps onto it");
+  keyboard = null; press("settings-model");
+  assert.equal(keyboard, "field", "the page opens ready to type");
+  // ↑ ↓ move through every row, Default and Custom too, wrapping; Enter picks the highlighted one; typing clears the highlight.
+  const arrow = (key) => pane.key({ key, keystroke: key }, cx);
+  arrow("down");
+  assert.equal(pane.pageAt, 0);
+  arrow("up"); arrow("up");
+  assert.equal(pane.pageAt, 1, "Default, Custom, sonnet: up wraps onto sonnet, then Custom");
+  arrow("down");
   field.events.submit({}, cx);
   assert.equal(puts.at(-1).llm.agentModel, "sonnet");
-  assert.equal(pane.modelIndex, -1);
-  pane.key({ key: "down", keystroke: "down" }, cx); field.set_value("x"); field.events.change({}, cx);
-  assert.equal(pane.modelIndex, -1);
+  assert.equal(pane.pageAt, -1);
+  assert.equal(keyboard, "pane", "the field is gone: the keyboard comes back to the pane");
+  press("settings-model");
+  arrow("down"); field.set_value("x"); field.events.change({}, cx);
+  assert.equal(pane.pageAt, -1);
+  // Default by keys, in the field or with the keyboard off it.
+  field.set_value(""); arrow("down"); field.events.submit({}, cx);
+  assert.equal(puts.at(-1).llm.agentModel, "");
+  press("settings-model"); arrow("down"); arrow("down"); pane.key({ key: "enter", keystroke: "enter" }, cx);
+  assert.deepEqual([puts.at(-1).llm.agentModel, pane.settingsPage], ["sonnet", null], "Enter off the field picks the same");
+  pane.key({ key: "enter", keystroke: "enter" }, cx);
+  // A search leaves out the rows it doesn't name, so ↓ lands on the first match; the pointer lights the row it's on.
+  press("settings-model"); field.set_value("son"); field.events.change({}, cx); drawn.clear(); pane.render(cx);
+  assert.ok(!drawn.has("model-default"));
+  arrow("down"); field.events.submit({}, cx);
+  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  press("settings-model"); handlers.get("model-sonnet.on_hover")(true, cx);
+  assert.equal(pane.pageAt, 1);
+  // Escape off the page takes its search and hands the keyboard back.
+  field.set_value("q"); pane.key({ keystroke: "escape" }, cx);
+  assert.deepEqual([pane.settingsPage, field.value(), pane.pageAt, keyboard], [null, "", -1, "pane"]);
   field.set_value("");
   const saved = puts.length;
   field.events.submit({}, cx);
   assert.equal(puts.length, saved, "an empty field saves nothing");
   {
-    // Past the rows that show, ↑/↓ keep the highlight in view; Default, above the catalog, is out of their reach.
+    // Past the rows that show, ↑/↓ keep the highlight in view.
     const list = pane.models().catalog, had = list.length;
     list.push(...Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, name: `M${i}` })));
     press("settings-model");
@@ -420,9 +445,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.ok(!drawn.has("model-m20"), "only the rows in view are drawn");
     for (let i = 0; i < 21; i++) pane.key({ key: "down", keystroke: "down" }, cx);
     drawn.clear(); pane.render(cx);
-    assert.ok(drawn.has("model-m19") && !drawn.has("model-default"), "the highlight's row is");
+    assert.ok(drawn.has("model-m18") && !drawn.has("model-default"), "the highlight's row is");
     pane.key({ keystroke: "escape" }, cx);
-    pane.modelIndex = -1; pane.listHeight = {}; pane.scrollTop = {};
+    pane.pageAt = -1; pane.listHeight = {}; pane.scrollTop = {};
     list.splice(had);
   }
   // Escape goes back a page, leaving the panel open.
@@ -442,6 +467,22 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // Shortcuts stay off while the panel takes typing.
   pane.key({ keystroke: "s" }, cx);
   assert.equal(pref("split"), true);
+  {
+    // The language and agent pages move as a menu with no search field: ↑/↓, Home, End, typing, and Enter or Space to pick.
+    const hit = (key, char) => pane.key({ key, keystroke: key, key_char: char }, cx);
+    press("settings-language");
+    assert.equal(keyboard, "pane");
+    hit("end"); assert.equal(pane.pageAt, pane.pageRows().length - 1);
+    hit("home"); assert.equal(pane.pageAt, 0);
+    handlers.get("locale-en.on_hover")(true, cx);
+    pane.pageAt = -1; hit("f", "f"); hit("enter");
+    assert.deepEqual([puts.at(-1).locale, pane.settingsPage], ["fr", null]);
+    press("settings-agent"); hit("down"); hit("space");
+    assert.deepEqual([puts.at(-1).llm.agent, puts.at(-1).llm.agentModel, pane.settingsPage], [pane.agents[0].name, "", null]);
+    press("settings-language"); hit("enter");
+    assert.equal(pane.settingsPage, "language", "nothing lit, Enter picks nothing");
+    pane.key({ keystroke: "escape" }, cx);
+  }
   // Auto analyze off: a page with no analysis isn't started; turned back on, it is, once.
   handlers.get("auto-analyze.on_change")(false, cx);
   assert.equal(sharedStore.get("review.prefs").autoAnalyze, false);
@@ -658,6 +699,29 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   const shut = () => pane.review.files.filter(f => pane.collapsed.has(f.path)).map(f => f.path).sort();
   fold("expand-all");
   assert.deepEqual(shut(), []);
+  {
+    // By keys, as a menu. While it's up, the pane's shortcuts are out of reach; so they are under the status.
+    const hit = (key, char) => pane.key({ key, keystroke: key, key_char: char }, cx);
+    const split = pref("split"), current = pane.current;
+    pane.popupClosedAt = 0; press("fold-menu");
+    hit("s", "s"); hit("j", "j");
+    assert.deepEqual([pref("split"), pane.current, pane.popup], [split, current, "fold"]);
+    hit("end"); assert.equal(pane.foldAt, 3);
+    hit("home"); assert.equal(pane.foldAt, 0);
+    hit("enter"); assert.equal(pane.popup, null, "Expand all, the row lit");
+    pane.popupClosedAt = 0; press("fold-menu");
+    assert.equal(pane.foldAt, -1, "nothing lit on opening");
+    hit("enter"); assert.equal(pane.popup, "fold", "so Enter picks nothing");
+    handlers.get("fold-collapse-all.on_hover")(true, cx); assert.equal(pane.foldAt, 1, "the pointer lights its row");
+    hit("space"); assert.equal(shut().length, pane.review.files.length);
+    pane.popupClosedAt = 0; press("fold-menu"); pane.typedAt = -Infinity; hit("c", "c"); assert.equal(pane.foldAt, 1, "typing");
+    pane.key({ keystroke: "escape" }, cx); assert.equal(pane.popup, null);
+    fold("expand-all");
+    pane.popup = "status"; hit("s", "s");
+    assert.equal(pref("split"), split);
+    pane.key({ keystroke: "escape" }, cx); assert.equal(pane.popup, null);
+    pane.popupClosedAt = 0;
+  }
   const cRow = pane.itemList.findIndex(item => item.key.startsWith("r:c.ts"));
   calls.length = 0; timers.length = 0;
   fold("collapse-all", cRow);

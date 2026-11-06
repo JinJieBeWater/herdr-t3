@@ -4,7 +4,7 @@ import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, layout, run, shared, theme } from "herdr";
 import { keyOf } from "./tip.js";
-import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, pressed, justClosed } from "./focus.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -21,8 +21,8 @@ function hasNext() {
 }
 const ACTIONS = [
   { id: "next", word: "Next agent", action: "t3-tabs.next", go: () => run("t3-tabs.next"), ready: hasNext },
-  { id: "goto", word: "Go to", action: "mod.open:t3-picker", go: () => run("mod.open", { name: "t3-picker" }) },
-  { id: "new", word: "New tab", action: "t3-tabs.new", go: () => run("t3-tabs.new") },
+  { id: "goto", word: "Go to", action: "mod.open:t3-picker", go: () => run("mod.open", { name: "t3-picker" }), pops: "t3-picker.closed" },
+  { id: "new", word: "New tab", action: "t3-tabs.new", go: () => run("t3-tabs.new"), pops: "t3-new-menu.closed" },
 ];
 // A key as its strokes: each modifier, then the rest ("⇧⌘P", "Ctrl+Shift+P").
 const caps = (key) => key.match(/[⌃⌥⇧⌘]|[^⌃⌥⇧⌘+]+/gu);
@@ -46,7 +46,7 @@ export default class Home extends View {
           .rounded(4).border(1).border_color(t.border).bg(t.foreground + "0a").text_size(11).text_color(t.foreground + "bf").child(cap)))));
       // Nowhere to go: dimmed, as the key does nothing either. The theme's hover can be the pane's own color, so a tint of the text, as Go to's rows.
       return off ? el.opacity(0.42) : stop(this, t, id, el.role("button").accessibility_label(a.word)
-        .hover((s) => s.bg(t.foreground + "0f").text_color(t.foreground)).active((s) => s.bg(t.selected)).on_click(() => a.go()));
+        .hover((s) => s.bg(t.foreground + "0f").text_color(t.foreground)).active((s) => s.bg(t.selected)).on_mouse_down("left", () => pressed(this)).on_click(() => { if (!a.pops || !justClosed(this, a.pops)) a.go(); }));
     };
     return focusRoot(this, v_flex().size_full().px(12).items_center().justify_center()
       .child(v_flex().w_full().max_w(260).gap(2).text_size(13).children(ACTIONS.map(row))));

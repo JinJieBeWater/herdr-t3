@@ -112,6 +112,24 @@ export const glow = (view, id) => (on, cx) => {
   cx.notify();
 };
 
+// A hover kept in view[key], for what has no label or card to go with the pointer: it goes even when its leave never comes.
+export function hoverKept(view, key, id, el) {
+  return el.on_hover((on, cx) => {
+    if (on) {
+      view[key] = id;
+      view.keptBox = null;
+      view.keptWatch?.cancel();
+      const from = pointerAt();
+      view.keptWatch = cx.timer.every(POINTER_WATCH, (cx) => {
+        if (view[key] === id && !pointerGone(view.keptBox, from)) return;
+        view.keptWatch.cancel();
+        if (view[key] === id) { view[key] = null; cx.notify(); }
+      });
+    } else if (view[key] === id) view[key] = null;
+    cx.notify();
+  }).on_mouse_move((e) => { pointerMoved(e.position); if (view[key] === id) view.keptBox = e.bounds; });
+}
+
 // A mark with no words of its own (a status, a machine) says what it is on hover too, lit only to show its label.
 export function tipMark(view, t, id, label, mark, options) {
   if (!label) return mark;
