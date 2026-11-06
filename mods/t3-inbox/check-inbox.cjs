@@ -694,6 +694,70 @@ test("the settle key on the review in view moves on to the next card, then close
   assert.deepEqual(plain(f.calls), [["agent.focus", { terminal: "A" }], ["pane.close", { pane: "pm" }]]);
 });
 
+// As a layout with a Home passes it to the Inbox, with the person there or not.
+const atHome = (f, where = "home") => {
+  f.state["t3-home.space"] = "home";
+  f.context.props = () => ({ home: "t3-tabs.home" });
+  f.context.focused = () => ({ space: where, tab: "th", pane: "ph", terminal: null, agent: "B" });
+};
+
+test("with a Home, Settle and Snooze on the agent in view land there, not on the next card", () => {
+  const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
+  f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
+  a.focused = true; f.render(); f.calls.length = 0;
+  f.settle();
+  assert.deepEqual(plain(f.calls), [["t3-tabs.home"]]);
+  const s = fixture(), b = s.add("A", "idle", 300); s.add("B", "idle", 200);
+  s.state["t3-home.space"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" });
+  b.focused = true; s.render(); s.calls.length = 0;
+  s.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; s.mod.customSnooze(s.cx);
+  assert.deepEqual(plain(s.calls), [["t3-tabs.home"]]);
+});
+
+test("with a Home, the review in view lands there too, then closes", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.review(); f.context.props = () => ({ home: "t3-tabs.home" });
+  f.context.focused = () => ({ pane: "pm", tab: "tr", terminal: null, agent: "A" }); f.render(); f.calls.length = 0;
+  f.settle();
+  assert.deepEqual(plain(f.calls), [["t3-tabs.home"], ["pane.close", { pane: "pm" }]]);
+});
+
+test("with a Home, Undo brings the agent back while the person is still there, and moves nothing once they've gone", () => {
+  for (const [where, back] of [["home", true], ["s1", false]]) for (const put of ["settle", "snooze"]) {
+    const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
+    f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
+    a.focused = true; f.render();
+    if (put === "settle") f.settle();
+    else { f.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; f.mod.customSnooze(f.cx); }
+    a.focused = false; atHome(f, where); f.render(); f.calls.length = 0;
+    f.mod.undo(f.cx);
+    assert.deepEqual(plain(f.calls), back ? [["agent.focus", { terminal: "A" }]] : [], `${put} from ${where}`);
+  }
+});
+
+test("with a Home, an agent put away in the background moves nothing, nor does the key with none in view", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200);
+  atHome(f); f.render(); f.calls.length = 0;
+  f.settle();
+  assert.deepEqual(plain(f.calls), [], "the key at Home takes no agent with it");
+  f.state["t3-inbox.custom"] = { address: "A", at: Date.now() + 3600000 }; f.mod.customSnooze(f.cx);
+  assert.deepEqual(plain(f.calls), [], "nor does putting one away from there");
+});
+
+test("from Home the next key opens the top card: nothing is in view", () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200);
+  atHome(f); f.render();
+  assert.deepEqual(plain(f.state["t3-inbox.rows"]), { order: ["A", "B"], view: null });
+});
+
+test("the agents list lights no one on a mod pane with no agent in its tab, and lights the one beside it", { skip: !lists && "t3-agents isn't here" }, () => {
+  const f = fixture(), a = f.add("A", "idle", 300);
+  a.tab = "ta"; f.mode = "lists"; f.env.layout = () => ({ id: "sidebar-lists", active: "lists" });
+  f.env.focused = () => ({ tab: "th", pane: "ph", terminal: null, agent: "A" });
+  assert.equal(find(f.loadAgents()(), "ag-A"), null, "folded away, and Home isn't where it is");
+  f.env.focused = () => ({ tab: "ta", pane: "ph", terminal: null, agent: "A" });
+  assert.ok(find(f.loadAgents()(), "ag-A"), "beside it, a folded row still shows the one in view");
+});
+
 test("a review analyzing or failed offers no Settle, by key or on hover, as a busy agent", () => {
   const f = fixture(); f.review(); f.state["review.status"] = { tr: "working" };
   f.context.focused = () => ({ pane: "pm", tab: "tr", terminal: null, agent: null }); f.render();

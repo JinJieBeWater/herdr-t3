@@ -51,7 +51,7 @@
             {
               "id": "inbox",
               "type": "block",
-              "content": { "mod": "t3-inbox", "props": { "newMenu": "t3-new-menu", "picker": "t3-picker" } }
+              "content": { "mod": "t3-inbox", "props": { "newMenu": "t3-new-menu", "picker": "t3-picker", "home": "t3-tabs.home" } }
             }
           ]
         },

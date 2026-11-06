@@ -4,6 +4,8 @@
 
 ## 2026-11-06
 
+- Settle 或 Snooze 当前查看的 agent 后，现在会回到 Home：一个只显示后续按键的安静页面，不再把你带到下一张卡片。在这里按 `cmd-]` 打开最上面的卡片，Undo 能带回刚才的 agent。`cmd-shift-h` 或新的房子按钮可随时进入。它不占 space 序号（请把新按键加进你的配置，见「更新」），也能分屏放入任意 mod 或程序。
+- 焦点在一个旁边没有 agent 的 mod 窗格上时，agents 列表不再点亮第一个 agent。
 - Spaces 和 Agents 现在和 Inbox 一样有动画。折叠、排序、新建或关闭 space、agent 结束时，行在 150ms 内滑动和淡入淡出，大多数情况以前是瞬间跳变。
 - 拖动 space 时行会抬起跟随指针，列表在落点让出位置，不再只画一条线；checkout 会带上展开的 worktree。
 - Lists 和 Inbox 的行有了按下反馈，Lists 的折叠箭头交叉淡变。

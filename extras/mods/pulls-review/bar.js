@@ -368,6 +368,8 @@ function branchCard(view, t, id, b, base, now) {
 }
 
 export function reviewBar(view, t, stop) {
+  // Herdr T3's Home: no worktree to count.
+  if (shared("t3-home.space") && spaces().some((s) => s.active && s.id === shared("t3-home.space"))) return null;
   // Looked up on each render, so the frame that shows another space already shows its own counts.
   const r = view.reviews?.get(JSON.stringify(reviewLocation()));
   if (!r) return null;

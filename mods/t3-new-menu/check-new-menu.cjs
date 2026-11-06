@@ -31,7 +31,7 @@ const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).joi
 
 let spaces, machines;
 let openProps = {};
-const calls = [], scrolled = [];
+const calls = [], scrolled = [], state = {};
 const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element, Input: { new: element },
@@ -39,7 +39,7 @@ const context = vm.createContext({
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => scrolled.push(i) }) },
   v_virtual_list: (id, n, size, key, render) => { const list = element(); list.key = id; list.count = n; list.keys = Array.from({ length: n }, (_, i) => key(i)); list.drawn = render({ start: 0, end: n }); return list; },
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
-  closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element,
+  shared: (k) => state[k], closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element,
 });
 const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
@@ -58,6 +58,11 @@ let m = open();
 assert.deepEqual([...list(m).keys], ["space:r2", "space:r1", "space:a", "space:b"]);
 press(m, "3", true);
 assert.deepEqual(take(), [["tab.new", { space: "a" }]]);
+
+// New work doesn't start in Home, shown or not.
+state["t3-home.space"] = "a";
+assert.deepEqual([...list(open()).keys], ["space:r2", "space:r1", "space:b"]);
+delete state["t3-home.space"];
 
 // Up and down keep the highlighted row on screen, round the ends too.
 spaces = [local("a", true), remote("r1"), local("b")];

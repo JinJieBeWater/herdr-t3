@@ -246,7 +246,9 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
+    // Home stays in the model's order below, so the moves count it, but it's no one's checkout and has no row.
+    const homeId = shared("t3-home.space");
+    const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const worktrees = (repo) => list.filter((k) => k.g?.linked && k.g.repo === repo);
     // A checkout just opened from its dim row arrives last: it takes that row's place, so the group doesn't jump to the list's end.
@@ -306,7 +308,7 @@ export default class Spaces extends View {
       }
       this.ordering.machines = [...moved];
     }
-    return out.filter(r => (r.head || this.shown.has(r.w.id)) && !r.folded);
+    return out.filter(r => (r.head || this.shown.has(r.w.id)) && !r.folded && r.w.id !== homeId);
   }
 
   toggleRepo(repo, cx) {

@@ -5,7 +5,7 @@ import { v_flex, Popup } from "gpui-base";
 import { keys, window } from "herdr";
 
 // An action's key as the new menu writes it: ⇧⌘O. Read from the bindings, so a rebound key says so.
-function keyOf(action) {
+export function keyOf(action) {
   const k = keys().find(b => b.action === action);
   if (!k?.keys.trim()) return "";
   const mac = window()?.platform === "macos";

@@ -170,6 +170,10 @@ const load = (props = {}, setup = record) => {
   show(review);
   const fit = () => find(bar.render(), "review-fit");
   assert.equal(fit().style.pr, 8);
+  // Herdr T3's Home has no worktree to count: no bar, and its block closes.
+  state["t3-home.space"] = "s";
+  assert.equal(fit().style.pr, undefined);
+  delete state["t3-home.space"];
   fire(fit(), "on_size_change", { width: 220 });
   fire(fit(), "on_size_change", { width: 220 });
   assert.deepEqual(calls.splice(0), [["layout.resize", { id: "review", px: 200 }]]);

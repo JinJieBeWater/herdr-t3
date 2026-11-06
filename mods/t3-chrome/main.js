@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { theme, run, props, updates, layout, nextCommand, shared } from "herdr";
+import { theme, run, props, updates, layout, nextCommand, shared, spaces } from "herdr";
 import { tip } from "./tip.js";
 import { stopsInit, stop, focusRoot } from "./focus.js";
 
@@ -89,7 +89,16 @@ export default class WorkspaceChrome extends View {
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
     const inbox = inboxShown();
+    // Lit while there: with no tabs showing, it says where this is.
+    const atHome = spaces().some((s) => s.active && s.id === shared("t3-home.space"));
     return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
+      .child(tip(this, t, "home", "Home", stop(this, t, "home", div().id("home").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+        .text_color(atHome ? t.foreground : lit("home")).hover(s => s.bg(t.hover)).on_hover(glow("home"))
+        .when(atHome, (el) => el.bg(t.selected))
+        .role("button").accessibility_label("Home")
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click(() => run("t3-tabs.home"))
+        .child(svg("mods/t3-chrome/house.svg").size(14))), { action: "t3-tabs.home", below: true }))
       .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")

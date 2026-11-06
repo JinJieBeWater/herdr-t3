@@ -1,11 +1,54 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, setShared, nextCommand } from "herdr";
+import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
+
+// Home: one place to land, a space of its own on this computer, known by its id so whatever someone arranges there is theirs.
+// The layout's lists leave it out and the keys that walk spaces go around it, so it takes no number. This mod answers for it
+// because the tab bar always shows; the sidebar, with its brand bar, can be hidden.
+const homeId = () => shared("t3-home.space");
+const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
+// spaces() catches up a frame or so after a command, so each step waits to see the one before.
+async function seen(cx, look) {
+  for (let i = 0; i < 80; i++) {
+    const found = look();
+    if (found) return found;
+    await new Promise(resolve => cx.timer.after(25, () => resolve()));
+  }
+  return null;
+}
+async function goHome(cx) {
+  if (spaces().some(s => s.id === homeId())) return run("space.select", { id: homeId() });
+  const before = new Set(spaces().map(s => s.id));
+  run("space.new", { name: "Home", machine: "", folder: home() });
+  const made = await seen(cx, () => spaces().find(s => !before.has(s.id) && s.name === "Home"));
+  if (!made) return;
+  setShared("t3-home.space", made.id);
+  // A new space comes with a shell, and a space can't lose its last tab: the page goes in first.
+  const shell = made.tabs[0]?.id;
+  run("tab.new", { space: made.id, name: "Home", mod: "t3-home" });
+  const page = await seen(cx, () => spaces().find(s => s.id === made.id)?.tabs.find(c => c.id !== shell)?.id);
+  if (!page) return;
+  setShared("t3-home.titles", { [page]: "Home" });
+  if (shell) run("tab.close", { id: shell, confirmed: true });
+}
+// The spaces the keys count and walk: all but Home, wrapping as space.next does.
+function selectSpace(index) {
+  const s = spaces().filter(s => s.id !== homeId())[index - 1];
+  if (s) run("space.select", { id: s.id });
+}
+function walkSpaces(by) {
+  const list = spaces().filter(s => s.id !== homeId());
+  if (!list.length) return;
+  const i = list.findIndex(s => s.active);
+  // From Home, the first going forward, the last going back.
+  const s = list[i < 0 ? (by > 0 ? 0 : list.length - 1) : (i + by + list.length) % list.length];
+  run("space.select", { id: s.id });
+}
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
 // One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one, until it
@@ -104,6 +147,12 @@ export default class Tabs extends View {
         else if (command === "close-pane") await this.closePane(focused()?.pane, cx);
         else if (command.startsWith("close-tab:")) await this.closeTab(command.slice("close-tab:".length), cx);
         else if (command.startsWith("close-pane:")) await this.closePane(command.slice("close-pane:".length), cx);
+        else if (command === "home") await goHome(cx);
+        // New work doesn't start in Home: New picks its space.
+        else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
+        else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)));
+        else if (command === "space-next") walkSpaces(1);
+        else if (command === "space-prev") walkSpaces(-1);
       }
     });
   }
@@ -124,7 +173,8 @@ export default class Tabs extends View {
   // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
   async closeTab(id, cx) {
     const space = spaces().find(s => s.tabs.some(c => c.id === id));
-    if (!space) return;
+    // A key pressed out of habit doesn't take Home and what's arranged there with it.
+    if (!space || space.id === homeId()) return;
     const c = space.tabs.find(c => c.id === id), mine = panes().filter(p => p.tab === id);
     const live = mine.filter(p => p.terminal), empty = await Promise.all(live.map(p => atPrompt(p.terminal)));
     // A lone pane goes by its tab's name, as the tab shows it.
@@ -136,9 +186,15 @@ export default class Tabs extends View {
   async closePane(pane, cx) {
     const ps = panes(), p = ps.find(p => p.pane === pane);
     if (!p) return;
-    const tabs = spaces().find(s => s.tabs.some(c => c.id === p.tab))?.tabs.map(c => c.id) ?? [];
+    const space = spaces().find(s => s.tabs.some(c => c.id === p.tab)), tabs = space?.tabs.map(c => c.id) ?? [];
+    const last = ps.filter(q => tabs.includes(q.tab)).length === 1, inHome = space?.id === homeId();
+    // Home's last pane gives way to the default page, which is how Home is reset; that page itself stays.
+    if (inHome && last) {
+      if (p.mod === "t3-home") return;
+      run("pane.split", { direction: "right", pane, mod: "t3-home" });
+    }
     // A space's last pane closes the space, and Herdr asks that itself.
-    if (!p.terminal || ps.filter(q => tabs.includes(q.tab)).length === 1 || await atPrompt(p.terminal)) return run("pane.close", { pane });
+    if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return run("pane.close", { pane });
     this.ask([namer()(p)], "", "pane.close", { pane }, cx);
   }
 
@@ -209,7 +265,8 @@ export default class Tabs extends View {
       .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme();
     const space = spaces().find(p => p.active);
-    const shown = space?.tabs ?? [];
+    // Home has no tabs to show: its place is told by the brand bar's button and its pane's header.
+    const shown = atHome() ? [] : space?.tabs ?? [];
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
     if (this.hot?.startsWith("close-") && !shown.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).
@@ -309,7 +366,7 @@ export default class Tabs extends View {
     // however wide they are, and the window's own buttons stay last.
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
-        .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
+        .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
           .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));

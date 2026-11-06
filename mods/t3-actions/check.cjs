@@ -60,6 +60,15 @@ const load = (props = {}) => {
 // Every icon it names is on disk.
 for (const name of JSON.parse(/const ICONS = (\[[^\]]+\])/.exec(source)[1])) assert.ok(fs.existsSync(path.join(__dirname, `action-${name}.svg`)), `icon on disk: ${name}`);
 
+// Home has no project to run them in; the same bar elsewhere shows them.
+state["t3-home.space"] = "home";
+env.spaces = () => [{ id: "home", active: true }];
+assert.equal(find(load({ block: "actions" }).render(), "actions-fit"), null);
+env.spaces = () => [{ id: "home" }, { id: "s", active: true, folder: "/space" }];
+assert.ok(find(load({ block: "actions" }).render(), "actions-fit"));
+env.spaces = () => [{ active: true, folder: "/space" }];
+delete state["t3-home.space"];
+
 // None yet: "Add action", outlined, brightening with its icon on hover; it opens the editor.
 const bar = load({ block: "actions" });
 assert.ok(find(bar.render(), "action-add").style.border, "outlined, as a control on its own in any bar");

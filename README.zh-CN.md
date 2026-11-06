@@ -30,6 +30,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。显示 Inbox 时，已 Settle 或 Snooze 的 agent 在标签和窗格标题上也不再显示 done 圆点。
 - **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签；侧栏的 New tab（Lists 和 Inbox 都有）先选 space。侧栏的 New space 在机器多于一台时先问建在哪台；`cmd-n` 不问，直接用当前 space 的机器。不选 agent：在终端里启动。
+- **Home**：Settle 或 Snooze 当前查看的 agent 后，回到一个安静的固定位置，不再跳到下一张卡片，下一步看什么由你决定。在这里按 `cmd-]` 打开最上面的卡片，Undo 能带回刚才的 agent。`cmd-shift-h` 或侧栏顶部的房子按钮可随时进入。它不占 space 序号，窗格也由你安排：分屏放入任意 mod 或程序，都会保留。
 - **跳转**（`cmd-p`，或 Inbox 的 Search）：每个窗格一行，agent 和程序都在，名字和图标与窗格标题相同（标签名只有你命名过才算），所以输入 `lazygit` 就能直接跳到那个窗格，不管它旁边有没有 agent、在哪个 space。第一行回到上次从这里跳走前的窗格，所以 `cmd-p`、回车就能来回切换。
 - **动作**，类似 T3 Code 的运行按钮：标签栏右上角的 `▶` 运行上次用过的动作，`▾` 列出全部动作（点一个就运行），每项有齿轮可编辑，底部可 Add action。每个动作是一条命令，在新标签或右/下分屏里运行，目录默认用当前终端的，也可以单独指定。在界面里编辑，不用改文件。它是 `t3-actions` mod，随布局一起安装，也[单独发布](https://github.com/JinJieBeWater/herdr-t3-actions)给其他布局用。
 - **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，悬停显示机器名。从侧栏底部的服务器图标添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
@@ -44,7 +45,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 ## 快速上手
 
 - **侧栏**：侧栏右上角的按钮（或 `cmd-shift-b`）在 Lists 和 Inbox 之间切换；旁边那个按钮隐藏侧栏。
-- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s` Settle 当前查看的 agent，已 Settle 的则取回；配合 `cmd-]` 可以逐张看完、逐张 Settle。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。独立标签里的 review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭（从 Review 栏可以重开，已审标记和分析结果都还在）。
+- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s` Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回；接着按 `cmd-]` 打开最上面的卡片，可以逐张处理。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。独立标签里的 review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭（从 Review 栏可以重开，已审标记和分析结果都还在）。
 - **聚焦边框**（默认关闭）：把 `~/.config/herdr-app/layouts/herdr-t3.json` 里窗格的 `focus.color` 从 `"background"` 改成 `"accent"`（或其他主题色），聚焦的窗格就会有边框。保存即生效。
 - **Snooze**：鼠标移到卡片上（工作中的也可以，需要你的不行），点时钟选时间。它进 Snoozed 收纳区等待，到点回到原位并标 `Woke`，直到你看过它或点一下这个标记。其间需要你时它会出现；这一轮失败、你在查看时给了新工作、置顶或 Settle 都会结束 Snooze。5 秒内可以点 `Undo` 撤回；在收纳区里，悬停一行出现划掉的闹钟（按住划过多行可以一次叫醒整段），也可以把它拖出来。
 
@@ -55,13 +56,17 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | 快捷键 | 命令 | 作用 |
 | --- | --- | --- |
 | `cmd-shift-b` | `t3-chrome.sidebar` | 侧栏在 Lists 和 Inbox 之间切换 |
-| `cmd-shift-s` | `t3-inbox.settle` | Settle 当前查看的 agent 并跳到下一张卡片，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
+| `cmd-shift-s` | `t3-inbox.settle` | Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。只在显示 Inbox 时生效；忙着的或置顶的不动 |
+| `cmd-shift-h` | `t3-tabs.home` | 回到 Home |
+| `cmd-t`、`ctrl-alt-c` | `t3-tabs.new` | 在当前位置新建标签；在 Home 时打开新建菜单，先选 space |
+| `ctrl-1…9`、`ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | 第 n 个 space，不算 Home |
+| `cmd-alt-]` / `cmd-alt-[`、`ctrl-alt-shift-]` / `ctrl-alt-shift-[` | `t3-tabs.space-next` / `t3-tabs.space-prev` | 下一个或上一个 space，跳过 Home |
 | `cmd-p` | `mod.open:t3-picker` | 按名字或程序跳到任一窗格，或回到上一处（和 Inbox 顶栏的 Search 相同） |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | 下一个或上一个 agent。显示 Inbox 时照 T3：按 Inbox 画出来的行的顺序走（折叠的区只算当前查看的那一行），到两端停住。显示 Lists 时用 Herdr 的 `agent.next` / `agent.prev` |
 | `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，里面有程序在运行时先确认 |
 | `cmd-shift-w`、`ctrl-alt-x` | `t3-tabs.close-pane` | 关闭窗格，里面有程序在运行时先确认 |
 
-标签、space 和窗格沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
+其他标签、space 和窗格操作沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
 
 ## 更新
 
@@ -71,6 +76,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - 手动更新：把同样的文件复制过去覆盖旧的。mod 保存后自动重载，不用重启。
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
+- 新增 Home：`mods/t3-home` 随其他 `mods/t3-*` 一起覆盖，布局会启用它。把上面新增的按键加进你的 `layout:herdr-t3` 分区，否则 `ctrl-1…9` 会把 Home 算进去。如果想继续跳到下一张卡片，从布局里 `t3-inbox` 的 props 删掉 `"home"`。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
 - 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，用本仓库的 `extras/mods/pulls-review` 覆盖 `mods/pulls-review`，再加上 `extras/mods/review`（见下文）。
 - 跳转现在归布局自己（`t3-picker`）：把新的 `mods/t3-picker` 也复制过去，并把 `"cmd-p": "mod.open:t3-picker"` 加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `mod.open:picker`。

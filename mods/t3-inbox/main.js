@@ -314,7 +314,7 @@ export default class Inbox extends View {
 
   matches() {
     const q = this.search.value().toLowerCase();
-    return [{ id: null, name: "All spaces" }, ...spaces()].filter((s) => s.name.toLowerCase().includes(q));
+    return [{ id: null, name: "All spaces" }, ...spaces().filter((s) => s.id !== shared("t3-home.space"))].filter((s) => s.name.toLowerCase().includes(q));
   }
 
   // A click shows that space alone; shift-click adds or removes it and keeps the menu open, as in T3.
@@ -574,13 +574,17 @@ export default class Inbox extends View {
     const moveOn = (xs) => {
       const cards = [...pinned, ...out, ...busyRows], i = cards.findIndex(viewing);
       if (i < 0 || !xs.includes(cards[i])) return false;
+      // With a Home in the layout, that's where it lands: what to look at next stays the person's to say.
+      if (props()?.home) { run(props().home); return true; }
       const next = [...cards.slice(i + 1), ...cards.slice(0, i)].find((a) => !xs.includes(a));
       if (next) go(next);
       return Boolean(next);
     };
+    // Undoing what took an agent off the screen brings it back, while Home is still where that left the person.
+    const bringBack = (a) => { if (a && props()?.home && focused()?.space === shared("t3-home.space")) go(a); };
     // Settling ends a snooze and a pin, as T3's. A mod pane closes, once the view has moved on from it.
     const settle = (xs, cx) => {
-      const panes = xs.filter((a) => a.mod), kept = xs.filter((a) => !a.mod);
+      const panes = xs.filter((a) => a.mod), kept = xs.filter((a) => !a.mod), seen = kept.find(viewing);
       const naps = new Map(kept.map((a) => [a, napUntil(a)]));
       const before = [...pins], unpinned = pins.filter((p) => !kept.some((a) => a.address === p));
       if (unpinned.length < before.length) setShared("agents.pins", unpinned);
@@ -599,14 +603,16 @@ export default class Inbox extends View {
           this.setLabel("settled", a.address, "", cx);
           if (naps.get(a) > Date.now()) this.setLabel("snoozed", a.address, String(naps.get(a)), cx);
         }
+        bringBack(seen);
       }, cx);
       const moved = moveOn(xs);
       for (const a of panes) run("pane.close", { pane: a.pane });
       return moved;
     };
     const snooze = (a, at, cx) => {
+      const seen = viewing(a);
       this.setLabel("snoozed", a.address, String(at), cx);
-      this.remember("Snoozed", 1, (cx) => wake(a, cx), cx);
+      this.remember("Snoozed", 1, (cx) => { wake(a, cx); if (seen) bringBack(a); }, cx);
       // The card moves away without a pointer-leave event, for it or for the clock under the pointer.
       this.napMenu = this.hovered = this.hot = null;
       this.detailsFor(null, cx);

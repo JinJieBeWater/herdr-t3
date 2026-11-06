@@ -203,9 +203,10 @@ export default class Actions extends View {
     const overlay = props()?.actions;
     if (overlay === "menu") return menu(this);
     if (overlay === "edit") return editorView(this);
-    const stopPress = (_e, cx) => cx.stop_propagation();
+    const stopPress = (_e, cx) => cx.stop_propagation(), home = shared("t3-home.space");
     return focusRoot(this, h_flex().size_full().items_center().justify_end()
-      .child(h_flex().id("actions-fit").flex_none().pr(8).items_center().on_size_change((size) => this.fit(size)).child(control(this, theme(), stopPress))));
+      // Home has no project to run them in.
+      .when(!home || !spaces().some(s => s.active && s.id === home), el => el.child(h_flex().id("actions-fit").flex_none().pr(8).items_center().on_size_change((size) => this.fit(size)).child(control(this, theme(), stopPress)))));
   }
 
   // With the block's id in props.block, it sizes that block to the control: layout.resize, which Herdr keeps with the

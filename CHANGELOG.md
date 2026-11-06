@@ -4,6 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Settling or snoozing the agent in view now lands on Home, one quiet place with only the keys for what's next, instead of pulling you to the next card. `cmd-]` opens the top card from there, and Undo brings the agent back. `cmd-shift-h` or the new house button goes there anytime. It takes no number among your spaces (add the new keys to yours: see Update), and you can split any mod or program into it.
+- The agents list no longer lights the first agent while a mod pane with no agent beside it has focus.
 - Spaces and Agents now move as Inbox does. Folding, sorting, new and closed spaces and ended agents slide and fade over 150ms, where most used to jump.
 - Dragging a space lifts it and the list opens where it will land, instead of drawing a line; a checkout brings its open worktrees.
 - Rows in Lists and Inbox show a press and fold arrows in Lists cross-fade.

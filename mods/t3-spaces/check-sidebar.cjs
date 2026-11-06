@@ -85,7 +85,7 @@ function fixture(width) {
     },
     openOverlay: spec => overlays.push(spec), closeOverlay: id => closed.push(id), updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
-    keys: () => [{ section: "global", keys: "cmd-t", action: "tab.new" }, { section: "global", keys: "cmd-n", action: "space.new" }],
+    keys: () => [{ section: "layout:herdr-t3", keys: "cmd-t", action: "t3-tabs.new" }, { section: "global", keys: "cmd-n", action: "space.new" }],
   };
   function load(name, props = {}) {
     const storage = stores.get(name) ?? new Map();
@@ -315,7 +315,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual(header.items.map(n => n.key), ["tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds the sidebar switch and toggle; search is a shortcut");
+  assert.deepEqual(header.items.map(n => n.key), ["tip-home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Home, the sidebar switch and toggle; search is a shortcut");
   assert.equal(header.style.pr + (26 - 14) / 2, 16, "the toggle's icon ends on the same line as the + and status column");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
@@ -1781,5 +1781,80 @@ for (const width of [208, 240, 256, 320, 480]) {
     key({ key: "p", key_char: "p", modifiers: {} });
     assert.equal(lit(), "priority");
   }
-  console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle.");
+  // Home: a space of its own, in no list, and the keys that walk spaces go around it.
+  {
+    const f = fixture(256), list = f.spaces(), jobs = [], spawn = cx.spawn;
+    cx.spawn = fn => jobs.push(fn);
+    f.load("t3-tabs");
+    cx.spawn = spawn;
+    const say = async command => { f.commands.push(command); jobs[0](cx); await new Promise(resolve => setImmediate(resolve)); };
+    const made = () => plain(f.calls.splice(0));
+    // spaces() catches up after a command: a step waits to see the one before.
+    const tick = async () => { cx.timers.at(-1).fn(cx); await new Promise(resolve => setImmediate(resolve)); };
+    f.calls.length = 0;
+    await say("home");
+    assert.deepEqual(made(), [["space.new", { name: "Home", machine: "", folder: "/home/test" }]]);
+    assert.equal(f.state["t3-home.space"], undefined, "not known until it's seen");
+    // In the model's middle: its place doesn't change the keys' count or the spaces' rows.
+    const home = { id: "h", name: "Home", active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] };
+    list[0].active = false; list.splice(1, 0, home);
+    await tick();
+    assert.equal(f.state["t3-home.space"], "h");
+    assert.deepEqual(made(), [["tab.new", { space: "h", name: "Home", mod: "t3-home" }]]);
+    assert.ok(f.spaces().find(s => s.id === "h").tabs.some(c => c.id === "shell"), "the page goes in before the shell leaves");
+    home.tabs.push({ id: "page", name: "Home", active: true });
+    await tick();
+    assert.deepEqual(made(), [["tab.close", { id: "shell", confirmed: true }]]);
+    assert.deepEqual(plain(f.state["t3-home.titles"]), { page: "Home" });
+    home.tabs.shift();
+    await say("home");
+    assert.deepEqual(made(), [["space.select", { id: "h" }]], "there's one Home");
+
+    const view = f.load("t3-spaces");
+    view.render(cx);
+    assert.ok(!view.rows.some(e => e.key === "space-h"), "no row");
+    assert.ok(view.rows.some(e => e.key === "space-s1"));
+    assert.ok(!f.calls.some(([name]) => name === "space.move"), "and the rows' order still counts it: nothing moves");
+    f.calls.length = 0;
+
+    // At Home the bar is empty, the button says so, and what the bar's keys would do elsewhere stays out of it.
+    const strip = f.load("t3-tabs", { part: "strip" }).render(cx);
+    assert.equal(find(strip, "tab-page"), null, "no tab");
+    assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new"), null, "no +");
+    assert.equal(find(f.load("t3-chrome").render(cx), "home").style.bg, f.theme().selected);
+    fire(find(f.load("t3-chrome").render(cx), "home"), "on_click", {}, cx);
+    assert.deepEqual(made(), [["t3-tabs.home", {}]]);
+    await say("new");
+    assert.deepEqual(made(), [["mod.open", { name: "t3-new-menu" }]], "New picks the space");
+    f.shown.tab = "page";
+    await say("close-tab");
+    assert.deepEqual([made(), f.overlays.length], [[], 0], "a key pressed out of habit doesn't close Home");
+
+    // A pane goes as any does; the last gives way to the default page, which itself stays.
+    const panes = f.panes(), last = { pane: "pb", tab: "page", terminal: "t9" };
+    panes.push(last);
+    f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
+    await say("close-pane:pb");
+    assert.deepEqual(made(), [["pane.split", { direction: "right", pane: "pb", mod: "t3-home" }], ["pane.close", { pane: "pb" }]]);
+    panes.pop(); panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "Home" });
+    await say("close-pane:ph");
+    assert.deepEqual(made(), [], "Home always has a page");
+    panes.pop();
+
+    // The spaces the keys count and walk leave Home out, wherever it sits, and wrap.
+    for (const [command, id] of [["space:1", "s0"], ["space:2", "s1"], ["space:3", "s2"], ["space-next", "s0"], ["space-prev", "s2"]]) {
+      await say(command);
+      assert.deepEqual(made(), [["space.select", { id }]], `${command} from Home`);
+    }
+    await say("space:4");
+    assert.deepEqual(made(), [], "past the last, nothing");
+    home.active = false; list.find(s => s.id === "s1").active = true;
+    await say("space-next");
+    assert.deepEqual(made(), [["space.select", { id: "s2" }]]);
+    await say("space-prev");
+    assert.deepEqual(made(), [["space.select", { id: "s0" }]], "s0, not Home between");
+    await say("new");
+    assert.deepEqual(made(), [["tab.new", {}]], "elsewhere New is a tab there");
+  }
+  console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle, Home.");
 })().catch(e => { console.error(e); process.exit(1); });

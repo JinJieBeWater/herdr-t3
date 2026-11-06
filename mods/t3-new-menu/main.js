@@ -1,7 +1,7 @@
 // New: pick the space and open a terminal tab there, or start a new space, on a machine picked as T3 picks an environment.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
-import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home } from "herdr";
+import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared } from "herdr";
 import { projectMark } from "./project.js";
 
 function shortcut(name) {
@@ -63,7 +63,7 @@ export default class NewMenu extends View {
     if (this.picking) return this.machineRows().filter(m => m.name.toLowerCase().includes(q));
     const ps = panes(), here = spaces().find(s => s.active)?.machine ?? null;
     const rank = (s) => (s.active ? 0 : (s.machine ?? null) === here ? 1 : 2);
-    return spaces().filter(s => `${s.name} ${s.machine ?? ""} ${place(s, ps)}`.toLowerCase().includes(q))
+    return spaces().filter(s => s.id !== shared("t3-home.space") && `${s.name} ${s.machine ?? ""} ${place(s, ps)}`.toLowerCase().includes(q))
       .sort((a, b) => rank(a) - rank(b) || (a.machine ?? "").localeCompare(b.machine ?? ""))
       .map(s => ({ key: `space:${s.id}`, space: s }));
   }
