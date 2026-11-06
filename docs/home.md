@@ -17,8 +17,8 @@
 
 ### 行为
 
-- **收起：** 收起正在查看的 agent（Settle、Snooze、拖动、划选、Review 卡片）后总是回 Home；收起后台 agent 不跳转。
-- **继续处理：** 在 Home 点按钮或按 `cmd-]` 打开最上面的卡片，两者走同一个命令。侧栏隐藏时 Inbox 不绘制，所以改按 Herdr 的顺序走；Settle 属于 Inbox，侧栏隐藏时不生效。在 Home 按 `cmd-shift-s` 不会误收任何 agent。
+- **收起：** 收起正在查看的 agent（Settle、Snooze、拖动、划选）后总是回 Home，Review 例外，见[行为模型](layout-model.md)；收起后台 agent 不跳转。
+- **继续处理：** 在 Home 点按钮或按 `cmd-]` 打开最上面的卡片，两者走同一个命令。侧栏隐藏时，模式继续生效，见 [行为模型](layout-model.md)。在 Home 按 `cmd-shift-s` 不会误收任何 agent。
 - **Undo：** 如果还在 Home，恢复状态并带回那个 agent；如果已去别处，只恢复状态，不跳转。
 - **入口：** 品牌栏按钮和 `cmd-shift-h`，在 Home 时按钮点亮。再按一次留在 Home，不是开关。
 - **新建：** 在 Home 按 `cmd-t` 或 `ctrl-alt-c` 先选 space，再新建，工作不会进入 Home。

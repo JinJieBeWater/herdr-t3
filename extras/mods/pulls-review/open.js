@@ -1,8 +1,8 @@
 // Where a review opens, and opening it: `open` in this folder's config.json picks the fork's daemon (in a Herdr pane, the
 // installed app or the browser) or the official CLI.
 
-import { spaces, panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
-import { argPage, git, reviewLocation } from "./bar.js";
+import { panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
+import { argPage, git, reviewLocation, spaceReview } from "./bar.js";
 
 // `open` in this folder's config.json, which the person creates; none means "herdr" (see mods/README.md):
 // "herdr":    the fork's daemon, drawn in a pane beside the agent (the review mod).
@@ -65,23 +65,20 @@ async function official(root, args, page) {
   await openUrl(origin + (page ?? await pageFor(root, args)));
 }
 
-// Per the pane's "Open in" setting, one review pane per tab, split off the focused pane, or one review tab per space.
-// An open one is focused and told the new page.
-function herdr(root, page) {
+// One review pane per space: an open one, in any of its tabs, is focused and told the new page. With none, per the pane's
+// "Open in" setting, a tab of its own or a split off the focused pane. `analyze` reaches the pane either way.
+function herdr(root, page, analyze) {
   if (page === "/") throw new Error("Nothing to review on the default branch: pick a diff in the Review bar.");
-  const f = focused(), ps = panes(), n = Date.now();
-  const inTab = shared(`${PANE}.prefs`)?.openIn === "tab";
-  const here = new Set(spaces().find(s => s.id === f?.space)?.tabs.map(c => c.id) ?? []);
-  const open = ps.find(p => p.mod === PANE && (inTab ? here.has(p.tab) : p.tab === f?.tab));
+  const open = spaceReview(), wanted = { root, page, n: Date.now(), analyze: Boolean(analyze) };
   if (open) {
-    setShared(PANE, { tab: open.tab, root, page, n });
+    setShared(PANE, { tab: open.tab, ...wanted });
     run("pane.focus", { pane: open.pane });
     return;
   }
-  if (inTab) return run("tab.new", { mod: PANE, props: { root, page, n } });
+  if (shared(`${PANE}.prefs`)?.openIn === "tab") return run("tab.new", { mod: PANE, props: wanted });
   // With an agent block focused there is no focused pane: split the agent's own.
-  const from = f?.pane ?? ps.find(p => p.terminal === f?.agent)?.pane;
-  run("pane.split", { direction: "right", ...(from ? { pane: from } : {}), mod: PANE, props: { root, page, n } });
+  const f = focused(), from = f?.pane ?? panes().find(p => p.terminal === f?.agent)?.pane;
+  run("pane.split", { direction: "right", ...(from ? { pane: from } : {}), mod: PANE, props: wanted });
 }
 
 // Opens a review: `{ root, args, page, analyze }` from the Review bar for one diff (analyzed by AI in the fork), its menu's
@@ -103,8 +100,8 @@ export async function launch(input) {
     const args = input.args ?? ((await git(root, ["status", "--porcelain"])).stdout.trim() ? ["--worktree"] : []);
     const mode = await readMode();
     if (mode === "official") return await official(root, args, input.page);
-    // The pane starts an analysis itself only with its Analyze automatically setting on, as the app never does unasked.
-    if (mode === "herdr") return herdr(root, input.page ?? await pageFor(root, args));
+    // The pane starts the analysis itself, and only with its Analyze automatically setting on, as the app never does unasked.
+    if (mode === "herdr") return herdr(root, input.page ?? await pageFor(root, args), input.analyze);
     // `--analyze` starts the AI analysis, or follows the one running; the official CLI has no such flag.
     const r = await cli("jin.review", ["-d", ...(mode === "pwa" ? ["--pwa"] : []), ...(input.analyze ? ["--analyze"] : []), ...args], { cwd: root });
     if (r.code !== 0) fail((r.stderr || r.stdout).trim() || `exit ${r.code}`);

@@ -36,7 +36,7 @@ function fire(node, event, ...args) {
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 const zoom = 1.1, calls = [], overlays = [], closed = [], notes = [], launched = [], state = {}, shown = { pane: "p1", tab: "b" };
-const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a30", hover: "#202024", ansi1: "#e06c75", ansi2: "#98c379", ansi3: "#c8a84b", ansi4: "#5f8fe0", ansi9: "#f08c95", ansi10: "#b5e09a", ansi11: "#e8cf7a", ansi12: "#8fb4f2" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
+const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a30", hover: "#202024" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
 const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
   svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) }, Popup: { new: (id, trigger) => element("popup").id(id).child(trigger) },
@@ -85,9 +85,10 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(drawn, "review-changes")), ["3", "uncommitted"]);
   // One outline, its parts ruled apart: a control group on its own in any bar.
   assert.ok(find(drawn, "pulls-review").style.border);
-  assert.deepEqual(keys(find(drawn, "pulls-review")), ["tip-review-pick", "div", "tip-review-open", "div", "tip-review-changes", "div", "tip-review-ahead", "div", "tip-review-behind"]);
+  // The counts, then the logo, last so they can come and go without moving it.
+  assert.deepEqual(keys(find(drawn, "pulls-review")), ["tip-review-changes", "div", "tip-review-open", "div", "tip-review-ahead", "div", "tip-review-behind", "div", "tip-review-pick"]);
   assert.equal(strings(find(drawn, "tip-review-ahead").style.content).length, 0, "its card waits for the hover");
-  assert.ok("rounded_r" in find(drawn, "review-behind").style, "the last part's fill follows the outline's corner");
+  assert.ok("rounded_l" in find(drawn, "review-changes").style && "rounded_r" in find(drawn, "review-pick").style && !("rounded_l" in find(drawn, "review-pick").style), "the end parts' fills follow the outline's corners");
   assert.equal(find(drawn, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
   for (const n of walk(drawn)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
   // The logo, in its own colors and on disk: a missing file draws nothing, and the button shows blank.
@@ -99,17 +100,14 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(bar.render(), "tip-review-pick").style.content), ["Change what to review"], "its card shows on hover");
   fire(find(drawn, "review-pick"), "on_hover", false, cx);
   fire(find(drawn, "tip-over-review-pick"), "on_hover", false, cx);
-  // Each count in its own color, so what there is to review reads at a glance; hovered, its bright twin.
-  const countColor = id => find(bar.render(), id).items[0].style.text_color;
-  assert.deepEqual(["review-open", "review-changes", "review-ahead", "review-behind"].map(countColor), [theme.ansi4, theme.ansi3, theme.ansi2, theme.ansi1]);
+  // No color: here it means an agent's state. Hovered, only the fill changes.
+  const countOf = id => find(bar.render(), id).items.find(n => n.style && "font_medium" in n.style);
+  const counted = ["review-changes", "review-open", "review-ahead", "review-behind"];
+  assert.deepEqual(counted.map(id => countOf(id).style.text_color), counted.map(() => theme.foreground));
+  for (const id of counted) assert.deepEqual(plain(find(bar.render(), id).hoverStyle), { bg: theme.hover }, id);
   fire(find(drawn, "review-open"), "on_hover", true, cx);
-  assert.equal(countColor("review-open"), theme.ansi12, "hovered, the count takes its bright twin");
-  fire(find(drawn, "review-changes"), "on_hover", true, cx);
+  assert.equal(countOf("review-open").style.text_color, theme.foreground, "hovered, the same color");
   fire(find(drawn, "review-open"), "on_hover", false, cx);
-  assert.equal(countColor("review-changes"), theme.ansi11, "the old segment's late leave doesn't clear the new one");
-  assert.equal(countColor("review-open"), theme.ansi4);
-  fire(find(drawn, "review-changes"), "on_hover", false, cx);
-  assert.equal(countColor("review-changes"), theme.ansi3);
   assert.equal(find(drawn, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
   assert.equal(find(drawn, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
   assert.equal(walk(drawn).filter(n => "tooltip" in n.style).length, 0, "the shell's tooltip isn't Herdr T3's");
@@ -131,12 +129,20 @@ const load = (props = {}, setup = record) => {
   Object.assign(shown, { pane: "p1", tab: "b" });
   show({ ...review, unmerged: 0, changed: 0, ahead: 0, behind: 0 });
   assert.deepEqual(keys(find(bar.render(), "pulls-review")), ["tip-review-pick"], "no counts: the icon stays, the way in on a clean default branch");
-  assert.ok("rounded_r" in find(bar.render(), "review-pick").style);
+  assert.ok("rounded_r" in find(bar.render(), "review-pick").style && "rounded_l" in find(bar.render(), "review-pick").style);
   show({ ...review, newer: 1, gone: true });
   assert.deepEqual(strings(find(bar.render(), "review-open")), ["4", "ahead of main · merged?"], "a deleted upstream shows, not only in the label");
-  // In a narrow bar the counts stand alone; the hover label gives back the words, and the accessibility label stays whole.
+  assert.deepEqual(strings(find(bar.render(), "review-ahead")), ["↑2"]);
+  assert.deepEqual(walk(find(bar.render(), "review-open")).filter(n => n.kind === "svg"), [], "wide, the words tell them apart");
+  // In a narrow bar each count has a Lucide icon in place of its words, or its arrow; the hover label gives back the words, and the accessibility label stays whole.
   state["bar.compact"] = true;
   assert.deepEqual(strings(find(bar.render(), "review-open")), ["4"]);
+  assert.deepEqual(strings(find(bar.render(), "review-ahead")), ["2"]);
+  for (const [id, icon] of [["review-changes", "file-diff"], ["review-open", "git-branch"], ["review-ahead", "arrow-up"], ["review-behind", "arrow-down"]]) {
+    assert.equal(walk(find(bar.render(), id)).find(n => n.kind === "svg").source, `mods/pulls-review/${icon}.svg`);
+    assert.match(fs.readFileSync(path.join(__dirname, `${icon}.svg`), "utf8"), /stroke-width="1\.75"/, `${icon}: as the mod's other icons`);
+  }
+  assert.deepEqual(counted.map(id => countOf(id).style.text_color), counted.map(() => theme.foreground), "still no color");
   fire(find(bar.render(), "review-open"), "on_hover", true, cx);
   fire(find(bar.render(), "tip-over-review-open"), "on_hover", true, cx);
   assert.deepEqual(strings(find(bar.render(), "tip-review-open").style.content), ["4 ahead of main · merged?"]);
@@ -274,59 +280,67 @@ const load = (props = {}, setup = record) => {
     "a branch's row: its name, its last commit, how far ahead and how old");
   fire(find(menu.render(), "review-branch-Other"), "on_click", {}, cx);
   assert.deepEqual([launched.at(-1).args, launched.at(-1).page], [["origin/main...Other"], "/compare/origin/main...Other"]);
-  // With the review pane showing this repository's diff: its count lit, one commit's place and steps, the menu on its commits.
-  const list = ["c1", "c2", "c3"].map(sha => ({ sha, subject: sha, time: Date.now() - 36e5 }));
-  const pane = (page, base = "/branch/feat", commits = list) => { state["review.shown"] = { b: { root: "/repo", page, base, commits } }; };
-  scope.panes = () => [...allPanes(), { pane: "p2", mod: "review", tab: "b", cwd: null }];
+  // The space's review pane lights the count of the diff it shows, whichever of its commits it's on, whichever tab it's in.
+  const pane = (page, base = "/branch/feat", tab = "b") => { state["review.shown"] = { [tab]: { root: "/repo", page, base } }; };
+  const withPane = (...tabs) => [...allPanes(), ...tabs.map(tab => ({ pane: `p-${tab}`, mod: "review", tab, cwd: null }))];
+  const allSpaces = scope.spaces, isLit = (id) => find(bar.render(), id).style.bg === theme.hover;
+  scope.panes = () => withPane("b");
   pane("/branch/feat"); show(r);
   let lit = bar.render();
-  assert.equal(find(lit, "review-open").style.bg, theme.hover);
+  assert.ok(isLit("review-open"));
   assert.equal(find(lit, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on origin/main, shown");
-  assert.equal(find(lit, "review-commits"), null, "the whole diff has no place to show");
   pane("/commit/c2"); lit = bar.render();
-  assert.deepEqual(strings(find(lit, "review-commits")), ["Commit 2 of 3"]);
-  assert.ok("rounded_r" in find(lit, "commit-newer").style && !("rounded_r" in find(lit, "review-open").style), "the last part's fill follows the outline's corner");
-  fire(find(lit, "commit-older"), "on_click", {}, cx);
-  assert.deepEqual([state.review.tab, state.review.root, state.review.page, state.review.base], ["b", "/repo", "/commit/c1", "/branch/feat"]);
-  fire(find(lit, "commit-newer"), "on_click", {}, cx);
-  assert.equal(state.review.page, "/commit/c3");
-  pane("/commit/c3");
-  assert.equal(find(bar.render(), "commit-newer").handlers.on_click, undefined, "no newer commit");
-  pane("/commit/c2");
+  assert.ok(isLit("review-open"), "on one of its commits it's still that diff");
+  for (const id of ["review-commits", "commit-older", "commit-newer"]) assert.equal(find(lit, id), null, "the bar has no commit steps: they're the pane's");
+  scope.spaces = () => [{ id: "s", active: true, folder: "/space", tabs: [{ id: "b" }, { id: "r" }] }, { id: "o", active: false, folder: "/o", tabs: [{ id: "x" }] }];
+  scope.panes = () => withPane("r"); pane("/branch/feat", "/branch/feat", "r");
+  assert.ok(isLit("review-open"), "the space's review, not only the focused tab's");
+  scope.panes = () => withPane("x"); pane("/branch/feat", "/branch/feat", "x");
+  assert.ok(!isLit("review-open"), "another space's review lights nothing");
+  // Panes from when each tab had its own: the focused tab's speaks.
+  show({ ...r, changed: 1 });
+  scope.panes = () => withPane("r", "b");
+  state["review.shown"] = { r: { root: "/repo", page: "/branch/feat", base: "/branch/feat" }, b: { root: "/repo", page: "/worktree", base: "/worktree" } };
+  assert.deepEqual([isLit("review-changes"), isLit("review-open")], [true, false]);
+  scope.spaces = allSpaces; scope.panes = () => withPane("b"); show(r);
+  pane("/commit/abc", "/commit/abc");
+  assert.ok(!isLit("review-open"), "a commit opened as its own diff lights no count");
+  pane("/branch/feat"); state["review.shown"].b.root = "/other";
+  assert.ok(!isLit("review-open"), "another repository's diff lights nothing");
+  // The pane closed, its entry stays until another review pane drops it: nothing lit.
+  pane("/branch/feat"); scope.panes = allPanes;
+  assert.ok(!isLit("review-open"));
+  // The logo's menu picks what to review, whatever the pane shows: the log and the branches, both on their own page.
+  scope.panes = () => withPane("b"); pane("/commit/c2");
   gits.length = 0;
-  const within = await click(r);
-  assert.deepEqual(gits.splice(0), ["for-each-ref"], "inside a review the menu lists its commits: no log");
-  assert.deepEqual(plain(within.props.commits.map(c => c.sha)), ["c3", "c2", "c1"], "newest first, as the log's");
-  assert.deepEqual(plain(within.props.within), { tab: "b", root: "/repo", base: "/branch/feat", sha: "c2" });
-  assert.equal(within.height, 10 + 36 + 36 + 4 * 32, "the popup fits All changes too");
-  const inMenu = load(within.props).mod;
-  const marked = (id) => walk(find(inMenu.render(), id)).some(n => n.source === "mods/pulls-review/check.svg");
-  assert.deepEqual([marked("review-commit-c2"), marked("review-commit-c1"), marked("review-all")], [true, false, false], "the commit shown is checked");
-  // Commits first, All changes on top inside a review, no branch among them.
+  const onCommit = await click(r);
+  assert.deepEqual(gits.splice(0), ["log", "for-each-ref"], "the log, not the review's commits");
+  assert.deepEqual(plain(onCommit.props.commits.map(c => c.sha)), ["abcdef123456"]);
+  assert.ok(!("within" in onCommit.props));
+  const list = ["c3", "c2", "c1"].map(sha => ({ sha, subject: sha, time: Date.now() - 36e5 }));
+  const menuProps = { ...spec.props, commits: list };
+  const inMenu = load(menuProps).mod;
+  // Commits first, no branch among them, no All changes: that's the pane's.
   const rowsOf = (m) => ["review-all", "review-branch-Other", "review-commit-c3", "review-commit-c2", "review-commit-c1"].filter(id => find(m.render(), id));
   const ids = rowsOf(inMenu);
-  assert.deepEqual(ids, ["review-all", "review-commit-c3", "review-commit-c2", "review-commit-c1"]);
-  assert.deepEqual(strings(find(inMenu.render(), "review-menu")).filter(text => /^(Commits|Branches|\d+|in this review)$/.test(text)), ["Commits", "3", "Branches", "1", "in this review"],
+  assert.deepEqual(ids, ["review-commit-c3", "review-commit-c2", "review-commit-c1"]);
+  assert.deepEqual(strings(find(inMenu.render(), "review-menu")).filter(text => /^(Commits|Branches|\d+|on feat)$/.test(text)), ["Commits", "3", "Branches", "1", "on feat"],
     "the switch counts each page, and says what the page shown lists");
   // The highlight as the Actions and New menus': `selected`, on the top row first, moved by ↑/↓ (round) and by the pointer.
   const highlighted = () => ids.filter(id => find(inMenu.render(), id)?.style.bg === theme.selected);
-  assert.deepEqual(highlighted(), ["review-all"]);
+  assert.deepEqual(highlighted(), ["review-commit-c3"]);
   const key = (k) => fire(find(inMenu.render(), "review-menu"), "on_key_down", { key: k }, cx);
   key("down");
-  assert.deepEqual(highlighted(), ["review-commit-c3"]);
+  assert.deepEqual(highlighted(), ["review-commit-c2"]);
   const cardOf = (id) => strings(find(find(inMenu.render(), id), `details-${id}`).style.content);
-  assert.equal(cardOf("review-commit-c3")[0], "c3", "the card follows the keys to a commit");
-  key("up");
-  assert.deepEqual(cardOf("review-commit-c3"), [], "and closes off it");
-  key("up");
+  assert.equal(cardOf("review-commit-c2")[0], "c2", "the card follows the keys to a commit");
+  key("up"); key("up");
   assert.deepEqual(highlighted(), ["review-commit-c1"], "up from the top goes round to the bottom");
   fire(find(inMenu.render(), "review-commit-c3"), "on_hover", true, cx);
   assert.deepEqual(highlighted(), ["review-commit-c3"], "the pointer moves it too");
   assert.equal(find(inMenu.render(), "review-commit-c2").hoverStyle.bg, theme.foreground + "0a", "the rest lift faintly under the pointer");
   fire(find(inMenu.render(), "review-commit-c1"), "on_click", {}, cx);
-  assert.deepEqual([state.review.page, state.review.base], ["/commit/c1", "/branch/feat"], "a pick stays in this diff");
-  fire(find(inMenu.render(), "review-all"), "on_click", {}, cx);
-  assert.equal(state.review.page, "/branch/feat");
+  assert.deepEqual(launched.at(-1), { root: "/repo", args: ["c1"], page: "/commit/c1" }, "a pick opens it as its own diff, unanalyzed");
   // Tab turns to the branches' page, and back.
   key("tab");
   assert.deepEqual(rowsOf(inMenu), ["review-branch-Other"], "no commit among the branches");
@@ -341,8 +355,8 @@ const load = (props = {}, setup = record) => {
   key("tab");
   assert.deepEqual(rowsOf(inMenu), ids);
   const top = find(inMenu.render(), "review-menu").items.map(n => n.key);
-  assert.ok(top.includes("review-all") && top.includes("review-commit-list") && !top.includes("review-branches"), "All changes and the switch outside the list");
-  const many = load({ ...within.props, branches: Array.from({ length: 9 }, (_, i) => ({ name: `b${i}`, count: 1 })) }).mod;
+  assert.ok(top.includes("review-commit-list") && !top.includes("review-branches"), "the switch outside the list");
+  const many = load({ ...menuProps, branches: Array.from({ length: 9 }, (_, i) => ({ name: `b${i}`, count: 1 })) }).mod;
   fire(find(many.render(), "review-tab-branches"), "on_click", {}, cx);
   // The lists scroll by script, as the shipped picker's: rows keep their handlers, ↑/↓ keep the highlight in view, the wheel
   // takes the highlight along. Until the list is measured every row is drawn; then only those in view, where the scroll puts them.
@@ -374,35 +388,24 @@ const load = (props = {}, setup = record) => {
   pressLogo(); fire(logoButton(), "on_click", {}, run); fire(logoButton(), "on_click", {}, run); await reading;
   assert.equal(menus(), menusBefore + 2);
   delete state["pulls-review.menuClosed"];
-  // Enter takes the top row: All changes, until a search hides it.
+  // Enter takes the top row, or the first a search leaves.
   let enter, query = "";
   const placeholders = [];
-  const scoped = load(within.props);
+  const scoped = load(menuProps);
   scoped.scope.InputState = { new: (options) => { placeholders.push(options.placeholder); return { on: (event, fn) => { if (event === "submit") enter = fn; }, value: () => query, focus() {} }; } };
   scoped.scope.initReviewMenu(scoped.mod);
-  state.review = null; enter({}, cx);
-  assert.equal(state.review.page, "/branch/feat");
-  query = "c1";
-  assert.equal(find(scoped.mod.render(), "review-all"), null);
+  scoped.scope.launch = (input) => { launched.push(plain(input)); };
   enter({}, cx);
-  assert.equal(state.review.page, "/commit/c1");
+  assert.deepEqual(launched.at(-1).args, ["c3"]);
+  query = "c1";
+  enter({}, cx);
+  assert.deepEqual(launched.at(-1).args, ["c1"]);
   // The search says what there is to search.
-  const alone = load({ ...within.props, branches: [] });
+  const alone = load({ ...menuProps, branches: [] });
   alone.scope.InputState = scoped.scope.InputState;
   alone.scope.initReviewMenu(alone.mod);
   assert.deepEqual(placeholders, ["Search commits and branches", "Search commits"]);
-  // A single commit opened from the log has no commits of its own to step through: the menu stays on the log.
-  pane("/commit/abc", "/commit/abc", [list[0]]);
-  assert.equal((await click(r)).props.within, null);
-  // Another repository's diff beside this terminal: nothing lit.
-  state["review.shown"].b.root = "/other";
-  assert.ok(!("bg" in find(bar.render(), "review-open").style));
-  // The pane closed, its entry stays until another review pane drops it: nothing lit, and no steps nothing would answer.
-  pane("/commit/c2"); scope.panes = allPanes;
-  lit = bar.render();
-  assert.ok(!("bg" in find(lit, "review-open").style) && !find(lit, "review-commits"));
-  assert.equal((await click(r)).props.within, null);
-  delete state["review.shown"]; delete state.review;
+  delete state["review.shown"]; scope.panes = allPanes;
   // Search narrows both lists; Enter opens the first left.
   const searching = load(spec.props);
   let typed = "", submit, change;
@@ -430,11 +433,8 @@ const load = (props = {}, setup = record) => {
   fire(commitRow(), "on_hover", false, cx);
   assert.deepEqual(card(), [], "gone with the pointer");
   // Not pushed: ↑ in the row, and the card says where it isn't.
-  const picks = await scope.readPicks({ ...r, upstream: "origin/feat" }, true);
+  const picks = await scope.readPicks({ ...r, upstream: "origin/feat" });
   assert.deepEqual(plain(picks.unpushed), ["abcdef123456"], "the upstream's missing commits, read beside the log");
-  gits.length = 0;
-  assert.deepEqual(plain((await scope.readPicks({ ...r, upstream: "origin/feat" }, false)).unpushed), [], "inside a review the commits may be another branch's: not read");
-  assert.ok(!gits.some(g => g.startsWith("rev-list")));
   gits.length = 0;
   const pushing = load({ ...spec.props, upstream: "origin/feat", unpushed: picks.unpushed });
   const outRow = () => find(pushing.mod.render(), "review-commit-abcdef123456");
@@ -486,6 +486,26 @@ const load = (props = {}, setup = record) => {
   assert.equal(closed.length, shutBefore);
   assert.deepEqual(plain(notes), []);
 
+  // One review per space: one in another of its tabs is focused and told the new page; another space's isn't this one's.
+  const twoTabs = () => [{ id: "s", active: true, folder: "/space", tabs: [{ id: "b" }, { id: "r" }] }, { id: "o", active: false, folder: "/o", tabs: [{ id: "x" }] }];
+  const panesWith = (tab) => () => [{ pane: "p1", tab: "b", cwd: "/repo/src" }, { pane: "p-rev", mod: "review", tab }];
+  const opens = async (input) => { calls.length = 0; delete state.review; await opener.launch({ root: "/repo", args: [], page: "/branch/feat", ...input }); return plain(calls); };
+  opener.spaces = twoTabs; opener.panes = panesWith("r");
+  assert.deepEqual(await opens({ analyze: true }), [["pane.focus", { pane: "p-rev" }]], "no new pane, even with the default split");
+  assert.deepEqual(plain({ ...state.review, n: 0 }), { tab: "r", root: "/repo", page: "/branch/feat", n: 0, analyze: true }, "the request carries the ask");
+  assert.deepEqual(await opens({ args: ["abc"], page: "/commit/abc" }), [["pane.focus", { pane: "p-rev" }]]);
+  assert.equal(state.review.analyze, false, "a menu's pick doesn't ask");
+  state["review.prefs"] = { openIn: "tab" };
+  assert.deepEqual((await opens({})).map(([name]) => name), ["pane.focus"], "Open in decides only where a new one goes");
+  opener.panes = panesWith("x");
+  const newTab = await opens({ analyze: true });
+  assert.deepEqual(newTab.map(([name, args]) => [name, args.mod, args.props.page, args.props.analyze]), [["tab.new", "review", "/branch/feat", true]], "with none in this space, a new one, whose props carry the ask");
+  delete state["review.prefs"];
+  const newSplit = await opens({ analyze: true });
+  assert.deepEqual(newSplit.map(([name, args]) => [name, args.direction, args.pane, args.props.analyze]), [["pane.split", "right", "p1", true]], "the default is a split");
+  assert.equal((await opens({}))[0][1].props.analyze, false);
+  assert.equal(state.review, undefined, "a new pane has no request to read");
+
   // A review pane starts only when shown and shared outlives the app, so a run's word from before a restart would spin on
   // in its tab and its Inbox row. The bar, always shown, drops it; only the bar: an overlay opens with every menu.
   state["review.status"] = { a: "working", b: "done", c: "blocked" };
@@ -495,6 +515,10 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(plain(state["review.status"]), { b: "done", c: "blocked" }, "how a run ended is still news");
   const kept = state["review.status"]; load({ block: "review" });
   assert.equal(state["review.status"], kept, "nothing to drop, nothing written: every write redraws every mod");
+
+  // Every icon on disk is drawn: what a change orphans goes with it.
+  const code = ["bar.js", "details.js", "tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n");
+  for (const file of fs.readdirSync(__dirname).filter(f => f.endsWith(".svg"))) assert.ok(code.includes(path.basename(file, ".svg")), `${file} is used`);
 
   console.log("ok: the Review bar's counts outlined and ruled, its block sized to fit, the branch menu and its search, opening a review");
 })().catch(e => { console.error(e); process.exit(1); });

@@ -4,6 +4,17 @@
 
 ## 2026-11-06
 
+- Lists 和 Inbox 现在用同一套规则，只是组织方式不同：按项目，或按注意力。见[行为模型](docs/layout-model.md)。
+  - **关闭和返回，Lists 也一样**：关掉正在看的 agent 回到 Home，关掉其他标签回到你原来的标签，回到一个 space 时显示你离开时的标签。
+  - **`cmd-]` 和 `cmd-[`** 按侧栏画出来的行走，到两端停住。Lists 下以前会绕回去，还会算上折叠的行。
+  - **Settle 到处生效**：`cmd-shift-s` 在 Lists 和隐藏侧栏时都能用，并回到 Home。已 Settle 或 Snooze 的 agent 在 Lists、标签、窗格标题和 Go to 里都不再显示 done 圆点；在 Lists 里它留在原位，显示为 idle。
+  - **隐藏侧栏后模式继续生效**：按键继续按该模式的行走，这些行隐藏时也保持最新；`Settled, Undo` 显示在标签栏 5 秒。
+- Review 属于 space，因为多个 agent 共用它的工作树。
+  - **每个 space 一个**：Review 栏会跳到已开着的那个，在别的标签也一样，不再新开。`Open in` 决定新开时的位置。每个 Review 都有 Inbox 卡片，分屏也有，焦点在它上面时点亮。
+  - **Settle Review 会返回**：关掉或 Settle 正在看的 Review，回到打开它之前的地方，不去 Home，因为看完通常要回去跟 agent 说话。
+  - **Review 栏只统计和打开**：`3 uncommitted │ 5 ahead of main │ ↑2 │ ↓1 │ logo`。计数增减时 logo 不动；计数不再有颜色（颜色在这里表示 agent 状态），窄窗口用图标区分。logo 菜单只用来选 review 什么。
+  - **切换在窗格里**：`‹ Commit 2 of 5 ›` 和这份 diff 的 commit 列表移到了窗格自己的顶栏。
+  - **Analyze automatically 只对点计数生效**：从菜单选择或切换 commit 不再触发付费分析。
 - 关闭标签不再消耗旁边 agent 未读的 done。程序结束、space 关闭或 Send back 时，Herdr 会短暂显示相邻标签，以前这会把它标成已读；现在离开后会恢复成未读，被清掉的 Woke snooze 也会回来。右键菜单的 Close（标签和窗格）改为和 × 一样先确认、先离开，用的是 Herdr 菜单的副本（`t3-menu`）。
 - 键盘模式不再卡住：以前关掉持有它的部分，或在单独停靠 Inbox 时在键盘模式中退出，之后点卡片和行会把键盘从终端抢走。Inbox 隐藏时菜单还开着，也不再让模式一直保持。
 - 再次点击打开弹窗的按钮，现在会关闭弹窗，不再关了又开：Actions ▾；Inbox 的 Search、New tab、New space；Spaces 的 New tab、New space；Home 的 Go to、New tab。

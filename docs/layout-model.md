@@ -1,6 +1,6 @@
 # 布局的行为模型
 
-状态：已定，实施中。实施后，行为说明以 [RECIPE.zh-CN.md](../RECIPE.zh-CN.md) 为准；本文保留决策和取舍。
+状态：已实施。行为说明以 [RECIPE.zh-CN.md](../RECIPE.zh-CN.md) 为准；本文保留决策和取舍。
 
 ## 理念
 

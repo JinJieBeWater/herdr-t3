@@ -1,7 +1,7 @@
 // A pulls.review review drawn in a pane, beside the agent that wrote the change: groups (the AI
 // analysis, else rule-based), each group's files and their diffs, reviewed marks, one commit at
-// a time. Opened by the pulls-review mod in "herdr" mode with props `{ root, page, n }`;
-// later opens in the same tab arrive through shared(PANE). Everything comes from the jin.review daemon.
+// a time. Opened by the pulls-review mod in "herdr" mode with props `{ root, page, n, analyze }`;
+// later opens in the same space arrive through shared(PANE). Everything comes from the jin.review daemon.
 
 import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
@@ -48,6 +48,16 @@ const sunken = (t) => isLight(t.background) ? "#0000000a" : "#ffffff0f", raised 
 // Models the settings list before the search must narrow them.
 const LISTED = 200;
 const MODEL_ROW = 30; // a row and its 2px gap
+// A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
+const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
+// A commit's age as the Review bar's menu reads it.
+function ago(ms, now) {
+  const m = Math.floor((now - ms) / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  if (m < 1440) return `${Math.floor(m / 60)}h`;
+  return `${Math.floor(m / 1440)}d`;
+}
 // As the app's LOCALES (core/locales.ts): the languages an analysis can write in, by their own names.
 // As the app's DiffCollapseMenu: every file of the diff at once, not just the group shown.
 const FOLDS = [
@@ -127,6 +137,8 @@ function spans(tokens) {
 export default class ReviewPane extends View {
   init(_props, cx) {
     const p = props() ?? {};
+    // The page a count's click asked to analyze, until its first read. Props outlive a restart, where a stale ask mustn't start a paid run.
+    this.analyzeFor = p.analyze === true && localStorage.getItem("tab") === null ? p.page : null;
     this.tab = localStorage.getItem("tab") ?? focused()?.tab;
     localStorage.setItem("tab", this.tab ?? "");
     this.root = localStorage.getItem("root") ?? p.root;
@@ -143,12 +155,17 @@ export default class ReviewPane extends View {
     this.pageAt = -1; this.foldAt = -1;
     this.modelInput.on("change", (_e, cx) => { this.pageAt = -1; cx.notify(); });
     this.modelInput.on("submit", (_e, cx) => this.submitModel(cx));
+    // The commit list's search, and the row lit in it.
+    this.commitSearch = InputState.new({ placeholder: "Search commits" });
+    this.commitAt = 0;
+    this.commitSearch.on("change", (_e, cx) => { this.commitAt = 0; this.scrollTop = { ...this.scrollTop, "commit-list": 0 }; cx.notify(); });
+    this.commitSearch.on("submit", (_e, cx) => { const row = this.commitRows()[this.commitAt]; if (row) this.showPage(row.page, cx); });
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.listHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
     this.startingUntil = 0; this.loading = null; this.loadId = 0;
     this.marks = 0; this.marking = 0;
-    this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.auto = new Set(); this.asked = new Set(); this.folded = new Set();
+    this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.asked = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
     this.barsOn = false; this.barsRun = 0;
@@ -235,13 +252,12 @@ export default class ReviewPane extends View {
         this.error = null;
         this.watch(cx);
         this.loadBase(cx);
-        // Opening a page with no analysis starts one, once per head. An outdated one waits for Re-analyze:
-        // every commit on the branch would otherwise start another run.
-        const a = r.analysis, once = `${page}@${r.head?.sha}`;
-        // Starting an analysis on open is off by default: the app never starts a paid, slow AI run by itself.
-        if (pref("autoAnalyze") === true && a.agent && !a.error && a.state === "none" && !this.auto.has(once)) {
-          this.auto.add(once);
-          this.analyze(cx, false);
+        // Only a count's click starts a run, on a page with no analysis. An outdated one waits for Re-analyze: every commit
+        // on the branch would otherwise start another. The setting is off by default: the app never starts a paid, slow AI run by itself.
+        if (this.analyzeFor === page) {
+          this.analyzeFor = null;
+          const a = r.analysis;
+          if (pref("autoAnalyze") === true && a.agent && !a.error && a.state === "none") this.analyze(cx, false);
         }
       } catch (e) {
         if (id === this.loadId) {
@@ -309,7 +325,7 @@ export default class ReviewPane extends View {
   }
 
   // One commit's page lists only itself: the diff's commits come from its base, read without rows after each read, so a new
-  // commit reaches the bar's list. A failed read leaves the list as it was.
+  // commit reaches the header's list. A failed read leaves the list as it was.
   loadBase(cx) {
     const { root, base } = this;
     if (this.page === base) return;
@@ -358,12 +374,80 @@ export default class ReviewPane extends View {
     setShared(key, Object.fromEntries(value ? [...live, [this.tab, value]] : live));
   }
 
-  // What this tab's pane shows, for the Review bar, which picks what it shows next: Herdr gives a mod pane no folder, and a
-  // tab of its own has no terminal to borrow one from.
-  publish() {
-    // The diff's commits, oldest first: on one commit's page, still its base's.
-    const commits = this.baseCommits ?? (this.switching ? null : this.review?.commits) ?? [];
-    this.keep("shown", { root: this.root, page: this.page, base: this.base, commits: commits.map(c => ({ sha: c.sha, subject: c.subject, time: c.date ? new Date(c.date).getTime() : null })) });
+  // What this tab's pane shows, for the Review bar to light its count and find the repository: Herdr gives a mod pane no
+  // folder, and a tab of its own has no terminal to borrow one from.
+  publish() { this.keep("shown", { root: this.root, page: this.page, base: this.base }); }
+
+  // The diff's commits, oldest first: on one commit's page, still its base's.
+  diffCommits() { return this.baseCommits ?? (this.switching ? null : this.review?.commits) ?? []; }
+
+  // The commit shown on its own within the diff; none for the whole diff, or for a commit opened as its own diff.
+  shownCommit() { return this.page?.startsWith("/commit/") && this.page !== this.base ? this.page.slice("/commit/".length) : null; }
+
+  // Another page of this diff: a request as the Review bar's, handled with those in render. Its base keeps the commits, and
+  // it has no `analyze`. The list's search has the keyboard and is going, and an arrow's press stops short of the pane.
+  showPage(page, cx) {
+    this.closePopup(cx);
+    this.handle.focus();
+    setShared(PANE, { tab: this.tab, root: this.root, page, base: this.base, n: Math.max(Date.now(), this.handled + 1) });
+    cx.notify();
+  }
+
+  // The list's rows, newest first as a log's, under All changes until a search hides it.
+  commitRows() {
+    const query = this.commitSearch.value().trim().toLowerCase();
+    return [
+      ...(query ? [] : [{ id: "commit-all", label: "Review all changes", page: this.base }]),
+      ...[...this.diffCommits()].reverse().filter(c => c.sha.startsWith(query) || c.subject.toLowerCase().includes(query))
+        .map(c => ({ id: `commit-${c.sha}`, label: `Review commit ${c.subject}`, page: `/commit/${c.sha}`, commit: c })),
+    ];
+  }
+
+  // `‹ Commit 2 of 5 ›`, whose words open the list, only with somewhere else in this diff to go. Short of room its words give
+  // way first, then what's left of it: the header clips.
+  commitSwitch(t) {
+    const list = this.diffCommits(), sha = this.shownCommit();
+    if (!sha && list.length < 2) return null;
+    // The whole diff sits before its oldest commit. A commit no longer listed, as after an amend, has no neighbours.
+    const at = sha ? list.findIndex(c => c.sha === sha) : -1, gone = sha && at < 0;
+    const go = (id, icon, label, c) => this.iconButton(t, id, icon, label, (cx) => this.showPage(`/commit/${c.sha}`, cx), { disabled: !c });
+    const place = !sha ? "All changes" : gone ? sha.slice(0, 7) : this.width < COMPACT ? `${at + 1}/${list.length}` : `Commit ${at + 1} of ${list.length}`;
+    return h_flex().id("review-commit-switch").min_w(0).flex_shrink_1().overflow_hidden().gap(2).items_center()
+      .child(go("commit-older", "mods/review/chevron-left.svg", "Older commit", at > 0 ? list[at - 1] : null))
+      .child(h_flex().id("commit-pick").h(24).min_w(0).flex_shrink_1().px(4).gap(4).items_center().rounded(6).text_size(12).text_color(t.foreground)
+        .when(this.popup === "commits", el => el.bg(ACTIVE)).hover(s => s.bg(HOVER))
+        .role("button").accessibility_label(`Pick another commit of this review, ${place} shown`)
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); this.togglePopup("commits", cx); })
+        .child(div().id("commit-place").min_w(0).truncate().child(place))
+        .child(svg(`${LU}/chevron-down.svg`).size(11).flex_none().text_color(t.dim)))
+      .child(go("commit-newer", "mods/review/chevron-right.svg", "Newer commit", gone ? null : list[at + 1]));
+  }
+
+  // The commits of this review and All changes, as the settings' model page: a search, ↑/↓ (`key`), Enter, Escape.
+  commitMenu(t) {
+    const rows = this.commitRows(), now = Date.now(), all = rows[0]?.id === "commit-all" ? 1 : 0, count = rows.length - all;
+    const row = (r, i) => {
+      const c = r.commit, prefix = c ? PREFIX.exec(c.subject)?.[0] ?? "" : "", on = r.page === this.page;
+      return h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(6)
+        .when(i === this.commitAt, el => el.bg(HOVER)).on_hover((over, cx) => { if (over && this.commitAt !== i) { this.commitAt = i; cx.notify(); } })
+        .role("button").accessibility_label(r.label + (on ? ", shown" : "")).on_click((_e, cx) => this.showPage(r.page, cx))
+        .child(this.pickMark(t, on))
+        .when(!c, el => el.child(div().flex_1().child("All changes")))
+        .when(Boolean(c), el => el
+          .when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
+          .child(div().flex_1().min_w(0).truncate().child(c.subject.slice(prefix.length)))
+          .when(Boolean(c.date), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(ago(new Date(c.date).getTime(), now)))));
+    };
+    return this.popover(t, "review-commit-menu").w(Math.min(480, this.width - 24)).p(6).gap(2)
+      .child(h_flex().h(28).px(8).gap(8).flex_none().items_center()
+        .child(svg(`${LU}/search.svg`).size(12).w(14).flex_none().text_color(t.dim))
+        .child(div().flex_1().min_w(0).h(24).px(6).flex().items_center().rounded(6).border_1().border_color(t.border).cursor_text()
+          .child(Input.new(this.commitSearch).flex_1().h_full().text_size(12).text_color(t.foreground))))
+      // Outside the list, so All changes stays put.
+      .when(Boolean(all), el => el.child(row(rows[0], 0)))
+      .child(scrollList(this, "commit-list", { count, row: MODEL_ROW, height: Math.min(count * MODEL_ROW, Math.max(MODEL_ROW * 3, Math.min(360, this.height - 140))), at: this.commitAt - all,
+        draw: (i) => row(rows[i + all], i + all), wheeled: (keep) => { if (keep >= 0) this.commitAt = keep + all; } }))
+      .when(!rows.length, el => el.child(div().px(8).py(4).flex_none().text_color(t.dim).child("No matches")));
   }
 
   // The settings panel reads the daemon's agents and shared settings each time it opens: the browser may have changed them.
@@ -441,8 +525,11 @@ export default class ReviewPane extends View {
     cx.notify();
   }
 
+  // A list's pick mark, its slot kept so the rows line up.
+  pickMark(t, on) { return div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/check.svg").size(12))); }
+
   /**
-   * The settings, as the app's settings dialog in a panel: the view's choices, then the analysis's - analyzing on open,
+   * The settings, as the app's settings dialog in a panel: the view's choices, then the analysis's - analyzing when a count opens a review,
    * and the language, agent and model, each a row naming its value. A row's press opens its list as a page of the panel,
    * as the app's selects open theirs (Herdr can't float a list over the rows after it); a pick, or Escape, comes back.
    */
@@ -454,11 +541,10 @@ export default class ReviewPane extends View {
     const link = (id, text, url) => div().id(id).text_color(t.muted).hover(s => s.text_color(t.foreground).underline()).role("link")
       .on_click((_e, cx) => { cx.stop_propagation(); openUrl(url); }).child(text);
     const note = (text, color = t.dim) => div().px(8).py(4).flex_none().text_color(color).child(text);
-    const mark = (on) => div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/check.svg").size(12)));
     const choice = (r, i) => h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(6)
       .when(i === this.pageAt, el => el.bg(HOVER)).on_hover((on, cx) => { if (on && this.pageAt !== i) { this.pageAt = i; cx.notify(); } })
       .role("radio_button").accessibility_label(r.name).on_click((_e, cx) => { this.settingsBack(cx); r.pick(cx); })
-      .child(mark(r.on))
+      .child(this.pickMark(t, r.on))
       .child(div().flex_1().min_w(0).truncate().child(r.name))
       .when(Boolean(r.detail), el => el.child(div().flex_none().text_size(11).text_color(t.dim).child(r.detail)));
     // A setting that opens its page: its name, its value and a chevron.
@@ -543,13 +629,15 @@ export default class ReviewPane extends View {
     if (this.closedPopup === name && Date.now() - this.popupClosedAt <= 300) return;
     this.popup = name; this.foldAt = -1;
     if (name === "settings") this.loadSettings(cx);
+    // On the row shown, so ↑/↓ start from it.
+    if (name === "commits") { this.commitAt = Math.max(0, this.commitRows().findIndex(r => r.page === this.page)); this.commitSearch.focus(); }
     cx.notify();
   }
 
   closePopup(cx) {
     if (!this.popup) return;
     this.closedPopup = this.popup; this.popup = null; this.popupClosedAt = Date.now();
-    this.modelInput.set_value(""); this.pageAt = -1; this.settingsPage = null;
+    this.modelInput.set_value(""); this.commitSearch.set_value(""); this.pageAt = -1; this.settingsPage = null;
     cx.notify();
   }
 
@@ -759,11 +847,16 @@ export default class ReviewPane extends View {
     if (request && request.tab === this.tab && request.n > this.handled) {
       this.handled = request.n;
       if (request.root !== this.root) { this.root = request.root; this.watching = null; this.seen.clear(); this.collapsed.clear(); this.page = null; this.forget(); }
-      // With a base, the Review bar picking another page of the same diff: its commits stay.
+      // With a base, the header's switch picking another page of the same diff: its commits stay.
       this.base = request.base ?? request.page;
       if (!request.base) this.baseCommits = null;
       this.remember();
+      // Only the bar's counts ask for an analysis, so anything else takes back an ask not yet read.
+      this.analyzeFor = request.analyze === true ? request.page : null;
+      // The page already shown has no read coming to act on the ask.
+      const again = this.analyzeFor && request.page === this.page;
       this.open(request.page, cx);
+      if (again) this.load(cx);
     }
     this.publish();
     if (JSON.stringify(colors(t)) !== this.colorsKey) {
@@ -822,8 +915,9 @@ export default class ReviewPane extends View {
       .when(this.popup === "settings", el => el.child(div().absolute().top(44).right(8).child(this.settingsPanel(t))))
       // Under its button, the one left of the gear.
       .when(this.popup === "fold" && Boolean(this.review) && !this.switching && !hidden, el => el.child(div().absolute().top(44).right(44).child(this.foldMenu(t))))
-      // Under its button: right of it the fold menu's and the gear (24px each, 8px apart, 12px in), and the newer-commit
-      // arrow while one commit is shown.
+      // Under the header's left end, where the switch starts.
+      .when(this.popup === "commits" && !hidden, el => el.child(div().absolute().top(44).left(12).child(this.commitMenu(t))))
+      // Under its button: right of it the fold menu's and the gear (24px each, 8px apart, 12px in).
       .when(this.popup === "status", el => el.child(div().absolute().top(44).right(8).child(this.statusPanel(t))));
   }
 
@@ -866,6 +960,13 @@ export default class ReviewPane extends View {
         this.foldAt = to;
       }
       cx.stop_propagation(); cx.notify();
+      return;
+    }
+    // Typing is the search's, and Enter its submit.
+    if (this.popup === "commits") {
+      if (e.keystroke === "escape") { this.closePopup(cx); this.handle.focus(); cx.stop_propagation(); return; }
+      const to = step(e, this.commitAt, this.commitRows().length);
+      if (to >= 0) { this.commitAt = to; cx.stop_propagation(); cx.notify(); }
       return;
     }
     // The status has no keys of its own, and what's under it is out of reach while it's up.
@@ -934,8 +1035,10 @@ export default class ReviewPane extends View {
   }
 
   header(t, head) {
-    // Narrow, the counts give way and the buttons never.
-    return h_flex().id("review-header").h(40).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border).bg(t.chrome)
+    // Narrow, the counts and the commit switch give way and the buttons never.
+    const commits = this.commitSwitch(t);
+    return h_flex().id("review-header").h(40).flex_none().px(12).gap(8).items_center().overflow_hidden().border_b(1).border_color(t.border).bg(t.chrome)
+      .when(Boolean(commits), el => el.child(commits))
       .children(head.parts.map(p => h_flex().min_w(0).gap(6).items_center().text_size(12).text_color(t[p.color] ?? t.dim)
         .when(p.donut !== undefined, el => el.child(this.donut(t, p.donut, 14)))
         .child(div().min_w(0).truncate().child(p.text))))

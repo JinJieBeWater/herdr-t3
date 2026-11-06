@@ -4,6 +4,17 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Lists and Inbox now keep one set of rules, and differ only in how they organize: by project, or by attention. [The model](docs/layout-model.md).
+  - **Closing and coming back, in Lists too**: closing the agent in view lands on Home, closing any other tab goes back to the tab you were on, and going back to a space shows the tab you left there.
+  - **`cmd-]` and `cmd-[`** walk the rows the sidebar draws and stop at either end. In Lists they used to wrap and count folded rows.
+  - **Settle holds everywhere**: `cmd-shift-s` works in Lists and with the sidebar hidden, and lands on Home. A settled or snoozed agent shows no done dot in Lists, the tabs, pane headers or Go to; in Lists its row stays in place, idle.
+  - **A hidden sidebar keeps its mode**: the keys go on working by that mode's rows, which keep up while hidden, and `Settled, Undo` shows in the tab bar for 5s.
+- A Review belongs to the space, as several agents share its worktree.
+  - **One per space**: the bar brings up the open one, in another tab too, instead of opening another. `Open in` picks where a new one goes. Each has an Inbox card, in a pane too, and it lights while the focus is on it.
+  - **Settling a review goes back**: closing or settling the one in view returns to where you opened it from, not Home, as you'll likely have something to say to the agent.
+  - **The bar counts and opens**: `3 uncommitted │ 5 ahead of main │ ↑2 │ ↓1 │ logo`. The logo stays put as counts come and go, the counts have no color (color means an agent's status here) and a narrow bar tells them apart by icon. The logo's menu only picks what to review.
+  - **The pane switches**: `‹ Commit 2 of 5 ›` and the list of this diff's commits are in its own toolbar now.
+  - **Analyze automatically means a count's click**: picking from a menu or switching commits no longer starts a paid run.
 - Closing a tab no longer costs the agent beside it its unread done. When a program ends, a space closes or Send back is used, Herdr shows the tab next door for a moment, and that used to mark it read; now it's unread again once you're past it, and a woken snooze it cleared comes back. The right-click menus' Close (a tab's, a pane's) asks first and leaves first, as × does, through a copy of Herdr's menu (`t3-menu`).
 - Keyboard mode no longer gets stuck: closing the part that held it, or quitting in it with Inbox docked alone, used to leave clicks on cards and rows taking the keyboard from the terminal. A menu left open as the Inbox hid no longer holds it either.
 - Clicking the button that opened a popup now closes it, instead of closing and opening it again: Actions ▾; Inbox's Search, New tab and New space; Spaces' New tab and New space; Home's Go to and New tab.
