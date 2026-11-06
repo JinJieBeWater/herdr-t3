@@ -81,7 +81,8 @@ SWIFT
   done
   ws=$("$W" query displays --format json | jq -r --argjson x "$2" --argjson y "$3" '.result.payload.displays[] | select(.frame.x == $x and .frame.y == $y) | .activeWorkspace.rawName')
   # The full-width command toggles, and the frame OmniWM reports starts as the window's own: read it once tiled.
-  "$W" window move-to-workspace "$win" "$ws" >/dev/null; sleep 3
+  # Already there, it answers no_change and fails.
+  "$W" window move-to-workspace "$win" "$ws" >/dev/null || true; sleep 3
   w=$("$W" query windows --window "$win" --format json | jq '.result.payload.windows[0].frame.width')
   [ "$w" -ge 1600 ] || { "$W" window focus "$win" >/dev/null; sleep 0.5; "$W" command toggle-container-full-primary-span >/dev/null; sleep 1; }
   [ -z "$back" ] || "$W" window focus "$back" >/dev/null
