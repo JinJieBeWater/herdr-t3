@@ -67,7 +67,8 @@ export default class Pane extends View {
     const t = theme();
     const p = this.me();
     if (!p) return div();
-    const name = namer()(p);
+    // Home's default page says nothing of itself: the brand bar's button tells where this is.
+    const name = p.mod === "t3-home" ? "" : namer()(p);
     const pic = icon(programOf(p), 14, t.muted);
     // Its agent with the sub-agents it started (tree.js).
     const all = terminals();

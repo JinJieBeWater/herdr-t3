@@ -25,7 +25,7 @@ for d in mods/t3-agents mods/t3-tabs extras/mods/pulls-review; do cp "$src/mods/
 for d in mods/t3-agents mods/t3-spaces; do cp "$src/mods/t3-inbox/motion.js" "$src/$d/"; done
 
 # t3-inbox/focus.js is the one keyboard focus.
-for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions; do cp "$src/mods/t3-inbox/focus.js" "$src/$d/"; done
+for d in mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home; do cp "$src/mods/t3-inbox/focus.js" "$src/$d/"; done
 
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$inbox/mods/t3-inbox/"

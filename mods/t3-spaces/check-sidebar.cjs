@@ -1703,13 +1703,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([f.calls, f.overlays.length], [[], 0], "with nothing focused, nothing to close");
   }
   {
-    // cmd-] and cmd-[ (t3-chrome.next / .prev): with the Inbox showing, T3's traversal over the rows it draws, from the
+    // cmd-] and cmd-[ (t3-tabs.next / .prev): with the Inbox showing, T3's traversal over the rows it draws, from the
     // one in view, stopping at either end; Lists keep Herdr's agent.next.
     const f = fixture(256), jobs = [], spawn = cx.spawn;
     cx.spawn = fn => jobs.push(fn);
-    f.load("t3-chrome"); f.load("t3-chrome", { footer: true });
+    f.load("t3-tabs"); f.load("t3-tabs", { part: "end" }); f.load("t3-tabs", { part: "measure" });
     cx.spawn = spawn;
-    assert.equal(jobs.length, 1, "only the brand bar's copy listens");
+    assert.equal(jobs.length, 1, "only the tab strip's copy listens");
     f.slots.lists = { id: "sidebar-lists", active: "inbox" };
     const press = async (command, rows) => {
       f.state["t3-inbox.rows"] = rows; f.calls.length = 0; f.commands.push(command);
@@ -1728,6 +1728,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(await press("next", { order: mixed, view: "pane:p9" }), [["agent.focus", { terminal: "t5" }]], "and the walk goes on from it");
     f.slots.lists.active = "lists";
     assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.next", {}]], "Lists keep agent.next");
+    f.slots.lists.active = "inbox"; f.slots.sidebar.hidden = true;
+    assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.next", {}]], "so does a hidden sidebar: the Inbox draws nothing, and its rows go stale");
+    assert.deepEqual(await press("prev", { order, view: "t0" }), [["agent.prev", {}]]);
+    delete f.slots.sidebar.hidden; f.slots.lists.active = "lists";
   }
   {
     // Every menu goes by arrows and Enter, and says when a search finds nothing.
@@ -1811,7 +1815,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     home.tabs.push({ id: "page", name: "Home", active: true });
     await tick();
     assert.deepEqual(made(), [["tab.close", { id: "shell", confirmed: true }]]);
-    assert.deepEqual(plain(f.state["t3-home.titles"]), { page: "Home" });
     home.tabs.shift();
     await say("home");
     assert.deepEqual(made(), [["space.select", { id: "h" }]], "there's one Home");
@@ -1836,8 +1839,38 @@ for (const width of [208, 240, 256, 320, 480]) {
     await say("close-tab");
     assert.deepEqual([made(), f.overlays.length], [[], 0], "a key pressed out of habit doesn't close Home");
 
+    // The page: what can be done next as buttons, each stroke of a bound key on a cap of its own.
+    {
+      f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+      f.state["t3-inbox.rows"] = { order: ["t0"], view: null };
+      f.calls.length = 0;
+      const page = f.load("t3-home"), tree = () => page.render(cx);
+      assert.deepEqual(strings(tree()), ["Next agent", "Go to", "New tab", "⌘", "T"], "an unbound action stays a button, with no caps");
+      fire(find(tree(), "home-next"), "on_click", {}, cx);
+      fire(find(tree(), "home-goto"), "on_click", {}, cx);
+      fire(find(tree(), "home-new"), "on_click", {}, cx);
+      assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.next", {}], ["mod.open", { name: "t3-picker" }], ["t3-tabs.new", {}]]);
+      f.state["t3-inbox.rows"] = { order: [], view: null };
+      assert.equal(find(tree(), "home-next").handlers.on_click, undefined, "nowhere to go: no button");
+      assert.ok(find(tree(), "home-next").style.opacity < 1);
+      assert.ok(find(tree(), "home-goto").handlers.on_click, "and the others stay");
+      f.slots.lists.active = "lists";
+      assert.ok(find(tree(), "home-next").handlers.on_click, "Lists go by the agents");
+      f.slots.lists.active = "inbox"; f.slots.sidebar.hidden = true;
+      assert.ok(find(tree(), "home-next").handlers.on_click, "and so does a hidden sidebar");
+      delete f.slots.sidebar.hidden;
+      delete f.slots.lists;
+      delete f.state["t3-inbox.rows"];
+    }
+
+    // Its pane's header says nothing of it: the brand bar's button tells where this is.
+    const panes = f.panes();
+    panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "t3-home" });
+    assert.ok(!strings(f.load("t3-pane", { pane: "ph" }).render(cx)).includes("t3-home"));
+    panes.pop();
+
     // A pane goes as any does; the last gives way to the default page, which itself stays.
-    const panes = f.panes(), last = { pane: "pb", tab: "page", terminal: "t9" };
+    const last = { pane: "pb", tab: "page", terminal: "t9" };
     panes.push(last);
     f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
     await say("close-pane:pb");

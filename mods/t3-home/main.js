@@ -1,18 +1,50 @@
-// Home's default page: where putting the agent in view away lands, with nothing to look at but the keys for what's next.
+// Home's default page: where putting the agent in view away lands, with nothing to look at but what can be done next.
 // t3-tabs owns the place itself (a space of its own); this is only what it shows until someone arranges something else there.
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { theme } from "herdr";
+import { agents, layout, run, shared, theme } from "herdr";
 import { keyOf } from "./tip.js";
+import { stopsInit, stop, focusRoot } from "./focus.js";
 
-const HINTS = [["t3-chrome.next", "Next agent"], ["mod.open:t3-picker", "Go to"], ["space.new", "New space"]];
+function find(node, id) {
+  if (node?.id === id) return node;
+  for (const child of node?.children ?? []) {
+    const found = find(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+// As the next key (t3-tabs) has anywhere to go: the rows the Inbox draws while it shows, else any agent.
+function hasNext() {
+  const root = layout();
+  return find(root, "sidebar-lists")?.active === "inbox" && !find(root, "sidebar")?.hidden ? shared("t3-inbox.rows")?.order?.length > 0 : agents().length > 0;
+}
+const ACTIONS = [
+  { id: "next", word: "Next agent", action: "t3-tabs.next", go: () => run("t3-tabs.next"), ready: hasNext },
+  { id: "goto", word: "Go to", action: "mod.open:t3-picker", go: () => run("mod.open", { name: "t3-picker" }) },
+  { id: "new", word: "New tab", action: "t3-tabs.new", go: () => run("t3-tabs.new") },
+];
+// A key as its strokes: each modifier, then the rest ("⇧⌘P", "Ctrl+Shift+P").
+const caps = (key) => key.match(/[⌃⌥⇧⌘]|[^⌃⌥⇧⌘+]+/gu);
 
 export default class Home extends View {
+  init(_props, cx) {
+    stopsInit(this, cx);
+  }
+
   render() {
     const t = theme();
-    return v_flex().size_full().items_center().justify_center().gap(10).text_size(12).font_medium().text_color(t.muted)
-      .children(HINTS.map(([action, word]) => [keyOf(action), word]).filter(([key]) => key).map(([key, word]) => h_flex().w(144).gap(8).items_center().justify_between()
-        .child(word)
-        .child(div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(key))));
+    const row = (a) => {
+      const id = `home-${a.id}`, off = a.ready && !a.ready(), key = keyOf(a.action);
+      const el = h_flex().id(id).h(32).px(10).flex_none().rounded(6).items_center().justify_between().text_color(t.muted)
+        .child(a.word)
+        .when(Boolean(key), (r) => r.child(h_flex().flex_none().gap(4).children(caps(key).map((cap) => div().min_w(20).h(20).px(5).flex().items_center().justify_center()
+          .rounded(4).border(1).border_color(t.border).bg(t.foreground + "0a").text_size(11).text_color(t.foreground + "bf").child(cap)))));
+      // Nowhere to go: dimmed, as the key does nothing either. The theme's hover can be the pane's own color, so a tint of the text, as Go to's rows.
+      return off ? el.opacity(0.42) : stop(this, t, id, el.role("button").accessibility_label(a.word)
+        .hover((s) => s.bg(t.foreground + "0f").text_color(t.foreground)).active((s) => s.bg(t.selected)).on_click(() => a.go()));
+    };
+    return focusRoot(this, v_flex().size_full().px(12).items_center().justify_center()
+      .child(v_flex().w_full().max_w(260).gap(2).text_size(13).children(ACTIONS.map(row))));
   }
 }

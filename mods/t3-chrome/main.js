@@ -16,29 +16,15 @@ function find(node, id) {
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
 const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
 const switchSidebar = () => run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
-// The next or previous agent. With the Inbox showing, as T3's thread traversal (resolveAdjacentThreadId): the rows it
-// draws, in its order, from the one in view, stopping at either end; with none in view, the first or the last.
-// Lists keep Herdr's agent.next, which wraps. The Inbox may be hidden, so this copy, always shown, takes the key.
-// A row can be a mod pane's (`pane:<id>`), which has no agent to focus.
-const step = (command) => {
-  if (!inboxShown()) return run(command === "next" ? "agent.next" : "agent.prev");
-  const { order = [], view = null } = shared("t3-inbox.rows") ?? {};
-  const i = view === null ? -1 : order.indexOf(view);
-  const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
-  if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
-  else if (to) run("agent.focus", { terminal: to });
-};
-
 export default class WorkspaceChrome extends View {
   init(_props, cx) {
     stopsInit(this, cx);
-    // Only the brand bar's copy takes `t3-chrome.sidebar`, `.next` and `.prev`; the footer's would do them twice.
+    // Only the brand bar's copy takes `t3-chrome.sidebar`; the footer's would do it twice.
     if (props()?.footer) return;
     cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
         if (command === "sidebar") switchSidebar();
-        else if (command === "next" || command === "prev") step(command);
         cx.notify();
       }
     });

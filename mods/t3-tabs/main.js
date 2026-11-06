@@ -32,9 +32,19 @@ async function goHome(cx) {
   const shell = made.tabs[0]?.id;
   run("tab.new", { space: made.id, name: "Home", mod: "t3-home" });
   const page = await seen(cx, () => spaces().find(s => s.id === made.id)?.tabs.find(c => c.id !== shell)?.id);
-  if (!page) return;
-  setShared("t3-home.titles", { [page]: "Home" });
-  if (shell) run("tab.close", { id: shell, confirmed: true });
+  if (page && shell) run("tab.close", { id: shell, confirmed: true });
+}
+// The next or previous agent. With the Inbox showing, as T3's thread traversal (resolveAdjacentThreadId): the rows it
+// draws, in its order, from the one in view, stopping at either end; with none in view, the first or the last.
+// Otherwise, Lists or a hidden sidebar (where the Inbox draws nothing, so its rows go stale), Herdr's agent.next, which wraps.
+// Here because the tab bar always shows. A row can be a mod pane's (`pane:<id>`), which has no agent to focus.
+function step(command) {
+  if (!inboxShown() || find(layout(), "sidebar")?.hidden) return run(command === "next" ? "agent.next" : "agent.prev");
+  const { order = [], view = null } = shared("t3-inbox.rows") ?? {};
+  const i = view === null ? -1 : order.indexOf(view);
+  const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
+  if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
+  else if (to) run("agent.focus", { terminal: to });
 }
 // The spaces the keys count and walk: all but Home, wrapping as space.next does.
 function selectSpace(index) {
@@ -154,6 +164,7 @@ export default class Tabs extends View {
         else if (command.startsWith("close-tab-now:")) await this.closeTabNow(command.slice("close-tab-now:".length), { confirmed: true }, cx);
         else if (command.startsWith("close-pane-now:")) await this.closePaneNow(command.slice("close-pane-now:".length), cx);
         else if (command === "home") await goHome(cx);
+        else if (command === "next" || command === "prev") step(command);
         // New work doesn't start in Home: New picks its space.
         else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
         else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)));
