@@ -46,7 +46,7 @@ const env = {
   focused: () => ({ tab: "b", cwd: "/repo" }), panes: () => [], spaces: () => [{ active: true, folder: "/space" }],
   nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
 };
-const source = ["tip.js", "focus.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["tip.js", "focus.js", "list.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { every: () => ({ cancel() {} }), after: (_ms, f) => (f(cx), { cancel() {} }) } };
 const load = (props = {}) => {
@@ -102,6 +102,20 @@ assert.deepEqual(calls.at(-1), ["terminal.open", { argv: ["sh", "-c", "bun test"
 assert.deepEqual(strings(find(bar.render(), "action-run")), ["Test"]);
 fire(find(menu.render(), "edit-a"), "on_click", {}, cx);
 assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
+
+// Past the rows that show, ↑/↓ keep the highlight in view; Add action stays outside the list.
+{
+  const saved = state["t3-actions"];
+  state["t3-actions"] = { ...saved, list: Array.from({ length: 30 }, (_, i) => ({ id: `n${i}`, name: `N${i}`, command: "x", icon: "play" })) };
+  const long = load({ actions: "menu" }), press = (k) => fire(find(long.render(), "actions-menu"), "on_key_down", { key: k }, cx);
+  fire(find(long.render(), "actions-list"), "on_size_change", { height: 280 * zoom }, cx);
+  assert.ok(!find(long.render(), "action-n10"), "only the rows in view are drawn");
+  for (let i = 0; i < 15; i++) press("down");
+  assert.ok(find(long.render(), "action-n15"), "the highlight's row is");
+  for (let i = 0; i < 15; i++) press("down");
+  assert.ok(find(long.render(), "action-new") && find(long.render(), "action-n29"), "Add action lit, the list stays where it was");
+  state["t3-actions"] = saved;
+}
 
 // The editor saves an edit in place, and a new one at the end.
 fields.length = 0;

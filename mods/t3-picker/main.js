@@ -3,14 +3,15 @@
 // picker (mod.clone). First a Back row to the pane the last jump from here left, so ⌘P, Enter goes back and forth.
 // ↑/↓ and Enter to go, ctrl+d to close a pane (asking first while a program runs), Esc to leave.
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
+import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, layout, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
+import { step, scrollList } from "./list.js";
 
 const ROW = 46;
-const SHOWN = 6; // rows before the list scrolls; a virtual list has no height of its own, and the popup hugs its content
+const SHOWN = 6; // rows before the list scrolls; the popup hugs its content
 
 const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/terminal.svg").size(12).flex_none().text_color(t.muted)
   : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
@@ -20,9 +21,8 @@ export default class Picker extends View {
   init() {
     this.at = null;
     this.filter = "";
-    this.scroll = VirtualListScrollHandle.new();
     this.input = InputState.new({ placeholder: "Search terminals…" });
-    this.input.on("change", (_e, cx) => { this.filter = this.input.value(); this.at = 0; this.scroll.scroll_to_item(0); cx.notify(); });
+    this.input.on("change", (_e, cx) => { this.filter = this.input.value(); this.at = 0; cx.notify(); });
     this.input.on("submit", () => this.choose(this.items()[this.at ?? 0]));
     this.input.focus();
   }
@@ -57,7 +57,6 @@ export default class Picker extends View {
     run("pane.focus", { pane: item.p.pane });
   }
 
-  // A virtual list's rows can't hold handlers: clicks come by key to on_item_click, hover is style alone.
   row(item, i, ps) {
     const t = theme(), on = this.at === i, s = item.s, st = item.status;
     // The same marks as the pane headers, tabs and agents list.
@@ -67,7 +66,8 @@ export default class Picker extends View {
     return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(item.back ? `Back to ${item.label}` : item.label)
       .when(on, (el) => el.bg(t.selected))
-      .when(!on, (el) => el.hover((style) => style.bg(t.foreground + "0a")))
+      .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
+      .on_click(() => this.choose(item))
       .child(h_flex().size(16).flex_none().items_center().justify_center().child(projectMark(s, 16, t, ps)))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).when(Boolean(item.here), (d) => d.font_medium()).child(item.label))
@@ -87,18 +87,16 @@ export default class Picker extends View {
   render() {
     const t = theme(), ps = panes(), items = this.items();
     // Opens on Back, else where you are.
-    if (this.at === null) { this.at = Math.max(0, items.findIndex((r) => r.back || r.here)); this.scroll.scroll_to_item(this.at); }
+    if (this.at === null) this.at = Math.max(0, items.findIndex((r) => r.back || r.here));
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
     return v_flex().id("picker").size_full().min_h(0).bg(t.popover).text_size(13)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
-        if (e.key === "down" || e.key === "up") {
-          if (!items.length) return;
-          this.at = (this.at + (e.key === "down" ? 1 : items.length - 1)) % items.length;
-          this.scroll.scroll_to_item(this.at);
-        } else if (e.key === "d" && e.modifiers.control && items[this.at]) {
+        const to = step(e, this.at, items.length);
+        if (to >= 0) this.at = to;
+        else if (e.key === "d" && e.modifiers.control && items[this.at]) {
           closeOverlay(props().overlay);
           // The tab bar's close, which asks first while a program runs; a tab's last pane closes the tab.
           return run(`t3-tabs.close-pane:${items[this.at].p.pane}`);
@@ -111,10 +109,8 @@ export default class Picker extends View {
         .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
       // No heading: there is one kind of row, and the room goes to the list.
       .child(div().flex_none().mt(8).mb(8).px(8)
-        .when(items.length > 0, (el) => el.h(Math.min(items.length, SHOWN) * ROW).child(v_virtual_list("picker-rows", items.length, ROW, (i) => items[i]?.key ?? String(i),
-          (range) => items.slice(range.start, range.end).map((item, k) => this.row(item, range.start + k, ps)))
-          .track_scroll(this.scroll).size_full()
-          .on_item_click((id) => this.choose(this.items().find((item) => item.key === id)))))
+        .when(items.length > 0, (el) => el.child(scrollList(this, "picker-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length, SHOWN) * ROW,
+          draw: (i) => this.row(items[i], i, ps), wheeled: (keep) => { this.at = keep; } })))
         .when(items.length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching terminals."))))
       .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()

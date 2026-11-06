@@ -1,8 +1,9 @@
 // New: pick the space and open a terminal tab there, or start a new space, on a machine picked as T3 picks an environment.
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex, InputState, Input, v_virtual_list, VirtualListScrollHandle } from "gpui-base";
+import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared } from "herdr";
 import { projectMark } from "./project.js";
+import { step, scrollList } from "./list.js";
 
 function shortcut(name) {
   const k = keys().find(b => b.section === "global" && b.action === name);
@@ -27,7 +28,7 @@ function place(s, ps) {
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
 const ROW = 46;
-const SHOWN = 6; // rows before the list scrolls; a virtual list has no height of its own, and the popup hugs its content
+const SHOWN = 6; // rows before the list scrolls; the popup hugs its content
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
 
 export default class NewMenu extends View {
@@ -35,10 +36,9 @@ export default class NewMenu extends View {
     this.at = 0;
     this.filter = "";
     this.picking = Boolean(props()?.pick); // choosing the machine for a new space; the sidebar's New space opens here
-    this.scroll = VirtualListScrollHandle.new();
     const field = (placeholder) => {
       const input = InputState.new({ placeholder });
-      input.on("change", (_e, cx) => { this.filter = input.value(); this.at = 0; this.scroll.scroll_to_item(0); cx.notify(); });
+      input.on("change", (_e, cx) => { this.filter = input.value(); this.at = 0; cx.notify(); });
       input.on("submit", () => { this.choose(this.items()[this.at]); });
       return input;
     };
@@ -82,7 +82,6 @@ export default class NewMenu extends View {
     const input = on ? this.machineInput : this.spaceInput;
     input.set_value("");
     input.focus();
-    this.scroll.scroll_to_item(0);
     cx.notify();
   }
 
@@ -93,7 +92,6 @@ export default class NewMenu extends View {
     else this.choose(rows[0]);
   }
 
-  // A virtual list's rows can't hold handlers: clicks come by key to on_item_click, hover is style alone.
   row(item, i, ps) {
     const t = theme(), on = this.at === i, s = item.space, h = home();
     const short = (p) => (p && h && p.startsWith(h) ? "~" + p.slice(h.length) : p ?? "");
@@ -102,8 +100,9 @@ export default class NewMenu extends View {
     return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(s ? s.name : item.name)
       .when(on, el => el.bg(t.selected))
-      .when(!on && !item.off, el => el.hover(style => style.bg(t.foreground + "0a")))
       .when(Boolean(item.off), el => el.opacity(0.64))
+      .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
+      .on_click(() => this.choose(item))
       .child(h_flex().size(16).flex_none().items_center().justify_center()
         .child(s ? projectMark(s, 16, t, ps) : svg(`mods/t3-inbox/${item.machine ? "server" : "monitor"}.svg`).size(16).text_color(t.muted)))
       .child(v_flex().flex_1().min_w(0)
@@ -128,11 +127,9 @@ export default class NewMenu extends View {
     return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
-        if (e.key === "down" || e.key === "up") {
-          if (!items.length) return;
-          this.at = (this.at + (e.key === "down" ? 1 : items.length - 1)) % items.length;
-          this.scroll.scroll_to_item(this.at);
-        } else if (!this.picking && /^[1-9]$/.test(e.key) && e.modifiers.platform) { cx.stop_propagation(); return this.choose(items[Number(e.key) - 1]); }
+        const to = step(e, this.at, items.length);
+        if (to >= 0) this.at = to;
+        else if (!this.picking && /^[1-9]$/.test(e.key) && e.modifiers.platform) { cx.stop_propagation(); return this.choose(items[Number(e.key) - 1]); }
         else return;
         cx.stop_propagation();
         cx.notify();
@@ -142,10 +139,8 @@ export default class NewMenu extends View {
         .child(Input.new(this.picking ? this.machineInput : this.spaceInput).flex_1().h_full().text_size(13).text_color(t.foreground)))
       .child(div().mt(8).px(16).py(6).flex_none().text_size(12).font_medium().text_color(t.muted).child(this.picking ? "Machines" : "Spaces"))
       .child(div().flex_none().mb(8).px(8)
-        .when(items.length > 0, el => el.h(Math.min(items.length, SHOWN) * ROW).child(v_virtual_list("new-rows", items.length, ROW, (i) => items[i]?.key ?? String(i),
-          (range) => items.slice(range.start, range.end).map((item, k) => this.row(item, range.start + k, ps)))
-          .track_scroll(this.scroll).size_full()
-          .on_item_click((id) => this.choose(this.items().find(item => item.key === id)))))
+        .when(items.length > 0, el => el.child(scrollList(this, "new-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length, SHOWN) * ROW,
+          draw: (i) => this.row(items[i], i, ps), wheeled: (keep) => { this.at = keep; } })))
         .when(items.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child(this.picking ? "No matching machines." : "No matching spaces."))))
       .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()

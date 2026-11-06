@@ -11,9 +11,10 @@ function element() {
     return (...args) => {
       if (key === "when") { if (args[0]) args[1](proxy); }
       else if (key === "child") node.items.push(args[0]);
+      else if (key === "children") node.items.push(...args[0]);
       else if (key === "on_click") node.handlers.click = args[0];
+      else if (key === "on_hover") node.handlers.hover = args[0];
       else if (key === "on_key_down") node.handlers.key = args[0];
-      else if (key === "on_item_click") node.handlers.item = args[0];
       else if (key === "id") node.key = args[0];
       else if (key === "opacity") node.opacity = args[0];
       return proxy;
@@ -31,20 +32,21 @@ const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).joi
 
 let spaces, machines;
 let openProps = {};
-const calls = [], scrolled = [], state = {};
+const calls = [], state = {};
 const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
-  VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => scrolled.push(i) }) },
-  v_virtual_list: (id, n, size, key, render) => { const list = element(); list.key = id; list.count = n; list.keys = Array.from({ length: n }, (_, i) => key(i)); list.drawn = render({ start: 0, end: n }); return list; },
+  settings: () => ({ zoom: 1 }),
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
   shared: (k) => state[k], closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element,
 });
-const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
+const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const list = (m) => find(m.render(), "new-rows");
+const keysOf = (m) => list(m).items.map((n) => n.key);
+const click = (m, id) => find(list(m), id).handlers.click({}, cx);
 const press = (m, key, platform = false) => m.render().handlers.key({ key, modifiers: { platform } }, cx);
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
 
@@ -55,54 +57,61 @@ machines = [{ name: null, layout: "ready" }, { name: "kvm", layout: "ready" }, {
 // The current space leads, a machine's spaces stay together, ⌘n follows what's shown.
 spaces = [remote("r1"), local("a"), remote("r2", true), local("b")];
 let m = open();
-assert.deepEqual([...list(m).keys], ["space:r2", "space:r1", "space:a", "space:b"]);
+assert.deepEqual(keysOf(m), ["space:r2", "space:r1", "space:a", "space:b"]);
 press(m, "3", true);
 assert.deepEqual(take(), [["tab.new", { space: "a" }]]);
 
 // New work doesn't start in Home, shown or not.
 state["t3-home.space"] = "a";
-assert.deepEqual([...list(open()).keys], ["space:r2", "space:r1", "space:b"]);
+assert.deepEqual(keysOf(open()), ["space:r2", "space:r1", "space:b"]);
 delete state["t3-home.space"];
 
-// Up and down keep the highlighted row on screen, round the ends too.
-spaces = [local("a", true), remote("r1"), local("b")];
+// Up and down keep the highlighted row on screen, round the ends too; six rows show.
+spaces = Array.from({ length: 9 }, (_, i) => local("s" + i, i === 0));
 m = open();
 press(m, "up");
+assert.deepEqual([m.at, keysOf(m).at(-1)], [8, "space:s8"]);
 press(m, "down");
-press(m, "down");
-assert.deepEqual(scrolled.splice(0), [2, 0, 1]);
+assert.deepEqual([m.at, keysOf(m)[0]], [0, "space:s0"]);
+for (let i = 0; i < 6; i++) press(m, "down");
+assert.deepEqual([keysOf(m)[0], keysOf(m).at(-1)], ["space:s1", "space:s6"]);
+// The pointer lights a row.
+find(list(m), "space:s3").handlers.hover(true, cx);
+assert.equal(m.at, 3);
+spaces = [local("a", true), remote("r1"), local("b")];
+m = open();
 m.spaceInput.type("kvm");
-assert.deepEqual([...list(m).keys], ["space:r1"], "search finds a space by its machine");
-assert.equal(scrolled.pop(), 0);
+assert.deepEqual(keysOf(m), ["space:r1"], "search finds a space by its machine");
+assert.equal(m.at, 0);
 m.spaceInput.type("nothing");
 assert.equal(list(m), null);
 press(m, "down"); // no rows: nothing to reach, nothing thrown
-list(open()).handlers.item("space:r1", cx);
+click(open(), "space:r1");
 assert.deepEqual(take(), [["tab.new", { space: "r1" }]]);
 
 // New space asks which machine; one that's away can't be picked.
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
 assert.deepEqual(take(), []);
-assert.deepEqual([...list(m).keys], ["machine:", "machine:away", "machine:kvm"]);
-list(m).handlers.item("machine:away", cx);
+assert.deepEqual(keysOf(m), ["machine:", "machine:away", "machine:kvm"]);
+click(m, "machine:away");
 assert.deepEqual(take(), []);
-list(m).handlers.item("machine:kvm", cx);
+click(m, "machine:kvm");
 assert.deepEqual(take(), [["space.new", { machine: "kvm" }]]);
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
 find(m.render(), "new-back").handlers.click({}, cx);
-assert.deepEqual([...list(m).keys], ["space:a", "space:b", "space:r1"], "Back returns to the spaces");
+assert.deepEqual(keysOf(m), ["space:a", "space:b", "space:r1"], "Back returns to the spaces");
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
-list(m).handlers.item("machine:", cx);
+click(m, "machine:");
 assert.deepEqual(take(), [["space.new", { machine: "" }]], "This computer");
 
 // The sidebar's New space opens on the machines; ⌘N, which doesn't ask, isn't offered as the same thing.
 openProps = { pick: true };
 m = open();
-assert.deepEqual([...list(m).keys], ["machine:", "machine:away", "machine:kvm"]);
-list(m).handlers.item("machine:kvm", cx);
+assert.deepEqual(keysOf(m), ["machine:", "machine:away", "machine:kvm"]);
+click(m, "machine:kvm");
 assert.deepEqual(take(), [["space.new", { machine: "kvm" }]]);
 openProps = {};
 assert.ok(!text(open().render()).includes("⌘N"), "no ⌘N beside a button that asks");
@@ -111,7 +120,7 @@ assert.ok(!text(open().render()).includes("⌘N"), "no ⌘N beside a button that
 spaces = [local("a"), remote("r1", true)];
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
-assert.equal(list(m).keys[0], "machine:kvm");
+assert.equal(keysOf(m)[0], "machine:kvm");
 machines = [{ name: null, layout: "ready" }];
 spaces = [local("a", true)];
 m = open();

@@ -5,7 +5,7 @@ const vm = require("node:vm");
 
 // rows.js runs as is; main.js runs on inert elements, to reach every render path with a review in hand.
 const load = (file, env) => {
-  const src = fs.readFileSync(path.join(__dirname, file), "utf8")
+  const src = ((file === "main.js" ? fs.readFileSync(path.join(__dirname, "list.js"), "utf8") : "") + fs.readFileSync(path.join(__dirname, file), "utf8"))
     .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
   const context = vm.createContext(env);
   vm.runInContext(src, context, { filename: file });
@@ -385,19 +385,36 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.settingsPage, null, "Enter's pick comes back too");
   press("settings-model");
   // ↑ ↓ move through the listed models, wrapping; Enter picks the highlighted one; typing clears the highlight.
-  pane.key({ keystroke: "down" }, cx);
+  pane.key({ key: "down", keystroke: "down" }, cx);
   assert.equal(pane.modelIndex, 0);
-  pane.key({ keystroke: "up" }, cx);
+  pane.key({ key: "up", keystroke: "up" }, cx);
   assert.equal(pane.modelIndex, 0, "one model: up wraps onto it");
   field.events.submit({}, cx);
   assert.equal(puts.at(-1).llm.agentModel, "sonnet");
   assert.equal(pane.modelIndex, -1);
-  pane.key({ keystroke: "down" }, cx); field.set_value("x"); field.events.change({}, cx);
+  pane.key({ key: "down", keystroke: "down" }, cx); field.set_value("x"); field.events.change({}, cx);
   assert.equal(pane.modelIndex, -1);
   field.set_value("");
   const saved = puts.length;
   field.events.submit({}, cx);
   assert.equal(puts.length, saved, "an empty field saves nothing");
+  {
+    // Past the rows that show, ↑/↓ keep the highlight in view; Default, above the catalog, is out of their reach.
+    const list = pane.models().catalog, had = list.length;
+    list.push(...Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, name: `M${i}` })));
+    press("settings-model");
+    drawn.clear(); pane.render(cx);
+    assert.ok(drawn.has("model-default"));
+    pane.listHeight = { "model-list": 300 };
+    drawn.clear(); pane.render(cx);
+    assert.ok(!drawn.has("model-m20"), "only the rows in view are drawn");
+    for (let i = 0; i < 21; i++) pane.key({ key: "down", keystroke: "down" }, cx);
+    drawn.clear(); pane.render(cx);
+    assert.ok(drawn.has("model-m19") && !drawn.has("model-default"), "the highlight's row is");
+    pane.key({ keystroke: "escape" }, cx);
+    pane.modelIndex = -1; pane.listHeight = {}; pane.scrollTop = {};
+    list.splice(had);
+  }
   // Escape goes back a page, leaving the panel open.
   press("settings-model");
   pane.key({ keystroke: "escape" }, cx);

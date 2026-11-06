@@ -11,8 +11,9 @@ function element() {
     return (...args) => {
       if (key === "when") { if (args[0]) args[1](proxy); }
       else if (key === "child") node.items.push(args[0]);
+      else if (key === "children") node.items.push(...args[0]);
       else if (key === "on_key_down") node.handlers.key = args[0];
-      else if (key === "on_item_click") node.handlers.item = args[0];
+      else if (key === "on_click") node.handlers.click = args[0];
       else if (key === "id") node.key = args[0];
       else if (key === "opacity") node.opacity = args[0];
       return proxy;
@@ -45,8 +46,7 @@ const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
-  VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) },
-  v_virtual_list: (id, n, size, key, render) => { const list = element(); list.key = id; list.keys = Array.from({ length: n }, (_, i) => key(i)); list.drawn = render({ start: 0, end: n }); return list; },
+  settings: () => ({ zoom: 1 }),
   spaces: () => spaces, panes: () => panes, agents: () => [], terminals: () => [], layout: () => null, window: () => ({ platform: "macos" }),
   focused: () => ({ pane: panes.find((p) => p.focused && spaces.find((s) => s.active).tabs.some((c) => c.id === p.tab)).pane }),
   run: (name, args) => calls.push([name, args]), theme: () => ({}), props: () => ({ overlay: "o" }), closeOverlay() {},
@@ -54,10 +54,10 @@ const context = vm.createContext({
   namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
   ownStatus: (w) => w, subAgents: () => () => [], treeStatus: (own) => own,
 });
-const src = fs.readFileSync(path.join(__dirname, "main.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
+const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
-const keys = (m) => find(m.render(), "picker-rows")?.keys ?? [];
+const keys = (m) => find(m.render(), "picker-rows")?.items.map((n) => n.key) ?? [];
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
 const focus = (id) => panes.forEach((p) => { if (p.tab === "c1") p.focused = p.pane === id; });
 
@@ -90,8 +90,8 @@ assert.deepEqual(keys(m), []);
 m = open(); m.input.type("fix login");
 assert.deepEqual(keys(m), ["pane:p1", "pane:p2", "pane:p3"]);
 
-// A click goes by the row's key.
-m = open(); find(m.render(), "picker-rows").handlers.item("pane:p3");
+// A click goes to its row's pane.
+m = open(); find(m.render(), "pane:p3").handlers.click({}, cx);
 assert.deepEqual(take(), [["pane.focus", { pane: "p3" }]]);
 
 // ctrl+d closes the pane through the tab bar, which asks first.

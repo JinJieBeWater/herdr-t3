@@ -9,6 +9,7 @@ import { spaces, panes, focused, exec, watchFolder, window, openOverlay, closeOv
 import { launch } from "./open.js";
 import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { tip } from "./tip.js";
+import { step, scrollList } from "./list.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -253,15 +254,22 @@ export function reviewMenu(view) {
     })
     .on_mouse_move((e) => detailsAt(view, id, e))
     .role("button").accessibility_label(name).on_click(action).children(cells);
+  // Rows keep their handlers, as a virtual list's can't: a hovered commit opens its card. The wheel takes the highlight along, and a card moves off.
+  const list = (id, items) => scrollList(view, id, { count: items.length, row: 32, at: items.findIndex(x => x.id === lit), draw: (i) => items[i].el, wheeled: (keep, cx) => {
+    if (keep >= 0) view.at = picks.findIndex(p => p.id === items[keep].id);
+    view.hovered = null;
+    detailsFor(view, null, cx);
+  } }).flex_1().min_h(0);
   // What the review pane shows, as a menu marks its pick.
   const shown = () => svg("mods/pulls-review/check.svg").size(14).flex_none().text_color(t.muted);
   // A popup's height is only a maximum: this one sets its own, for the list to scroll inside and to hold still while searching.
   return v_flex().id("review-menu").w_full().h(height).p(5).bg(t.popover).text_size(13)
     .on_key_down((e, cx) => {
       if (e.key === "tab" && tabs) { setTab(view, tab === "commits" ? "branches" : "commits", cx); cx.stop_propagation(); return; }
-      if ((e.key !== "down" && e.key !== "up") || !picks.length) return;
+      const to = step(e, view.at, picks.length);
+      if (to < 0) return;
       view.hovered = null;
-      highlight((view.at + (e.key === "down" ? 1 : picks.length - 1)) % picks.length, cx);
+      highlight(to, cx);
       cx.stop_propagation();
     })
     .child(h_flex().h(32).mb(4).px(8).gap(8).flex_none().items_center()
@@ -273,7 +281,7 @@ export function reviewMenu(view) {
       .child(div().flex_1()).child(div().min_w(0).truncate().pr(5).text_size(11).text_color(t.dim).child(scope))))
     .when(!tabs, el => el.child(title(tab === "branches" ? `Branches vs ${base}` : within ? "Commits in this review" : branch === "(detached)" ? "Commits" : `Commits on ${branch}`)))
     .when(tab === "commits" && Boolean(within) && !searching, el => el.child(row("review-all", "Review all changes" + (within.sha ? "" : ", shown"), () => showWithin(within.base), [div().flex_1().child("All changes"), ...(within.sha ? [] : [shown()])])))
-    .when(tab === "branches", el => el.child(scrollList(view, "review-branches", branches.map(b => {
+    .when(tab === "branches", el => el.child(list("review-branches", branches.map(b => {
       const id = `review-branch-${b.name}`;
       return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
         svg("mods/pulls-review/git-branch.svg").size(13).flex_none().text_color(t.dim),
@@ -284,8 +292,8 @@ export function reviewMenu(view) {
           .when(b.count !== undefined, el => el.child(`${b.count} ahead`))
           .child(b.time ? ago(b.time, now) : ""),
         branchCard(view, t, id, b, base, now)]) };
-    }), picks, lit).flex_1().min_h(0)))
-    .when(tab === "commits", el => el.child(scrollList(view, "review-commit-list", commits.map(c => {
+    }))))
+    .when(tab === "commits", el => el.child(list("review-commit-list", commits.map(c => {
         const id = `review-commit-${c.sha}`, prefix = PREFIX.exec(c.subject)?.[0] ?? "", out = unpushed.includes(c.sha), on = c.sha === within?.sha;
         const r = row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : "") + (on ? ", shown" : ""), (_e, cx) => pickCommit(c, cx), [
           h_flex().flex_1().min_w(0).gap(4).when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
@@ -296,42 +304,8 @@ export function reviewMenu(view) {
             .when(on, el => el.child(shown())),
           commitCard(view, t, id, c, upstream, out, now)]);
         return { id, el: r };
-      }), picks, lit).flex_1().min_h(0)))
+      }))))
     .when(!picks.length, el => el.child(div().p(8).text_color(t.dim).child("No matches")));
-}
-
-// A list scrolled by script, as the shipped picker's: its rows keep their handlers, which a virtual list's can't (a hovered
-// commit opens its card), and ↑/↓ keep the highlight in view, which a scroll area can't be told to. Rows are 32px, only those
-// in view drawn, where the scroll puts them. `items`: [{ id, el }]; the caller sizes the list.
-function scrollList(view, id, items, picks, lit) {
-  const height = view.listHeight?.[id], total = items.length * 32, max = height === undefined ? 0 : Math.max(0, total - height);
-  let top = Math.max(0, Math.min(view.scrollTop?.[id] ?? 0, max));
-  const at = items.findIndex(x => x.id === lit);
-  if (at >= 0 && height !== undefined) top = Math.max(0, Math.min(top, at * 32, max), (at + 1) * 32 - height);
-  view.scrollTop = { ...view.scrollTop, [id]: top };
-  const shown = (i) => height === undefined || (i * 32 + 32 > top && i * 32 < top + height);
-  return div().id(id).relative().overflow_hidden()
-    .on_size_change((size, cx) => {
-      const h = size.height / (Number(settings()?.zoom) || 1);
-      if (h !== height) { view.listHeight = { ...view.listHeight, [id]: h }; cx.notify(); }
-    })
-    // From the scroll as it is now: a trackpad sends several events between two renders.
-    .on_scroll_wheel((e, cx) => {
-      const from = view.scrollTop[id], next = Math.max(0, Math.min(from - e.delta.y / (Number(settings()?.zoom) || 1), max));
-      if (next === from) return;
-      view.scrollTop = { ...view.scrollTop, [id]: next };
-      // The highlight goes along to the nearest row in view, so the next frame doesn't scroll back to it; a card moves off.
-      const now = items.findIndex(x => x.id === picks[view.at]?.id);
-      if (now >= 0) {
-        const keep = Math.min(Math.max(now, Math.ceil(next / 32)), Math.floor((next + height) / 32) - 1);
-        view.at = picks.findIndex(p => p.id === items[keep].id);
-      }
-      view.hovered = null;
-      detailsFor(view, null, cx);
-      cx.stop_propagation();
-      cx.notify();
-    })
-    .children(items.map((x, i) => (shown(i) ? x.el.absolute().left(0).right(0).top(i * 32 - top) : null)).filter(Boolean));
 }
 
 // As an Inbox row's details, but on the row's left: the menu hangs at the window's right. A 1px anchor just outside the

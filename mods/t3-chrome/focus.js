@@ -110,20 +110,3 @@ export function stop(view, t, id, el, radius = 6, { enter: act, handle } = {}) {
     }))
     .when(s.keyboard && h.is_focused(), (e) => e.relative().child(div().absolute().inset_0().rounded(radius).border(2).border_color(t.accent)));
 }
-
-// T3's Base UI menus: Home, End, and typing a row's first letters (750ms apart at most); the same letter again steps through
-// the rows it starts. The row to move to, or -1 for any other key.
-export function menuJump(view, e, labels, at) {
-  if (e.key === "home") return 0;
-  if (e.key === "end") return labels.length - 1;
-  if (!e.key_char?.trim() || e.modifiers?.control || e.modifiers?.platform || e.modifiers?.alt) return -1;
-  const now = Date.now();
-  view.typed = now - (view.typedAt ?? -Infinity) < 750 ? view.typed + e.key_char.toLowerCase() : e.key_char.toLowerCase();
-  view.typedAt = now;
-  const same = [...view.typed].every((c) => c === view.typed[0]), word = same ? view.typed[0] : view.typed;
-  for (let i = 0; i < labels.length; i++) {
-    const k = (Math.max(at + (same ? 1 : 0), 0) + i) % labels.length;
-    if (labels[k].toLowerCase().startsWith(word)) return k;
-  }
-  return -1;
-}

@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Every popup's list now moves the same way. ↑/↓ keep the highlight in view in the Inbox space filter, the Actions menu and the Review pane's model list, where it used to run off the bottom; hovering a row in New and Go to now lights it, and the wheel takes the highlight along, as the other menus do. ↑ with nothing lit in the sort menu now goes to the last row.
 - Home's default page is three buttons now: Next agent, Go to and New tab, with their keys. New tab replaces New space, which started a space in your home folder from there. Next agent dims when it has nowhere to go.
 - `cmd-]` and `cmd-[` work with the sidebar hidden, going by Herdr's order as Lists does. They're `t3-tabs.next` and `.prev` now: change them in your keys (see Update).
 - The Inbox space filter's menu opens from the filter button's left edge, as T3's does, and its search text lines up with the names below; it used to stick out past the button.

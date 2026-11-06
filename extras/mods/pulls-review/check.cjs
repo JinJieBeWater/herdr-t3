@@ -49,7 +49,7 @@ const env = {
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
   appHome: () => "/app", home: () => "/Users/me", readTextFile: async () => '{ "open": "herdr" }',
 };
-const source = ["details.js", "tip.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["details.js", "tip.js", "list.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
 const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };

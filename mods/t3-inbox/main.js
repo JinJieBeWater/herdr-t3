@@ -18,7 +18,8 @@ import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
+import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
+import { step, menuJump, scrollList } from "./list.js";
 
 const icon = programIcon;
 
@@ -33,6 +34,8 @@ const RETRY = 60000;
 const DAY = 86400000;
 // T3's slim rows and Show more (h-9) and its shelves' headers (h-8), logical px.
 const SLIM = 36, SHELF = 32;
+// The space filter's rows, 32px with a 2px gap, and how many show before the list scrolls: as many as its 360px holds.
+const SCOPE_ROW = 34, SCOPE_SHOWN = 9;
 // The last word when times tie, so the order doesn't follow the order the data came in.
 const byAddress = (x, y) => x.address.localeCompare(y.address);
 
@@ -204,7 +207,6 @@ function customView(view) {
     .on_mouse_down_out((_e, cx) => { if (!view.overUnit) { showUnits(false); cx.notify(); } })
     .on_key_down((e, cx) => {
       if (e.key === "enter" || e.key === "space") pickUnit(UNITS[view.unitAt][0]);
-      else if (e.key === "down" || e.key === "up") view.unitAt = (view.unitAt + (e.key === "down" ? 1 : UNITS.length - 1)) % UNITS.length;
       else {
         const to = menuJump(view, e, UNITS.map(([, name]) => name), view.unitAt);
         if (to < 0) return;
@@ -921,13 +923,9 @@ export default class Inbox extends View {
               cx.notify();
             })
             .on_key_down((e, cx) => {
-              const n = choices.length;
-              if (e.key === "down" || e.key === "up") this.napAt = e.key === "down" ? (this.napAt + 1) % n : (this.napAt <= 0 ? n : this.napAt) - 1;
-              else {
-                const to = menuJump(this, e, choices.map((p) => p.label), this.napAt);
-                if (to < 0) return;
-                this.napAt = to;
-              }
+              const to = menuJump(this, e, choices.map((p) => p.label), this.napAt);
+              if (to < 0) return;
+              this.napAt = to;
               cx.stop_propagation();
               cx.notify();
             })
@@ -1205,7 +1203,7 @@ export default class Inbox extends View {
       .role("button").accessibility_label(label).on_click(fn)
       .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim)))), more);
     // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
-    const scoped = sp.filter((s) => scope.includes(s.id));
+    const scoped = sp.filter((s) => scope.includes(s.id)), found = this.matches();
     const choice = (s, i) => {
       const on = s.id ? scope.includes(s.id) : scope.length === 0;
       // Selection is a check badge on the icon, as in T3.
@@ -1243,9 +1241,9 @@ export default class Inbox extends View {
       .content(v_flex().id("inbox-scope-panel").w(288).max_h(360).mt(4).p(6).gap(2).rounded(10)
         .bg(t.popover).border_1().border_color(t.border).text_size(13)
         .on_key_down((e, cx) => {
-          const n = this.matches().length;
-          if (n === 0 || (e.key !== "down" && e.key !== "up")) return;
-          this.scopeAt = (this.scopeAt + (e.key === "down" ? 1 : n - 1)) % n;
+          const to = step(e, this.scopeAt, this.matches().length);
+          if (to < 0) return;
+          this.scopeAt = to;
           cx.stop_propagation();
           cx.notify();
         })
@@ -1253,9 +1251,10 @@ export default class Inbox extends View {
           // 16, as the rows' icons, so the text below starts where this does.
           .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
           .child(Input.new(this.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
-        .child(v_flex().id("inbox-scope-list").min_h(0).pt(4).gap(2).overflow_y_scroll()
-          .children(this.matches().map(choice))
-          .when(this.matches().length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces.")))));
+        .child(div().pt(4).flex_none()
+          .when(found.length > 0, (el) => el.child(scrollList(this, "inbox-scope-list", { count: found.length, row: SCOPE_ROW, at: this.scopeAt, height: Math.min(found.length, SCOPE_SHOWN) * SCOPE_ROW,
+            draw: (i) => choice(found[i], i), wheeled: (keep) => { this.scopeAt = keep; } })))
+          .when(found.length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces.")))));
     // Right edge as the brand bar's above (pr 10), so the two rows of icons line up.
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
       // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.

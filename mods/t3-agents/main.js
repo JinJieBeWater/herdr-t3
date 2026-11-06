@@ -9,7 +9,8 @@ import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
+import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
+import { menuJump } from "./list.js";
 import { MOTION, foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 // T3's one-line row and shelf or folder header.
 const ROW = 36, HEAD = 32, HEAD_GAP = 8;
@@ -140,9 +141,7 @@ export default class Agents extends View {
       .text_size(13)
       .opacity(this.shown ? 1 : 0).transition("opacity", MOTION)
       .track_focus(this.keys).on_key_down((e, cx) => {
-        if (e.key === "down") this.at = (this.at + 1) % SORTS.length;
-        else if (e.key === "up") this.at = (this.at + SORTS.length - 1) % SORTS.length;
-        else if (e.key === "enter") { if (this.at >= 0) choose(SORTS[this.at]); }
+        if (e.key === "enter") { if (this.at >= 0) choose(SORTS[this.at]); }
         else if (e.key === "escape") closeOverlay(props().overlay);
         else {
           const to = menuJump(this, e, SORTS.map((s) => s.label), this.at);

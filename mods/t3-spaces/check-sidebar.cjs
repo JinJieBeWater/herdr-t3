@@ -69,7 +69,6 @@ function fixture(width) {
     Button: { new: id => element("button").id(id) },
     Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: (id, trigger) => element("popup").id(id).child(trigger) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
-    VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) }, v_virtual_list: (id, n, size, key, draw) => { const list = element("list").id(id); for (const row of draw({ start: 0, end: n }, cx)) list.child(row); return list; },
     svg: source => element("svg", source), image: source => element("image", source),
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes,
     machines: () => [{ name: null, layout: "ready" }, { name: "vps", layout: "ready" }], focused: () => shown,
@@ -92,8 +91,8 @@ function fixture(width) {
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js, project.js, tip.js, details.js, focus.js and motion.js, the shared naming, status, space-mark, hover-label, details, keyboard and motion rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "motion.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    // name.js, tree.js, project.js, tip.js, details.js, focus.js, list.js and motion.js, the shared naming, status, space-mark, hover-label, details, keyboard, list and motion rules, are inlined as the mod's own modules are.
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -1760,6 +1759,22 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "down" }, cx);
     assert.equal(inbox.scopeAt, 1);
     assert.equal(find(panel(), "scope-all").style.bg, undefined);
+    {
+      // Past the rows that show, ↑/↓ keep the highlight in view, round the ends too; the rows keep their clicks.
+      f.spaces().push(...Array.from({ length: 12 }, (_, i) => ({ id: `x${i}`, name: `extra ${i}`, active: false, folder: `/work/x${i}`, machine: null, tabs: [] })));
+      const rows = () => walk(find(panel(), "inbox-scope-list")).filter((n) => String(n.key).startsWith("scope-")).map((n) => n.key);
+      assert.equal(rows().length, 9, "nine show");
+      const down = () => fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "down" }, cx);
+      while (inbox.scopeAt < 9) down();
+      assert.ok(rows().includes(`scope-${inbox.matches()[9].id}`), "the highlight's row is drawn");
+      assert.equal(find(panel(), `scope-${inbox.matches()[9].id}`).style.bg, f.theme().selected);
+      fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "up" }, cx);
+      inbox.scopeAt = 0;
+      fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "up" }, cx);
+      assert.ok(rows().includes(`scope-${inbox.matches().at(-1).id}`), "up from the first shows the last");
+      f.spaces().splice(-12);
+      inbox.scopeAt = 0;
+    }
     // As T3's: hangs from the button's left edge, 288 wide.
     assert.deepEqual([find(inbox.render(cx), "inbox-scope-menu").style.anchor, find(panel(), "inbox-scope-panel").style.w], ["top_left", 288]);
     const spaces = f.load("t3-new-menu");

@@ -7,6 +7,7 @@ import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
 import { exec, focused, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
 import { request, review } from "./daemon.js";
+import { step, scrollList } from "./list.js";
 import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel, ROW } from "./rows.js";
 
 const PANE = "review";
@@ -45,6 +46,7 @@ const sunken = (t) => isLight(t.background) ? "#0000000a" : "#ffffff0f", raised 
 
 // Models the settings list before the search must narrow them.
 const LISTED = 200;
+const MODEL_ROW = 30; // a row and its 2px gap
 // As the app's LOCALES (core/locales.ts): the languages an analysis can write in, by their own names.
 const LOCALES = [["en", "English"], ["zh-CN", "简体中文"], ["zh-TW", "繁體中文"], ["ja", "日本語"], ["ko", "한국어"], ["es", "Español"], ["fr", "Français"],
   ["de", "Deutsch"], ["pt-BR", "Português (Brasil)"], ["ru", "Русский"], ["it", "Italiano"], ["id", "Bahasa Indonesia"]];
@@ -430,6 +432,8 @@ export default class ReviewPane extends View {
     const pickModel = (id) => (cx) => { done(cx); this.saveLlm({ agentModel: id }, cx); };
     const current = this.agents?.find(a => a.name === agent);
     const custom = model && !catalog.some(m => m.id === model), typed = this.modelInput.value().trim();
+    // The rows above the catalog, which ↑/↓ don't reach.
+    const lead = [() => choice("model-default", "Default", null, !model, pickModel("")), ...(custom ? [() => choice("model-custom", model, "Custom", true, done)] : [])];
     const rows = !page ? [
       label("View"),
       // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
@@ -487,14 +491,13 @@ export default class ReviewPane extends View {
         .child(svg(`${LU}/search.svg`).size(12).w(14).flex_none().text_color(t.dim))
         .child(div().flex_1().min_w(0).h(24).px(6).flex().items_center().rounded(6).border_1().border_color(t.border).cursor_text()
           .child(Input.new(this.modelInput).flex_1().h_full().text_size(12).text_color(t.foreground))),
-      page === "model" && list([
-        choice("model-default", "Default", null, !model, pickModel("")),
-        custom && choice("model-custom", model, "Custom", true, done),
-        // Pi lists hundreds: past LISTED the search finds the rest.
-        ...shown.map((m, i) => choice(`model-${m.id}`, m.name, null, m.id === model, pickModel(m.id), i === this.modelIndex)),
-        shown.length < matches.length && note(`${matches.length - LISTED} more: search to narrow`),
-        Boolean(typed) && !matches.length && note(`Enter to use “${typed}”`),
-      ].filter(Boolean)),
+      // Pi lists hundreds: past LISTED the search finds the rest.
+      page === "model" && scrollList(this, "model-list", { count: lead.length + shown.length, row: MODEL_ROW, at: this.modelIndex < 0 ? -1 : this.modelIndex + lead.length,
+        draw: (i) => i < lead.length ? lead[i]() : (m => choice(`model-${m.id}`, m.name, null, m.id === model, pickModel(m.id), i - lead.length === this.modelIndex))(shown[i - lead.length]),
+        wheeled: (keep) => { this.modelIndex = keep < lead.length ? -1 : keep - lead.length; } })
+        .h((lead.length + shown.length) * MODEL_ROW).min_h(0).flex_shrink_1(),
+      page === "model" && shown.length < matches.length && note(`${matches.length - LISTED} more: search to narrow`),
+      page === "model" && Boolean(typed) && !matches.length && note(`Enter to use “${typed}”`),
     ];
     // Clipped: whatever outgrows the height scrolls inside its list, or is cut, rather than drawn past the panel.
     return this.popover(t, "review-settings-panel").w(320).max_h(Math.max(160, Math.min(520, this.height - 16))).overflow_hidden().p(6).gap(2)
@@ -813,9 +816,8 @@ export default class ReviewPane extends View {
       // Escape goes back a page, then closes.
       if (e.keystroke === "escape" && this.settingsPage) { this.settingsPage = null; cx.notify(); }
       else if (e.keystroke === "escape") this.closePopup(cx);
-      else if ((e.keystroke === "down" || e.keystroke === "up") && count && this.settingsPage === "model") {
-        const step = e.keystroke === "down" ? 1 : -1;
-        this.modelIndex = this.modelIndex < 0 ? (step > 0 ? 0 : count - 1) : (this.modelIndex + step + count) % count;
+      else if (this.settingsPage === "model" && step(e, this.modelIndex, count) >= 0) {
+        this.modelIndex = step(e, this.modelIndex, count);
         cx.stop_propagation(); cx.notify();
       }
       return;

@@ -1,4 +1,4 @@
-// Loads focus.js in a fake kit: nothing's a stop or listens outside keyboard mode, the ring, the mode's end, Home/End and typeahead.
+// Loads focus.js in a fake kit: nothing's a stop or listens outside keyboard mode, the ring, the mode's end.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -25,10 +25,10 @@ let holding = null, now = 0;
 const FakeDate = { now: () => now };
 const src = fs.readFileSync(path.join(__dirname, "focus.js"), "utf8")
   .replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.focus = { stopsInit, stop, focusRoot, onStop, within, enter, menuJump };";
+  + "\nglobalThis.focus = { stopsInit, stop, focusRoot, onStop, within, enter };";
 const context = vm.createContext({ div: element, shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, Date: FakeDate });
 vm.runInContext(src, context);
-const { stopsInit, stop, focusRoot, onStop, within, enter, menuJump } = context.focus;
+const { stopsInit, stop, focusRoot, onStop, within, enter } = context.focus;
 
 function fakeCx() {
   const cx = { notified: 0, ticks: [], notify() { cx.notified++; }, stop_propagation() {} };
@@ -194,26 +194,4 @@ const a = view("entry"), b = view();
   holding = null;
 }
 
-// T3's Base UI menus: Home, End, and typing.
-{
-  const v = {}, rows = ["In 1 hour", "In 3 hours", "This evening", "Tomorrow", "Custom…"];
-  const type = (ch, at, more = {}) => menuJump(v, { key: ch, key_char: ch, modifiers: {}, ...more }, rows, at);
-  assert.equal(menuJump(v, { key: "home" }, rows, 3), 0);
-  assert.equal(menuJump(v, { key: "end" }, rows, 0), 4);
-  assert.equal(menuJump(v, { key: "down" }, rows, 0), -1, "no character, nothing to match");
-  assert.equal(menuJump(v, { key: "space", key_char: " " }, rows, 0), -1, "Space is the row's");
-  assert.equal(type("a", 0, { modifiers: { platform: true } }), -1, "a chord is the app's");
-  assert.equal(type("T", -1), 2, "any case, and with nothing lit from the top");
-  now += 100;
-  assert.equal(type("o", 2), 3, "letters in a row spell a word");
-  now += 1000;
-  assert.equal(type("i", 3), 0, "past 750ms it's a new word");
-  now += 100;
-  assert.equal(type("i", 0), 1, "the same letter steps through the rows it starts");
-  now += 100;
-  assert.equal(type("i", 1), 0, "and wraps");
-  now += 1000;
-  assert.equal(type("z", 1), -1);
-}
-
-console.log("ok: focus: stops only in keyboard mode, the ring, Tab across mods, the mode's end, menus' Home, End and typing.");
+console.log("ok: focus: stops only in keyboard mode, the ring, Tab across mods, the mode's end.");

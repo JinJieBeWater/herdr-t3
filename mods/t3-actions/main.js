@@ -4,7 +4,8 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
 import { tip } from "./tip.js";
-import { stopsInit, stop, focusRoot, onStop, menuJump } from "./focus.js";
+import { stopsInit, stop, focusRoot, onStop } from "./focus.js";
+import { menuJump, scrollList } from "./list.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
@@ -92,10 +93,8 @@ function menu(view) {
     .child(i).child(div().flex_1().min_w(0).truncate().child(label));
   return focusRoot(view, v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(13)
     .track_focus(view.keys).on_key_down((e, cx) => {
-      if (e.key === "down") view.at = (view.at + 1) % picks.length;
-      else if (e.key === "up") view.at = (view.at + picks.length - 1) % picks.length;
       // On a row's Edit, Enter is Edit's.
-      else if (e.key === "enter") { if (onStop(view)) return; done(); picks[view.at](); }
+      if (e.key === "enter") { if (onStop(view)) return; done(); picks[view.at](); }
       else if (e.key === "escape") done();
       else {
         const to = menuJump(view, e, labels, view.at);
@@ -105,12 +104,12 @@ function menu(view) {
       cx.stop_propagation();
       cx.notify();
     })
-    .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map((a, at) =>
-      row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
+    // Add action stays outside the list, always in view: with it lit, nothing here is.
+    .child(scrollList(view, "actions-list", { count: list.length, row: 28, at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
         .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })))))
+          .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })); } }).flex_1().min_h(0))
     .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
     .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).text_color(t.muted), "Add action")));
 }
