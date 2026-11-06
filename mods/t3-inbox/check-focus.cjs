@@ -52,18 +52,37 @@ const view = (kind) => { const v = {}, cx = fakeCx(); stopsInit(v, cx, kind); re
   assert.equal(within(v, ["a"]), false);
 }
 
-// A mode left in shared state by a quit doesn't outlive the restart: the copy sure to be there at the start clears it.
-// One starting later (Lists, first shown by a key in the mode) must not: that mode is someone's.
+// A crash's mode doesn't outlive the restart: the run's first copy clears it, of any kind. One starting later (Lists, first shown by
+// a key in the mode) must not: that mode is someone's.
 {
+  context.t3FocusRun = false;
   state["t3-focus"] = "old";
   view();
-  assert.equal(state["t3-focus"], "old");
-  view("modal");
-  assert.equal(state["t3-focus"], "old");
-  view("entry");
-  assert.equal(state["t3-focus"], "old", "a list starting up leaves the mode alone");
-  view("boot");
   assert.equal(state["t3-focus"], null);
+  state["t3-focus"] = "live";
+  view();
+  view("modal");
+  assert.equal(state["t3-focus"], "live");
+  state["t3-focus"] = null;
+}
+
+// A mode nothing's walking (its owner went without a close): a stop's press ends it, so next frame it isn't a stop and Herdr gives the
+// keyboard back. An owner's own press, or an overlay's, is the walk's business.
+{
+  const { v } = view();
+  state["t3-focus"] = "old";
+  const el = stop(v, t, "a", element());
+  assert.equal(el.style.tab_index, 0);
+  el.handlers["on_mouse_down:left"]({}, fakeCx());
+  assert.equal(state["t3-focus"], null);
+  assert.equal(stop(v, t, "a", element()).style.tab_index, undefined);
+  const owner = view();
+  enter(owner.v, owner.cx, "first");
+  stop(owner.v, t, "first", element()).handlers["on_mouse_down:left"]({}, owner.cx);
+  assert.equal(state["t3-focus"], owner.v.fs.me);
+  assert.equal(stop(view("modal").v, t, "save", element()).handlers["on_mouse_down:left"], undefined);
+  state["t3-focus"] = null;
+  holding = null;
 }
 
 // pane.go lands: the mode's on, the first stop has the keyboard, 2px and inset, in accent; only the stop it's on.

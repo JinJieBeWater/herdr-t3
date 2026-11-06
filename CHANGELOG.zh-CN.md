@@ -4,6 +4,8 @@
 
 ## 2026-11-06
 
+- 关闭标签不再消耗旁边 agent 未读的 done。程序结束、space 关闭或 Send back 时，Herdr 会短暂显示相邻标签，以前这会把它标成已读；现在离开后会恢复成未读，被清掉的 Woke snooze 也会回来。右键菜单的 Close（标签和窗格）改为和 × 一样先确认、先离开，用的是 Herdr 菜单的副本（`t3-menu`）。
+- 键盘模式不再卡住：以前关掉持有它的部分，或在单独停靠 Inbox 时在键盘模式中退出，之后点卡片和行会把键盘从终端抢走。Inbox 隐藏时菜单还开着，也不再让模式一直保持。
 - 再次点击打开弹窗的按钮，现在会关闭弹窗，不再关了又开：Actions ▾；Inbox 的 Search、New tab、New space；Spaces 的 New tab、New space；Home 的 Go to、New tab。
 - Review 面板的设置和折叠菜单可以用键盘操作，和其他弹窗一致。Model 页打开后可以直接打字，Enter 选中高亮的行；悬停会移动高亮；↑/↓ 能到 Default 和自定义模型。Language、Agent 页和折叠菜单支持 ↑/↓、Home、End、打字、Enter 和 Space。折叠菜单或分析状态开着时，`j`、`k`、`r`、`f`、`c`、`s` 不再作用到下层的 diff。
 - Custom snooze 的日历支持方向键。以前在日期或翻月按钮上按 Enter 只会关掉日历，现在和点击效果相同；日历打开时定位到已选日期。

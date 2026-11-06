@@ -9,7 +9,7 @@ import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { glow, hoverKept, tip, tipMark } from "./tip.js";
 import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, within, enter } from "./focus.js";
 import { menuJump } from "./list.js";
 import { MOTION, foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 // T3's one-line row and shelf or folder header.
@@ -38,6 +38,8 @@ function duration(ms) {
 }
 
 export default class Agents extends View {
+  async close() { stopsEnd(this); }
+
   init(_props, cx) {
     if (props()?.sortMenu) {
       // It takes the keyboard, as the shipped menu does. As T3's menus: nothing's lit until a key or the pointer arrives, and it fades in.
@@ -506,7 +508,7 @@ export default class Agents extends View {
         .active((s) => s.bg(t.selected))
         .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
         .on_click((_e, cx) => this.toggleFold(g.id, cx, false))
-        .on_mouse_down("right", () => openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
+        .on_mouse_down("right", () => openOverlay({ mod: "t3-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
     };
     // A closed group still shows the row you're on, as T3's route row, and hints at the rest.
     const entries = groups.flatMap((g, i) => {

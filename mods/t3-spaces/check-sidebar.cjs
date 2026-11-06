@@ -96,7 +96,7 @@ function fixture(width) {
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
-    const context = vm.createContext({ ...env, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
+    const context = vm.createContext({ ...env, t3FocusRun: true, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
     vm.runInContext(source, context, { filename: name });
     scopes.set(name, context);
     const mod = new context.Mod();
@@ -2125,15 +2125,6 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.ok(strings(spaces.render(cx)).includes("No matching spaces."));
   }
   {
-    // Only the tab strip's copy clears a mode a quit left: the bar's other parts and the lists start later, into a mode that may be live.
-    const f = fixture(256);
-    f.state["t3-focus"] = "old";
-    f.load("t3-tabs", { part: "end" }); f.load("t3-tabs", { part: "measure" }); f.load("t3-spaces"); f.load("t3-agents");
-    assert.equal(f.state["t3-focus"], "old");
-    f.load("t3-tabs");
-    assert.equal(f.state["t3-focus"], null);
-  }
-  {
     // The keyboard's way round (check-focus.cjs has its rules): no control is a stop until the mode's on; then each is, a row
     // shows with the keyboard on it what it shows hovered, and Enter does what the pointer does.
     const f = fixture(256), tabs = f.load("t3-tabs"), ag = f.load("t3-agents"), sp = f.load("t3-spaces"), footer = f.load("t3-chrome", { footer: true }), brand = f.load("t3-chrome");
@@ -2411,6 +2402,62 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken(), [], "once");
     inbox(false); pick("kid", "K"); view.render(cx); close("kid"); pick("prog"); view.render(cx);
     assert.deepEqual(taken(), [], "Lists keeps Herdr's neighbour");
+  }
+
+  // A close this mod can't go ahead of (the program ending, a menu's Close): Herdr showed its pick and marked it seen, so an agent
+  // that was unread a frame before gets its done back once it's out of view, Herdr's own Mark unread.
+  {
+    const f = fixture(256), program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs, ctx = cx;
+    const setup = () => {
+      tabs.splice(0, tabs.length, ...["prog", "mine", "next"].map(id => ({ id, name: id, named: true, active: false })));
+      const list = [["A", "mine", "idle"], ["N", "next", "done"]].map(([address, tab, status]) => ({ address, pane: `p-${tab}`, tab, space: "s0", space_name: "project 0", title: tab, status, program, state: "live", focused: false, turn: 1, labels: { "herdr.seen": "0" } }));
+      f.agents().splice(0, f.agents().length, ...list);
+      f.terminals().splice(0, f.terminals().length, ...list);
+      f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
+      f.labelled.splice(0); f.calls.splice(0);
+      return list;
+    };
+    const view = f.load("t3-tabs");
+    const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); f.agents().forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; view.render(ctx); };
+    // Herdr's pick: the tab goes, its right neighbour shows and, the window active, is seen.
+    const exit = (id, to) => { const n = f.agents().find(a => a.tab === to); tabs.splice(tabs.findIndex(c => c.id === id), 1); f.agents().splice(f.agents().findIndex(a => a.tab === id), 1); if (n) { n.status = "idle"; n.labels["herdr.seen"] = "1"; } pick(to, n?.address); };
+    const labels = () => f.labelled.map(a => a.join(" "));
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+
+    let [a, n] = setup();
+    pick("mine", "A"); exit("mine", "next");
+    assert.deepEqual(labels(), [], "nothing while it's still on screen");
+    pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0"], "out of view, its done is back");
+    pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0"], "once");
+
+    [a, n] = setup(); n.labels.snoozed = "1";
+    pick("mine", "A"); exit("mine", "next"); delete n.labels.snoozed; pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0", "label N snoozed=1"], "a woken snooze the showing cleared comes back too");
+
+    [a, n] = setup(); n.labels.snoozed = "1";
+    pick("mine", "A"); exit("mine", "next"); pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0"], "the snooze's clearing not back yet: it waits");
+    delete n.labels.snoozed; pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0", "label N snoozed=1"]);
+
+    [a, n] = setup();
+    pick("mine", "A"); exit("mine", "next"); n.labels["herdr.seen"] = "0"; pick("prog");
+    assert.deepEqual(labels(), [], "its seen not back from the core yet: the lower write would land first, so it waits");
+    n.labels["herdr.seen"] = "1"; pick("prog");
+    assert.deepEqual(labels(), ["label N herdr.seen=0"]);
+
+    [a, n] = setup();
+    pick("mine", "A"); exit("mine", "next");
+    pick("next", "N"); view.owed.get("N").until = 0; pick("next", "N"); pick("prog");
+    assert.deepEqual(labels(), [], "staying on it, it was seen after all");
+
+    [a, n] = setup(); f.slots["sidebar-lists"].active = "lists";
+    pick("mine", "A"); exit("mine", "next"); pick("prog");
+    assert.deepEqual(labels(), [], "Lists keeps Herdr's way");
+    f.slots["sidebar-lists"].active = "inbox";
   }
 
   // Closing a tab with no agent goes back where the person was, not to the neighbour Herdr picks, which isn't somewhere they went.

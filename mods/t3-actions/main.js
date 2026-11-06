@@ -4,7 +4,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, focused, panes, spaces, settings, nextCommand } from "herdr";
 import { tip, glow } from "./tip.js";
-import { stopsInit, stop, focusRoot, onStop, pressed, justClosed } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, onStop, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 
 const MOD = "t3-actions";
@@ -179,6 +179,8 @@ function editorView(view) {
 }
 
 export default class Actions extends View {
+  async close() { stopsEnd(this); }
+
   init(_props, cx) {
     const overlay = props()?.actions;
     if (overlay === "edit") initEditor(this, cx);

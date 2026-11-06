@@ -35,7 +35,7 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 - **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file. It is the `t3-actions` mod, installed with the layout and also published [on its own](https://github.com/JinJieBeWater/herdr-t3-actions) for other layouts.
 - **Other machines**: spaces group by machine once there is more than one, and Inbox cards from elsewhere carry a server mark that names the machine on hover. Add a machine from the server icon in the sidebar footer; a rebuilt one offers Connect, and New space asks which machine.
 - **Project icons**: a space shows its repo's favicon, found on its own machine, else a monogram in one of T3's colors.
-- **Closing asks first**: a tab's or pane's ×, `cmd-w` and `cmd-shift-w` confirm while a program is running in it, and close at once when none is.
+- **Closing asks first**: a tab's or pane's ×, `cmd-w`, `cmd-shift-w` and the right-click menus' Close confirm while a program is running in it, and close at once when none is.
 - **Review** (optional, [see Extras](#pullsreview)): a bar in the tab row counts what there is to review in the focused worktree, and a click opens that review in a pane beside the agent. Its pane header (and in Lists its tab) show the analysis with the layout's marks, and the Inbox gives a review in a tab of its own a card.
 
 ## Install

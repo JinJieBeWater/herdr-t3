@@ -7,6 +7,7 @@
   "type": "row",
   "preview": "layouts/herdr-t3.svg",
   "divider": { "width": 1, "color": "border" },
+  "terminal_menu": "t3-menu",
   "children": [
     {
       "id": "sidebar",

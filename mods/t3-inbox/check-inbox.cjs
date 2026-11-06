@@ -72,7 +72,7 @@ function fixture() {
   FakeDate.now = () => f.now;
   const cx = {
     notify() { f.notified = true; }, stop_propagation() {}, bind_keys(b) { f.bound = b; },
-    focus_handle: () => ({ focus() { f.keys = true; }, is_focused: () => false }),
+    focus_handle: () => { const h = { focus() { f.keys = true; f.held = h; }, is_focused: () => f.held === h }; return h; },
     spawn: (fn) => f.jobs.push(fn),
     timer: {
       every(ms, fn) {
@@ -92,7 +92,8 @@ function fixture() {
     Popover: { new: (id) => element().id(id) }, HoverCard: { new: (id) => element().id(id) }, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, Select: { new: (id) => element().id(id) }, Input: { new: element }, NumberInput: { new: element }, Button: { new: element },
     InputState: { new: (o = {}) => {
       let value = o.value ?? "";
-      return { on() {}, value: () => value, set_value(v) { value = v; }, focus() {}, set_min(m) { this.min = m; } };
+      const input = { heard: {}, on(e, fn) { input.heard[e] = fn; }, value: () => value, set_value(v) { value = v; }, focus() {}, set_min(m) { this.min = m; } };
+      return input;
     } },
     namer: () => (a) => a.mod ? f.state[`${a.mod}.titles`]?.[a.tab] || a.title : a.address, Date: FakeDate,
     programOf: (x) => x.mod ? f.state[`${x.mod}.program`] ?? null : x.program,
@@ -1085,6 +1086,19 @@ test("a snoozed agent shows while it needs the person; a failure ends the snooze
   a.status = "done"; f.terms[0].status = "error"; f.render(5000); f.flush();
   assert.deepEqual(f.labelled, ["label A snoozed="]);
   assert.deepEqual(f.active(), ["A"]);
+});
+
+test("an open menu holds keyboard mode only while the keyboard's in it", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  f.mod.napMenu = "A";
+  assert.equal(Boolean(f.mod.fs.hold()), false, "open, the keyboard elsewhere (the Inbox hid with it open): no hold");
+  f.mod.napKeys.focus();
+  assert.equal(Boolean(f.mod.fs.hold()), true, "the keyboard in the snooze menu holds it");
+  f.mod.napMenu = null; f.held = null; f.mod.scopeOpen = true;
+  f.mod.search.heard.focus({}, f.cx);
+  assert.equal(Boolean(f.mod.fs.hold()), true, "typing in the space filter holds it");
+  f.mod.search.heard.blur({}, f.cx);
+  assert.equal(Boolean(f.mod.fs.hold()), false, "the filter left open, the keyboard gone: no hold");
 });
 
 test("an open menu closes when its card comes to need the person", () => {

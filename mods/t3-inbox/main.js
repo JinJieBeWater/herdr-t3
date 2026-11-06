@@ -18,7 +18,7 @@ import { projectMark } from "./project.js";
 import { dragGone, glow, POINTER_WATCH, pointerMoved, tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
-import { stopsInit, stop, focusRoot, within, enter, onStop, pressed, justClosed } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, within, enter, onStop, pressed, justClosed } from "./focus.js";
 import { step, menuJump, scrollList } from "./list.js";
 
 const icon = programIcon;
@@ -291,11 +291,14 @@ function customView(view) {
 }
 
 export default class Inbox extends View {
+  async close() { stopsEnd(this); }
+
   init(_props, cx) {
     if (props()?.customSnooze) return initCustom(this, cx);
     stopsInit(this, cx);
     // A menu of its own holds the keyboard off every stop for as long as it's open, and gives it back to the one it opened from.
-    this.fs.hold = () => this.napMenu || this.scopeOpen;
+    // Only while the keyboard's really in it: one left open as the Inbox hid would hold the mode with the keyboard back in the terminal.
+    this.fs.hold = () => (this.napMenu && this.napKeys.is_focused()) || (this.scopeOpen && this.searching);
     // Each agent's last state, when we saw it set going or come back (ms; 0: before we were watching), the turns
     // it had ended then, and for one that just stopped, when its run started.
     this.changed = JSON.parse(localStorage.getItem("changes") ?? "{}");
@@ -323,6 +326,9 @@ export default class Inbox extends View {
     this.search = InputState.new({ placeholder: "Search spaces…" });
     this.search.on("change", (_e, cx) => { this.scopeAt = 0; cx.notify(); });
     this.search.on("submit", (_e, cx) => this.pick(this.matches()[this.scopeAt], false, cx));
+    // An input can't be asked whether it has the keyboard.
+    this.search.on("focus", () => { this.searching = true; });
+    this.search.on("blur", () => { this.searching = false; });
     // Takes the keyboard while a row is lifted, so Esc can put it back.
     this.keys = cx.focus_handle();
     // "Working 9s" counts up only while such a card shows.

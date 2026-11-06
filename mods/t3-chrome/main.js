@@ -2,7 +2,7 @@ import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { theme, run, props, updates, layout, shared, spaces } from "herdr";
 import { tip, glow } from "./tip.js";
-import { stopsInit, stop, focusRoot } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -16,6 +16,8 @@ function find(node, id) {
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
 const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
 export default class WorkspaceChrome extends View {
+  async close() { stopsEnd(this); }
+
   init(_props, cx) {
     stopsInit(this, cx);
   }

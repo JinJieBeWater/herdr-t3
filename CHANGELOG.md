@@ -4,6 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Closing a tab no longer costs the agent beside it its unread done. When a program ends, a space closes or Send back is used, Herdr shows the tab next door for a moment, and that used to mark it read; now it's unread again once you're past it, and a woken snooze it cleared comes back. The right-click menus' Close (a tab's, a pane's) asks first and leaves first, as × does, through a copy of Herdr's menu (`t3-menu`).
+- Keyboard mode no longer gets stuck: closing the part that held it, or quitting in it with Inbox docked alone, used to leave clicks on cards and rows taking the keyboard from the terminal. A menu left open as the Inbox hid no longer holds it either.
 - Clicking the button that opened a popup now closes it, instead of closing and opening it again: Actions ▾; Inbox's Search, New tab and New space; Spaces' New tab and New space; Home's Go to and New tab.
 - The Review pane's settings and fold menu work by keyboard, as the other popups do. The Model page opens ready to type and Enter picks the row lit; hovering moves the highlight; Default and a custom model are rows ↑/↓ reach. The Language and Agent pages and the fold menu take ↑/↓, Home, End, typing, Enter and Space. While the fold menu or the analysis status is up, `j`, `k`, `r`, `f`, `c` and `s` no longer act on the diff under it.
 - Custom snooze's calendar takes the arrow keys. Enter on a day or month button in it used to just close it; now it does what a click does, and the calendar opens on the date chosen.

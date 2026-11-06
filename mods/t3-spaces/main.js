@@ -9,7 +9,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
 import { projectMark, placeOf, tint } from "./project.js";
 import { dragGone, glow, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
-import { stopsInit, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 
 // Where a space is now. `ps`: panes(), read once by the caller (each read copies every pane).
 const where = (s, ps) => JSON.stringify([s.machine ?? null, placeOf(s, ps)]);
@@ -25,6 +25,8 @@ const find = (n, id) => n?.id === id ? n : (n?.children ?? []).map((c) => find(c
 const listInView = (root = layout()) => find(root, "sidebar-lists")?.active !== "inbox" && !find(root, "sidebar")?.hidden;
 
 export default class Spaces extends View {
+  async close() { stopsEnd(this); }
+
   init(_props, cx) {
     stopsInit(this, cx);
     // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
@@ -261,7 +263,7 @@ export default class Spaces extends View {
 
   menu(w) {
     // A popup is as tall as its items; height is only the most.
-    openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
+    openOverlay({ mod: "t3-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
   }
 
   orderingDue(now) {

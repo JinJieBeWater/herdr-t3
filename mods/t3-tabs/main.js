@@ -5,7 +5,7 @@ import { modStatus, namer, programOf } from "./name.js";
 import { descendants, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { tip, glow } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
-import { stopsInit, stop, focusRoot, within } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
 
 // Home: one place to land, a space of its own on this computer, known by its id so whatever someone arranges there is theirs.
 // The layout's lists leave it out and the keys that walk spaces go around it, so it takes no number. This mod answers for it
@@ -155,7 +155,8 @@ export default class Tabs extends View {
     this.strip = 0;
     this.nameW = {};
     this.trail = {};
-    if (props()?.part !== "measure") stopsInit(this, cx, props()?.part ? undefined : "boot");
+    this.owed = new Map();
+    if (props()?.part !== "measure") stopsInit(this, cx);
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
       for (;;) {
@@ -271,15 +272,44 @@ export default class Tabs extends View {
     this.wasHome = home;
     // For the closes this mod doesn't make, which leave() can't go ahead of: the tab's menu, the program ending. Herdr has
     // already picked the neighbour, and it may have been shown.
+    const terms = terminals(), every = agents();
     if (was && all.length && !alive(was.tab) && inboxShown() && !home) {
       // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
       if (was.agent) toHome();
       else if (space?.id === was.space) this.goBack(was.space, was.tab);
+      // Herdr marked what it showed as seen in the same step it picked it (window active), before any mod hears of it. An agent
+      // unread a frame ago that only the pick showed is owed its done back, the way Herdr's Mark unread writes it.
+      for (const a of every.filter(a => a.tab === tab?.id)) {
+        const before = this.unread?.get(a.address);
+        if (before) this.owed.set(a.address, { ...before, until: Date.now() + 3000 });
+      }
     }
+    this.payBack(tab, home, terms, every);
+    // What's unread now, for the next frame's close: its turn, and a snooze it woke from (seeing it clears that too).
+    this.unread = new Map(every.filter(a => a.status === "done").map(a => {
+      const k = terms.find(k => k.address === a.address);
+      return [a.address, { turn: k?.turn ?? 0, snoozed: k?.labels?.snoozed }];
+    }));
     if (this.going && (tab?.id === this.going.tab || Date.now() > this.going.until)) this.going = null;
     // Until a close's target shows, what shows is Herdr's pick, not somewhere the person went.
     if (space && tab && !home && !this.going) this.trail[space.id] = [tab.id, ...(this.trail[space.id] ?? []).filter(id => id !== tab.id && alive(id))];
     this.inView = tab && !home ? { tab: tab.id, space: space.id, agent: agents().some(a => a.tab === tab.id) } : null;
+  }
+
+  // Once what Herdr's pick showed is out of view, and its seen has come back from the core (or the lower write could land first),
+  // its turn is unread again. Still in view after a few seconds: the person stayed there, so it was seen after all.
+  payBack(tab, home, terms, every) {
+    for (const [addr, o] of this.owed) {
+      const k = terms.find(k => k.address === addr), a = every.find(a => a.address === addr);
+      if (!k || (k.turn ?? 0) !== o.turn || o.turn < 1) { this.owed.delete(addr); continue; }
+      // Done already (the window wasn't active, so nothing was marked): only a cleared snooze may be owed.
+      if (a?.status === "done") o.seen = true;
+      if (a?.tab === tab?.id && !home) { if (Date.now() > o.until) this.owed.delete(addr); continue; }
+      if (!o.seen && Number(k.labels?.["herdr.seen"]) >= o.turn) { o.seen = true; hc(["label", addr, `herdr.seen=${o.turn - 1}`]); }
+      // The Inbox clears a woken snooze when it's seen, and that write may come back after ours: wait for it.
+      if (o.snoozed && !k.labels?.snoozed) { hc(["label", addr, `snoozed=${o.snoozed}`]); o.snoozed = null; }
+      if ((o.seen && !o.snoozed) || Date.now() > o.until) this.owed.delete(addr);
+    }
   }
 
   // With the Inbox showing, cards lead to the agents, so the bar holds what's around the work in view: the agent, its
@@ -369,6 +399,7 @@ export default class Tabs extends View {
 
   // Another layout's bar shouldn't stay compact because this one was narrow when it went.
   async close() {
+    stopsEnd(this);
     if (props()?.part === "measure") setShared("bar.compact", false);
   }
 
@@ -470,7 +501,7 @@ export default class Tabs extends View {
           else if (shown.some(x => x.id === from)) run("tab.select", { id: from });
           cx.notify();
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "t3-menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
