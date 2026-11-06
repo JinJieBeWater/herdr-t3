@@ -4,7 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
-- The Inbox space filter's menu lines up with the row above it, from Search's left edge to the filter button's right edge, and its search text with the names below; it used to stick out past the button.
+- The Inbox space filter's menu opens from the filter button's left edge, as T3's does, and its search text lines up with the names below; it used to stick out past the button.
 - With Inbox showing, the tab bar no longer competes with the sidebar: it holds the agent in view, its sub-agents and the tabs with no agent (the last agent you looked at stays while you're in one of those), with no status marks. `cmd-1…9`, the next and previous tab keys and the wheel go by what's shown (add the new keys to yours: see Update), and closing the agent in view lands on Home. Closing a tab with no agent goes back to the tab you were on, not the one to its right, and an agent beside it keeps its unread done. Lists is unchanged.
 - Settling or snoozing the agent in view now lands on Home, one quiet place with only the keys for what's next, instead of pulling you to the next card. `cmd-]` opens the top card from there, and Undo brings the agent back. `cmd-shift-h` or the new house button goes there anytime. It takes no number among your spaces (add the new keys to yours: see Update), and you can split any mod or program into it.
 - The agents list no longer lights the first agent while a mod pane with no agent beside it has focus.

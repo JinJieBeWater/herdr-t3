@@ -286,7 +286,6 @@ export default class Inbox extends View {
     this.scope = JSON.parse(localStorage.getItem("scope") ?? "[]");
     this.scopeOpen = false;
     this.scopeAt = 0;
-    this.topW = 256;
     this.search = InputState.new({ placeholder: "Search spaces…" });
     this.search.on("change", (_e, cx) => { this.scopeAt = 0; cx.notify(); });
     this.search.on("submit", (_e, cx) => this.pick(this.matches()[this.scopeAt], false, cx));
@@ -1222,7 +1221,8 @@ export default class Inbox extends View {
             .child(svg("mods/t3-inbox/check.svg").size(7).text_color("#ffffff")))))
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(s.name));
     };
-    const filter = Popover.new("inbox-scope-menu").anchor("top_right").open(this.scopeOpen)
+    // As T3's: from the button's left edge, 288 wide, out over the work column.
+    const filter = Popover.new("inbox-scope-menu").anchor("top_left").open(this.scopeOpen)
       .on_open_change((open, cx) => {
         this.scopeOpen = open;
         if (open) {
@@ -1240,9 +1240,7 @@ export default class Inbox extends View {
           : scoped.length
             ? avatar(scoped[0].id, scoped[0].name, 16)
             : svg("mods/t3-inbox/list-filter.svg").size(14).text_color(lit("inbox-scope", t.dim)))))
-      // From Search's left edge to this button's right, as T3's menu takes its trigger's row: any wider and the window's
-      // edge shoves it off the button. 74: the row's padding (8, 10), the two buttons after this one and their gaps.
-      .content(v_flex().id("inbox-scope-panel").w(this.topW - 74).max_h(360).mt(4).p(6).gap(2).rounded(10)
+      .content(v_flex().id("inbox-scope-panel").w(288).max_h(360).mt(4).p(6).gap(2).rounded(10)
         .bg(t.popover).border_1().border_color(t.border).text_size(13)
         .on_key_down((e, cx) => {
           const n = this.matches().length;
@@ -1260,8 +1258,6 @@ export default class Inbox extends View {
           .when(this.matches().length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces.")))));
     // Right edge as the brand bar's above (pr 10), so the two rows of icons line up.
     const top = h_flex().id("inbox-top").h(32).pl(8).pr(10).gap(2).flex_none().items_center()
-      // on_size_change reports zoomed pixels.
-      .on_size_change((size, cx) => { this.topW = size.width / (Number(settings()?.zoom) || 1); cx.notify(); })
       // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
       .child(stop(this, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
         .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow("inbox-search"))

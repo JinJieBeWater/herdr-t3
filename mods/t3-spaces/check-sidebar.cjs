@@ -1743,9 +1743,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(panel(), "inbox-scope-panel"), "on_key_down", { key: "down" }, cx);
     assert.equal(inbox.scopeAt, 1);
     assert.equal(find(panel(), "scope-all").style.bg, undefined);
-    // The menu spans Search's left edge to the filter's right, whatever the sidebar's width: 8 + w + 2 = 316 - 66.
-    fire(find(inbox.render(cx), "inbox-top"), "on_size_change", { width: 316 }, cx);
-    assert.equal(find(panel(), "inbox-scope-panel").style.w, 242);
+    // As T3's: hangs from the button's left edge, 288 wide.
+    assert.deepEqual([find(inbox.render(cx), "inbox-scope-menu").style.anchor, find(panel(), "inbox-scope-panel").style.w], ["top_left", 288]);
     const spaces = f.load("t3-new-menu");
     spaces.filter = "no such space";
     assert.ok(strings(spaces.render(cx)).includes("No matching spaces."));
