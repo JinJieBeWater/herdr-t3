@@ -129,7 +129,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(space.style.bg, "#2c2c2f");
   assert.equal(agent.style.bg, "#2c2c2f");
   const child = find(at, "sub-child"), grandchild = find(at, "sub-grandchild");
-  assert.ok(child.style.pl > agent.style.pl, "child is indented from its parent");
+  assert.ok(child.style.pl > agent.style.px, "child is indented from its parent");
   assert.ok(grandchild.style.pl > child.style.pl, "each descendant level is indented");
   assert.ok(strings(child).includes("child task"), "sub-agent keeps its name");
   assert.equal(child.style.bg, f.theme().selected, "parent and peeked child share the selection color");
@@ -137,7 +137,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   for (const row of [find(st, "space-s1"), find(at, "ag-vps/t2"), grandchild]) assert.equal(row.hoverStyle.bg, f.theme().hover);
   assert.equal(child.style.pl, 30, "first child sits one 20px step in, its turn hung from the parent icon");
   assert.equal(grandchild.style.pl - child.style.pl, 20);
-  assert.equal(child.style.text_size, 13);
+  assert.equal(child.style.text_size, 14);
   for (const row of [agent, child, grandchild]) {
     assert.equal(inFlow(row)[0].style.size, 16, "icons share a fixed column");
     assert.equal(row.style.gap, 10);
@@ -153,7 +153,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(lines(find(branched, "sub-child2")), [[17.25, "elbow"]]);
   const elbow = find(child, "sub-child").items.find(n => "border_b" in n.style).style;
   assert.deepEqual([elbow.w, elbow.rounded_bl], [9.75, 6], "upstream-size turn: ends 4px before the icon, 6px radius");
-  assert.equal(elbow.left + 1.5 / 2, agent.style.pl + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
+  assert.equal(elbow.left + 1.5 / 2, agent.style.px + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
   assert.equal(elbow.left + elbow.w + 4, child.style.pl + (16 - 14) / 2, "the turn stops 4px before the child icon");
   f.terminals().pop();
   assert.equal(space.items[0].style.gap, 10);
@@ -172,14 +172,14 @@ for (const width of [208, 240, 256, 320, 480]) {
   const hoveredTree = ag.render(cx);
   assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/chevron-down.svg", "hover leaves the icon alone");
   assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 16);
-  assert.equal(find(hoveredTree, "pin-t0").style.size, 20, "pin is as wide as the time's slot");
+  assert.equal(find(hoveredTree, "pin-t0").style.size, 24, "T3's row control, over the time's slot");
   assert.equal(find(hoveredTree, "pin-t0").style.border, undefined, "pin is borderless like fold");
   fire(find(hoveredTree, "pin-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].style.text_color, f.theme().foreground, "hovered, the pin brightens");
   fire(find(hoveredTree, "pin-t0"), "on_hover", false, cx);
   assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "pin shares the time's slot, the status stays, as the shipped list");
   assert.deepEqual([find(hoveredTree, "pin-t0").style.opacity, find(hoveredTree, "when-t0").items[0].style.opacity], [1, 0], "time and pin cross-fade, as T3's corner");
-  assert.equal(find(at, "when-t0").style.min_w, 20, "the time's slot is the pin's width, so hovering moves nothing");
+  assert.equal(find(at, "when-t0").style.min_w, 32, "T3's corner: it holds the pin, so hovering moves nothing");
   fire(find(hoveredTree, "ag-t0"), "on_hover", false, cx);
   assert.equal(find(ag.render(cx), "when-t0").items[0].style.opacity, 1, "leaving restores the time");
   assert.equal(find(at, "agent-menu-t0"), null, "no extra context menu");
@@ -233,7 +233,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(st, "space-s2"), "on_mouse_down:right", {}, cx);
   assert.deepEqual(JSON.parse(JSON.stringify(f.overlays.pop().props.target)), { id: "s2" });
   fire(find(at, "ag-sort"), "on_click", {}, cx);
-  assert.equal(f.overlays.pop().mod, "t3-agents");
+  { const o = f.overlays.pop(); assert.equal(o.mod, "t3-agents"); assert.equal(o.at, undefined, "with no press, the app's default place"); }
+  fire(find(at, "ag-sort"), "on_mouse_down:left", { bounds: { x: 300, y: 500, width: 28, height: 28 } }, cx);
+  fire(find(at, "ag-sort"), "on_click", {}, cx);
+  { const z = f.settings().zoom || 1; assert.deepEqual(plain(f.overlays.pop().at), { x: 328 - 200 * z, y: 528 + 4 * z }, "the sort menu hangs from its button, right edges together"); }
   fire(find(at, "agent-fold-t0"), "on_click", {}, cx);
   assert.equal(find(ag.render(cx), "sub-grandchild"), null);
   fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
@@ -314,8 +317,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual(header.items.map(n => n.key), ["tip-home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Home, the sidebar switch and toggle; search is a shortcut");
-  assert.equal(header.style.pr + (26 - 14) / 2, 16, "the toggle's icon ends on the same line as the + and status column");
+  assert.deepEqual([...header.items[0].items.map(n => n.key), header.items[1].key], ["tip-home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Home, the sidebar switch and toggle; search is a shortcut");
+  assert.deepEqual([header.style.pr, header.style.gap, find(header, "home").style.size, find(header, "home").style.rounded, header.items[0].style.gap], [8, undefined, 28, 8, undefined], "T3's 28px buttons, side by side so they stand over the list's top row");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
   const footer = f.load("t3-chrome", { footer: true });
@@ -355,17 +358,16 @@ for (const width of [208, 240, 256, 320, 480]) {
     const slot = ag.status(f.theme(), { status });
     assert.equal(slot.style.size, 20, `${status} keeps the same status column`);
     const mark = slot.items[0];
-    assert.equal(mark.style.size + 2 * (mark.style.mx ?? 0), 14, `${status} mark is 14 wide, so centers line up`);
+    assert.equal(mark.style.size + 2 * (mark.style.mx ?? 0), 12, `${status} mark is 12 wide, as T3's one-line row, so centers line up`);
     assert.ok("justify_end" in slot.style && !("justify_center" in slot.style), "marks sit flush right in the slot");
     assert.equal(slot.handlers.on_click, undefined, "status remains an indicator, not a pin target");
   }
   const at = ag.render(cx), heading = find(at, "agents-heading");
-  // Header icon: 14 inside a 26 button, inset by pr. Status mark: flush right inside list px 8 + row px 8.
-  assert.equal(heading.style.pr + (26 - 14) / 2, 8 + find(at, "ag-t0").style.pr, "status column ends under the header icons");
+  assert.deepEqual([heading.style.pr, find(heading, "ag-sort").style.size, find(heading, "ag-sort").style.rounded], [8, 28, 8], "T3's header button, 8 from the edge");
   assert.equal(heading.items[0].style.text_color, f.theme().muted, "section titles are a step brighter than group labels");
-  // A space's group is T3's project folder: its mark and name, the chevron in the status column.
+  // A space's group is T3's project folder: its mark and name, the chevron where the rows' content ends.
   const group = find(at, "sp-s0"), chevron = inFlow(group).at(-1);
-  assert.deepEqual([group.style.pr + chevron.style.w / 2, group.style.rounded], [find(at, "ag-t0").style.pr + 14 / 2, 8]);
+  assert.deepEqual([group.style.px, group.style.rounded], [find(at, "ag-t0").style.px, 8]);
   assert.deepEqual(["down", "right"].map(w => find(chevron, `chevron-sp-s0-${w}`).style.opacity), [1, 0], "open, it points down, as T3's");
   assert.ok(strings(group).includes("project 0") && !strings(group).includes("1"), "open, it holds no count");
   fire(group, "on_hover", true, cx);
@@ -549,7 +551,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.calls.length, n, "the click only asks");
     assert.notEqual(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "the dialog covers it and the pointer may not move: it doesn't stay lit");
     const { mod, kind, props } = f.overlays.pop();
-    assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"]);
+    assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"], "published alone, the shipped dialog");
+    const homed = f.load("t3-inbox", { home: "t3-tabs.home" });
+    fire(find(homed.render(run), "settled-clear"), "on_click", {}, run);
+    const asked = f.overlays.pop();
+    assert.deepEqual([asked.mod, asked.frame, asked.width, asked.props.actions, asked.props.command.name], ["t3-actions", "none", 512, "confirm", "t3-inbox.clear"], "in the layout, T3's");
     f.panes().push({ pane: "p9", tab: "b2", terminal: "t9" });
     inbox.render(run); inbox.clearSettled();
     assert.deepEqual(f.calls.splice(n), [["pane.close", { pane: "p2" }], ["space.select", { id: "s0" }], ["tab.select", { id: "b0" }]], "another pane keeps the space");
@@ -675,11 +681,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(find(find(root(), "drag-ghost"), "ghost-card-vps/t2"), "the lifted card follows the pointer");
   assert.equal(find(root(), "drag-ghost").style.top, 110, "the pressed spot stays under the pointer");
   assert.equal(h("pinned"), 24); assert.equal(h("active"), 24, "the labels open while it's lifted");
-  assert.equal(h("hold-vps/t2"), 82, "it holds its place, spacing included");
+  assert.equal(h("hold-vps/t2"), 85, "it holds its place, spacing included");
   assert.equal(badge("pin"), null, "over its own section it says nothing");
   over("pinned");
   assert.equal(h("hold-vps/t2"), 0, "headed elsewhere, its place folds");
-  assert.equal(h("gap-head-pinned"), 82, "and empty Pinned opens a gap under its label");
+  assert.equal(h("gap-head-pinned"), 85, "and empty Pinned opens a gap under its label");
   assert.ok(badge("pin"), "the lifted card says Pin");
   release();
   assert.deepEqual(pins(), ["vps/t2"]);
@@ -689,10 +695,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(walk(find(root(), "card-vps/t2")).some(n => n.source === "mods/t3-inbox/pin.svg"), "a pin shows its glyph");
 
   lift("card-t0"); over("card-vps/t2", 10);
-  assert.equal(h("gap-vps/t2"), 82, "the upper half of a pin opens a gap above it");
+  assert.equal(h("gap-vps/t2"), 85, "the upper half of a pin opens a gap above it");
   over("card-vps/t2", 60);
   assert.equal(h("gap-vps/t2"), 0);
-  assert.equal(h("gap-end-pinned"), 82, "the lower half opens it below");
+  assert.equal(h("gap-end-pinned"), 85, "the lower half opens it below");
   assert.deepEqual(JSON.parse(JSON.stringify(find(root(), "gap-end-pinned").style.transition)), ["height", { duration: 150, easing: "ease-out" }], "gaps slide natively");
   release();
   assert.deepEqual(pins(), ["vps/t2", "t0"]);
@@ -707,7 +713,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(find(root(), "active-placeholder"), "empty Active shows a dashed drop target");
   over("active-placeholder");
   assert.equal(find(root(), "active-placeholder"), null);
-  assert.equal(h("gap-head-active"), 82, "targeted, it opens a gap instead");
+  assert.equal(h("gap-head-active"), 85, "targeted, it opens a gap instead");
   assert.ok(badge("unpin"));
   release();
   assert.deepEqual(pins(), ["vps/t2"], "onto Active unpins");
@@ -729,10 +735,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   lift("slim-t0");
   assert.ok(find(find(root(), "drag-ghost"), "ghost-slim-t0"), "a settled row lifts as its row");
   over("card-vps/t2", 10);
-  assert.equal(h("gap-vps/t2"), 80, "the gap is the destination's: a card");
+  assert.equal(h("gap-vps/t2"), 83, "the gap is the destination's: a card");
   assert.ok(badge("pin"), "a settled row can be pinned");
   over("active-rest");
-  assert.equal(h("gap-head-active"), 80, "the empty space above the shelves counts as Active");
+  assert.equal(h("gap-head-active"), 83, "the empty space above the shelves counts as Active");
   assert.ok(badge("unsettle"));
   release();
   assert.deepEqual(f.labelled.pop(), ["label", "t0", "settled="], "dropped on Active, it's unsettled");
@@ -828,14 +834,14 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(rows(root), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"]);
   assert.ok(!find(root, "space-rows").items.some(n => keyOf(n)?.startsWith("leaving-")), "nothing leaves: the lifted row is still there");
   root = sp.render(cx);
-  assert.deepEqual([rows(root)[2], fly(root, "space-s1").style.top], ["gap-32", 32], "then the rows make way, sliding");
+  assert.deepEqual([rows(root)[2], fly(root, "space-s1").style.top], ["gap-32", 33], "then the rows make way, sliding");
   release();
   f.calls.splice(0); sp.landing = null;
   press("space-s0"); move(10);
   root = sp.render(cx);
   assert.deepEqual(rows(root), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"], "lifted, its place holds a gap");
   const lifted = find(root, "space-lifted");
-  assert.equal(lifted.style.top, 42, "it rides the pointer");
+  assert.equal(lifted.style.top, 43, "it rides the pointer");
   assert.ok(strings(lifted).includes("project 0"));
   sp.hot = "space-new"; sp.overMachine = "machine-local";
   root = sp.render(cx);
@@ -846,20 +852,20 @@ for (const width of [208, 240, 256, 320, 480]) {
   move(24);
   root = sp.render(cx);
   assert.deepEqual(rows(root), ["machine-local", "space-s1", "gap-32", "machine-vps", "space-s2"], "the list opens where it would land");
-  assert.equal(fly(root, "space-s1").style.top, 32, "s1 slides up from where it was");
-  assert.equal(find(root, "space-lifted").style.top, 56);
+  assert.equal(fly(root, "space-s1").style.top, 33, "s1 slides up from where it was");
+  assert.equal(find(root, "space-lifted").style.top, 57);
   // Half a row onto vps's rows: no machine takes another's space, so it goes back where it was.
   move(60);
   assert.deepEqual(rows(sp.render(cx)), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"], "over another machine, the gap goes home");
   release();
   assert.deepEqual(moves(), [], "cross-machine drag remains rejected");
-  assert.equal(fly(sp.render(cx), "space-s0").style.top, 92 - 32, "and it slides back from where it was let go");
+  assert.equal(fly(sp.render(cx), "space-s0").style.top, 93 - 33, "and it slides back from where it was let go");
   press("space-s0"); move(10); sp.render(cx); move(24); sp.render(cx);
   release();
   assert.deepEqual(moves(), [["space.move", { id: "s0", index: 2 }]], "let go, it lands where the gap was");
   root = sp.render(cx);
   assert.deepEqual(rows(root), ["machine-local", "space-s1", "space-s0", "machine-vps", "space-s2"], "until the move's echo, the rows stay as they were let go");
-  assert.deepEqual([fly(root, "space-s0").style.top, fly(root, "space-s0").style.opacity], [56 - 64, 1], "it slides from where it was let go to its place");
+  assert.deepEqual([fly(root, "space-s0").style.top, fly(root, "space-s0").style.opacity], [57 - 66, 1], "it slides from where it was let go to its place");
   f.spaces().splice(1, 0, f.spaces().shift()); // The move's echo.
   assert.deepEqual(rows(sp.render(cx)), ["machine-local", "space-s1", "space-s0", "machine-vps", "space-s2"]);
   assert.equal(sp.landing, null, "once it's arrived the model's order is the list's");
@@ -923,7 +929,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   sp.born.s3 = Date.now() - 2000;
   tree = sp.render(cx);
   assert.deepEqual([fly(tree, "space-s3").style.opacity, fly(tree, "space-s3").style.top], [0, 0], "shown, it starts clear, riding s1 (still)");
-  assert.equal(fly(tree, "machine-vps").style.top, -32, "the rows below make room");
+  assert.equal(fly(tree, "machine-vps").style.top, -33, "the rows below make room");
   settle();
   tree = sp.render(cx);
   assert.deepEqual([fly(tree, "space-s3").style.opacity, fly(tree, "machine-vps").style.top], [1, 0], "then let go");
@@ -931,9 +937,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   list.splice(2, 1);
   tree = sp.render(cx);
   const gone = leaving(tree, "space-s3");
-  assert.deepEqual([gone.style.top, gone.style.opacity], [96, 1]);
+  assert.deepEqual([gone.style.top, gone.style.opacity], [99, 1]);
   assert.ok("relative" in find(tree, "space-rows").style && find(tree, "space-content").items[0] === find(tree, "space-rows"), "clones are placed in the rows' own box");
-  assert.equal(fly(tree, "machine-vps").style.top, 32, "the rows below close up");
+  assert.equal(fly(tree, "machine-vps").style.top, 33, "the rows below close up");
   settle();
   assert.equal(leaving(sp.render(cx), "space-s3").style.opacity, 0, "it fades out");
   // A machine folding: its rows go the same way, its header stays.
@@ -992,7 +998,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const ids = () => [...sp.ordered().map(r => r.w.id)];
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
     const arrow = find(sp.render(cx), "space-fold-s0");
-    assert.equal(8 + 8 + arrow.style.mr + arrow.style.min_w / 2, 23, "its center is the column of the heading's last button");
+    assert.equal(arrow.style.mr + arrow.style.px, 0, "past its padding, its chevron ends where the row's content does, as a folder's");
     // T3 turns its arrow; Herdr can't, so the two directions cross-fade in one slot, ids stable so the fade plays.
     const way = (tree, name) => find(tree, `space-fold-s0-${name}`);
     assert.deepEqual([way(arrow, "down").items[0].source, way(arrow, "down").style.opacity, way(arrow, "right").style.opacity, arrow.items.length], ["mods/t3-spaces/chevron-down.svg", 1, 0, 1], "a checkout shows its fold arrow at the end, as an agent parent");
@@ -1011,7 +1017,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.stores.get("t3-spaces").get("repos.folded"), JSON.stringify(["/r"]), "folding persists");
     const count = find(sp.render(cx), "space-fold-s0");
     assert.deepEqual([way(count, "down").style.opacity, way(count, "right").style.opacity], [0, 1], "folded, it points right");
-    assert.deepEqual([count.items[1], count.style.text_color], ["1", f.theme().dim], "folded, a dim count says how many");
+    assert.deepEqual([count.items[0], count.style.text_color], ["1", f.theme().dim], "folded, a dim count says how many");
     fire(count, "on_click", {}, cx);
     assert.deepEqual(ids(), ["s0", "s1", "s2"], "the count unfolds them");
     assert.equal(find(sp.render(cx), "space-fold-s0").items.length, 1);
@@ -1041,7 +1047,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Its arrow is a checkout's: dim until itself hovered, in the same column.
     const foldId = `${headId}-fold`;
     assert.equal(find(root, foldId).style.text_color, o.theme().dim, "the arrow is dim, as a checkout's");
-    assert.equal(find(root, foldId).style.mr, -3);
+    assert.equal(find(root, foldId).style.mr, -6);
     // Its arrow folds, and makes nothing.
     const before = o.calls.length;
     let halted = false;
@@ -1176,8 +1182,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(list.map(s => s.id), ["s0", "s2", "s1"]);
     // A checkout lifts with its worktrees and lands as a group, between groups.
     let tree = lift("space-s0", 40);
-    assert.deepEqual(order(tree), ["space-s1", "gap-64"], "the gap is the group's");
-    assert.equal(find(tree, "space-lifted").style.top, 32, "it stays inside the list");
+    assert.deepEqual(order(tree), ["space-s1", "gap-65"], "the gap is the group's");
+    assert.equal(find(tree, "space-lifted").style.top, 33, "it stays inside the list");
     assert.deepEqual(find(tree, "space-lifted").items.map(n => strings(n).find(x => x.startsWith("project"))), ["project 0", "project 2"], "its worktree rides with it");
     // A drag holds its space, not an index a move can shift under it.
     const up = find(view.render(cx), "space-list");
@@ -1268,8 +1274,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     const pick = (id) => strip.forEach(c => { c.active = c.id === id; });
     const room = (width) => fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width }, cx);
     const wheel = (x, y) => fire(view.render(cx), "on_scroll_wheel", { delta: { x, y } }, cx);
-    // A name's width, so its tab is `whole` wide: 47 around the name.
-    const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 47 }, cx);
+    // A name's width, so its tab is `whole` wide: 51 around the name.
+    const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 51 }, cx);
     assert.equal(w("a"), 144, "before its name is measured");
     assert.equal(find(view.render(cx), "name-a").style.h, 0, "the measure doesn't show");
     for (const id of "abcd") name(id, 300);
@@ -1284,7 +1290,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual([..."abcd"].map(w), [240, 100, 144, 144], "squeezed: the active tab stops at 240, the rest at 144, and the strip scrolls");
     pick("b");
     assert.deepEqual([..."abcd"].map(w), [144, 100, 144, 144], "a short active tab asks for no more");
-    name("b", 47 + 14);
+    name("b", 51 + 14);
     assert.equal(w("b"), 96, "a name as short as `Pi` still gets a tab 96px wide");
     for (const id of "abcd") name(id, 100);
     pick("a");
@@ -1371,7 +1377,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const all = () => [tabs.render(cx), f.load("t3-agents").render(cx), f.load("t3-spaces").render(cx), f.load("t3-chrome").render(cx), f.load("t3-pane", { pane: "p0" }).render(cx)].flatMap(walk);
     const look = n => { const { accessibility_label, ...s } = n.style; return JSON.stringify([s, strings(n)]); };
     const marks = all().filter(n => strings(n).join("") === "!" && n.style.size === 14);
-    assert.ok(marks.length >= 3, "tabs, the agents list and the pane header all show needs-you");
+    assert.ok(marks.length >= 2, "tabs and the pane header show needs-you (the agents list's is 12, as T3's one-line row)");
     assert.equal(new Set(marks.map(look)).size, 1, "needs-you is drawn the same everywhere");
     assert.ok(!all().some(n => Object.keys(n.style).some(k => k.includes("scrollbar"))), "lists scroll without a painted bar");
     assert.ok(!all().some(n => /\p{Script=Han}/u.test(strings(n).join("") + (n.style.accessibility_label ?? ""))), "UI text and labels are English");
@@ -1426,7 +1432,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const spinner = tree => walk(tree).find(n => n.source === "mods/workspace-chrome/spinner.svg");
   const open = f.load("t3-agents");
   for (const tree of [tabs.render(cx), head, open.render(cx)]) assert.equal(spinner(tree).style.text_color, f.theme().working);
-  for (const id of ["ph-r-p0", "ph-d-p0", "ph-z-p0", "ph-x-p0"]) assert.equal(find(head, id).style.size, 26);
+  for (const id of ["ph-r-p0", "ph-d-p0", "ph-z-p0", "ph-x-p0"]) assert.equal(find(head, id).style.size, 24);
   const actions = walk(head).find(n => n.items.some(child => child?.key === "tip-ph-r-p0"));
   assert.equal(actions.style.gap, 4);
   assert.ok("flex_none" in actions.style, "narrow panes keep the action targets at their full size");
@@ -1696,7 +1702,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       f.calls.length = f.overlays.length = 0;
       fire(find(view.render(cx), space), "on_click", {}, cx);
       assert.deepEqual(f.calls, [], `${space} asks first`);
-      assert.deepEqual(plain(f.overlays), [{ mod: "t3-new-menu", kind: "popup", at: "top", offset: 40, width: 576, height: 420, props: { pick: true } }], `${space} opens on the machines`);
+      assert.deepEqual(plain(f.overlays), [{ mod: "t3-new-menu", kind: "popup", frame: "none", at: "top", offset: 96, width: 576, height: 420, props: { pick: true } }], `${space} opens on the machines`);
       fire(find(view.render(cx), tab), "on_click", {}, cx);
       assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-new-menu" }]], `${tab} picks a space`);
       f.overlays.length = 0;
@@ -1723,16 +1729,16 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-picker" }]], "the keyboard's click has no press: it opens");
       delete f.state["t3-picker.closed"];
     }
-    // A machine's + and chevron stand under the heading's two buttons: centers 51 and 23 from the sidebar's edge. Its dot follows its name.
-    const lists = f.load("t3-spaces", menu), heading = find(lists.render(cx), "spaces-heading").style, row = find(lists.render(cx), "machine-local");
-    const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style, chevron = 8 + row.style.pr + add.w / 2, plus = 8 + row.style.pr + add.w + slots.gap + add.w / 2;
-    assert.deepEqual([chevron, plus], [heading.pr + 13, heading.pr + 26 + 2 + 13]);
+    // A machine's row is T3's shelf with its folder's +: 24, 2 before the chevron at the row's end. Its dot follows its name.
+    const lists = f.load("t3-spaces", menu), row = find(lists.render(cx), "machine-local");
+    const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style;
+    assert.deepEqual([row.style.h, row.style.mx, row.style.px, add.size, add.rounded, slots.gap], [32, 2, 8, 24, 8, 2]);
     assert.equal(row.style.text_size, 12, "the same size as the agents' group headers and Inbox's shelves");
     assert.ok(row.items.findIndex(n => find(n, "machine-state-local")) < row.items.findIndex(n => find(n, "machine-add-local")), "the dot is before the +");
     // Hover labels name the control, and its key only when the key does the same.
     lists.machines = [{ name: "spare", state: "asleep" }];
     const blank = find(lists.render(cx), "machine-new-spare");
-    assert.deepEqual([blank.style.pl, blank.items[0].style.size, blank.style.gap], [10, 16, 10], "New space here lays out as a space's row");
+    assert.deepEqual([blank.style.px, blank.items[0].style.size, blank.style.gap], [10, 16, 10], "New space here lays out as a space's row");
     lists.machines = [{ name: "vps", state: "connected" }];
     const label = (id) => { lists.hot = id; fire(find(lists.render(cx), `tip-over-${id}`), "on_hover", true, cx); while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); } return strings(find(lists.render(cx), `tip-${id}`).style.content); };
     assert.deepEqual(label("space-new"), ["New space"], "⌘N doesn't ask, as this does");
@@ -1853,7 +1859,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.spaces()[0].active = f.spaces()[0].tabs[0].active = true;
     f.spaces()[0].tabs.push({ id: "other", index: 2, name: "other", named: true });
     const tab = find(tabs.render(cx), "tab-other").style;
-    assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.pr, tab.gap], [24, 12, 6, 4, 2]);
+    assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.pr, tab.gap], [24, 12, 6, 8, 2]);
     const close = () => find(tabs.render(cx), "close-other");
     assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
@@ -1988,7 +1994,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.calls.length = 0;
     await say("close-tab");
     let asked = f.overlays.pop();
-    assert.deepEqual([asked.mod, asked.props.title], ["confirm", "Close 2 terminals?"], "as T3's: what ends, counted");
+    assert.deepEqual([asked.mod, asked.frame, asked.props.actions, asked.props.title], ["t3-actions", "none", "confirm", "Close 2 terminals?"], "as T3's: what ends, counted");
     assert.match(asked.props.detail, /^This stops their running processes and clears their histories: ".+", ".+"\.$/);
     assert.doesNotMatch(asked.props.detail, /space closes/);
     assert.deepEqual(plain(asked.props.command), { name: "t3-tabs.close-tab-now:a" });
@@ -2015,10 +2021,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.overlays.length, 0);
     f.spaces()[1].tabs[0].name = "x".repeat(41);
     await say("close-tab");
-    assert.equal(f.overlays.pop().props.title, `Close terminal "${"x".repeat(26)}…"?`, "a long name is cut to fit the title, which doesn't wrap");
-    f.spaces()[1].tabs[0].name = "feat(herdr-t3): 关闭标签与窗格二次确认";
-    await say("close-tab");
-    assert.equal(f.overlays.pop().props.title, 'Close terminal "feat(herdr-t3): 关闭标签与…"?', "a wide character counts twice");
+    assert.equal(f.overlays.pop().props.title, `Close terminal "${"x".repeat(41)}"?`, "a long name stays whole: the title wraps, as T3's");
     Object.assign(f.shown, { tab: "b", pane: "m" });
     await say("close-tab");
     assert.deepEqual(f.calls.pop(), ["tab.close", { id: "b" }], "a tab of mods has no terminal to lose");

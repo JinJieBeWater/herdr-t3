@@ -10,8 +10,8 @@ export default class Stage extends View {
       for (;;) {
         const [name, arg] = (await nextCommand()).split(":");
         const n = shared("t3-actions")?.list.length ?? 0;
-        if (name === "actions-menu") openOverlay({ mod: "t3-actions", kind: "popup", at: { x: Number(arg) - 8, y: 40 * (Number(settings().zoom) || 1) },
-          width: 280, height: Math.min(420, 61 + n * 32), props: { actions: "menu" } });
+        if (name === "actions-menu") openOverlay({ mod: "t3-actions", kind: "popup", at: { x: Number(arg) - 8, y: 36 * (Number(settings().zoom) || 1) },
+          width: 280, height: Math.min(420, 45 + n * 28), props: { actions: "menu" } });
         if (name === "actions-last") setShared("t3-actions", { ...shared("t3-actions"), last: arg });
       }
     });

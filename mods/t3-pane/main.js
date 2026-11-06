@@ -58,8 +58,8 @@ export default class Pane extends View {
   button(t, id, icon, label, action, key) {
     return tip(this, t, id, label, stop(this, t, id, div()
       .id(id)
-      .size(26).flex_none().flex().items_center().justify_center()
-      .rounded(6)
+      .size(24).flex_none().flex().items_center().justify_center()
+      .rounded(8)
       // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
       .text_color(this.hot === id ? t.foreground : t.dim)
       .role("button").accessibility_label(label)
@@ -71,7 +71,7 @@ export default class Pane extends View {
         action();
         cx.notify();
       })
-      .child(svg(icon).size(14))), { action: key });
+      .child(svg(icon).size(14)), 8), { action: key });
   }
 
   render(cx) {
@@ -86,8 +86,8 @@ export default class Pane extends View {
     const kids = subAgents(agents(), all)(p.terminal);
     const st = p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), kids);
     const pane = p.pane;
-    // A mark takes the last button's 26px, so it, the × and the tab bar's + share one column.
-    const slot = (mark) => div().w(26).flex_none().flex().items_center().justify_center().child(mark);
+    // A mark takes the last button's 24px, so it, the × and the tab bar's + share one column: this header's pr(2), the frame's 2 and the block's 8 are the bar's 12.
+    const slot = (mark) => div().w(24).flex_none().flex().items_center().justify_center().child(mark);
     // The buttons show with the keyboard on the header or one of them, as they do hovered: the header's the stop that gets there.
     const head = `pane-head-${pane}`, tools = ["r", "d", "z", "x"].map((k) => `ph-${k}-${pane}`);
     // The rounded frame paints the background; rectangular child fills would cover its corners.
@@ -96,19 +96,20 @@ export default class Pane extends View {
       .size_full()
       // 4 + the frame's 2 is a tab's 6: with its 16px slot and 2 to the name, the icon and first word stand under the first tab's.
       .pl(4)
-      .gap(8)
+      .pr(2)
+      .gap(12)
       .items_center()
-      .text_size(13)
+      .text_size(14)
       .on_hover((on, cx) => this.headHover(on, cx))
       .on_mouse_move((e) => { pointerMoved(e.position); this.box = e.bounds; })
       .on_click(() => run("pane.focus", { pane }))
-      .child(div().size(16).mr(-6).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
+      .child(div().size(16).mr(-10).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
-      .child(div().min_w(0).truncate().text_size(13).font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
+      .child(div().min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
       .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
-        .child(div().flex_1().min_w(0).truncate().pr(8).text_color(t.dim).child(folder(p.cwd)))
+        .child(div().flex_1().min_w(0).truncate().pr(12).text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
-        .when(this.hovered || within(this, [head, ...tools]), el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(8).flex_none().gap(4).items_center().bg(t.background)
+        .when(this.hovered || within(this, [head, ...tools]), el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(12).flex_none().gap(4).items_center().bg(t.background)
           .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/square-split-horizontal.svg", "Split right", () => run("pane.split", { direction: "right", pane }), "pane.split:right"))
           .child(this.button(t, `ph-d-${pane}`, "mods/t3-pane/square-split-vertical.svg", "Split down", () => run("pane.split", { direction: "down", pane }), "pane.split:down"))
           .child(this.button(t, `ph-z-${pane}`, `mods/t3-pane/${p.zoomed ? "minimize-2" : "maximize-2"}.svg`, p.zoomed ? "Unzoom pane" : "Zoom pane", () => run("pane.zoom", { pane }), "pane.zoom"))
@@ -116,6 +117,6 @@ export default class Pane extends View {
       .when(st === "working", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))))
-      .when(st === "done" && !notNews(all.find(k => k.address === p.terminal), p.status, kids), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(7).flex_none().rounded_full().bg(t.done))))), 8));
+      .when(st === "done" && !notNews(all.find(k => k.address === p.terminal), p.status, kids), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(6).flex_none().rounded_full().bg(t.done))))), 8));
   }
 }

@@ -141,8 +141,7 @@ const icons = [
   ...vm.runInContext("FILE_ICONS", mainScope).map(([, name]) => `cat/${name}`),
   ...Object.values(vm.runInContext("FOLDER_ICONS", mainScope)).map(name => `cat/${name}`),
   "cat/file", "cat/folder", "lucide/chevron-up", "lucide/chevron-down", "lucide/chevron-right",
-  // The fold menu's, named in its rows.
-  "lucide/unfold-vertical", "lucide/fold-vertical", "lucide/square-check",
+  ...vm.runInContext("FOLDS", mainScope).map(({ icon }) => `lucide/${icon}`),
 ];
 for (const icon of icons) assert.ok(fs.existsSync(path.join(__dirname, `${icon}.svg`)), `icon on disk: ${icon}`);
 // File and folder icons by @antfu/design's rules, first match winning as there; a folder chain by its last name.
@@ -446,6 +445,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     drawn.clear(); pane.render(cx);
     assert.ok(drawn.has("model-default"));
     pane.listHeight = { "model-list": 300 };
+    assert.ok(Number.isFinite(pane.trailing()), "a settings list measuring itself leaves the diff list's height alone");
     drawn.clear(); pane.render(cx);
     assert.ok(!drawn.has("model-m20"), "only the rows in view are drawn");
     for (let i = 0; i < 21; i++) pane.key({ key: "down", keystroke: "down" }, cx);
@@ -706,7 +706,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.popup, null);
   // Back to the whole diff from its row; the frame fits a narrow pane.
   pane.popupClosedAt = 0; pane.width = 300; press("commit-pick");
-  assert.equal(styles["review-commit-menu"].w, 276);
+  assert.equal(styles["review-commit-menu"].w, 268);
   pane.width = 1200;
   press("commit-all"); await settled(); draw();
   assert.deepEqual([pane.page, texts.get("commit-place"), pane.popup], [base, "All changes", null]);
@@ -791,7 +791,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   const items = pane.itemList, last = items.filter(item => item.kind === "file").at(-1), at = items.indexOf(last), path = last.file.path;
   const scrolls = () => plain(calls.filter(([name]) => name === "scroll"));
   assert.ok(at >= 2);
-  pane.listHeight = items[at].size + items[at + 1].size; pane.visible = { start: 0, end: 2 }; calls.length = 0; timers.length = 0;
+  pane.diffHeight = items[at].size + items[at + 1].size; pane.visible = { start: 0, end: 2 }; calls.length = 0; timers.length = 0;
   pane.select(path, cx);
   assert.deepEqual(scrolls(), [["scroll", at + 2]]);
   tick();
@@ -817,9 +817,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   }
   // A blank after the list lets the last header reach the top: a view's height less what follows that header.
   const after = items.slice(at).reduce((n, item) => n + item.size, 0);
-  pane.listHeight = after + 100;
+  pane.diffHeight = after + 100;
   assert.equal(pane.trailing(), 100);
-  pane.listHeight = after - 1;
+  pane.diffHeight = after - 1;
   assert.equal(pane.trailing(), 0);
   // A folder in the aside's tree doesn't fold, as the app's: its box marks its files.
   pane.width = 1200; setPref("fileList", "tree");

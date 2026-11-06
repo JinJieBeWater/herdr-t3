@@ -4,6 +4,13 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Radii, spacing, sizes and type across the layout now follow T3 Code, one value per use: [the values](docs/t3-tokens.md).
+  - **Popups**: menus are 28px rows with radius 4 and 14px text. New, Go to, the Actions editor, Custom snooze and close confirmations are drawn as T3's dialogs and command palette, radius 16, with its footer, keycaps and × button.
+  - **Sidebar**: buttons are T3's 28px; cards, rows and shelves take its gaps; Inbox's top row is 48px and Spaces' heading lines up with it; the footer is 44px.
+  - **Work area**: `+` and pane buttons are 24px at radius 8; Home's keycaps are T3's; the tab bar's controls group as T3's.
+  - **Review**: the bar's controls, the pane's toolbar, its commit list, settings and file tree take the same values. Opening a settings page no longer breaks the pane, and Collapse test files has its icon.
+  - **Menus hang as T3's**: Snooze lines up with the clock's right edge when it fits, else flips to its left edge and out past the sidebar; the sort menu opens under its button with right edges together. Close confirmations and Delete are red, and field labels take the text color.
+  - **Updating**: copy `mods/t3-*` and `layouts/herdr-t3.*`, and with Review the extras, deleting what's gone (`rsync -a --delete`). Standalone `t3-actions` also holds the close confirmation now.
 - The Inbox space filter's menu now measures as T3's and the layout's other popups: radius 8 and inset 4, a shadow, flush 32px rows that used to sit 34 apart, and a shorter search field. Its search text starts 20px from the icon, as T3's, so 4px before the names, and stays inside the button's left edge.
 - Switching to a pane hidden behind a zoom now shows it: the zoom moves to that pane and the panes beside it stay hidden. It used to light the card while the screen stayed on the zoomed pane and the keyboard went dead, and the zoomed agent lost its unread done. A toast or an outside `agent.focus` still corrects a frame late, and the done comes back.
 - Lists and Inbox now keep one set of rules, and differ only in how they organize: by project, or by attention. [The model](docs/layout-model.md).

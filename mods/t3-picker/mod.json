@@ -3,8 +3,9 @@
   "title": "Go to",
   "overlay": {
     "kind": "popup",
+    "frame": "none",
     "at": "top",
-    "offset": 40,
+    "offset": 96,
     "width": 576,
     "height": 420
   },

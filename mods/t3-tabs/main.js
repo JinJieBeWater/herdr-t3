@@ -83,7 +83,7 @@ function awake(st, under) {
 const blockedMark = (t) => div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
 const mark = (t, s) => s === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
   : s === "blocked" ? blockedMark(t)
-  : div().size(7).flex_none().rounded_full().bg(t.done);
+  : div().size(6).flex_none().rounded_full().bg(t.done);
 
 const WORDS = { working: "Working", blocked: "Needs you", done: "Done" };
 const TAB_GAP = 4;
@@ -91,7 +91,7 @@ const TAB_GAP = 4;
 // Unlike T3's, a tab is 96px at least: a short name (`Pi`) left one too small to aim at.
 const TAB_FLOOR = 144, TAB_ACTIVE = 240, TAB_MIN = 96;
 // A tab around its name: padding, the icon's slot, the gaps and the slot its status mark and × share.
-const TAB_CHROME = 47;
+const TAB_CHROME = 51;
 
 // The widest a tab may be for `wants` to fill `room`: the shorter keep all they want, the longest share what's left.
 function fairCap(wants, room) {
@@ -127,18 +127,6 @@ async function atPrompt(terminal) {
     const k = JSON.parse((await hc(["get", terminal, "--json"])).stdout);
     return k.foreground?.pid === k.pid && SHELL.test(k.foreground.name);
   } catch { return false; }
-}
-
-// The confirm dialog's title doesn't wrap: a long name is cut to what fits, a wide (CJK) character counting twice.
-// shortcut: counts characters rather than measuring them, upgrade if a name of wide Latin letters still clips.
-function fit(name, room = 26) {
-  let used = 0, out = "";
-  for (const ch of name) {
-    used += ch.codePointAt(0) > 0x2e7f ? 2 : 1;
-    if (used > room) return out.trimEnd() + "…";
-    out += ch;
-  }
-  return out;
 }
 
 export default class Tabs extends View {
@@ -191,9 +179,10 @@ export default class Tabs extends View {
     cx.notify();
     if (this.asking) closeOverlay(this.asking);
     const [title, detail] = names.length === 1
-      ? [`Close terminal "${fit(names[0])}"?`, "This stops the running process and clears its history."]
+      ? [`Close terminal "${names[0]}"?`, "This stops the running process and clears its history."]
       : [`Close ${names.length} terminals?`, `This stops their running processes and clears their histories: ${names.map(n => `"${n}"`).join(", ")}.`];
-    this.asking = openOverlay({ mod: "confirm", kind: "dialog", width: 400, height: 170, props: { title, detail: detail + more, command: { name: command } } });
+    // t3-actions draws T3's alert dialog: the shipped confirm mod's measures are its own.
+    this.asking = openOverlay({ mod: "t3-actions", kind: "dialog", frame: "none", width: 512, props: { actions: "confirm", title, detail: detail + more, command: { name: command } } });
   }
 
   // Ending a program asks first; empty panes have none to lose, and Herdr still asks if it's the space's last tab.
@@ -464,13 +453,13 @@ export default class Tabs extends View {
     const counts = ["blocked", "working", "done"].map(s => [s, live.filter(a => st(a) === s).length]).filter(([, n]) => n > 0);
     const words = { blocked: "needing you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
-    return tip(this, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
+    return tip(this, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(28).px(6).mr(8).gap(8).flex_none().items_center().rounded(8)
       .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stopPress).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-      .child(svg("mods/t3-tabs/panel-left.svg").size(14).flex_none())
-      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n)))))), { action: "layout.toggle:sidebar", below: true });
+      .child(svg("mods/t3-tabs/panel-left.svg").size(16).flex_none())
+      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), 8), { action: "layout.toggle:sidebar", below: true });
   }
 
   // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
@@ -495,17 +484,18 @@ export default class Tabs extends View {
       .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme(), w = window();
     const stopPress = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    // 24 as T3's tab bar +; the window's own buttons 28, as its titlebar controls.
+    const button = (id, glyph, label, action, key, size = 24) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
-      .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
+      .on_mouse_down("left", stopPress).on_click(action).child(glyph), 8), { action: key, below: true });
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
-      .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
+      .child(h_flex().id("tabs-end").flex_none().pr(12).gap(4).items_center().on_size_change((size) => this.fit(size))
         .when(!atHome(), el => el.child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "t3-tabs.new")))
-        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
-          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(13), "Close window", () => run("window.close"))))));
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
+          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
+          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/win-close.svg").size(16) : svg("mods/t3-tabs/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));
     const space = spaces().find(p => p.active);
     // At Home, none: its place is told by the brand bar's button and its pane's header.
     if (!props()?.part) this.track();
@@ -552,7 +542,7 @@ export default class Tabs extends View {
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
           .opacity(cardShown ? 1 : 0).top(cardShown ? 0 : -4).transition("opacity", cardFade).transition("top", cardFade)
           .child(status ? `${name} · ${WORDS[status]}` : name)));
-      const tab = h_flex().id(tabId).relative().h(24).w(widths.get(c.id)).pl(6).pr(4).gap(2).rounded(6).items_center().flex_none().text_size(12)
+      const tab = h_flex().id(tabId).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
@@ -586,7 +576,7 @@ export default class Tabs extends View {
           else if (shown.some(x => x.id === from)) run("tab.select", { id: from });
           cx.notify();
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "t3-menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))

@@ -39,15 +39,16 @@ export default class Home extends View {
     const t = theme();
     const row = (a) => {
       const id = `home-${a.id}`, off = a.ready && !a.ready(), key = keyOf(a.action);
-      const el = h_flex().id(id).h(32).px(10).flex_none().rounded(6).items_center().justify_between().text_color(t.muted)
+      const el = h_flex().id(id).h(32).px(10).gap(10).flex_none().rounded(8).items_center().justify_between().text_color(t.muted)
         .child(a.word)
-        .when(Boolean(key), (r) => r.child(h_flex().flex_none().gap(4).children(caps(key).map((cap) => div().min_w(20).h(20).px(5).flex().items_center().justify_center()
-          .rounded(4).border(1).border_color(t.border).bg(t.foreground + "0a").text_size(11).text_color(t.foreground + "bf").child(cap)))));
+        .when(Boolean(key), (r) => r.child(h_flex().flex_none().gap(4).children(caps(key).map((cap) => div().min_w(20).h(20).px(4).flex().items_center().justify_center()
+          .rounded(4).bg(t.foreground + "12").text_size(12).font_medium().text_color(t.foreground + "bf").child(cap)))));
       // Nowhere to go: dimmed, as the key does nothing either. The theme's hover can be the pane's own color, so a tint of the text, as Go to's rows.
-      return off ? el.opacity(0.42) : stop(this, t, id, el.role("button").accessibility_label(a.word)
-        .hover((s) => s.bg(t.foreground + "0f").text_color(t.foreground)).active((s) => s.bg(t.selected)).on_mouse_down("left", () => pressed(this)).on_click(() => { if (!a.pops || !justClosed(this, a.pops)) a.go(); }));
+      return off ? el.opacity(0.5) : stop(this, t, id, el.role("button").accessibility_label(a.word)
+        .hover((s) => s.bg(t.foreground + "0f").text_color(t.foreground)).active((s) => s.bg(t.selected)).on_mouse_down("left", () => pressed(this)).on_click(() => { if (!a.pops || !justClosed(this, a.pops)) a.go(); }), 8);
     };
-    return focusRoot(this, v_flex().size_full().px(12).items_center().justify_center()
-      .child(v_flex().w_full().max_w(260).gap(2).text_size(13).children(ACTIONS.map(row))));
+    // As T3's launcher: pb its top bar's height, so the list centers on the whole panel.
+    return focusRoot(this, v_flex().size_full().px(24).pb(40).items_center().justify_center()
+      .child(v_flex().w_full().max_w(320).gap(2).text_size(14).children(ACTIONS.map(row))));
   }
 }

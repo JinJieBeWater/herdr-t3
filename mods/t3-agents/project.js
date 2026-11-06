@@ -47,11 +47,11 @@ export function projectMark(s, size, t, ps, follow) {
   const text = monogram(s?.name ?? "");
   // Nothing to spell: T3's plain folder.
   if (!text) return h_flex().size(size).flex_none().items_center().justify_center()
-    .child(svg("mods/workspace-chrome/folder.svg").size(size * 0.875).text_color(t.dim));
+    .child(svg("mods/workspace-chrome/folder.svg").size(size).text_color(t.dim));
   const color = tint(s.name, isDark(t));
-  // As T3's ProjectMonogram: the color on a 14% wash of itself, bold monospace at 0.64 of the tile, as the white initials before it.
+  // As T3's ProjectMonogram: the color on a 14% wash of itself, bold monospace at its 8.25 in a 16 tile.
   return h_flex().size(size).flex_none().rounded(size / 4).bg(color + "24").items_center().justify_center()
-    .font_family(settings().font_family ?? "JetBrains Mono").font_bold().text_size(size * 0.64).text_color(color)
+    .font_family(settings().font_family ?? "JetBrains Mono").font_bold().text_size(size * 8.25 / 16).text_color(color)
     .child(text);
 }
 

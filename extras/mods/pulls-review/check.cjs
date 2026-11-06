@@ -101,7 +101,7 @@ const load = (props = {}, setup = record) => {
   fire(find(drawn, "review-pick"), "on_hover", false, cx);
   fire(find(drawn, "tip-over-review-pick"), "on_hover", false, cx);
   // No color: here it means an agent's state. Hovered, only the fill changes.
-  const countOf = id => find(bar.render(), id).items.find(n => n.style && "font_medium" in n.style);
+  const countOf = id => find(bar.render(), id).items.find(n => n.style?.text_color);
   const counted = ["review-changes", "review-open", "review-ahead", "review-behind"];
   assert.deepEqual(counted.map(id => countOf(id).style.text_color), counted.map(() => theme.foreground));
   for (const id of counted) assert.deepEqual(plain(find(bar.render(), id).hoverStyle), { bg: theme.hover }, id);
@@ -256,17 +256,17 @@ const load = (props = {}, setup = record) => {
     return overlays.at(-1);
   };
   const spec = await click(r);
-  assert.equal(spec.width, 560);
+  assert.equal(spec.width, 368);
   assert.equal(ranges.at(-1), "origin/main..HEAD", "the branch's own commits");
   assert.deepEqual(gits.splice(0), ["log", "for-each-ref"]);
   const { time: otherTime, ...other } = plain(spec.props.branches)[0];
   assert.deepEqual([spec.props.branches.length, other], [1, { name: "Other", subject: "add other", author: "Blake", upstream: "origin/Other", track: "ahead 2", worktree: "/Users/me/wt/other", count: 3, behind: 1 }],
     "the current branch isn't offered against itself; each comes with its last commit, upstream, worktree and counts, from the one call");
   assert.ok(Math.abs(Date.now() - 3 * 36e5 - otherTime) < 5000);
-  assert.equal(spec.height, 10 + 36 + 36 + 32, "the popup fits the switch and the longer page, so turning pages doesn't resize it");
+  assert.equal(spec.height, 8 + 43 + 32 + 28, "the popup fits the switch and the longer page, so turning pages doesn't resize it");
   assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
   assert.deepEqual([spec.mod, spec.props.menu], ["pulls-review", "review"]);
-  assert.deepEqual(plain(spec.at), { x: 892, y: 40 * zoom }, "it hangs from the bar under the press, not over the bar");
+  assert.deepEqual(plain(spec.at), { x: 892, y: 36 * zoom }, "it hangs 4 under the 24 tall button, under the press, not over the bar");
   fire(find(bar.render(), "review-open"), "on_click", {}, cx);
   assert.deepEqual(launched.at(-1), { root: "/repo", args: [], page: "/branch/feat", analyze: true }, "a count's click opens its page, known without git, and starts the analysis");
   const { mod: menu } = load({ ...spec.props, overlay: "m1" });
@@ -362,15 +362,15 @@ const load = (props = {}, setup = record) => {
   // takes the highlight along. Until the list is measured every row is drawn; then only those in view, where the scroll puts them.
   const branchRow = (i) => find(many.render(), `review-branch-b${i}`);
   assert.ok(branchRow(8), "unmeasured: all drawn");
-  fire(find(many.render(), "review-branches"), "on_size_change", { width: 500, height: 4 * 32 * zoom }, cx);
-  assert.deepEqual([branchRow(3)?.style.top, branchRow(4)], [3 * 32, null], "measured: the four in view");
+  fire(find(many.render(), "review-branches"), "on_size_change", { width: 500, height: 4 * 28 * zoom }, cx);
+  assert.deepEqual([branchRow(3)?.style.top, branchRow(4)], [3 * 28, null], "measured: the four in view");
   const manyKey = (k) => fire(find(many.render(), "review-menu"), "on_key_down", { key: k }, cx);
   for (let i = 0; i < 5; i++) manyKey("down");
   assert.equal(branchRow(5).style.bg, theme.selected);
-  assert.deepEqual([branchRow(5).style.top, branchRow(1)], [3 * 32, null], "↑/↓ scroll the highlight into view, at the bottom edge");
+  assert.deepEqual([branchRow(5).style.top, branchRow(1)], [3 * 28, null], "↑/↓ scroll the highlight into view, at the bottom edge");
   // Two events before the next render, as a trackpad sends them: both count.
   const wheeled = find(many.render(), "review-branches");
-  for (let i = 0; i < 2; i++) fire(wheeled, "on_scroll_wheel", { delta: { x: 0, y: 32 * zoom } }, cx);
+  for (let i = 0; i < 2; i++) fire(wheeled, "on_scroll_wheel", { delta: { x: 0, y: 28 * zoom } }, cx);
   assert.deepEqual([branchRow(0)?.style.top, branchRow(4)], [0, null], "the wheel scrolls back up");
   assert.equal(branchRow(3).style.bg, theme.selected, "and the highlight comes along, to the last row in view");
   // The logo toggles: a press outside the popup closes it, before or just after the press reaches the bar; its click leaves it closed.

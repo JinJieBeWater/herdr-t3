@@ -18,9 +18,12 @@ const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
 const MENU_CLOSED = `${MOD}.menuClosed`;
 export const menuClosed = () => setShared(MENU_CLOSED, Date.now());
 
-// A menu hangs from the bar (40px, as Herdr T3's tab bar) under the click, not on the pointer, where it would cover the
-// bar; the app keeps it in the window. With no press to read (assistive tech clicks without one), the app's default: the pointer.
-const underBar = (press) => press && { x: press.x - 8, y: 40 * settings().zoom };
+// A menu hangs 4 under its button (T3's sideOffset), 24 tall in the 40 bar, and under the click, not on the pointer, where it
+// would cover the bar; the app keeps it in the window. With no press to read (assistive tech clicks without one), the app's default: the pointer.
+const underBar = (press) => press && { x: press.x - 8, y: 36 * settings().zoom };
+
+// The menu's rows (T3's MenuItem), and what sits above them: its padding, search field and either the pages' switch or a title.
+const MENU_ROW = 28, menuChrome = (tabs) => 8 + 43 + (tabs ? 32 : 28);
 
 // The shipped `changes` mod's lookup, except for a mod pane (below).
 export function reviewLocation() {
@@ -230,14 +233,16 @@ export function reviewMenu(view) {
     detailsFor(view, /^review-(commit|branch)-/.test(id) ? id : null, cx);
     cx.notify();
   };
-  const title = (text) => div().h(24).px(8).flex_none().flex().items_center().text_size(11).text_color(t.dim).child(text);
+  // As T3's MenuGroupLabel.
+  const title = (text) => div().h(28).px(8).flex_none().flex().items_center().text_size(12).font_medium().text_color(t.dim).child(text);
   const tabs = menuTabs(), tab = view.tab, scope = tab === "branches" ? `vs ${base}` : branch === "(detached)" ? "" : `on ${branch}`;
-  const segment = (id, label, n) => h_flex().id(`review-tab-${id}`).h(26).px(10).gap(6).flex_none().items_center().rounded(6).text_size(12)
+  // As T3's segmented ToggleGroup.
+  const segment = (id, label, n) => h_flex().id(`review-tab-${id}`).h(24).px(10).gap(8).flex_none().items_center().rounded(6).text_size(12).font_medium()
     .when(id === tab, el => el.bg(t.selected).text_color(t.foreground)).when(id !== tab, el => el.text_color(t.dim).hover(s => s.bg(t.foreground + "0a")))
     .role("button").accessibility_label(`${label}, ${n}${id === tab ? ", shown" : ""}`).on_click((_e, cx) => setTab(view, id, cx))
     .child(label).child(div().text_color(t.dim).child(String(n)));
   // As the Actions and New menus: the highlighted row `selected`, set by the pointer or ↑/↓, the others lifted faintly on hover.
-  const row = (id, name, action, cells) => h_flex().id(id).h(32).px(8).gap(8).flex_none().items_center().rounded(6).text_color(t.foreground)
+  const row = (id, name, action, cells) => h_flex().id(id).h(MENU_ROW).px(8).gap(8).flex_none().items_center().rounded(4).text_color(t.foreground)
     .when(id === lit, el => el.bg(t.selected)).when(id !== lit, el => el.hover(s => s.bg(t.foreground + "0a")))
     .on_hover((on, cx) => {
       if (on) { view.hovered = id; highlight(picks.findIndex(p => p.id === id), cx); }
@@ -246,13 +251,13 @@ export function reviewMenu(view) {
     .on_mouse_move((e) => detailsAt(view, id, e))
     .role("button").accessibility_label(name).on_click(action).children(cells);
   // Rows keep their handlers, as a virtual list's can't: a hovered commit opens its card. The wheel takes the highlight along, and a card moves off.
-  const list = (id, items) => scrollList(view, id, { count: items.length, row: 32, at: items.findIndex(x => x.id === lit), draw: (i) => items[i].el, wheeled: (keep, cx) => {
+  const list = (id, items) => scrollList(view, id, { count: items.length, row: MENU_ROW, at: items.findIndex(x => x.id === lit), draw: (i) => items[i].el, wheeled: (keep, cx) => {
     if (keep >= 0) view.at = picks.findIndex(p => p.id === items[keep].id);
     view.hovered = null;
     detailsFor(view, null, cx);
   } }).flex_1().min_h(0);
   // A popup's height is only a maximum: this one sets its own, for the list to scroll inside and to hold still while searching.
-  return v_flex().id("review-menu").w_full().h(height).p(5).bg(t.popover).text_size(13)
+  return v_flex().id("review-menu").w_full().h(height).p(4).bg(t.popover).text_size(14)
     .on_key_down((e, cx) => {
       if (e.key === "tab" && tabs) { setTab(view, tab === "commits" ? "branches" : "commits", cx); cx.stop_propagation(); return; }
       const to = step(e, view.at, picks.length);
@@ -261,22 +266,24 @@ export function reviewMenu(view) {
       highlight(to, cx);
       cx.stop_propagation();
     })
-    .child(h_flex().h(32).mb(4).px(8).gap(8).flex_none().items_center()
-      .child(svg(`mods/${MOD}/search.svg`).size(13).flex_none().text_color(t.dim))
-      .child(Input.new(view.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
+    // As T3's MenuSearchInput: 8 in and 6 down less the 1 it shifts up, a 26 field, 6 to the rule, 4 and that 1 below it.
+    .child(h_flex().mx(8).mt(5).mb(5).h(33).pb(6).gap(4).flex_none().items_center().border_b_1().border_color(t.border)
+      .child(svg(`mods/${MOD}/search.svg`).size(16).flex_none().text_color(t.dim))
+      .child(Input.new(view.search).flex_1().h_full().text_size(14).text_color(t.foreground)))
     // Outside the list, so the pages' switch stays put.
-    .when(tabs, el => el.child(h_flex().h(32).mb(4).px(3).gap(4).flex_none().items_center()
-      .child(segment("commits", "Commits", commits.length)).child(segment("branches", "Branches", branches.length))
-      .child(div().flex_1()).child(div().min_w(0).truncate().pr(5).text_size(11).text_color(t.dim).child(scope))))
+    .when(tabs, el => el.child(h_flex().h(28).mx(8).mb(4).gap(8).flex_none().items_center()
+      .child(h_flex().p(2).gap(2).flex_none().rounded(8).bg(t.foreground + "0f")
+        .child(segment("commits", "Commits", commits.length)).child(segment("branches", "Branches", branches.length)))
+      .child(div().flex_1()).child(div().min_w(0).truncate().text_size(12).text_color(t.dim).child(scope))))
     .when(!tabs, el => el.child(title(tab === "branches" ? `Branches vs ${base}` : branch === "(detached)" ? "Commits" : `Commits on ${branch}`)))
     .when(tab === "branches", el => el.child(list("review-branches", branches.map(b => {
       const id = `review-branch-${b.name}`;
       return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
-        svg("mods/pulls-review/git-branch.svg").size(13).flex_none().text_color(t.dim),
+        svg("mods/pulls-review/git-branch.svg").size(16).mx(-2).flex_none().text_color(t.dim),
         h_flex().flex_1().min_w(0).gap(8)
-          .child(div().flex_none().max_w(220).truncate().child(b.name))
+          .child(div().flex_none().max_w(160).truncate().child(b.name))
           .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(b.subject ?? "")),
-        h_flex().flex_none().gap(6).items_center().text_size(12).text_color(t.dim)
+        h_flex().flex_none().ml(4).gap(8).items_center().text_size(12).text_color(t.dim)
           .when(b.count !== undefined, el => el.child(`${b.count} ahead`))
           .child(b.time ? ago(b.time, now) : ""),
         branchCard(view, t, id, b, base, now)]) };
@@ -286,13 +293,13 @@ export function reviewMenu(view) {
         const r = row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : ""), (_e, cx) => openPick([c.sha], cx), [
           h_flex().flex_1().min_w(0).gap(4).when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
             .child(div().flex_1().min_w(0).truncate().child(c.subject.slice(prefix.length))),
-          h_flex().flex_none().gap(6).items_center().text_size(12).text_color(t.dim)
+          h_flex().flex_none().ml(4).gap(8).items_center().text_size(12).text_color(t.dim)
             .when(out, el => el.child(div().text_color(t.ansi2).child("↑")))
             .child(c.time ? ago(c.time, now) : ""),
           commitCard(view, t, id, c, upstream, out, now)]);
         return { id, el: r };
       }))))
-    .when(!picks.length, el => el.child(div().p(8).text_color(t.dim).child("No matches")));
+    .when(!picks.length, el => el.child(div().p(8).text_center().text_color(t.dim).child("No matches")));
 }
 
 // As an Inbox row's details, but on the row's left: the menu hangs at the window's right. A 1px anchor just outside the
@@ -342,17 +349,17 @@ export function reviewBar(view, t, stop) {
   const isShown = (args) => here?.base === argPage(args, r.branch);
   // The accessibility label says what each count compares, which the short label can't. No color: here it means an agent's state.
   // The count leads; what it counts stays quiet beside it.
-  // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill. Its label is the name's first part.
-  // Compact, the label gives back the words the count lost, `· merged?` included.
-  const item = ([id, count, noun, icon, name, args, arrow = ""], first) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(8).gap(6).flex_none().items_center()
-    .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
+  // As T3's xs buttons in a Group: 22, the outline's inside (a hover card's wrapper has no height for h_full to fill), the
+  // outline's 1 and 7 in. Its label is the name's first part. Compact, the label gives back the words the count lost, `· merged?` included.
+  const item = ([id, count, noun, icon, name, args, arrow = ""], first) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(7).gap(4).flex_none().items_center()
+    .text_size(12).font_medium().text_color(t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover(glow(view, id))
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
-    .when(compact, el => el.child(svg(`mods/${MOD}/${icon}.svg`).size(12).flex_none()))
-    .child(div().font_medium().text_color(t.foreground).child(compact ? count : arrow + count))
+    .when(compact, el => el.child(svg(`mods/${MOD}/${icon}.svg`).size(14).flex_none()))
+    .child(div().text_color(t.foreground).child(compact ? count : arrow + count))
     .when(Boolean(noun) && !compact, el => el.child(noun))
-    .when(first, el => el.rounded_l(6)), { below: true });
+    .when(first, el => el.rounded_l(7)), { below: true });
   const segments = [
     r.changed > 0 && ["review-changes", String(r.changed), "uncommitted", "file-diff", `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"]],
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
@@ -375,18 +382,18 @@ export function reviewBar(view, t, stop) {
       if (!commits.length && !branches.length) return;
       // Tall enough for the longer page, so turning pages doesn't resize it; one page alone has a title instead of the switch.
       const tabs = branches.length > 0 && commits.length > 0;
-      const height = Math.min(480, 10 + 36 + (tabs ? 36 : 24) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * 32);
-      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 560, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
+      const height = Math.min(368, menuChrome(tabs) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * MENU_ROW);
+      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 368, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
     } finally { view.readingPicks = false; } });
   };
   // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
   // The block ends where the bar does, so the logo, last, stays put as the counts come and go.
-  return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(6).border(1).border_color(t.border).on_mouse_down("left", stop)
-    .children(segments.flatMap((s, i) => [item(s, i === 0), div().w(1).h(14).flex_none().bg(t.border)]))
+  return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stop)
+    .children(segments.flatMap((s, i) => [item(s, i === 0), div().w(1).h(22).flex_none().bg(t.border)]))
     // Stays with no counts: on a clean default branch it's the only way in.
-    .child(tip(view, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).px(5).flex_none().items_center().rounded_r(6).when(!segments.length, el => el.rounded_l(6))
+    .child(tip(view, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).w(segments.length ? 23 : 22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
       .on_mouse_down("left", pressed).on_click(openMenu)
-      // image, not svg: svg would draw the logo in one tint.
+      // As T3's icon-xs, 24 with the outline's sides. image, not svg: svg would draw the logo in one tint.
       .child(image(`mods/${MOD}/logo.svg`).w(14).h(14).flex_none()), { below: true }));
 }

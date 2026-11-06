@@ -526,7 +526,7 @@ test("a space's monogram is its first glyph, in T3's color for the same name", (
   assert.equal(run(`monogram("~")`), "", "nothing to spell: the folder instead");
   f.add("A"); f.render();
   const tile = holding(f.tree, "O"), color = run('tint("One", true)');
-  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 10.24], "T3's 14% wash of the color, the card's 16px, type as before");
+  assert.deepEqual([tile.style.size[0], tile.style.bg[0], tile.style.text_color[0], tile.style.text_size[0]], [16, color + "24", color, 8.25], "T3's 14% wash of the color, the card's 16px, its 8.25 type");
 });
 
 test("a space's own icon, found as T3 finds it, replaces its monogram on every card", async () => {
@@ -575,8 +575,8 @@ test("settling slides the card down into Settled and the rows under it up, then 
   const a = at(flyOf(f, "A")), b = at(flyOf(f, "B"));
   assert.equal(a.id, "fly-A-1", "a row that moves is a new element, first drawn where it was");
   assert.ok(a.top < 0, "A starts up where its card was, over Settled");
-  assert.deepEqual(b, { id: "fly-B-1", top: 80, opacity: 1 }, "B starts a card lower, where it was");
-  assert.equal(at(flyOf(f, "C")).top, 80);
+  assert.deepEqual(b, { id: "fly-B-1", top: 83, opacity: 1 }, "B starts a card lower, where it was");
+  assert.equal(at(flyOf(f, "C")).top, 83);
   f.render(1116);
   assert.deepEqual([at(flyOf(f, "A")), at(flyOf(f, "B"))], [{ id: "fly-A-1", top: 0, opacity: 1 }, { id: "fly-B-1", top: 0, opacity: 1 }], "then they're let go, the same elements, so Herdr eases them");
   f.render(1200);
@@ -587,7 +587,7 @@ test("a new row fades in from 40px up at the top, or in place under a row that s
   const f = fixture(); f.add("A", "idle", 200); f.mod.listH = 600; f.render();
   f.add("B", "idle", 300); f.add("Z", "idle", 50); f.render(1100);
   assert.deepEqual(at(flyOf(f, "B")), { id: "fly-B-1", top: -40, opacity: 0 }, "at the top: from 40px up, clear");
-  assert.deepEqual(at(flyOf(f, "Z")), { id: "fly-Z-1", top: -80, opacity: 0 }, "under A, which moved a card down: riding with it");
+  assert.deepEqual(at(flyOf(f, "Z")), { id: "fly-Z-1", top: -83, opacity: 0 }, "under A, which moved a card down: riding with it");
   f.render(1116);
   assert.deepEqual([at(flyOf(f, "B")).opacity, at(flyOf(f, "Z")).top], [1, 0]);
 });
@@ -596,10 +596,10 @@ test("a row that leaves fades out where it was, then goes", () => {
   const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.listH = 600; f.render();
   f.rows.splice(0, 1); f.terms.splice(0, 1); f.render(1100);
   const ghost = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("leaving-A-") ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 8], "drawn as it was, where it was");
-  assert.equal(at(flyOf(f, "B")).top, 80, "B slides up from under it");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 10], "drawn as it was, where it was");
+  assert.equal(at(flyOf(f, "B")).top, 83, "B slides up from under it");
   f.render(1116);
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 48], "fading, 40px down: nothing above it stays");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 50], "fading, 40px down: nothing above it stays");
   f.render(1300);
   assert.equal(ghost(), null);
 });
@@ -623,7 +623,7 @@ test("a dropped row slides from where it was let go, and nothing moves while dra
   // Let go, from where the ghost was (390, below the list's top row), in the list's terms. B isn't the one in view.
   f.event("t3-inbox-root", "on_mouse_up:left"); f.render(1100);
   const b = flyOf(f, "B"), y = f.mod.motion.at.get("B").y;
-  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 390 - 32 - y]);
+  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 390 - 48 - y]);
 });
 
 // Herdr scales what a mod sets and reports what it measures as drawn, so at a zoom a drag has to go by one or the other.
@@ -637,7 +637,7 @@ test("at a zoom, the lifted row stays under the pointer and the gap is the card'
   f.event("t3-inbox-root", "on_mouse_move", { position: { x: 40, y: 900 }, local_position: { x: 40, y: 900 }, bounds: { x: 0, y: 0, width: 600, height: 1600 } });
   f.mod.drag.target = { section: "pinned", before: null }; f.render();
   assert.equal(find(f.tree, "drag-ghost").style.top[0], (900 - 60) / 2, "in the values top() scales");
-  assert.equal(find(f.tree, "gap-head-pinned").style.h[0], 164 / 2 + 2);
+  assert.equal(find(f.tree, "gap-head-pinned").style.h[0], 164 / 2 + 5);
   // Measured as drawn too, a press near the bottom of the 1600 drawn is near the bottom, off the edge it lands.
   f.event("t3-inbox-root", "on_mouse_move", { position: { x: 300, y: 1590 }, local_position: { x: 300, y: 1590 }, bounds: { x: 0, y: 0, width: 600, height: 1600 } });
   f.render(); leave();
@@ -713,13 +713,13 @@ test("folding Working slides its header down with the list, as T3's markers move
   const f = fixture(), a = f.add("A", "working", 300); f.add("B", "working", 200); f.add("C", "idle", 100); a.focused = true;
   f.terms[2].labels.settled = "500:0"; f.mod.workOpen = true; f.mod.open = true; f.mod.listH = 600; f.render();
   f.mod.workOpen = false; f.render(1100);
-  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -80, opacity: 1 }, "the header starts where it was, a card higher");
+  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -83, opacity: 1 }, "the header starts where it was, a card higher");
   assert.equal(flyOf(f, "m:settled").key, "fly-m:settled-0", "Settled sits at the bottom: it doesn't move");
   assert.ok(find(f.tree, "working-header"), "the header's own element is inside its wrapper");
   f.render(1116);
   assert.equal(at(flyOf(f, "m:working")).top, 0);
   f.mod.workOpen = true; f.render(1300);
-  assert.equal(at(flyOf(f, "m:working")).top, 80, "unfolding, it goes back up from where it was");
+  assert.equal(at(flyOf(f, "m:working")).top, 83, "unfolding, it goes back up from where it was");
 });
 
 test("an agent brought into view that the space filter hides widens it, as T3's route reveal; a filter you pick stays", () => {
@@ -1423,7 +1423,15 @@ test("a pinned card offers Settle beside the clock, as T3's; settling drops the 
   f.render(); f.mod.hovered = "P"; f.render();
   assert.ok(find(f.tree, "settle-P").handlers.on_click);
   assert.ok(find(f.tree, "snooze-P"));
-  assert.equal(find(f.tree, "snooze-menu-P").style.anchor[0], "top_left", "the menu leaves the card readable");
+  const anchor = () => find(f.tree, "snooze-menu-P").style.anchor[0];
+  assert.equal(anchor(), "top_left", "no press (the keyboard), the flip");
+  const press = (right) => { f.event("snooze-P", "on_mouse_down:left", { bounds: { x: right - 24, y: 40, width: 24, height: 20 } }); f.render(); };
+  press(174);
+  assert.equal(anchor(), "top_left", "no room to the clock's left, as T3's sidebar: flipped to its left edge, the card readable");
+  press(300);
+  assert.equal(anchor(), "top_right", "room to the clock's left: right edges together, as T3's align=end");
+  find(f.tree, "snooze-menu-P").handlers.on_open_change(false, { notify() {} }); f.render();
+  assert.equal(anchor(), "top_left", "closing forgets the press");
   f.event("settle-P", "on_click"); f.flush();
   assert.deepEqual(f.pins, ["Q"]);
   assert.deepEqual(f.labelled, ["label P settled=1000:0"]);
@@ -1820,4 +1828,16 @@ test("past 40 rows coming and going at once, they just show", () => {
   for (let i = 0; i < 41; i++) f.add(`N${i}`, "idle", 200 + i);
   f.render();
   assert.equal(Object.keys(f.mod.motion.fly).length, 0);
+});
+
+test("a card and a settled row measure as T3's, and the lists stack as its does", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.add("B", "idle", 200); f.terms[1].labels.settled = "500:0"; f.mod.open = true; f.render();
+  const num = (n, k) => n.style[k]?.[0], card = find(f.tree, "card-A");
+  assert.deepEqual(["px", "py", "rounded"].map((k) => num(card, k)), [10, 8, 6]);
+  assert.deepEqual([num(card.items[0], "h"), num(card.items[1], "h"), num(card.items[1], "mt")], [20, 20, 4], "its lines, 4 apart");
+  const slim = find(f.tree, "slim-B");
+  assert.deepEqual(["h", "px", "gap", "rounded"].map((k) => num(slim, k)), [36, 10, 10, 6]);
+  assert.deepEqual(["h", "min_w"].map((k) => num(find(slim, "slim-corner-B"), k)), [24, 32], "T3's corner");
+  assert.equal(num(find(f.tree, "settled"), "gap"), 1, "gap-px between a shelf's rows");
+  assert.deepEqual(["h", "px", "gap"].map((k) => num(find(f.tree, "inbox-top"), k)), [48, 8, 4], "T3's top group");
 });

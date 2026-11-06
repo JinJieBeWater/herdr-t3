@@ -11,8 +11,10 @@ import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { step, scrollList } from "./list.js";
 
-const ROW = 46;
-const SHOWN = 6; // rows before the list scrolls; the popup hugs its content
+// As T3's command item: 6 + a 20px title + a 16px line + 6.
+const ROW = 48;
+// The list's share of T3's 420 once its border, search, top and bottom insets and footer are in; the popup hugs its content.
+const LIST_MAX = 420 - 2 - 48 - 8 - 8 - 41;
 
 const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/terminal.svg").size(12).flex_none().text_color(t.muted)
   : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
@@ -67,16 +69,17 @@ export default class Picker extends View {
     // The same marks as the pane headers, tabs and agents list.
     const mark = st === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
       : st === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
-      : st === "done" && !notNews(terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(7).flex_none().rounded_full().bg(t.done) : null;
-    return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
+      : st === "done" && !notNews(terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(6).flex_none().rounded_full().bg(t.done) : null;
+    return h_flex().id(item.key).w_full().h(ROW).px(8).py(6).gap(8).rounded(4).items_center().flex_none()
       .role("button").accessibility_label(item.back ? `Back to ${item.label}` : item.label)
       .when(on, (el) => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(() => this.choose(item))
-      .child(h_flex().size(16).flex_none().items_center().justify_center().child(projectMark(s, 16, t, ps, true)))
+      // As T3's CommandPaletteTitleIcon: level with the title, not the row.
+      .child(h_flex().w(16).h(20).pt(2).self_start().flex_none().items_center().justify_center().child(projectMark(s, 16, t, ps, true)))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).when(Boolean(item.here), (d) => d.font_medium()).child(item.label))
-        .child(h_flex().min_w(0).gap(4).items_center().text_size(11.5).text_color(t.dim)
+        .child(h_flex().min_w(0).gap(4).items_center().text_size(12).line_height("16px").text_color(t.dim)
           .child(icon(t, item.program))
           .child(div().flex_none().text_color(t.muted).child(item.program?.name ?? "Terminal"))
           .child(div().flex_none().child("·"))
@@ -94,9 +97,9 @@ export default class Picker extends View {
     // Opens on Back, else where you are.
     if (this.at === null) this.at = Math.max(0, items.findIndex((r) => r.back || r.here));
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
-    const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
-    const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
-    return v_flex().id("picker").size_full().min_h(0).bg(t.popover).text_size(13)
+    const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
+    const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);
+    return v_flex().id("picker").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         const to = step(e, this.at, items.length);
@@ -109,23 +112,24 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(34).my(6).flex_none().px(16).gap(8).items_center()
+      .child(h_flex().h(36).my(6).flex_none().pl(18).pr(20).gap(7).items_center()
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
-        .child(Input.new(this.input).flex_1().h_full().text_size(13).text_color(t.foreground)))
+        .child(Input.new(this.input).flex_1().h_full().text_size(14).text_color(t.foreground)))
       // No heading: there is one kind of row, and the room goes to the list.
       .child(div().flex_none().mt(8).mb(8).px(8)
-        .when(items.length > 0, (el) => el.child(scrollList(this, "picker-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length, SHOWN) * ROW,
+        .when(items.length > 0, (el) => el.child(scrollList(this, "picker-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length * ROW, LIST_MAX),
           draw: (i) => this.row(items[i], i, ps), wheeled: (keep) => { this.at = keep; } })))
-        .when(items.length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching terminals."))))
-      .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
+        .when(items.length === 0, (el) => el.child(div().py(40).text_center().text_color(t.dim).child("No matching terminals."))))
+      .child(h_flex().flex_none().px(16).py(10).gap(8).items_center().justify_between().rounded_b(15).border_t(1).border_color(t.foreground + "12").bg(t.foreground + "06").font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()
           .child(hint("↑ ↓", "Navigate"))
           .child(hint("Enter", "Go"))
           .child(hint(window()?.platform === "macos" ? "⌃D" : "Ctrl+D", "Close pane"))
           .child(hint("Esc", "Close")))
         // New work goes through New, which picks the space (and for a new space, the machine).
-        .child(h_flex().id("picker-new").gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
-          .role("button").accessibility_label("New tab").hover((s) => s.bg(t.selected))
+        // T3's CommandFooterAction: no fill of its own, its words brighten.
+        .child(h_flex().id("picker-new").gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
+          .role("button").accessibility_label("New tab").hover((s) => s.text_color(t.foreground))
           .on_click(() => { closeOverlay(props().overlay); run("mod.open", { name: "t3-new-menu" }); })
           .child(svg("mods/t3-picker/square-pen.svg").size(14).text_color(t.muted))
           .child("New tab")));

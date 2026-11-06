@@ -76,7 +76,7 @@ assert.equal(find(bar.render(), "action-add").style.text_color, theme.dim);
 fire(find(bar.render(), "action-add"), "on_hover", true, cx);
 assert.equal(find(bar.render(), "action-add").style.text_color, theme.foreground, "its icon brightens with its text");
 fire(find(bar.render(), "action-add"), "on_click", {}, cx);
-assert.deepEqual(plain(overlays.at(-1)), { mod: "t3-actions", kind: "dialog", width: 512, props: { actions: "edit", id: null } }, "as T3's dialog, as tall as its fields");
+assert.deepEqual(plain(overlays.at(-1)), { mod: "t3-actions", kind: "dialog", frame: "none", width: 512, props: { actions: "edit", id: null } }, "as T3's dialog, as tall as its fields");
 
 // Some: "▶ Dev | ▾" in one outline, a rule between.
 state["t3-actions"] = { list: [{ id: "a", name: "Dev", command: "bun dev" }, { id: "b", name: "Test", command: "bun test", place: "right", cwd: "~/x" }] };
@@ -92,7 +92,7 @@ fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.equal(overlays.at(-1).at, undefined);
 fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
-assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 40 * zoom });
+assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 36 * zoom });
 assert.equal(overlays.at(-1).mod, "t3-actions");
 // The button toggles: the press closed the open menu on its way in, so its click doesn't open another.
 {
@@ -198,7 +198,7 @@ delete state["bar.compact"];
   assert.equal(jobs.length, heard, "an overlay's copy doesn't listen");
   fire(find(edit.render(), "action-delete"), "on_click", {}, cx);
   const { mod, props } = overlays.pop();
-  assert.deepEqual([mod, props.title], ["confirm", "Delete Dev?"]);
+  assert.deepEqual([mod, props.actions, props.title], ["t3-actions", "confirm", "Delete Dev?"]);
   assert.equal(state["t3-actions"].list.length, 2, "the click only asks");
   const dot = props.command.name.indexOf(".");
   assert.equal(props.command.name.slice(0, dot), "t3-actions");
@@ -206,6 +206,30 @@ delete state["bar.compact"];
   jobs[0]();
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(plain(state["t3-actions"].list.map((a) => a.id)), ["a2"]);
+
+  // T3's alert dialog: its buttons run the command or only close, Enter runs it, Esc only closes.
+  {
+    const ask = (p) => load({ actions: "confirm", title: "Close?", detail: "It stops.", command: { name: "x.y", args: { a: 1 } }, ...p });
+    let ran = calls.length;
+    fire(find(ask().render(), "confirm-no"), "on_click", {}, cx);
+    assert.equal(calls.length, ran, "Cancel runs nothing");
+    for (const [ansi1, background, ink, why] of [["#cd3131", "#000000", "#ffffff", "T3's white on T3's red"], ["#f38ba8", "#1e1e2e", "#1e1e2e", "a pale red takes the background"], ["#aa0000", "#000000", "#ffffff", "a dark red on black takes white"]]) {
+      Object.assign(theme, { ansi1, background });
+      assert.equal(find(ask().render(), "confirm-yes").style.text_color, ink, why);
+    }
+    delete theme.ansi1; delete theme.background;
+    fire(find(ask().render(), "confirm-yes"), "on_click", {}, cx);
+    assert.deepEqual(calls.at(-1), ["x.y", { a: 1 }]);
+    ran = calls.length;
+    fire(find(ask().render(), "action-confirm"), "on_key_down", { key: "escape" }, cx);
+    assert.equal(calls.length, ran, "Esc runs nothing");
+    fire(find(ask().render(), "action-confirm"), "on_key_down", { key: "enter" }, cx);
+    assert.deepEqual(calls.at(-1), ["x.y", { a: 1 }]);
+    const copy = ask();
+    delete state["t3-actions.menuClosed"];
+    copy.close();
+    assert.equal(state["t3-actions.menuClosed"], undefined, "the dialog isn't the menu");
+  }
 
   {
   // Home, End, typing; Enter on a row's Edit is Edit's, not the row's; the bar's stops wait for keyboard mode.

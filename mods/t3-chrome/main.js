@@ -48,41 +48,44 @@ export default class WorkspaceChrome extends View {
         // Each opens over its button, before the pointer can report leaving it.
         .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })
         .child(glyph), 8), { action: key });
-      return focusRoot(this, h_flex().size_full().bg(t.chrome).px(8).gap(2).items_center()
+      // T3's footer: 8 in and 4 above its row, whatever height the layout gives the block.
+      return focusRoot(this, div().size_full().bg(t.chrome).px(8).pt(4).child(h_flex().h(32).gap(4).items_center()
         .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
         .child(button("add-machine", svg("mods/t3-inbox/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
-        .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(24).px(10).flex_none().flex().items_center()
-          .rounded_full().bg(t.accent + "26").text_size(12).font_medium().text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow(this, "app-update"))
+        .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(32).px(12).flex_none().flex().items_center()
+          .rounded_full().bg(t.accent + "26").text_size(12).text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow(this, "app-update"))
           .role("button").accessibility_label(`Restart into Herdr ${ready}`)
-          .on_click(() => run("app.update")).child("Update"), 12)))));
+          .on_click(() => run("app.update")).child("Update"), 16))))));
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
     const inbox = inboxShown();
     // Lit while there: with no tabs showing, it says where this is.
     const atHome = spaces().some((s) => s.active && s.id === shared("t3-home.space"));
-    return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
-      .child(tip(this, t, "home", "Home", stop(this, t, "home", div().id("home").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+    // T3's 28px title bar buttons, side by side instead of its 12 apart, so each stands over a button of the list's top row below.
+    return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pr(8).items_center().justify_end()
+      .child(h_flex().flex_none().items_center()
+      .child(tip(this, t, "home", "Home", stop(this, t, "home", div().id("home").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(atHome ? t.foreground : lit("home")).hover(s => s.bg(t.hover)).on_hover(glow(this, "home"))
         .when(atHome, (el) => el.bg(t.selected))
         .role("button").accessibility_label("Home")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.home"))
-        .child(svg("mods/t3-chrome/house.svg").size(14))), { action: "t3-tabs.home", below: true }))
-      .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+        .child(svg("mods/t3-chrome/house.svg").size(14)), 8), { action: "t3-tabs.home", below: true }))
+      .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.sidebar"))
         // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
-        .child(svg(`mods/t3-chrome/${inbox ? "layout-list" : "inbox"}.svg`).size(14))), { action: "t3-tabs.sidebar", below: true }))
-      .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+        .child(svg(`mods/t3-chrome/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true })))
+      .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/t3-chrome/panel-left.svg").size(14))), { action: "layout.toggle:sidebar", below: true })));
+        .child(svg("mods/t3-chrome/panel-left.svg").size(14)), 8), { action: "layout.toggle:sidebar", below: true })));
   }
 }

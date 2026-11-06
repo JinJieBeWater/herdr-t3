@@ -22,8 +22,10 @@ function shortcut(name) {
   }).join(" ");
 }
 
-const ROW = 46;
-const SHOWN = 6; // rows before the list scrolls; the popup hugs its content
+// As T3's command item: 6 + a 20px title + a 16px line + 6.
+const ROW = 48;
+// The list's share of T3's 420 once its border, search, top inset and heading, bottom inset and footer are in; the popup hugs its content.
+const LIST_MAX = 420 - 2 - 48 - 8 - 28 - 8 - 41;
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
 
 export default class NewMenu extends View {
@@ -95,17 +97,18 @@ export default class NewMenu extends View {
     const short = (p) => (p && h && p.startsWith(h) ? "~" + p.slice(h.length) : p ?? "");
     // A home path means nothing on another machine, and its empty folder is its home.
     const sub = s ? (s.machine ? placeOf(s, ps) || "~" : short(placeOf(s, ps))) : item.sub;
-    return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
+    return h_flex().id(item.key).w_full().h(ROW).px(8).py(6).gap(8).rounded(4).items_center().flex_none()
       .role("button").accessibility_label(s ? s.name : item.name)
       .when(on, el => el.bg(t.selected))
       .when(Boolean(item.off), el => el.opacity(0.64))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(() => this.choose(item))
-      .child(h_flex().size(16).flex_none().items_center().justify_center()
+      // As T3's CommandPaletteTitleIcon: level with the title, not the row.
+      .child(h_flex().w(16).h(20).pt(2).self_start().flex_none().items_center().justify_center()
         .child(s ? projectMark(s, 16, t, ps) : svg(`mods/t3-inbox/${item.machine ? "server" : "monitor"}.svg`).size(16).text_color(t.muted)))
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).child(s ? s.name : item.name))
-        .child(h_flex().min_w(0).gap(4).items_center().text_size(11.5).text_color(t.dim)
+        .child(h_flex().min_w(0).gap(4).items_center().text_size(12).line_height("16px").text_color(t.dim)
           // As T3 marks a remote thread: a server icon, then the name.
           .when(Boolean(s?.machine), el => el
             .child(svg("mods/t3-inbox/server.svg").size(12).flex_none().text_color(t.muted))
@@ -116,13 +119,14 @@ export default class NewMenu extends View {
 
   render() {
     const t = theme(), ps = panes(), items = this.items();
-    const key = (label) => div().flex_none().px(5).py(1).rounded(4).bg(t.foreground + "14").text_color(t.foreground).child(label);
-    const hint = (label, what) => h_flex().gap(6).items_center().child(key(label)).child(what);
+    const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
+    const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);
     // ⌘N doesn't ask: it only names what this button does when there's nothing to ask.
     const newKey = this.machineRows().length > 1 ? "" : shortcut("space.new");
-    const footButton = (id, label) => h_flex().id(id).gap(6).px(6).py(2).mr(-6).rounded(6).items_center().flex_none()
-      .role("button").accessibility_label(label).hover(s => s.bg(t.selected));
-    return v_flex().id("new-menu").size_full().min_h(0).bg(t.popover).text_size(13)
+    // T3's CommandFooterAction: no fill of its own, its words brighten.
+    const footButton = (id, label) => h_flex().id(id).gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
+      .role("button").accessibility_label(label).hover(s => s.text_color(t.foreground));
+    return v_flex().id("new-menu").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         const to = step(e, this.at, items.length);
@@ -132,15 +136,15 @@ export default class NewMenu extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(34).my(6).flex_none().px(16).gap(8).items_center()
+      .child(h_flex().h(36).my(6).flex_none().pl(18).pr(20).gap(7).items_center()
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
-        .child(Input.new(this.picking ? this.machineInput : this.spaceInput).flex_1().h_full().text_size(13).text_color(t.foreground)))
-      .child(div().mt(8).px(16).py(6).flex_none().text_size(12).font_medium().text_color(t.muted).child(this.picking ? "Machines" : "Spaces"))
+        .child(Input.new(this.picking ? this.machineInput : this.spaceInput).flex_1().h_full().text_size(14).text_color(t.foreground)))
+      .child(div().mt(8).px(16).py(6).flex_none().text_size(12).line_height("16px").font_medium().text_color(t.muted).child(this.picking ? "Machines" : "Spaces"))
       .child(div().flex_none().mb(8).px(8)
-        .when(items.length > 0, el => el.child(scrollList(this, "new-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length, SHOWN) * ROW,
+        .when(items.length > 0, el => el.child(scrollList(this, "new-rows", { count: items.length, row: ROW, at: this.at, height: Math.min(items.length * ROW, LIST_MAX),
           draw: (i) => this.row(items[i], i, ps), wheeled: (keep) => { this.at = keep; } })))
-        .when(items.length === 0, el => el.child(div().px(8).py(6).text_color(t.dim).child(this.picking ? "No matching machines." : "No matching spaces."))))
-      .child(h_flex().flex_none().px(16).py(10).gap(12).items_center().justify_between().bg(t.foreground + "06").text_size(12).font_medium().text_color(t.muted)
+        .when(items.length === 0, el => el.child(div().py(40).text_center().text_color(t.dim).child(this.picking ? "No matching machines." : "No matching spaces."))))
+      .child(h_flex().flex_none().px(16).py(10).gap(8).items_center().justify_between().rounded_b(15).border_t(1).border_color(t.foreground + "12").bg(t.foreground + "06").font_medium().text_color(t.muted)
         .child(h_flex().gap(12).items_center()
           .child(hint("↑ ↓", "Navigate"))
           .child(hint("Enter", this.picking ? "New space" : "New tab"))

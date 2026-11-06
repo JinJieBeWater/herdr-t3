@@ -3,7 +3,7 @@
 // ↑/↓ move, Enter runs, Esc closes. An item is [label, command, args];
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
-// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose() differs from the shipped one.
+// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose() and T3's measures differ from the shipped one.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -122,9 +122,9 @@ export default class Menu extends View {
       .track_focus(this.handle)
       .w_full()
       .min_h(0)
-      .p(5)
+      .p(4)
       .bg(t.popover)
-      .text_size(12.8)
+      .text_size(14)
       .on_key_down((e, cx) => {
         if (e.key === "down") this.at = (this.at + 1) % list.length;
         else if (e.key === "up") this.at = (this.at + list.length - 1) % list.length;
@@ -136,22 +136,23 @@ export default class Menu extends View {
       .children(
         list.map((it, i) =>
           v_flex()
-            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(7).my(4).h(1).bg(t.border)))
+            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(8).my(4).h(1).bg(t.border)))
             .child(h_flex()
             .id(`mi-${i}`)
-            .h(31)
+            .h(28)
             .px(8)
-            .gap(9)
-            .rounded(7)
+            .gap(8)
+            .rounded(4)
             .items_center()
             .justify_between()
             .text_color(t.foreground)
             .when(i === this.at, (el) => el.bg(t.selected))
             .hover((s) => s.bg(t.hover))
             .on_click((_e, cx) => this.choose(i, cx))
-            .child(svg(menuIcon(it[1])).size(14).flex_none().text_color(t.muted))
-            .child(div().flex_1().child(it[0]))
-            .child(div().text_size(11).text_color(t.dim).child(shortcut(it[1], it[2])))),
+            // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
+            .child(svg(menuIcon(it[1])).size(16).mx(-2).flex_none().text_color(t.muted))
+            .child(div().flex_1().min_w(0).truncate().child(it[0]))
+            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(shortcut(it[1], it[2])))),
         ),
       );
   }

@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popup } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, layout, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, nextCommand } from "herdr";
+import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, layout, shared, setShared, setAgentOrder, settings, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 import { namer } from "./name.js";
 import { focusAgent } from "./zoom.js";
 import { kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
@@ -13,8 +13,8 @@ import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./
 import { stopsInit, stopsEnd, stop, focusRoot, within, enter } from "./focus.js";
 import { menuJump } from "./list.js";
 import { MOTION, foldArrow, planMotion, flying, leavingRows } from "./motion.js";
-// T3's one-line row and shelf or folder header.
-const ROW = 36, HEAD = 32, HEAD_GAP = 8;
+// T3's one-line row and shelf or folder header, its folders 8 apart and its list's 1px between items (gap-px).
+const ROW = 36, HEAD = 32, HEAD_GAP = 8, STACK = 1;
 const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
@@ -37,6 +37,8 @@ function duration(ms) {
   const h = Math.floor(m / 60);
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
+
+const SORT_WIDTH = 200;
 
 export default class Agents extends View {
   async close() { stopsEnd(this); }
@@ -141,7 +143,7 @@ export default class Agents extends View {
       .w_full()
       .p(4)
       .bg(t.popover)
-      .text_size(13)
+      .text_size(14)
       .opacity(this.shown ? 1 : 0).transition("opacity", MOTION)
       .track_focus(this.keys).on_key_down((e, cx) => {
         if (e.key === "enter") { if (this.at >= 0) choose(SORTS[this.at]); }
@@ -154,20 +156,20 @@ export default class Agents extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(div().px(8).py(4).text_size(12).font_medium().text_color(t.muted).child("Sort agents"))
+      .child(div().px(8).py(6).text_size(12).line_height("16px").font_medium().text_color(t.muted).child("Sort agents"))
       .children(SORTS.map((s, i) => h_flex()
         .id(`sort-${s.id}`)
         .h(28)
         .px(8)
         .gap(8)
-        .rounded(6)
+        .rounded(4)
         .items_center()
         .text_color(t.foreground)
         .role("button").accessibility_label(s.label)
         .when(i === this.at, el => el.bg(t.selected))
         .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
         .on_click(() => choose(s))
-        .child(svg(`mods/t3-agents/${s.icon}.svg`).size(14).flex_none().text_color(t.muted))
+        .child(svg(`mods/t3-agents/${s.icon}.svg`).size(16).mx(-2).flex_none().text_color(t.muted))
         .child(div().flex_1().child(s.label))
         .when(s.id === on, (el) => el.child(svg("mods/t3-agents/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
@@ -196,23 +198,23 @@ export default class Agents extends View {
     const base = h_flex()
       .relative()
       .pl(10 + s.depth * 20)
-      .pr(8)
+      .pr(10)
       .rounded(6)
       .h(ROW)
       .flex_none()
       .items_center()
       .gap(10)
-      .text_size(13)
+      .text_size(14)
       .when(on, (el) => el.bg(t.selected))
       // Upstream's 9px turn, hung from each ancestor's icon center (18px, then every 20px), ending 4px short of this icon.
       .children(s.lines.flatMap((l, j) => [
-        l === "│" || l === "├" ? div().absolute().left(17.25 + 20 * j).top(0).bottom(0).w(1.5).bg(t.input) : null,
+        l === "│" || l === "├" ? div().absolute().left(17.25 + 20 * j).top(0).bottom(-STACK).w(1.5).bg(t.input) : null,
         l === "├" || l === "└" ? div().absolute().left(17.25 + 20 * j).top(-4).h(22).w(9.75).border_l(1.5).border_b(1.5).rounded_bl(6).border_color(t.input) : null,
       ].filter(Boolean)))
       .child(h_flex().size(16).flex_none().items_center().justify_center()
         .when(Boolean(pic), el => el.child(pic)))
       .child(h_flex().flex_1().min_w(0).overflow_hidden()
-        .child(div().min_w(0).truncate().text_color(on || over ? t.foreground : t.muted).child(name)))
+        .child(div().min_w(0).truncate().when(on, (el) => el.font_medium()).text_color(on || over ? t.foreground : t.muted).child(name)))
       .child(this.status(t, { status: st }, "", ghost ? undefined : `sub-status-${k.address}`));
     if (ghost) return base;
     return stop(this, t, rowId, base
@@ -238,11 +240,11 @@ export default class Agents extends View {
   status(t, a, note = "", id) {
     const color = t[a.status] ?? t.dim;
     let mark;
-    if (a.status === "working") mark = svg("mods/workspace-chrome/spinner.svg").size(12).mx(1).flex_none().text_color(t.working).spin(900);
-    else if (a.status === "blocked") mark = div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
-    // Idle: a ring; done: a dot. Every mark is 14 wide, flush right, so the column ends where Spaces' git info does.
-    else if (a.status === "idle") mark = div().size(7).mx(3.5).flex_none().rounded_full().border(1.5).border_color(t.idle ?? t.dim);
-    else mark = div().size(7).mx(3.5).flex_none().rounded_full().bg(a.status === "done" ? color : t.dim + "00");
+    if (a.status === "working") mark = svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900);
+    else if (a.status === "blocked") mark = div().size(12).flex_none().rounded(3).bg(t.blocked + "26").text_size(10).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
+    // Idle: a ring; done: a dot. Every mark is 12 wide, as T3's one-line row, flush right, so the column ends where Spaces' git info does.
+    else if (a.status === "idle") mark = div().size(6).mx(3).flex_none().rounded_full().border(1.5).border_color(t.idle ?? t.dim);
+    else mark = div().size(6).mx(3).flex_none().rounded_full().bg(a.status === "done" ? color : t.dim + "00");
     const label = (SECTION[RANK[a.status]] ?? "Unknown") + note;
     const el = h_flex().size(20).flex_none().items_center().justify_end()
       .role("status").accessibility_label(label).child(mark);
@@ -315,9 +317,9 @@ export default class Agents extends View {
 
     const withKids = (a, i) => {
       const subs = this.tree(all, a.address);
-      const r = { key: a.address, h: ROW, el: row(a, i, subs), ghost: () => row(a, i, subs, true) };
+      const r = { key: a.address, h: ROW + STACK, el: row(a, i, subs), ghost: () => row(a, i, subs, true) };
       // A sub-agent with no pane of its own isn't in agents(): it's placed by the agent it hangs from, and has no branch to name, as its folder may be another worktree.
-      const sub = (s) => ({ key: `sub-${s.t.address}`, h: ROW, el: this.subRow(t, s, shown, (name, key) => details(list.find((x) => x.address === s.t.address) ?? { ...s.t, space: a.space, space_name: a.space_name }, name, key)), ghost: () => this.subRow(t, s, shown, null, true) });
+      const sub = (s) => ({ key: `sub-${s.t.address}`, h: ROW + STACK, el: this.subRow(t, s, shown, (name, key) => details(list.find((x) => x.address === s.t.address) ?? { ...s.t, space: a.space, space_name: a.space_name }, name, key)), ghost: () => this.subRow(t, s, shown, null, true) });
       if (!this.isFolded(a.address)) return [r, ...subs.map(sub)];
       // Folded, a sub-agent that needs the person still shows, hung straight from its parent.
       const stuck = subs.filter((s) => kidStatus(s.t, this.listed) === "blocked");
@@ -333,16 +335,16 @@ export default class Agents extends View {
       const open = !this.isFolded(a.address), id = `fold-${a.address}`, color = ghost ? t.dim : lit(id);
       const base = div()
         .h(20).min_w(20).flex_none()
-        .px(4)
+        .px(6)
         .flex()
         .items_center()
         .justify_center()
         .rounded(4)
         .text_size(11)
-        .gap(3)
+        .gap(4)
         .text_color(color)
-        .child(foldArrow("t3-agents", ghost ? null : `${id}-arrow`, open, 12, color))
-        .when(!open, (el) => el.child(String(subs.length)));
+        .when(!open, (el) => el.child(String(subs.length)))
+        .child(foldArrow("t3-agents", ghost ? null : `${id}-arrow`, open, 12, color));
       if (ghost) return base;
       return tip(this, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", stop(this, t, id, base
         .id(id)
@@ -393,8 +395,8 @@ export default class Agents extends View {
       const leads = on || offer || st === "blocked" || st === "done";
       // Over the time's slot on hover, as in the shipped list; the two cross-fade, as T3's corner. Faded out it's no button.
       const pin = () => div().id(pinId)
-        .size(20).flex_none().flex().items_center().justify_center()
-        .rounded(4)
+        .size(24).flex_none().flex().items_center().justify_center()
+        .rounded(6)
         .opacity(offer ? 1 : 0).transition("opacity", MOTION)
         .when(offer, (el) => stop(this, t, pinId, el.role("button")
           .accessibility_label(isPinned ? "Unpin" : "Pin")
@@ -411,7 +413,7 @@ export default class Agents extends View {
               if (r.code !== 0) notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
             });
             cx.notify();
-          }), 4))
+          }), 6))
         .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
       // A row leads with what the agent is on; an automatic tab number says nothing.
       // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
@@ -422,13 +424,12 @@ export default class Agents extends View {
       const fromKid = st !== "idle" && st !== own(a);
       const when = this.since(a);
       const lead = h_flex().size(16).flex_none().items_center().justify_center().when(Boolean(pic), el => el.child(pic));
-      const server = svg("mods/t3-agents/server.svg").size(12).flex_none().text_color(t.dim);
+      const server = svg("mods/t3-agents/server.svg").size(14).flex_none().text_color(t.dim);
       const time = div().flex_none().text_size(12).text_color(t.dim).opacity(offer ? 0 : 1).transition("opacity", MOTION).when(Boolean(when), el => el.child(duration(now - when)));
       const base = h_flex()
         .relative()
         .w_full().min_w(0)
-        // 8 on the right: the status marks stand in the column of the heading's button.
-        .pl(10).pr(8)
+        .px(10)
         .h(ROW)
         .flex_none()
         .rounded(6)
@@ -441,16 +442,16 @@ export default class Agents extends View {
             cx.stop_propagation();
             this.toggleFold(a.address, cx);
           })))
-        .child(h_flex().flex_1().min_w(0).gap(8).items_center()
-          .child(div().min_w(0).truncate().text_color(leads ? t.foreground : t.muted).child(name))
+        .child(h_flex().flex_1().min_w(0).gap(10).items_center()
+          .child(div().min_w(0).truncate().when(on || st === "blocked" || st === "done", (el) => el.font_medium()).text_color(leads ? t.foreground : t.muted).child(name))
           .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
         // As Inbox's cards and T3's: a server mark, the machine named on hover.
         .when(Boolean(machine), el => el.child(ghost ? server : tipMark(this, t, `machine-${a.address}`, machine, server)))
         .child(h_flex().when(!ghost, el => el.id(`controls-${a.address}`)).flex_none().items_center().gap(4)
           .when(subs.length > 0, el => el.child(fold(a, subs, ghost)))
-          // The time and the pin share one slot at least the pin's width, so hovering moves nothing else.
-          .child(ghost ? h_flex().h(20).min_w(20).flex_none().items_center().justify_end().child(time)
-            : h_flex().id(`when-${a.address}`).relative().h(20).min_w(20).flex_none().items_center().justify_end()
+          // The time and the pin share one slot, T3's corner, so hovering moves nothing else.
+          .child(ghost ? h_flex().h(24).min_w(32).flex_none().items_center().justify_end().child(time)
+            : h_flex().id(`when-${a.address}`).relative().h(24).min_w(32).flex_none().items_center().justify_end()
               .child(time)
               .child(div().absolute().top(0).right(0).child(tip(this, t, pinId, isPinned ? "Unpin" : "Pin", pin()))))
           .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "", ghost ? undefined : `status-${a.address}`)));
@@ -480,16 +481,15 @@ export default class Agents extends View {
     if (!groups.some((g) => g.id === this.overGroup)) this.overGroup = null;
     const chevron = (g, open, ghost) => {
       const color = !ghost && this.overGroup === g.id ? t.foreground : t.dim;
-      return div().w(26).flex_none().flex().items_center().justify_center().text_color(color).child(foldArrow("t3-agents", ghost ? null : `chevron-${g.id}`, open, 12, color));
+      return div().flex_none().text_color(color).child(foldArrow("t3-agents", ghost ? null : `chevron-${g.id}`, open, 12, color));
     };
-    // Drawn as Inbox's shelves, T3's: a dim label, then at the far edge the count and the chevron, in the status column
-    // (a 26px slot 2px in, as a machine's), an indicator that lights with its row.
+    // Drawn as Inbox's shelves, T3's: a dim label, then at the far edge the count and the chevron, an indicator that lights with its row.
     const shelf = (g, open, ghost) => {
       const base = h_flex()
-        .pl(10).pr(2)
+        .mx(2).px(8)
         .h(HEAD)
         .flex_none()
-        .gap(4)
+        .gap(8)
         .items_center()
         .text_size(12)
         .font_medium()
@@ -511,7 +511,7 @@ export default class Agents extends View {
       const dot = top && top !== "idle";
       const space = spaces().find((s) => s.id === g.space) ?? { name: g.label };
       const base = h_flex()
-        .pl(10).pr(2)
+        .px(10)
         .h(HEAD)
         .flex_none()
         .gap(10)
@@ -529,13 +529,13 @@ export default class Agents extends View {
         .active((s) => s.bg(t.selected))
         .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
         .on_click((_e, cx) => this.toggleFold(g.id, cx, false))
-        .on_mouse_down("right", () => openOverlay({ mod: "t3-menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
+        .on_mouse_down("right", () => openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
     };
     // A closed group still shows the row you're on, as T3's route row, and hints at the rest.
     const entries = groups.flatMap((g, i) => {
       const open = !this.isFolded(g.id, g.id === "sec-1");
       const head = (ghost) => g.space ? div().flex_none().when(i > 0, (el) => el.pt(HEAD_GAP)).child(folder(g, open, ghost)) : shelf(g, open, ghost);
-      return [{ key: `m:${g.id}`, h: HEAD + (g.space && i ? HEAD_GAP : 0), el: head(false), ghost: () => head(true) },
+      return [{ key: `m:${g.id}`, h: HEAD + STACK + (g.space && i ? HEAD_GAP : 0), el: head(false), ghost: () => head(true) },
         ...(open ? g.members : g.members.filter(viewing)).flatMap(withKids)];
     });
 
@@ -559,11 +559,11 @@ export default class Agents extends View {
       .bg(t.chrome)
       .border_t(1)
       .border_color(t.border)
-      .text_size(13)
+      .text_size(14)
       .child(
           h_flex()
             .id("agents-heading")
-            .pl(18).pr(10)
+            .pl(18).pr(8)
             .h(31)
             .flex_none()
             .items_center()
@@ -572,25 +572,28 @@ export default class Agents extends View {
             .child(
               tip(this, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", div()
                 .id("ag-sort")
-                .size(26).flex_none().flex().items_center().justify_center().rounded(6)
+                .size(28).flex_none().flex().items_center().justify_center().rounded(8)
                 .role("button").accessibility_label("Sort agents")
-                .text_size(11)
                 .text_color(lit("ag-sort"))
                 .hover((s) => s.bg(t.hover))
                 .on_hover(glow(this, "ag-sort"))
+                .on_mouse_down("left", (e) => { this.sortFrom = e.bounds; })
                 .on_click((_e, cx) => {
                   this.hot = null; // The menu covers it, before the pointer can report leaving it.
-                  openOverlay({ mod: "t3-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } });
+                  // Hung from the button, right edges together, as T3's menus. No press (the keyboard), the app's default.
+                  const b = this.sortFrom, z = Number(settings()?.zoom) || 1;
+                  this.sortFrom = null;
+                  openOverlay({ mod: "t3-agents", kind: "popup", width: SORT_WIDTH, height: 140, ...(b ? { at: { x: b.x + b.width - SORT_WIDTH * z, y: b.y + b.height + 4 * z } } : {}), props: { sortMenu: true } });
                   cx.notify();
                 })
-                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(14)))),
+                .child(svg(`mods/t3-agents/${sort.icon}.svg`).size(16)), 8)),
             ),
       )
       .when(list.length === 0, (el) =>
-        el.child(div().px(16).text_size(12).text_color(t.dim).child("No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.")),
+        el.child(div().px(16).py(24).text_center().text_size(12).line_height("16px").text_color(t.dim).child("No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.")),
       )
-      .child(v_flex().id("ag-list").flex_1().min_h(0).px(8).overflow_y_scroll()
+      .child(v_flex().id("ag-list").flex_1().min_h(0).px(8).pb(8).overflow_y_scroll()
         // The rows in one box that scrolls, so the leaving ones placed in it scroll with them.
-        .child(v_flex().id("ag-content").relative().w_full().flex_none().children(leavingRows(this)).children(rows))));
+        .child(v_flex().id("ag-content").relative().w_full().flex_none().gap(STACK).children(leavingRows(this)).children(rows))));
   }
 }
