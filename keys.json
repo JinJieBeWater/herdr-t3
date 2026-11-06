@@ -8,6 +8,7 @@
     "cmd-w": "t3-tabs.close-tab",
     "ctrl-alt-shift-x": "t3-tabs.close-tab",
     "cmd-shift-w": "t3-tabs.close-pane",
-    "ctrl-alt-x": "t3-tabs.close-pane"
+    "ctrl-alt-x": "t3-tabs.close-pane",
+    "cmd-shift-e": "layout.toggle:panel"
   }
 }

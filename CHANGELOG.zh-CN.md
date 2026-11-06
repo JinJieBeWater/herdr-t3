@@ -4,6 +4,9 @@
 
 ## 2026-11-06
 
+- Files 和 Changes，和 Herdr 默认布局一样：窗格右侧的面板，以标签显示 Herdr 自带的 `files` 和 `changes`，默认隐藏。标签栏 `+` 前的按钮或 `cmd-shift-e` 显示或隐藏它；显示时按钮点亮。
+- 更新：复制 `mods/t3-tabs` 和 `layouts/herdr-t3.json`，并把 `"cmd-shift-e": "layout.toggle:panel"` 加进你的 `layout:herdr-t3` 快捷键。
+
 - 标签的悬停卡片不再挡路：指针移到 `×` 时收起；名字完整显示又没有状态要说时不再弹出。`×` 有自己的 `Close tab` 提示，500ms 后出现。
 
 ## 2026-11-05

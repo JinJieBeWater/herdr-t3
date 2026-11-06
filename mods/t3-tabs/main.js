@@ -218,7 +218,8 @@ export default class Tabs extends View {
     const live = awake(st);
     const ps = panes();
     const stopPress = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    // `on` for a toggle that's on: a `selected` ground and a lit icon, as a tab that's active.
+    const button = (id, glyph, label, action, key, on) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id, on ? t.foreground : undefined)).when(on, el => el.bg(t.selected)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
       .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
@@ -302,11 +303,13 @@ export default class Tabs extends View {
       // A tab goes by its mouse-up, which a key isn't.
       return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });
     };
-    const root = layout(), sidebar = find(root, "sidebar"), w = window();
+    const root = layout(), sidebar = find(root, "sidebar"), panel = find(root, "panel"), w = window();
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
+    // Before +, with a `panel` in the layout: Herdr's own Files and Changes, as Herdr's tab bar has them, behind one button.
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pr(10).gap(4).items_center().on_size_change((size) => this.fit(size))
+        .when(Boolean(panel), el => el.child(button("panel-toggle", svg("mods/t3-tabs/panel-right.svg").size(14), panel.hidden ? "Show Files and Changes" : "Hide Files and Changes", () => run("layout.toggle", { id: "panel" }), "layout.toggle:panel", !panel.hidden)))
         .child(button("tab-new", svg("mods/t3-tabs/plus.svg").size(14), "New tab", () => run("tab.new"), "tab.new"))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize")))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize")))

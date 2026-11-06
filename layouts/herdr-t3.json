@@ -125,6 +125,28 @@
                   "lone": true
                 }
               }
+            },
+            {
+              "id": "panel",
+              "type": "column",
+              "hidden": true,
+              "size": { "px": 368 },
+              "min": 280,
+              "max": 900,
+              "background": "background",
+              "radius": 8,
+              "children": [
+                {
+                  "id": "panel-body",
+                  "type": "stack",
+                  "active": "files",
+                  "header": { "content": "tabs", "height": 30 },
+                  "children": [
+                    { "id": "files", "title": "Files", "type": "block", "content": { "mod": "files" } },
+                    { "id": "changes", "title": "Changes", "type": "block", "content": { "mod": "changes" } }
+                  ]
+                }
+              ]
             }
           ],
           "padding": [0, 8],
