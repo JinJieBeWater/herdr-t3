@@ -1528,10 +1528,15 @@ test("a row's card fades when a control in the row is lit and when another row's
 });
 
 // Herdr drops a leave while the pointer's last known place is in the element's last box, and no other comes: these never get an on_hover(false).
-test("a row's card goes when its leave never comes: the pointer's elsewhere, or the window's not active", () => {
+test("a row's card goes when its leave never comes: the pointer's elsewhere, or out past the window's edge, active or not", () => {
   const box = { x: 10, y: 100, width: 200, height: 36 };
-  for (const away of [(f) => { f.pointer = { x: 20, y: 300 }; }, (f) => { f.active = false; }]) {
+  const pastEdge = (f) => {
+    // Stopped at the edge, heading out: macOS reports no more.
+    for (const x of [30, 12]) { f.pointer = { x, y: 110 }; f.event("card-A", "on_mouse_move", { position: f.pointer, local_position: f.pointer, bounds: { ...box, x: 0 } }); }
+  };
+  for (const [active, away] of [[true, (f) => { f.pointer = { x: 20, y: 300 }; }], [false, (f) => { f.pointer = { x: 20, y: 300 }; }], [false, pastEdge]]) {
     const f = fixture(); f.add("A", "idle", 100); f.render();
+    f.active = active;
     const polling = () => f.watches.filter((w) => !w.cancelled).length, before = polling();
     const card = () => find(f.tree, "details-card-A");
     f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
@@ -1641,15 +1646,31 @@ test("a hover label goes when its leave never comes, and its control stops being
   assert.equal(polling(), before, "nothing left polling");
 });
 
-test("nothing opens on hover in a window that isn't active", () => {
+test("hovering works in a window that isn't active, as T3's: it doesn't flash and go", () => {
   const f = fixture(); f.add("A", "idle", 100); f.render();
   f.active = false;
-  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
-  assert.equal(find(f.tree, "details-card-A"), null);
+  f.event("card-A", "on_hover", true);
+  f.tick(); f.render();
+  assert.equal(f.mod.hovered, "A", "the pointer hasn't moved: the row stays hovered");
+  assert.ok(find(f.tree, "settle-A"), "its controls are there");
+  f.render(f.now + 150); f.render(f.now + 34); f.tick(); f.render();
+  assert.equal(f.mod.hovered, "A");
+  assert.ok(find(f.tree, "details-card-A"), "and its card opens");
   f.mod.hot = "inbox-scope";
   find(f.mod.render(f.cx), "tip-over-inbox-scope").handlers.on_hover(true, f.cx);
-  f.render(f.now + 150);
-  assert.equal(find(f.mod.render(f.cx), "tip-inbox-scope").style.content, undefined);
+  f.render(f.now + 150); f.tick();
+  assert.equal(f.mod.hot, "inbox-scope");
+  const walk = (n) => n && typeof n === "object" ? [n, ...(n.items ?? []).flatMap(walk)] : [];
+  assert.ok(walk(f.mod.render(f.cx)).find((n) => n.key?.startsWith("tip-body-inbox-scope-")), "and a label");
+});
+
+test("the window going inactive under a still pointer leaves its hover as it is", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  f.active = false;
+  f.tick(); f.render();
+  assert.equal(f.mod.hovered, "A");
+  assert.ok(find(f.tree, "details-card-A"));
 });
 
 test("past 40 rows coming and going at once, they just show", () => {

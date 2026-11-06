@@ -1,7 +1,6 @@
 // A thing's details as T3's thread card, with its timing: for Inbox rows and tabs. scripts/sync.sh copies this to the mods that use it.
 import { div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { window } from "herdr";
 import { POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
 
 // The program's icon from the app's table: a one-color glyph or a picture.
@@ -58,7 +57,6 @@ export function detailsFor(view, key, cx) {
     view.details = null;
     return;
   }
-  if (window()?.active === false) return;
   const live = detailsLive(view);
   if (view.detailsOut === key) {
     view.detailsFade?.cancel();

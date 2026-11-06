@@ -15,7 +15,7 @@ import { agents, terminals, panes, spaces, machines, focused, run, hc, notify, t
 import { modStatus, namer, programOf } from "./name.js";
 import { kidStatus, descendants, ownStatus, stillSettled, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { glow, POINTER_WATCH, pointerGone, pointerMoved, tip, tipMark } from "./tip.js";
+import { dragGone, glow, POINTER_WATCH, pointerMoved, tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
@@ -439,7 +439,7 @@ export default class Inbox extends View {
     this.dragWatch?.cancel();
     this.dragWatch = cx.timer.every(POINTER_WATCH, (cx) => {
       if (!(this.drag || this.sweep || this.back)) this.dragWatch.cancel();
-      else if (pointerGone(this.dragBox)) this.leftSidebar(cx);
+      else if (dragGone(this.dragBox)) this.leftSidebar(cx);
     });
   }
 

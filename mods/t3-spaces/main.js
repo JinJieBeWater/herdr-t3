@@ -8,7 +8,7 @@ import { foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
 import { projectMark, placeOf, tint } from "./project.js";
-import { glow, tip, tipMark, POINTER_WATCH, pointerGone, pointerMoved } from "./tip.js";
+import { dragGone, glow, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { stopsInit, stop, focusRoot, enter } from "./focus.js";
 
 // Where a space is now. `ps`: panes(), read once by the caller (each read copies every pane).
@@ -563,7 +563,7 @@ export default class Spaces extends View {
     if (!d.moved) {
       const watch = cx.timer.every(POINTER_WATCH, (cx) => {
         if (this.drag !== d) return watch.cancel();
-        if (!pointerGone(d.box)) return;
+        if (!dragGone(d.box)) return;
         watch.cancel();
         this.letGo(cx, true);
       });
