@@ -46,6 +46,15 @@ function fire(node, event, ...args) {
   return node.handlers[event](...args);
 }
 
+// A mod as Herdr would load it, all in one scope: what main.js imports from its own folder, each file once and before what needs it.
+function bundle(dir, file = "main.js", seen = new Set()) {
+  if (seen.has(file)) return "";
+  seen.add(file);
+  const src = fs.readFileSync(path.join(dir, file), "utf8");
+  const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map((m) => bundle(dir, m[1], seen)).join("\n");
+  return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+}
+
 const modRoot = path.dirname(__dirname);
 const cx = { notify() {}, stop_propagation() {}, spawn() {}, bind_keys() {}, timers: [], watches: [], timer: { every(ms, fn) { const t = { ms, fn, cancel() { t.gone = true; } }; cx.watches.push(t); return t; }, after(ms, fn) { const t = { ms, fn, cancel() { t.gone = true; } }; cx.timers.push(t); return t; } }, focus_handle: () => { let gone = false; return { focus() { assert.ok(!gone, "a released FocusHandle throws when used"); }, is_focused: () => false, release() { gone = true; return true; } }; } };
 function fixture(width) {
@@ -90,12 +99,7 @@ function fixture(width) {
     const storage = stores.get(name) ?? new Map();
     stores.set(name, storage);
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
-    const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
-    // name.js, tree.js, project.js, tip.js, details.js, focus.js, list.js and motion.js, the shared naming, status, space-mark, hover-label, details, keyboard, list and motion rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js", "zoom.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
-    const source = (shared + read("main.js"))
-      .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
-      .replace("export default class", "globalThis.Mod = class");
+    const source = bundle(path.join(modRoot, name));
     const context = vm.createContext({ ...env, t3FocusRun: true, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
     vm.runInContext(source, context, { filename: name });
     scopes.set(name, context);
