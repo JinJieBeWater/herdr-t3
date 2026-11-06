@@ -405,6 +405,24 @@ test("only a list with nothing in it says so, as T3's", () => {
   assert.deepEqual(said(f), ["Nothing in Two yet"]);
 });
 
+test("the space filter's menu measures as T3's, its search text inside the button's left edge", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.mod.scopeOpen = true; f.render();
+  const num = (n, k) => n.style[k]?.[0];
+  const menu = find(f.tree, "inbox-scope-menu"), panel = find(f.tree, "inbox-scope-panel"), field = panel.items[0];
+  assert.equal(num(menu, "anchor"), "top_left", "hangs from the button's left edge");
+  assert.deepEqual(["w", "mt", "p", "rounded"].map((k) => num(panel, k)), [288, 4, 4, 8]);
+  assert.ok("shadow_lg" in panel.style, "as every other popup");
+  assert.equal("gap" in panel.style, false, "T3's rows and field are flush");
+  assert.deepEqual(["mx", "mt", "h", "pb", "gap"].map((k) => num(field, k)), [8, 5, 33, 6, 4]);
+  const icon = field.items[0], inset = num(panel, "p") + num(field, "mx");
+  assert.equal(num(icon, "size"), 16);
+  assert.equal(inset + num(icon, "size") + num(field, "gap"), 32, "T3's: 12 to the icon, 20 on to the text");
+  assert.equal(num(field, "h") - num(field, "pb") - 1, 26, "T3's h-6.5 field, above its 1px rule");
+  const row = find(panel, "scope-all"), rows = find(panel, "inbox-scope-list").items.filter((n) => n.key?.startsWith("scope-"));
+  assert.deepEqual(["h", "px", "gap", "rounded"].map((k) => num(row, k)), [32, 8, 8, 4]);
+  assert.deepEqual(rows.slice(0, 2).map((n) => num(n, "top")), [0, 32], "the rows are 32 apart");
+});
+
 // check-focus.cjs has focus.js's own rules; these are what the inbox wires to them.
 test("in keyboard mode each control is a stop, and a row shows with the keyboard on it what it shows hovered", () => {
   const f = fixture(); f.add("A", "idle", 100);

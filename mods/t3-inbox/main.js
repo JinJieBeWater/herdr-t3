@@ -35,8 +35,8 @@ const RETRY = 60000;
 const DAY = 86400000;
 // T3's slim rows and Show more (h-9) and its shelves' headers (h-8), logical px.
 const SLIM = 36, SHELF = 32;
-// The space filter's rows, 32px with a 2px gap, and how many show before the list scrolls: as many as its 360px holds.
-const SCOPE_ROW = 34, SCOPE_SHOWN = 9;
+// The space filter's rows, flush as T3's, and how many show before the list scrolls: the whole rows T3's 23rem holds.
+const SCOPE_ROW = 32, SCOPE_SHOWN = 9;
 // The last word when times tie, so the order doesn't follow the order the data came in.
 const byAddress = (x, y) => x.address.localeCompare(y.address);
 
@@ -1318,7 +1318,7 @@ export default class Inbox extends View {
     const choice = (s, i) => {
       const on = s.id ? scope.includes(s.id) : scope.length === 0;
       // Selection is a check badge on the icon, as in T3.
-      return h_flex().id(`scope-${s.id ?? "all"}`).h(32).px(8).gap(8).flex_none().items_center().rounded(6)
+      return h_flex().id(`scope-${s.id ?? "all"}`).h(SCOPE_ROW).px(8).gap(8).flex_none().items_center().rounded(4)
         .when(i === this.scopeAt, (el) => el.bg(t.selected))
         .on_hover((over, cx) => { if (over && this.scopeAt !== i) { this.scopeAt = i; cx.notify(); } })
         .role("button").accessibility_label(s.name)
@@ -1330,7 +1330,7 @@ export default class Inbox extends View {
             .child(svg("mods/t3-inbox/check.svg").size(7).text_color("#ffffff")))))
         .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(s.name));
     };
-    // As T3's: from the button's left edge, 288 wide, out over the work column.
+    // As T3's: from the button's left edge, 288 wide, out over the work column; radius 8 and rows' 4, inset 4 (its rounded-lg, rounded-sm, px-1).
     const filter = Popover.new("inbox-scope-menu").anchor("top_left").open(this.scopeOpen)
       .on_open_change((open, cx) => {
         this.scopeOpen = open;
@@ -1349,8 +1349,8 @@ export default class Inbox extends View {
           : scoped.length
             ? avatar(scoped[0].id, scoped[0].name, 16)
             : svg("mods/t3-inbox/list-filter.svg").size(14).text_color(lit("inbox-scope", t.dim)))))
-      .content(v_flex().id("inbox-scope-panel").w(288).max_h(360).mt(4).p(6).gap(2).rounded(10)
-        .bg(t.popover).border_1().border_color(t.border).text_size(13)
+      .content(v_flex().id("inbox-scope-panel").w(288).mt(4).p(4).rounded(8)
+        .bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(13)
         .on_key_down((e, cx) => {
           const to = step(e, this.scopeAt, this.matches().length);
           if (to < 0) return;
@@ -1358,11 +1358,12 @@ export default class Inbox extends View {
           cx.stop_propagation();
           cx.notify();
         })
-        .child(h_flex().h(32).px(8).gap(8).flex_none().items_center().border_b_1().border_color(t.border)
-          // 16, as the rows' icons, so the text below starts where this does.
+        // As T3's ComboboxSearchInput: 12 in and 10 down less the 1 it shifts up, a 26 field, 6 to the rule. Its text starts 20 from
+        // the icon, 4 before the names, and inside the button's left edge as the panel hangs from it.
+        .child(h_flex().mx(8).mt(5).h(33).pb(6).gap(4).flex_none().items_center().border_b_1().border_color(t.border)
           .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(t.dim))
           .child(Input.new(this.search).flex_1().h_full().text_size(13).text_color(t.foreground)))
-        .child(div().pt(4).flex_none()
+        .child(div().pt(5).flex_none()
           .when(found.length > 0, (el) => el.child(scrollList(this, "inbox-scope-list", { count: found.length, row: SCOPE_ROW, at: this.scopeAt, height: Math.min(found.length, SCOPE_SHOWN) * SCOPE_ROW,
             draw: (i) => choice(found[i], i), wheeled: (keep) => { this.scopeAt = keep; } })))
           .when(found.length === 0, (el) => el.child(div().px(8).py(6).text_color(t.dim).child("No matching spaces.")))));
