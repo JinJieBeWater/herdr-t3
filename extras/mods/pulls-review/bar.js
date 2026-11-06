@@ -71,6 +71,9 @@ async function touchesDiff(root, paths) {
 // Each location keeps its last read, so switching back shows it at once and switching away never shows the old one.
 // Focus is checked every 250 ms (memory reads only); git is read on a new location, a change in the worktree (a second
 // after the last read at the soonest), else every 10 s.
+// Herdr T3's Home: no worktree to count.
+const onHome = () => shared("t3-home.space") && spaces().some((s) => s.active && s.id === shared("t3-home.space"));
+
 export function watchReview(view, cx) {
   view.reviews = new Map();
   view.reviewAt = new Map();
@@ -79,7 +82,7 @@ export function watchReview(view, cx) {
   cx.timer.every(250, (cx) => {
     const where = reviewLocation(), key = JSON.stringify(where);
     if (key !== view.reviewKey) { view.reviewKey = key; cx.notify(); }
-    if (!window()?.active || view.reviewBusy.has(key) || Date.now() - (view.reviewAt.get(key) ?? 0) < 10000) return;
+    if (onHome() || !window()?.active || view.reviewBusy.has(key) || Date.now() - (view.reviewAt.get(key) ?? 0) < 10000) return;
     view.reviewBusy.add(key);
     view.reviewAt.set(key, Date.now());
     cx.spawn(async (cx) => {
@@ -336,8 +339,7 @@ function branchCard(view, t, id, b, base, now) {
 }
 
 export function reviewBar(view, t, stop) {
-  // Herdr T3's Home: no worktree to count.
-  if (shared("t3-home.space") && spaces().some((s) => s.active && s.id === shared("t3-home.space"))) return null;
+  if (onHome()) return null;
   // Looked up on each render, so the frame that shows another space already shows its own counts.
   const r = view.reviews?.get(JSON.stringify(reviewLocation()));
   if (!r) return null;
@@ -345,7 +347,8 @@ export function reviewBar(view, t, stop) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the counts alone, their colors telling them apart. Unset, the words too.
   const compact = shared("bar.compact");
   // What the focused tab's review pane shows, when it's this repository's; `sha`, when that's one commit of its diff.
-  const tab = focused()?.tab, reviewed = shared("review.shown")?.[tab], here = reviewed?.root === r.root ? reviewed : null;
+  // Its entry outlives a closed pane, until another review pane drops it.
+  const tab = focused()?.tab, reviewed = panes().some(p => p.tab === tab && p.mod === "review") ? shared("review.shown")?.[tab] : null, here = reviewed?.root === r.root ? reviewed : null;
   const sha = here?.page?.startsWith("/commit/") && here.page !== here.base ? here.page.slice("/commit/".length) : null;
   const list = here?.commits ?? [], index = sha ? list.findIndex(c => c.sha === sha) : -1;
   const within = here && (sha || list.length > 1) ? { tab, root: r.root, base: here.base, sha } : null;
@@ -357,7 +360,7 @@ export function reviewBar(view, t, stop) {
   const item = ([id, count, noun, ansi, name, args], last) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(8).gap(6).flex_none().items_center()
     .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
-    .on_hover((on, cx) => { if (on) view.hot = id; else if (view.hot === id) view.hot = null; cx.notify(); })
+    .on_hover(glow(view, id))
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
     // Hovered, the label turns foreground: the count takes its bright twin (ansi + 8) to stay the lead, same hue.
     .child(div().font_medium().text_color(t[`ansi${view.hot === id ? ansi + 8 : ansi}`]).child(count))

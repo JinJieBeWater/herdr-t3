@@ -86,8 +86,9 @@ const element = (named = null) => {
 };
 const press = (id) => { handlers.get(`${id}.on_click`)({}, cx); drawn.clear(); pane.render(cx); };
 const store = new Map(), sharedStore = new Map();
+const pref = (key) => sharedStore.get("review.prefs")?.[key], setPref = (key, value) => sharedStore.set("review.prefs", { ...sharedStore.get("review.prefs"), [key]: value });
 let shownTab = "b", windowActive = true;
-const calls = [], bodies = [], routes = [], puts = [], browsed = [];
+const calls = [], bodies = [], routes = [], puts = [], browsed = [], notes = [];
 // A text field's state: its value, and its submit and blur handlers.
 const field = { text: "", events: {}, value() { return this.text; }, set_value(v) { this.text = v; }, on(event, h) { this.events[event] = h; return true; } };
 const env = {
@@ -104,7 +105,7 @@ const env = {
   props: () => ({ root: "/repo", page: "/branch/fix", n: 1 }),
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
-  run: (name, args) => calls.push([name, args]), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
+  run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
   watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth,
   // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going.
   review: async (_root, route, body) => {
@@ -153,7 +154,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
 (async () => {
   pane.init({}, cx);
   // As the app, which never starts an AI run by itself: analyzing on open is off until turned on.
-  assert.equal(pane.autoAnalyze, false);
+  assert.ok(!pref("autoAnalyze"));
   // A pane wide enough for the sidebar, and a diff for split, as the pane measures them.
   pane.width = 1200; pane.view = 1000;
   await new Promise(setImmediate);
@@ -211,8 +212,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // A finished run has no status: the panel isn't shown, even left open.
   pane.popup = "status"; pane.review.analysis = { state: "current", agent: true }; drawn.clear(); pane.render(cx);
   assert.ok(!drawn.has("review-status-panel"));
+  // Nor does the next run bring it back, or take a press on "Analyzing…" to close it unseen.
+  pane.review.analysis = { state: "running", agent: true }; drawn.clear(); pane.render(cx);
+  assert.ok(!drawn.has("review-status-panel"), "not unasked");
+  pane.popupClosedAt = 0; press("analyze");
+  assert.ok(drawn.has("review-status-panel"), "the first press opens it");
   pane.key({ keystroke: "escape" }, cx);
   assert.ok(pane.popup !== "status");
+  pane.review.analysis = { state: "current", agent: true }; pane.render(cx);
   // Its tab and pane header show the word an agent would: a run from the click, then how it ended until the tab is looked at.
   const word = () => sharedStore.get("review.status")?.b ?? null;
   const ended = (analysis) => { pane.review.analysis = { state: "running", agent: true }; pane.report(); pane.review.analysis = { agent: true, ...analysis }; pane.report(); };
@@ -236,6 +243,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   shownTab = "b"; ended(failed);
   assert.equal(word(), null, "ended in view, there's no news");
   assert.equal(analyzeButton().text, "Analysis failed", "and the pane's button keeps the failure");
+  windowActive = false; ended(finished);
+  assert.equal(word(), "done", "the tab shown, the window behind: nobody saw it end");
+  windowActive = true; pane.report();
+  assert.equal(word(), null, "back at the window, it's read");
   // Tabs without a review pane drop out; a second pane's word stays, and writing yours doesn't reorder it into a loop.
   const onePane = mainScope.panes;
   mainScope.panes = () => [{ pane: "p9", mod: "review", tab: "b" }, { pane: "p8", mod: "review", tab: "c" }];
@@ -294,14 +305,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(!drawn.has("file-list") && !drawn.has("layout"));
   pane.popupClosedAt = 0; press("settings");
   press("files-list");
-  assert.equal(pane.fileList, "list");
-  assert.equal(sharedStore.get("review.prefs").fileList, "list");
+  assert.equal(pref("fileList"), "list");
   press("files-tree");
-  assert.equal(pane.fileList, "tree");
+  assert.equal(pref("fileList"), "tree");
   pane.closePopup(cx); pane.popupClosedAt = 0;
   pane.select("c.ts", cx);
   assert.equal(pane.current, "c.ts");
-  pane.split = true; pane.version++; pane.render(cx);
+  setPref("split", true); pane.render(cx);
   pane.key({ keystroke: "j" }, cx); pane.key({ keystroke: "k" }, cx);
   assert.equal(pane.current, "b.png");
   pane.key({ keystroke: "r" }, cx);
@@ -431,7 +441,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.locale(), "fr");
   // Shortcuts stay off while the panel takes typing.
   pane.key({ keystroke: "s" }, cx);
-  assert.equal(pane.split, true);
+  assert.equal(pref("split"), true);
   // Auto analyze off: a page with no analysis isn't started; turned back on, it is, once.
   handlers.get("auto-analyze.on_change")(false, cx);
   assert.equal(sharedStore.get("review.prefs").autoAnalyze, false);
@@ -459,18 +469,25 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // The settings set unified or split, kept for the next pane; picking the one set changes nothing.
   pane.popupClosedAt = 0; press("settings");
   press("view-split");
-  assert.equal(pane.split, true);
+  assert.equal(pref("split"), true);
   press("view-unified");
-  assert.equal(pane.split, false);
+  assert.equal(pref("split"), false);
   press("view-unified");
-  assert.equal(pane.split, false);
+  assert.equal(pref("split"), false);
   pane.closePopup(cx); pane.popupClosedAt = 0;
-  assert.equal(sharedStore.get("review.prefs").split, false);
-  // A new pane starts from the shared preferences, not the defaults.
+  // Every pane reads the shared preferences where it uses them: a new one starts from them, and a choice in one holds in all at once.
   const second = new (load("main.js", { ...env }).Mod)();
-  second.init({}, cx);
-  assert.deepEqual([second.split, second.fileList, second.autoAnalyze, second.groupNav], [pane.split, pane.fileList, pane.autoAnalyze, "sidebar"]);
-  assert.deepEqual([second.fileList, second.autoAnalyze], ["tree", true]);
+  second.init({}, cx); await new Promise(setImmediate);
+  second.view = 1000; second.width = 1200;
+  assert.ok(!second.splitShown() && second.sidebarShown());
+  setPref("split", true);
+  assert.ok(second.splitShown());
+  setPref("split", false);
+  // Turned off in one, another pane starts no paid run.
+  setPref("autoAnalyze", false); review.analysis = { state: "none", agent: true }; review.head = { sha: "h3" }; routes.length = 0;
+  second.load(cx); await new Promise(setImmediate);
+  assert.ok(!routes.includes("/api/review/analyze"));
+  setPref("autoAnalyze", true); review.analysis = { state: "outdated", agent: true }; review.head = { sha: "h2" };
   // Opened in a new tab that hasn't the focus yet, a pane takes the review pane's tab nobody claimed, and names it.
   const own = new Map(), third = new (load("main.js", { ...env, focused: () => ({ tab: "a" }),
     panes: () => [{ pane: "p9", mod: "review", tab: "b" }, { pane: "p8", mod: "review", tab: "c" }],
@@ -479,8 +496,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(third.tab, "c");
   assert.deepEqual(Object.keys(sharedStore.get("review.titles")).sort(), ["b", "c"]);
   // Responsive: narrower than SPLIT_MIN the diff is unified, the split choice kept; back, split again.
-  pane.split = true; pane.view = 600; drawn.clear(); pane.render(cx);
-  assert.ok(!pane.itemList.some(item => item.kind === "pair") && pane.split);
+  setPref("split", true); pane.view = 600; drawn.clear(); pane.render(cx);
+  assert.ok(!pane.itemList.some(item => item.kind === "pair") && pref("split"));
   pane.view = 1000; drawn.clear(); pane.render(cx);
   assert.ok(pane.itemList.some(item => item.kind === "pair"));
   // Narrower than WIDE, as the app below `lg`: no sidebar, the groups are tabs over the diff and a group's subgroups
@@ -584,7 +601,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual(plain(calls.filter(([name]) => name === "scroll")), [["scroll", headAt]]);
   pane.collapsed.delete("c.ts"); pane.version++; pane.render(cx);
   // Unified, code scrolls sideways by the wheel too, the headers staying put.
-  pane.split = false; pane.version++; pane.render(cx); pane.shift = [0, 0, 0]; pane.sideWidth = [0, 0, pane.view + 200];
+  setPref("split", false); pane.render(cx); pane.shift = [0, 0, 0]; pane.sideWidth = [0, 0, pane.view + 200];
   handlers.get("review-diff-area.on_scroll_wheel")({ delta: { x: -500, y: 0 }, local_position: { x: 100, y: 0 } }, cx);
   assert.deepEqual(plain(pane.shift), [0, 0, 200]);
   // Picking a file brings its header exactly to the top. Below the view: first the first item a view's height past it,
@@ -623,7 +640,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.listHeight = after - 1;
   assert.equal(pane.trailing(), 0);
   // A folder in the aside's tree doesn't fold, as the app's: its box marks its files.
-  pane.width = 1200; pane.fileList = "tree";
+  pane.width = 1200; setPref("fileList", "tree");
   pane.review.files.push(file("x/y/z.ts"));
   pane.review.groups[0].files.push("x/y/z.ts");
   pane.select("a.ts", cx); pane.version++; pane.visible = null; drawn.clear(); pane.render(cx);
@@ -681,7 +698,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.review.analysis = { state: "running", agent: true }; routes.length = 0;
   every[1500][0](cx); await settle();
   assert.deepEqual(plain(routes), ["/api/review"]);
-  mainScope.review = daemon;
+  // No daemon to ask: a run shown as going ends as failed, so the polls and their tries at starting the daemon stop.
+  mainScope.review = () => Promise.reject(new Error("daemon down"));
+  pane.review.analysis = { state: "running", agent: true }; shownTab = "other"; pane.report();
+  every[1500][0](cx); await settle();
+  assert.ok(!pane.analyzing() && analyzeButton().label === "Analysis failed" && word() === "blocked");
+  mainScope.review = daemon; shownTab = "b";
+  pane.load(cx); await settle();
+  assert.ok(!pane.error, "and the next read that answers says how it is");
   // Unseen - another tab shown, or the window inactive - the slow timer doesn't read; seen again, one read follows.
   const slow = every[15000][0], wake = every[1000][0];
   routes.length = 0; shownTab = "other";
@@ -700,6 +724,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.load(cx); await settle();
   assert.equal(target().reviewed, !was);
   release(); await settle(); await settle();
+  // A refused mark says so in a toast: the read after it would clear the pane's error at once.
+  mainScope.review = (root, route, body) => route === "/api/review/reviewed" ? Promise.reject(new Error("mark failed")) : daemon(root, route, body);
+  pane.setReviewed(target(), !target().reviewed, cx); await settle(); await settle();
+  assert.deepEqual(plain(notes), [{ title: "pulls.review", body: "mark failed", level: "error" }]);
   // A start the daemon refuses ends the wait and says why.
   mainScope.review = (root, route, body) => route === "/api/review/analyze" ? Promise.reject(new Error("no agent")) : daemon(root, route, body);
   pane.analyze(cx, false); await settle();
@@ -717,6 +745,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.open("/commit/c1", cx); await settle();
   reply({ rows: [] }); await settle();
   assert.ok(!pane.full.has(first) && pane.analyzeError === null && pane.startingUntil === 0);
+  // Nor does a start refused after the page changed say so on the new one.
+  let refuse;
+  mainScope.review = (root, route, body) => route === "/api/review/analyze" ? new Promise((_, no) => { refuse = no; }) : daemon(root, route, body);
+  pane.analyze(cx, false); pane.open("/commit/c3", cx); await settle();
+  refuse(new Error("no agent")); await settle();
+  assert.equal(pane.analyzeError, null);
   // Leaving a page mid-run isn't that run finishing.
   shownTab = "other"; pane.apply({ ...pane.review, analysis: { state: "running", agent: true } }); pane.report();
   assert.equal(word(), "working");
@@ -752,18 +786,42 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   answers.get("/commit/c1")({ ...late, title: "new" }); await wait();
   answer({ ...late, title: "old" }); await wait();
   assert.equal(pane.review.title, "new");
-  mainScope.review = daemon;
-  // Reopened on one commit's page, which lists only itself: the bar's list is read from its base, once.
+  // The theme changing during a read: its rows have the old colors, so they're dropped and read again in the new.
+  const paints = [], lightTheme = mainScope.theme;
+  mainScope.review = (root, route, body) => route === "/api/review" ? new Promise(r => paints.push([body, r])) : daemon(root, route, body);
+  pane.load(cx);
+  mainScope.theme = () => ({ ...lightTheme(), foreground: "#111111" }); pane.render(cx);
+  paints[0][1]({ ...late, title: "old colors" }); await wait();
+  assert.ok(pane.review.title !== "old colors" && paints[1][0].colors.foreground === "#111111");
+  paints[1][1]({ ...late, title: "new colors" }); await wait();
+  assert.equal(pane.review.title, "new colors");
+  mainScope.review = daemon; pane.render(cx); await wait();
+  // Changed while the pane isn't drawn, a poll's read in the meantime doesn't stand for it: the first render reads the rows anew.
+  mainScope.theme = () => ({ ...lightTheme(), foreground: "#222222" });
+  pane.load(cx, true); await wait(); pane.render(cx); await wait();
+  assert.ok(bodies.some(b => b.colors?.foreground === "#222222" && b.rows.length));
+  mainScope.theme = lightTheme; pane.render(cx); await wait();
+  // Retry takes its press's cx: the render's is gone by then (gpui-kit.d.ts), and a read started on it would leave `loading` set for good.
+  pane.error = "down";
+  let rendering = true;
+  pane.render(new Proxy(cx, { get: (c, key) => { assert.ok(rendering, `a render's cx used after it: ${String(key)}`); return c[key]; } }));
+  rendering = false; handlers.get("retry.on_click")({}, cx); await wait();
+  assert.ok(!pane.loading && !pane.error);
+  // Reopened on one commit's page, which lists only itself: the bar's list is read from its base, with each read, so a new
+  // commit reaches it.
   const reopened = new Map([["tab", "b"], ["root", "/repo"], ["page", "/commit/c2"], ["base", "/branch/fix"], ["handled", "99"]]);
-  const baseReads = [];
+  const baseReads = [], baseCommits = [...review.commits];
   const fresh = new (load("main.js", { ...env, localStorage: { getItem: (k) => reopened.get(k) ?? null, setItem: (k, v) => reopened.set(k, v) },
     review: async (_root, _route, body) => {
       if (body.page === "/branch/fix") baseReads.push(body.rows);
-      return { ...review, files: [], commits: body.page === "/branch/fix" ? review.commits : [review.commits[1]] };
+      return { ...review, files: [], commits: body.page === "/branch/fix" ? baseCommits : [review.commits[1]] };
     } }).Mod)();
   fresh.init({}, cx); await wait(); fresh.render(cx); await wait(); fresh.load(cx); await wait(); fresh.render(cx);
   assert.equal(sharedStore.get("review.shown").b.commits.length, 2);
-  assert.deepEqual(plain(baseReads), [[]], "once, and without rows");
+  assert.deepEqual(plain(baseReads), [[], []], "without rows");
+  baseCommits.push({ sha: "c3", subject: "three" });
+  fresh.load(cx); await wait(); fresh.render(cx);
+  assert.equal(sharedStore.get("review.shown").b.commits.length, 3);
   // A daemon too old for `firstRows` ignores it: drawing the first group asks for its rows, once.
   const oldReads = [];
   const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, _route, body) => {
@@ -802,8 +860,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   let next;
   mainScope.review = (root, route, body) => route === "/api/review" ? (bodies.push(body), new Promise(r => { next = r; })) : daemon(root, route, body);
   shownTab = "b"; pane.width = 1200; await drawAll();
-  const old = pane.review, marked = pane.marks, split = pane.split;
-  pane.current = old.files[0].path; pane.full.clear(); calls.length = 0;
+  const old = pane.review, marked = pane.marks, split = pref("split");
+  pane.current = old.files[0].path; pane.full.clear(); calls.length = 0; pane.shift = [0, 40, 300];
   pane.open("/commit/c2", cx);
   assert.ok(pane.review === old && pane.switching);
   assert.deepEqual(plain(bodies.at(-1)).rows, []);
@@ -813,10 +871,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(sharedStore.get("review.titles").b, "c2");
   pane.setReviewed(old.files[0], !old.files[0].reviewed, cx); pane.toggleFull(old.files[0], cx); pane.headerPress(old.files[0], 0, cx);
   pane.key({ keystroke: "s" }, cx); pane.key({ keystroke: "j" }, cx);
-  assert.ok(pane.marks === marked && !pane.full.size && pane.split === split && pane.current === old.files[0].path, "inert");
+  assert.ok(pane.marks === marked && !pane.full.size && pref("split") === split && pane.current === old.files[0].path, "inert");
   next({ ...review, title: "two" }); await wait();
   assert.ok(!pane.switching && pane.review.title === "two" && pane.current === null);
   assert.deepEqual(plain(calls.filter(([name]) => name === "scroll")), [["scroll", 0]]);
+  assert.deepEqual(plain(pane.shift), [0, 0, 0], "sideways too");
   // A failed read clears the old review rather than show it under the new page's title.
   mainScope.review = (root, route, body) => route === "/api/review" ? Promise.reject(new Error("gone")) : daemon(root, route, body);
   pane.open("/commit/c1", cx); await wait();

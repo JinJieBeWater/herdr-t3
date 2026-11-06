@@ -5,7 +5,7 @@
 
 import { View, div, svg, image, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, Scrollbar, v_virtual_list, VirtualListScrollHandle, TextView, Switch, InputState, Input } from "gpui-base";
-import { exec, focused, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
+import { exec, focused, notify, panes, props, settings, setShared, shared, spaces, theme, watchFolder, window as appWindow } from "herdr";
 import { request, review } from "./daemon.js";
 import { step, scrollList } from "./list.js";
 import { buildItems, codeInset, contentWidth, FILE, fileRows, groupFiles, noteWidth, pageLabel, ROW } from "./rows.js";
@@ -125,14 +125,6 @@ export default class ReviewPane extends View {
     this.page = localStorage.getItem("page") ?? p.page;
     this.base = localStorage.getItem("base") ?? this.page;
     this.handled = Number(localStorage.getItem("handled") ?? p.n ?? 0);
-    this.split = pref("split") === true;
-    // The sidebar's file list, a tree or a list, as the app's own toggle; a tree by default, as there.
-    this.fileList = pref("fileList") === "list" ? "list" : "tree";
-    // Groups as tabs or, wide enough, a sidebar, as the app's DiffGroupNavToggle; tabs by default, as there.
-    this.groupNav = pref("groupNav") === "sidebar" ? "sidebar" : "tabs";
-    // Starting an analysis on open is this pane's own choice, off by default: the app never starts a paid, slow AI run
-    // by itself. The agent, model and language are the daemon's shared settings.
-    this.autoAnalyze = pref("autoAnalyze") === true;
     // The one popup open over the diff, if any: "settings", "status" or "fold".
     this.popup = null; this.closedPopup = null; this.popupClosedAt = 0;
     this.agents = null; this.shared = null; this.settingsError = null;
@@ -150,6 +142,8 @@ export default class ReviewPane extends View {
       this.modelInput.set_value(""); this.modelIndex = -1; this.settingsPage = null;
       this.saveLlm({ agentModel: hit?.id ?? typed }, cx);
     });
+    // The colors the rows on screen are in.
+    this.colorsKey = JSON.stringify(colors(theme()));
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.listHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
     this.startingUntil = 0; this.loading = null; this.loadId = 0;
     this.marks = 0; this.marking = 0;
@@ -183,7 +177,7 @@ export default class ReviewPane extends View {
   }
 
   // No review shown, or none yet: what belonged to the last one goes with it.
-  forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); }
+  forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.shift = [0, 0, 0]; }
 
   watch(cx) {
     const root = this.root;
@@ -220,7 +214,7 @@ export default class ReviewPane extends View {
     // Rows only for the group's files that have none: apply() keeps the rest, and each asked-for file is highlighted anew.
     const rows = poll || !group ? [] : groupFiles(group).filter(path => this.review.files.some(f => f.path === path && !f.hunks));
     for (const file of this.review?.files ?? []) if (rows.includes(file.path)) this.asked.add(file.sha);
-    this.colorsKey = JSON.stringify(colors(t));
+    const key = JSON.stringify(colors(t));
     cx.timer.after(LOAD_TIMEOUT, (cx) => {
       if (id !== this.loadId || !this.loading) return;
       this.loading = null; this.error = `jin.review didn't answer in ${LOAD_TIMEOUT / 1000} s`;
@@ -232,6 +226,8 @@ export default class ReviewPane extends View {
       try {
         const r = await review(root, "/api/review", { page, colors: colors(t), rows, firstRows: !group });
         if (id !== this.loadId) return;
+        // The theme changed meanwhile: these rows have the old colors, and later reads ask only for files without rows.
+        if (JSON.stringify(colors(theme())) !== key) { this.again = true; return; }
         // Read before a reviewed mark landed, it would undo the mark on screen: the mark's own read follows.
         if (this.marking || marks !== this.marks) return;
         this.apply(r);
@@ -241,11 +237,19 @@ export default class ReviewPane extends View {
         // Opening a page with no analysis starts one, once per head. An outdated one waits for Re-analyze:
         // every commit on the branch would otherwise start another run.
         const a = r.analysis, once = `${page}@${r.head?.sha}`;
-        if (this.autoAnalyze && a.agent && !a.error && a.state === "none" && !this.auto.has(once)) {
+        // Starting an analysis on open is off by default: the app never starts a paid, slow AI run by itself.
+        if (pref("autoAnalyze") === true && a.agent && !a.error && a.state === "none" && !this.auto.has(once)) {
           this.auto.add(once);
           this.analyze(cx, false);
         }
-      } catch (e) { if (id === this.loadId) { this.error = e?.message ?? String(e); if (this.switching) this.forget(); } }
+      } catch (e) {
+        if (id === this.loadId) {
+          this.error = e?.message ?? String(e);
+          if (this.switching) this.forget();
+          // No daemon to ask: a run shown as going would poll, and each poll try to start the daemon, until it answers.
+          else if (this.review?.analysis.state === "running") this.review.analysis = { ...this.review.analysis, state: "none", error: this.error };
+        }
+      }
       finally {
         if (id === this.loadId) {
           this.loading = null;
@@ -303,15 +307,14 @@ export default class ReviewPane extends View {
     if (switched) this.scroll.scroll_to_item(0);
   }
 
-  // Reopened on one commit's page, which lists only itself: the diff's commits come from its base, read once without rows.
-  // A failed read leaves the commit alone in the bar's list.
+  // One commit's page lists only itself: the diff's commits come from its base, read without rows after each read, so a new
+  // commit reaches the bar's list. A failed read leaves the list as it was.
   loadBase(cx) {
-    const { root, base } = this, key = `${root}\n${base}`;
-    if (this.page === base || this.baseCommits || this.baseAsked === key) return;
-    this.baseAsked = key;
+    const { root, base } = this;
+    if (this.page === base) return;
     cx.spawn(async (cx) => {
       const r = await review(root, "/api/review", { page: base, colors: colors(theme()), rows: [] }).catch(() => null);
-      if (r && root === this.root && base === this.base && !this.baseCommits) { this.baseCommits = r.commits; cx.notify(); }
+      if (r && root === this.root && base === this.base) { this.baseCommits = r.commits; cx.notify(); }
     });
   }
 
@@ -323,7 +326,7 @@ export default class ReviewPane extends View {
     cx.notify();
     cx.spawn(async (cx) => {
       try { await review(root, "/api/review/analyze", { page, force }); }
-      catch (e) { this.startingUntil = 0; this.analyzeError = e?.message ?? String(e); }
+      catch (e) { if (root === this.root && page === this.page) { this.startingUntil = 0; this.analyzeError = e?.message ?? String(e); } }
       cx.notify();
       this.load(cx);
     });
@@ -336,31 +339,30 @@ export default class ReviewPane extends View {
   // until the tab is looked at. In the pane, the button keeps a failure.
   // shortcut: a pane starts only when shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until its tab is shown.
   report() {
-    const a = this.switching ? null : this.review?.analysis, real = a?.state === "running", mine = panes().filter(p => p.mod === PANE);
-    if (!mine.some(p => p.tab === this.tab)) return;
+    const a = this.switching ? null : this.review?.analysis, real = a?.state === "running";
+    if (!panes().some(p => p.mod === PANE && p.tab === this.tab)) return;
     if (this.wasRunning && !real) this.news = this.analyzeError ?? a?.error ? "blocked" : "done";
     this.wasRunning = real;
-    if (this.analyzing() || spaces().some(s => s.active && s.tabs.some(c => c.id === this.tab && c.active))) this.news = null;
-    const word = this.analyzing() ? "working" : this.news ?? null, all = shared(`${PANE}.status`) ?? {};
+    if (this.analyzing() || this.onScreen()) this.news = null;
+    this.keep("status", this.analyzing() ? "working" : this.news ?? null);
+  }
+
+  // This tab's entry in a value shared by tab, none with no value. Every write redraws every mod: only a change, and tabs
+  // without a review pane drop out.
+  keep(name, value) {
+    const key = `${PANE}.${name}`, mine = panes().filter(p => p.mod === PANE), all = shared(key) ?? {};
+    if (!mine.some(p => p.tab === this.tab)) return;
     const live = Object.entries(all).filter(([tab]) => tab !== this.tab && mine.some(p => p.tab === tab));
-    // Every write redraws every mod: only a change, and tabs without a review pane drop out.
-    if ((all[this.tab] ?? null) === word && live.length === Object.keys(all).length - (this.tab in all ? 1 : 0)) return;
-    setShared(`${PANE}.status`, Object.fromEntries(word ? [...live, [this.tab, word]] : live));
+    if (JSON.stringify(all[this.tab] ?? null) === JSON.stringify(value) && live.length === Object.keys(all).length - (this.tab in all ? 1 : 0)) return;
+    setShared(key, Object.fromEntries(value ? [...live, [this.tab, value]] : live));
   }
 
   // What this tab's pane shows, for the Review bar, which picks what it shows next: Herdr gives a mod pane no folder, and a
   // tab of its own has no terminal to borrow one from.
   publish() {
-    const mine = panes().filter(p => p.mod === PANE), all = shared(`${PANE}.shown`) ?? {}, now = all[this.tab];
-    if (!mine.some(p => p.tab === this.tab)) return;
     // The diff's commits, oldest first: on one commit's page, still its base's.
     const commits = this.baseCommits ?? (this.switching ? null : this.review?.commits) ?? [];
-    const live = Object.entries(all).filter(([tab]) => tab !== this.tab && mine.some(p => p.tab === tab));
-    // As report(): only a change, and tabs without a review pane drop out.
-    if (now?.root === this.root && now.page === this.page && now.base === this.base && now.commits?.length === commits.length
-      && commits.every((c, i) => c.sha === now.commits[i].sha) && live.length === Object.keys(all).length - 1) return;
-    const shown = { root: this.root, page: this.page, base: this.base, commits: commits.map(c => ({ sha: c.sha, subject: c.subject, time: c.date ? new Date(c.date).getTime() : null })) };
-    setShared(`${PANE}.shown`, Object.fromEntries([...live, [this.tab, shown]]));
+    this.keep("shown", { root: this.root, page: this.page, base: this.base, commits: commits.map(c => ({ sha: c.sha, subject: c.subject, time: c.date ? new Date(c.date).getTime() : null })) });
   }
 
   // The settings panel reads the daemon's agents and shared settings each time it opens: the browser may have changed them.
@@ -409,6 +411,7 @@ export default class ReviewPane extends View {
    */
   settingsPanel(t) {
     const page = this.settingsPage, locale = this.locale(), { agent, model, catalog, matches, shown } = this.models();
+    const split = pref("split") === true, autoAnalyze = pref("autoAnalyze") === true;
     const label = (text) => div().h(24).px(8).flex_none().flex().items_center().text_size(11).text_color(t.dim).child(text);
     const rule = () => div().h(1).my(4).mx(2).flex_none().bg(t.border);
     const link = (id, text, url) => div().id(id).text_color(t.muted).hover(s => s.text_color(t.foreground).underline()).role("link")
@@ -437,13 +440,14 @@ export default class ReviewPane extends View {
     const rows = !page ? [
       label("View"),
       // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
-      this.choiceRow(t, "Diff", [["view-unified", "Unified", !this.split], ["view-split", "Split", this.split, this.view < SPLIT_MIN]], (id, cx) => { if ((id === "view-split") !== this.split) this.toggleSplit(cx); }),
-      this.choiceRow(t, "Files", [["files-tree", "Tree", this.fileList !== "list"], ["files-list", "List", this.fileList === "list"]], (id, cx) => {
-        this.fileList = id === "files-list" ? "list" : "tree"; setPref("fileList", this.fileList); cx.notify();
+      this.choiceRow(t, "Diff", [["view-unified", "Unified", !split], ["view-split", "Split", split, this.view < SPLIT_MIN]], (id, cx) => { if ((id === "view-split") !== split) this.toggleSplit(cx); }),
+      // A tree by default, as the app's own toggle.
+      this.choiceRow(t, "Files", [["files-tree", "Tree", pref("fileList") !== "list"], ["files-list", "List", pref("fileList") === "list"]], (id, cx) => {
+        setPref("fileList", id === "files-list" ? "list" : "tree"); cx.notify();
       }),
       // The sidebar needs the pane WIDE: narrower, the choice is kept and the groups are tabs, so it shows faded.
-      this.choiceRow(t, "Groups", [["groups-tabs", "Tabs", this.groupNav !== "sidebar"], ["groups-sidebar", "Sidebar", this.groupNav === "sidebar", this.width < WIDE]], (id, cx) => {
-        this.groupNav = id === "groups-sidebar" ? "sidebar" : "tabs"; setPref("groupNav", this.groupNav); cx.notify();
+      this.choiceRow(t, "Groups", [["groups-tabs", "Tabs", pref("groupNav") !== "sidebar"], ["groups-sidebar", "Sidebar", pref("groupNav") === "sidebar", this.width < WIDE]], (id, cx) => {
+        setPref("groupNav", id === "groups-sidebar" ? "sidebar" : "tabs"); cx.notify();
       }),
       // Read by mods/pulls-review on the next open: a pane beside the agent, or a tab of its own.
       this.choiceRow(t, "Open in", [["open-pane", "Pane", pref("openIn") !== "tab"], ["open-tab", "Tab", pref("openIn") === "tab"]], (id, cx) => {
@@ -451,12 +455,12 @@ export default class ReviewPane extends View {
       }),
       rule(),
       label("AI"),
-      Switch.new("auto-analyze").checked(this.autoAnalyze).accessibility_label("Analyze automatically")
-        .on_change((on, cx) => { this.autoAnalyze = on; setPref("autoAnalyze", on); cx.notify(); })
+      Switch.new("auto-analyze").checked(autoAnalyze).accessibility_label("Analyze automatically")
+        .on_change((on, cx) => { setPref("autoAnalyze", on); cx.notify(); })
         .child(h_flex().h(28).px(8).gap(8).items_center().rounded(6).hover(s => s.bg(HOVER))
           .child(div().flex_1().child("Analyze automatically"))
-          .child(div().w(28).h(16).p(2).flex_none().flex().rounded_full().bg(this.autoAnalyze ? t.accent : t.input)
-            .when(this.autoAnalyze, el => el.justify_end())
+          .child(div().w(28).h(16).p(2).flex_none().flex().rounded_full().bg(autoAnalyze ? t.accent : t.input)
+            .when(autoAnalyze, el => el.justify_end())
             .child(div().size(12).rounded_full().bg(t.background)))),
       this.settingsError && note(this.settingsError, t.ansi1),
       // As the app's LanguageMenu, the language the analysis writes in (the pane's own words stay English): unset, the
@@ -589,7 +593,8 @@ export default class ReviewPane extends View {
     const { root, page } = this;
     cx.spawn(async (cx) => {
       try { await review(root, "/api/review/reviewed", { page, shas: files.map(file => file.sha), reviewed }); }
-      catch (e) { this.error = e?.message ?? String(e); }
+      // A toast: the read after this one, succeeding, would clear the pane's error at once.
+      catch (e) { notify({ title: "pulls.review", body: e?.message ?? String(e), level: "error" }); }
       // Read back what the daemon keeps, the marks of a failed press included.
       this.marking--;
       this.load(cx);
@@ -723,10 +728,8 @@ export default class ReviewPane extends View {
       if (free.length === 1) { this.tab = free[0].tab; localStorage.setItem("tab", this.tab); }
     }
     // The name pane headers and tabs give this pane (t3's name.js), rather than the folder's; here, not in init, which a reload skips.
-    // A tab of its own, unnamed, reads as this pane too (t3-tabs). Tabs without a review pane drop out.
-    const title = this.page ? pageLabel(this.page, this.switching ? null : this.review) : "review";
-    const live = Object.fromEntries(Object.entries(titles).filter(([tab]) => mine.some(p => p.tab === tab)));
-    if (mine.some(p => p.tab === this.tab) && (titles[this.tab] !== title || Object.keys(live).length !== Object.keys(titles).length)) setShared(`${PANE}.titles`, { ...live, [this.tab]: title });
+    // A tab of its own, unnamed, reads as this pane too (t3-tabs).
+    this.keep("titles", this.page ? pageLabel(this.page, this.switching ? null : this.review) : "review");
     // Its icon in pane headers and tabs (t3's name.js), pulls.review's own logo. In a tab of its own it has a card in t3-inbox,
     // whose Settle closes it: its marks and analysis are the daemon's, so that loses nothing.
     if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/logo.svg` || shared(`${PANE}.program`).inbox !== true) setShared(`${PANE}.program`, { icon: `mods/${PANE}/logo.svg`, tint: false, name: "Review", inbox: true });
@@ -743,10 +746,13 @@ export default class ReviewPane extends View {
       this.open(request.page, cx);
     }
     this.publish();
-    if (this.review && JSON.stringify(colors(t)) !== this.colorsKey) {
-      for (const file of this.review.files) delete file.hunks;
-      this.asked.clear(); this.version++;
-      this.load(cx);
+    if (JSON.stringify(colors(t)) !== this.colorsKey) {
+      this.colorsKey = JSON.stringify(colors(t));
+      if (this.review) {
+        for (const file of this.review.files) delete file.hunks;
+        this.asked.clear(); this.version++;
+        this.load(cx);
+      }
     }
     // The group shown has files without rows (just opened, or changed since): ask for them, once per version.
     const missing = !this.switching && this.group() && groupFiles(this.group()).map(path => this.review.files.find(f => f.path === path)).filter(f => f && !f.hunks && !this.asked.has(f.sha));
@@ -768,6 +774,9 @@ export default class ReviewPane extends View {
         : h_resizable("review-aside-width").flex_1().min_h(0)
           .child(resizable_panel().size(Math.max(ASIDE_MIN, Math.round(row / 5))).size_range(ASIDE_MIN, Math.max(ASIDE_MIN, Math.round(row * ASIDE_MAX_RATIO))).child(this.aside(t)))
           .child(resizable_panel().child(this.main(t, cx))));
+    // Its run over, nothing else closes the panel: the next run would bring it back, or the next press only close it unseen.
+    const { running, error } = this.analysisStatus();
+    if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;
     return v_flex().id("review-pane").relative().size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13)
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .on_mouse_down("left", () => this.handle.focus())
@@ -778,7 +787,7 @@ export default class ReviewPane extends View {
       .when(!hidden, el => el.child(this.header(t, this.head())))
       .when(Boolean(this.error), el => el.child(h_flex().flex_none().px(12).py(6).gap(8).bg(t.ansi1 + "18").text_color(t.ansi1).text_size(12)
         .child(div().flex_1().min_w(0).child(this.error))
-        .child(this.button(t, "retry", "Retry", () => this.load(cx)))))
+        .child(this.button(t, "retry", "Retry", (cx) => this.load(cx)))))
       .child((!this.review
         // As the app's FeedbackLoading.
         ? div().flex_1().py(48).when(!this.error, el => el.child(h_flex().gap(8).items_center().justify_center().text_color(t.dim).role("status")
@@ -795,17 +804,17 @@ export default class ReviewPane extends View {
       .when(this.popup === "fold" && Boolean(this.review) && !this.switching && !hidden, el => el.child(div().absolute().top(44).right(44).child(this.foldMenu(t))))
       // Under its button: right of it the fold menu's and the gear (24px each, 8px apart, 12px in), and the newer-commit
       // arrow while one commit is shown.
-      .when(this.popup === "status" && Boolean(this.review) && !this.switching && (this.analysisStatus().running || Boolean(this.analysisStatus().error)), el => el.child(div().absolute().top(44).right(8).child(this.statusPanel(t))));
+      .when(this.popup === "status", el => el.child(div().absolute().top(44).right(8).child(this.statusPanel(t))));
   }
 
   // Split as chosen, where the diff is wide enough for two sides; narrower it's unified, the choice kept.
-  splitShown() { return this.split && this.view >= SPLIT_MIN; }
+  splitShown() { return pref("split") === true && this.view >= SPLIT_MIN; }
 
   // The sidebar as chosen, from WIDE, as the app's from `lg`; narrower the groups are tabs, the choice kept.
-  sidebarShown() { return this.groupNav === "sidebar" && this.width >= WIDE; }
+  sidebarShown() { return pref("groupNav") === "sidebar" && this.width >= WIDE; }
 
   toggleSplit(cx) {
-    this.split = !this.split; setPref("split", this.split); this.version++;
+    setPref("split", pref("split") !== true);
     cx.notify();
   }
 
@@ -868,7 +877,7 @@ export default class ReviewPane extends View {
       const files = r.files, done = files.filter(f => f.reviewed).length;
       parts.push({ text: `+${files.reduce((n, f) => n + f.additions, 0)}`, color: "ansi2" }, { text: `−${files.reduce((n, f) => n + f.deletions, 0)}`, color: "ansi1" },
         { text: `${done}/${files.length}`, color: "dim", donut: files.length ? done / files.length : 1 });
-      const a = r.analysis, error = this.analyzeError ?? (a.state !== "running" ? a.error : null);
+      const a = r.analysis, { error } = this.analysisStatus();
       const compact = this.width < COMPACT;
       // As the app's DiffAnalyzeButton, the analysis's state is the button's: running or failed, it opens the status; without
       // an agent, the settings. An analysis of an older version (the app has none) says so after its Re-analyze.
@@ -1022,10 +1031,10 @@ export default class ReviewPane extends View {
       const parts = row.name.split("/"), name = parts.pop();
       return h_flex().flex_1().min_w(0).gap(4).items_center().font_family(MONO)
         .child(image(`${CAT}/${fileIcon(row.path)}.svg`).w(16).h(16).flex_none().opacity(FADE))
-        .when(parts.length > 0, el => el.child(div().min_w(0).flex_shrink(100).truncate().when(struck, el => el.line_through()).when(this.fileList === "list", el => el.opacity(0.4)).child(`${parts.join("/")}/`)))
+        .when(parts.length > 0, el => el.child(div().min_w(0).flex_shrink(100).truncate().when(struck, el => el.line_through()).when(pref("fileList") === "list", el => el.opacity(0.4)).child(`${parts.join("/")}/`)))
         .child(div().min_w(0).flex_shrink_1().truncate().when(struck, el => el.line_through()).child(name));
     };
-    return fileRows(g.files, g.missing, this.fileList).map(row => {
+    return fileRows(g.files, g.missing, pref("fileList")).map(row => {
       const base = h_flex().h(24).flex_none().pl(6 + row.depth * 13).pr(4).gap(6).items_center().rounded(4).text_size(13);
       if (row.type === "folder") {
         const files = row.paths.map(path => byPath.get(path)).filter(Boolean), done = files.filter(f => f.reviewed).length;

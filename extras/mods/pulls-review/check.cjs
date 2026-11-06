@@ -215,6 +215,11 @@ const load = (props = {}, setup = record) => {
     assert.equal(view.reviewAt.get(key), readAt, "an ignored change");
     change(under("src/a.js")); await new Promise(setImmediate);
     assert.ok(Date.now() - view.reviewAt.get(key) >= 9000 && view.reviewAt.get(key) <= readAt, "a change: the 10 s rule reads a second after the last read");
+    // Herdr T3's Home draws no bar: nothing reads its folder, which may be a whole home directory's repository.
+    view.reviewAt.clear(); state["t3-home.space"] = "s";
+    tick(wcx); await new Promise(setImmediate);
+    assert.equal(view.reviewAt.size, 0);
+    delete state["t3-home.space"];
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
   // The logo reads on click, then its menu's rows open one commit, or one branch against the base.
@@ -272,6 +277,7 @@ const load = (props = {}, setup = record) => {
   // With the review pane showing this repository's diff: its count lit, one commit's place and steps, the menu on its commits.
   const list = ["c1", "c2", "c3"].map(sha => ({ sha, subject: sha, time: Date.now() - 36e5 }));
   const pane = (page, base = "/branch/feat", commits = list) => { state["review.shown"] = { b: { root: "/repo", page, base, commits } }; };
+  scope.panes = () => [...allPanes(), { pane: "p2", mod: "review", tab: "b", cwd: null }];
   pane("/branch/feat"); show(r);
   let lit = bar.render();
   assert.equal(find(lit, "review-open").style.bg, theme.hover);
@@ -391,6 +397,11 @@ const load = (props = {}, setup = record) => {
   // Another repository's diff beside this terminal: nothing lit.
   state["review.shown"].b.root = "/other";
   assert.ok(!("bg" in find(bar.render(), "review-open").style));
+  // The pane closed, its entry stays until another review pane drops it: nothing lit, and no steps nothing would answer.
+  pane("/commit/c2"); scope.panes = allPanes;
+  lit = bar.render();
+  assert.ok(!("bg" in find(lit, "review-open").style) && !find(lit, "review-commits"));
+  assert.equal((await click(r)).props.within, null);
   delete state["review.shown"]; delete state.review;
   // Search narrows both lists; Enter opens the first left.
   const searching = load(spec.props);
