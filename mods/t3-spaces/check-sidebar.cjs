@@ -449,6 +449,36 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
 }
 {
+  // Agents' times come from when the tab changed, not when the list next draws, and go on by themselves.
+  const f = fixture(256), run = { ...cx, spawn: fn => { fn(run); } }, ticks = [], every = cx.timer.every;
+  cx.timer.every = ms => ticks.push(ms);
+  const ag = f.load("t3-agents");
+  cx.timer.every = every;
+  assert.ok(ticks.includes(30000), "its times move though nothing else does");
+  const [t0] = f.agents(), tab = f.spaces()[0].tabs[0];
+  ag.render(cx);
+  t0.status = "idle"; tab.changed_at = Date.now() - 2 * 3600000;
+  assert.ok(strings(find(ag.render(cx), "when-t0")).includes("2h"), "back from the Inbox, it ended two hours ago, not now");
+  // A pin ends a snooze though the Inbox isn't running; pins that aren't new, and agents not snoozed, write no label.
+  const k = f.terminals().find(k => k.address === "t0");
+  k.labels = { snoozed: String(Date.now() + 60000) };
+  const pin = () => { fire(find(ag.render(run), "ag-t0"), "on_hover", true, run); fire(find(ag.render(run), "pin-t0"), "on_click", {}, run); };
+  pin();
+  assert.deepEqual(f.labelled.splice(0), [["label", "t0", "snoozed="]]);
+  pin();
+  assert.deepEqual(f.labelled.splice(0), [], "unpinning leaves labels alone");
+  k.labels = {};
+  pin();
+  assert.deepEqual(f.labelled.splice(0), [], "nothing to end");
+  pin();
+  // A group whose last agent ended never reports the pointer leaving: it isn't lit when it comes back.
+  fire(find(ag.render(cx), "sp-s2"), "on_hover", true, cx);
+  const stayed = f.agents().splice(1, 1);
+  ag.render(cx);
+  f.agents().push(...stayed);
+  assert.equal(find(ag.render(cx), "sp-s2").items.at(-1).style.text_color, f.theme().dim);
+}
+{
   // The inbox: Working holds busy trees; Settle is by hand, undone by new work, never by looking.
   const f = fixture(256), inbox = f.load("t3-inbox"), run = { ...cx, spawn: fn => { fn(run); } };
   const remote = f.agents()[1], k = f.terminals().find(k => k.address === "vps/t2"), child = f.terminals().find(c => c.address === "child");

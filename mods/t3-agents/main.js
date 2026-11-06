@@ -3,12 +3,12 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popup } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, nextCommand } from "herdr";
+import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
-import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
+import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter } from "./focus.js";
 import { menuJump } from "./list.js";
 import { MOTION, foldArrow, planMotion, flying, leavingRows } from "./motion.js";
@@ -55,6 +55,7 @@ export default class Agents extends View {
     this.folded = JSON.parse(localStorage.getItem("folded") ?? "{}");
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
+    cx.timer.every(30000, (cx) => cx.notify()); // The rows' times move with nothing else changing.
     // Older installs kept pins in this list's storage; move them over once, before the inbox writes any.
     if (shared("agents.pins") == null && localStorage.getItem("pins")) setShared("agents.pins", JSON.parse(localStorage.getItem("pins")));
   }
@@ -78,10 +79,12 @@ export default class Agents extends View {
   // finished agent turns done into idle, and looking isn't the agent doing anything.
   track(list, now) {
     let dirty = false;
+    // As the tab has it: this list doesn't draw while the Inbox shows, so a frame's time would be when it came back.
+    const changedAt = new Map(spaces().flatMap((s) => s.tabs ?? []).map((c) => [c.id, c.changed_at]));
     for (const a of list) {
       const s = a.status === "done" ? "idle" : a.status;
       if (this.changed[a.address]?.s === s) continue;
-      this.changed[a.address] = { s, at: now };
+      this.changed[a.address] = { s, at: changedAt.get(a.tab) ?? now };
       dirty = true;
     }
     if (!dirty) return;
@@ -91,10 +94,6 @@ export default class Agents extends View {
     localStorage.setItem("changed", JSON.stringify(this.changed));
   }
 
-  setPins(pins) {
-    setShared("agents.pins", pins);
-  }
-
   // Drops pins and fold choices of agents that ended. Only for machines the list has heard from:
   // right after a start, or while a machine connects, its agents aren't listed yet.
   prune(all) {
@@ -102,7 +101,7 @@ export default class Agents extends View {
     const heard = new Set(all.map((k) => machine(k.address)));
     const live = new Set(all.filter((k) => k.state === "live").map((k) => k.address));
     const kept = this.pins.filter((p) => !heard.has(machine(p)) || live.has(p));
-    if (kept.length !== this.pins.length) this.setPins(kept);
+    if (kept.length !== this.pins.length) setShared("agents.pins", kept);
     // Group headers (sp-…, sec-…, pinned) fold under the same store; only agents' entries end.
     const ended = Object.keys(this.folded).filter((k) => !/^(sp-|sec-|pinned$)/.test(k) && heard.has(machine(k)) && !live.has(k));
     for (const k of ended) delete this.folded[k];
@@ -169,10 +168,6 @@ export default class Agents extends View {
         .when(s.id === on, (el) => el.child(svg("mods/t3-agents/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
-  peek(addr) {
-    run("terminal.peek", { terminal: addr });
-  }
-
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
   tree(all, addr, lead = []) {
     const kids = all.filter((k) => k.parent === addr && k.state === "live");
@@ -231,7 +226,7 @@ export default class Agents extends View {
         detailsFor(this, null, cx);
         this.detailsOut = null;
         cx.notify();
-        this.peek(k.address);
+        run("terminal.peek", { terminal: k.address });
       })
       .when([this.hovered, this.details, this.detailsOut].includes(rowId), (el) => el.child(card(name, rowId))), 6);
   }
@@ -285,9 +280,7 @@ export default class Agents extends View {
     const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
     const rest = list.filter((a) => !this.pins.includes(a.address));
     list = [...pinned, ...rest];
-    // Only while this list shows: the inbox (t3-inbox) sets its own.
-    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-    if (find(layout())?.active !== "inbox") setAgentOrder(list.map((a) => a.address));
+    setAgentOrder(list.map((a) => a.address));
 
     const withKids = (a, i) => {
       const subs = this.tree(all, a.address);
@@ -353,7 +346,7 @@ export default class Agents extends View {
       const up = this.details === key || this.detailsOut === key;
       return Popup.new(`details-${key}`, div()).absolute().top(-1).right(-1).size(1)
         .when(up, (pop) => pop.content(detailsCard(this, t, key, name, [
-          a.space_name && detailsLine(t, projectMark(spaces().find((s) => s.id === a.space) ?? { name: a.space_name }, 12, t, ps), a.space_name),
+          a.space_name && detailsLine(t, projectMark(spaces().find((s) => s.id === a.space) ?? { name: a.space_name }, 12, t, ps, true), a.space_name),
           machine && detailsLine(t, svg("mods/t3-agents/server.svg").size(12).flex_none().text_color(t.muted), machine),
           branch && detailsLine(t, svg("mods/t3-agents/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
           pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
@@ -385,7 +378,12 @@ export default class Agents extends View {
             // The row's about to move from under the pointer.
             this.hovered = this.hot = null;
             detailsFor(this, null, cx);
-            this.setPins(isPinned ? this.pins.filter((p) => p !== a.address) : [...this.pins, a.address]);
+            setShared("agents.pins", isPinned ? this.pins.filter((p) => p !== a.address) : [...this.pins, a.address]);
+            // A pin ends a snooze. Here, not in the Inbox: it may not have started yet.
+            if (!isPinned && all.find((k) => k.address === a.address)?.labels?.snoozed) cx.spawn(async () => {
+              const r = await hc(["label", a.address, "snoozed="]).catch((e) => ({ code: 1, stderr: String(e) }));
+              if (r.code !== 0) notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
+            });
             cx.notify();
           }), 4))
         .child(svg(`mods/t3-agents/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
@@ -460,6 +458,8 @@ export default class Agents extends View {
       else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", space: byPriority ? null : a.space, members: [a] });
     }
 
+    // A group no longer drawn never reports the pointer leaving it, so it would come back lit.
+    if (!groups.some((g) => g.id === this.overGroup)) this.overGroup = null;
     const groupHover = (g) => (on, cx) => {
       if (on) this.overGroup = g.id;
       else if (this.overGroup === g.id) this.overGroup = null;
@@ -505,7 +505,7 @@ export default class Agents extends View {
         .gap(10)
         .items_center()
         .rounded(8)
-        .child(projectMark(space, 16, t, ps))
+        .child(projectMark(space, 16, t, ps, true))
         .child(div().flex_1().min_w(0).truncate().font_medium().text_color(t.foreground + "e6").child(g.label))
         .when(Boolean(dot), (el) => el.child(div().size(6).flex_none().rounded_full().bg(t[top]).role("status").accessibility_label(SECTION[RANK[top]])))
         .when(hiding.length > 0, (el) => el.child(div().flex_none().text_size(12).text_color(t.dim).child(String(hiding.length))))
