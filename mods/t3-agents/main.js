@@ -5,6 +5,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popup } from "gpui-base";
 import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, layout, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 import { namer } from "./name.js";
+import { focusAgent } from "./zoom.js";
 import { kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { glow, hoverKept, tip, tipMark } from "./tip.js";
@@ -470,7 +471,7 @@ export default class Agents extends View {
         .on_click((_e, cx) => {
           // As a T3 tooltip, a click takes its card down until the pointer comes back.
           detailsFor(this, null, cx);
-          run("agent.focus", { terminal: a.address });
+          focusAgent(a.address);
         }), 6);
     };
 

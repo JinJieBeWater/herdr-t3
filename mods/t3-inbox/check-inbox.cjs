@@ -111,7 +111,7 @@ function fixture() {
     hc: async (args) => { f.labelled.push(args.join(" ")); return { code: 0 }; }, nextCommand: () => new Promise(() => {}),
   };
   // tree.js, project.js, tip.js, details.js, focus.js, list.js and motion.js, the shared status, space-mark, hover-label, details, keyboard, list and motion rules, are inlined as each mod's own copies are.
-  const tree = ["tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+  const tree = ["tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js", "zoom.js"].map((file) => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ");
   const src = tree + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
     .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");

@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
+- Switching to a pane hidden behind a zoom now shows it: the zoom moves to that pane and the panes beside it stay hidden. It used to light the card while the screen stayed on the zoomed pane and the keyboard went dead, and the zoomed agent lost its unread done. A toast or an outside `agent.focus` still corrects a frame late, and the done comes back.
 - Lists and Inbox now keep one set of rules, and differ only in how they organize: by project, or by attention. [The model](docs/layout-model.md).
   - **Closing and coming back, in Lists too**: closing the agent in view lands on Home, closing any other tab goes back to the tab you were on, and going back to a space shows the tab you left there.
   - **`cmd-]` and `cmd-[`** walk the rows the sidebar draws and stop at either end. In Lists they used to wrap and count folded rows.

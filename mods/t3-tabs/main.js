@@ -5,6 +5,7 @@ import { modStatus, namer, programOf } from "./name.js";
 import { descendants, notNews, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { tip, glow } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
+import { focusAgent, focusPane } from "./zoom.js";
 import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
 
 // Home: one place to land, a space of its own on this computer, known by its id so whatever someone arranges there is theirs.
@@ -43,15 +44,15 @@ function step(command) {
   const { order = [], view = null } = shared(inboxShown() ? "t3-inbox.rows" : "t3-agents.rows") ?? {};
   const i = view === null ? -1 : order.indexOf(view);
   const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
-  if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
-  else if (to) run(!agents().some(a => a.address === to) && terminals().some(k => k.address === to) ? "terminal.peek" : "agent.focus", { terminal: to });
+  if (to?.startsWith("pane:")) focusPane(to.slice(5));
+  else if (to && !agents().some(a => a.address === to) && terminals().some(k => k.address === to)) run("terminal.peek", { terminal: to });
+  else if (to) focusAgent(to);
 }
 // A space by the keys. Out of view Herdr may have moved its active tab to a closed one's neighbour, and being shown costs an
-// agent its unread done: return to the tab last shown there. Space first, in one tick, as leave() relies on.
+// agent its unread done: return to the tab last shown there. tab.select brings the space along; the space first would show its active tab for that step.
 function showSpace(s, trail) {
-  run("space.select", { id: s.id });
   const back = trail[s.id]?.find(id => s.tabs.some(c => c.id === id));
-  if (back) run("tab.select", { id: back });
+  run(back ? "tab.select" : "space.select", { id: back ?? s.id });
 }
 // The spaces the keys count and walk: all but Home, wrapping as space.next does.
 function selectSpace(index, trail) {
@@ -223,7 +224,7 @@ export default class Tabs extends View {
     else if (!atHome() && focused()?.pane === pane && agents().some(a => a.address === p?.terminal)) await goHome(cx);
     else if (focused()?.pane === pane && p?.mod && programOf(p)?.inbox) {
       const mine = agents().filter(a => a.tab === tab), back = mine.find(a => a.address === focused()?.agent) ?? mine[0];
-      if (back) run("agent.focus", { terminal: back.address });
+      if (back) focusAgent(back.address);
     }
     run("pane.close", { pane });
   }
@@ -293,7 +294,7 @@ export default class Tabs extends View {
         setShared("agents.pins", pins);
       }
     }
-    if (back && atHome()) run("agent.focus", { terminal: back });
+    if (back && atHome()) focusAgent(back);
   }
 
   // Going first, so Herdr's neighbour never shows: being shown costs an agent its unread done, one the bar hides included.
@@ -351,6 +352,7 @@ export default class Tabs extends View {
         if (before) this.owed.set(a.address, { ...before, until: Date.now() + 3000 });
       }
     }
+    this.zoomFollows(every);
     this.payBack(tab, home, terms, every);
     // What's unread now, for the next frame's close: its turn, and a snooze it woke from (seeing it clears that too).
     this.unread = new Map(every.filter(a => a.status === "done").map(a => {
@@ -365,6 +367,20 @@ export default class Tabs extends View {
       pane: every.some(a => a.pane === pane) ? pane : null } : null;
   }
 
+  // For what focuses a pane without zoom.js going first, Herdr's own: a toast, hc, the palette, its keys. Its focus moved and the
+  // zoom stayed, or a zoom landed on a pane the focus isn't on: the later of the two wins. What the stale zoom showed for that
+  // frame is owed its done, as a close's neighbour is. Once per disagreement: pane.zoom toggles, and a repeat would undo it.
+  zoomFollows(every) {
+    const ps = panes(), f = ps.find(p => p.focused), z = f && ps.find(p => p.tab === f.tab && p.zoomed), was = this.focusWas;
+    const off = z && z.pane !== f.pane ? `${f.pane}:${z.pane}` : null, told = this.zoomOff;
+    this.focusWas = f?.pane; this.zoomOff = off;
+    if (!off || off === told) return;
+    if (was === f.pane) return run("pane.focus", { pane: z.pane });
+    run("pane.zoom", { pane: f.pane });
+    const before = this.unread?.get(z.terminal);
+    if (before && every.some(a => a.address === z.terminal)) this.owed.set(z.terminal, { ...before, until: Date.now() + 3000 });
+  }
+
   // Once what Herdr's pick showed is out of view, and its seen has come back from the core (or the lower write could land first),
   // its turn is unread again. Still in view after a few seconds: the person stayed there, so it was seen after all.
   payBack(tab, home, terms, every) {
@@ -373,7 +389,9 @@ export default class Tabs extends View {
       if (!k || (k.turn ?? 0) !== o.turn || o.turn < 1) { this.owed.delete(addr); continue; }
       // Done already (the window wasn't active, so nothing was marked): only a cleared snooze may be owed.
       if (a?.status === "done") o.seen = true;
-      if (a?.tab === tab?.id && !home) { if (Date.now() > o.until) this.owed.delete(addr); continue; }
+      // In its tab but zoomed away from isn't in view either.
+      const covered = panes().some(p => p.tab === a?.tab && p.zoomed && p.terminal !== addr);
+      if (a?.tab === tab?.id && !home && !covered) { if (Date.now() > o.until) this.owed.delete(addr); continue; }
       if (!o.seen && Number(k.labels?.["herdr.seen"]) >= o.turn) { o.seen = true; hc(["label", addr, `herdr.seen=${o.turn - 1}`]); }
       // The Inbox clears a woken snooze when it's seen, and that write may come back after ours: wait for it.
       if (o.snoozed && !k.labels?.snoozed) { hc(["label", addr, `snoozed=${o.snoozed}`]); o.snoozed = null; }

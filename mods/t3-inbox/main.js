@@ -13,6 +13,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Popup, Select, InputState, Input, NumberInput } from "gpui-base";
 import { agents, terminals, panes, spaces, machines, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, openOverlay, closeOverlay } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
+import { focusAgent, focusPane } from "./zoom.js";
 import { kidStatus, descendants, ownStatus, stillSettled, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { dragGone, glow, POINTER_WATCH, pointerMoved, tip, tipMark } from "./tip.js";
@@ -492,7 +493,7 @@ export default class Inbox extends View {
   endDrag(restore = true) {
     const back = restore ? this.back : null;
     this.drag = this.sweep = this.back = null;
-    if (back?.pane) run("pane.focus", { pane: back.pane });
+    if (back?.pane) focusPane(back.pane);
     else if (back?.terminal) run("pane.focus", { terminal: back.terminal });
     return null;
   }
@@ -690,7 +691,7 @@ export default class Inbox extends View {
       this.changed[a.address] = { ...this.changed[a.address], at: Date.now(), start: null };
       localStorage.setItem("changes", JSON.stringify(this.changed));
     };
-    const go = (a) => a.mod ? run("pane.focus", { pane: a.pane }) : run("agent.focus", { terminal: a.address });
+    const go = (a) => a.mod ? focusPane(a.pane) : focusAgent(a.address);
     // Putting away the agent in view moves on to the next card down the list, from the top past the end, as T3 does;
     // one in the background moves nothing.
     const moveOn = (xs) => {

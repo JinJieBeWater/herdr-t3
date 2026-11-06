@@ -6,6 +6,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
+import { focusPane } from "./zoom.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { step, scrollList } from "./list.js";
@@ -58,7 +59,7 @@ export default class Picker extends View {
     // The pane this leaves, for the next open's Back row. Only jumps from here are seen: a click elsewhere isn't.
     const from = focused()?.pane;
     if (from && item.p.pane !== from) setShared("t3-picker.back", from);
-    run("pane.focus", { pane: item.p.pane });
+    focusPane(item.p.pane);
   }
 
   row(item, i, ps) {

@@ -3,6 +3,7 @@
 
 import { panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
 import { argPage, git, reviewLocation, spaceReview } from "./bar.js";
+import { focusPane } from "./zoom.js";
 
 // `open` in this folder's config.json, which the person creates; none means "herdr" (see mods/README.md):
 // "herdr":    the fork's daemon, drawn in a pane beside the agent (the review mod).
@@ -72,7 +73,7 @@ function herdr(root, page, analyze) {
   const open = spaceReview(), wanted = { root, page, n: Date.now(), analyze: Boolean(analyze) };
   if (open) {
     setShared(PANE, { tab: open.tab, ...wanted });
-    run("pane.focus", { pane: open.pane });
+    focusPane(open.pane);
     return;
   }
   if (shared(`${PANE}.prefs`)?.openIn === "tab") return run("tab.new", { mod: PANE, props: wanted });

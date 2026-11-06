@@ -92,7 +92,7 @@ function fixture(width) {
     const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
     const read = file => fs.readFileSync(path.join(modRoot, name, file), "utf8");
     // name.js, tree.js, project.js, tip.js, details.js, focus.js, list.js and motion.js, the shared naming, status, space-mark, hover-label, details, keyboard, list and motion rules, are inlined as the mod's own modules are.
-    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
+    const shared = ["name.js", "tree.js", "project.js", "tip.js", "details.js", "focus.js", "list.js", "motion.js", "zoom.js"].filter(f => fs.existsSync(path.join(modRoot, name, f))).map(f => read(f) + "\n").join("");
     const source = (shared + read("main.js"))
       .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ")
       .replace("export default class", "globalThis.Mod = class");
@@ -2073,6 +2073,15 @@ for (const width of [208, 240, 256, 320, 480]) {
     const mixed = ["t0", "pane:p9", "t5"];
     assert.deepEqual(await press("next", { order: mixed, view: "t0" }), [["pane.focus", { pane: "p9" }]], "a mod pane's row has no agent to focus");
     assert.deepEqual(await press("next", { order: mixed, view: "pane:p9" }), [["agent.focus", { terminal: "t5" }]], "and the walk goes on from it");
+    // A zoom on another pane of the target's tab goes first, in the same tick; on the target itself, a toggle would undo it.
+    const p2 = f.panes().find(p => p.pane === "p2"), other = { pane: "px", tab: p2.tab, terminal: "tx", zoomed: true };
+    f.panes().push(other);
+    assert.deepEqual(await press("next", { order, view: "t0" }), [["pane.zoom", { pane: "p2" }], ["agent.focus", { terminal: "vps/t2" }]], "the zoom goes to the target before the focus");
+    other.zoomed = false; p2.zoomed = true;
+    assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.focus", { terminal: "vps/t2" }]], "already zoomed: left alone");
+    p2.zoomed = false;
+    assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.focus", { terminal: "vps/t2" }]], "no zoom in its tab: none made");
+    f.panes().pop();
     f.slots.lists.active = "lists";
     assert.deepEqual(await press("next", { order, view: "t0" }), [["agent.focus", { terminal: "vps/t2" }]], "Lists use their drawn rows");
     assert.deepEqual(await press("prev", { order, view: "t0" }), [], "Lists stop at the beginning too");
@@ -2409,6 +2418,42 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken(), [["t3-tabs.home", {}]], "Lists close to Home too");
   }
 
+  // A focus or a zoom this mod didn't go ahead of (a toast, hc, the zoom button): the later of the two wins, once, and what the stale zoom showed gets its done back.
+  {
+    const f = fixture(256), program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs;
+    tabs.splice(0, tabs.length, ...["away", "two"].map(id => ({ id, name: id, named: true, active: false })));
+    const list = [["E", "away", "idle"], ["Z", "two", "done"], ["Y", "two", "idle"]].map(([address, tab, status]) => ({ address, pane: `p${address}`, tab, space: "s0", space_name: "project 0", title: tab, status, program, state: "live", focused: false, turn: 1, labels: { "herdr.seen": "0" } }));
+    f.agents().splice(0, f.agents().length, ...list);
+    f.terminals().splice(0, f.terminals().length, ...list);
+    f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+    const view = f.load("t3-tabs"), pane = id => f.panes().find(p => p.pane === `p${id}`), zooms = () => f.calls.filter(([name]) => ["pane.zoom", "pane.focus"].includes(name));
+    const frame = (tab, on, zoomed) => {
+      tabs.forEach(c => { c.active = c.id === tab; });
+      f.panes().forEach(p => { p.focused = p.pane === `p${on}`; p.zoomed = p.pane === `p${zoomed}`; });
+      f.agents().forEach(a => { a.focused = a.address === on; });
+      f.shown.agent = on; view.render(cx);
+    };
+    frame("away", "E", "Z");
+    assert.deepEqual(zooms(), [], "a zoom in a tab out of view asks nothing");
+    // The stale frame shows Z, and in the focus's own step Herdr marks it seen.
+    list[1].status = "idle"; list[1].labels["herdr.seen"] = "1";
+    frame("two", "Y", "Z");
+    assert.deepEqual(zooms(), [["pane.zoom", { pane: "pY" }]], "the focus moved: the zoom follows");
+    frame("two", "Y", "Z");
+    assert.equal(zooms().length, 1, "once: a repeat would toggle it off");
+    assert.deepEqual(f.labelled, [], "still on screen: nothing yet");
+    frame("two", "Y", "Y");
+    assert.deepEqual(f.labelled.map(a => a.join(" ")), ["label Z herdr.seen=0"], "zoomed away from is out of view: its done is back");
+    f.calls.length = 0;
+    frame("two", "Y", "Z");
+    assert.deepEqual(zooms(), [["pane.focus", { pane: "pZ" }]], "the zoom moved, the focus didn't: the focus follows");
+    f.calls.length = 0;
+    frame("two", "Z", "Z");
+    assert.deepEqual(zooms(), [], "agreeing, nothing to do");
+  }
+
   // A close this mod can't go ahead of (the program ending, a menu's Close): Herdr showed its pick and marked it seen, so an agent
   // that was unread a frame before gets its done back once it's out of view, Herdr's own Mark unread.
   {
@@ -2521,12 +2566,12 @@ for (const width of [208, 240, 256, 320, 480]) {
       f.spaces()[0].active = false; f.spaces().at(-1).active = true; closer.render(ctx);
       tabs.forEach(c => { c.active = c.id === "other"; });
       await say("space:1");
-      assert.deepEqual(taken(), [["space.select", { id: "s0" }], ["tab.select", { id: "mine" }]], "back to the tab last shown there, space first");
+      assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "back to the tab last shown there, without its active tab showing on the way");
       await say("space-next");
-      assert.deepEqual(taken(), [["space.select", { id: "s0" }], ["tab.select", { id: "mine" }]], "walking there too");
+      assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "walking there too");
       f.slots["sidebar-lists"].active = "lists";
       await say("space:1");
-      assert.deepEqual(taken(), [["space.select", { id: "s0" }], ["tab.select", { id: "mine" }]], "Lists restore the last shown tab too");
+      assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "Lists restore the last shown tab too");
       f.slots["sidebar-lists"].active = "inbox";
       f.spaces()[0].active = true; f.spaces().at(-1).active = false;
       f.spaces().pop(); delete f.state["t3-home.space"]; f.panes().pop(); gone("new");
