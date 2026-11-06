@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared } from "herdr";
-import { projectMark } from "./project.js";
+import { projectMark, placeOf } from "./project.js";
 import { step, scrollList } from "./list.js";
 
 function shortcut(name) {
@@ -22,11 +22,6 @@ function shortcut(name) {
   }).join(" ");
 }
 
-// Where a space is now, as t3-spaces says it.
-function place(s, ps) {
-  const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
-}
 const ROW = 46;
 const SHOWN = 6; // rows before the list scrolls; the popup hugs its content
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
@@ -63,7 +58,7 @@ export default class NewMenu extends View {
     if (this.picking) return this.machineRows().filter(m => m.name.toLowerCase().includes(q));
     const ps = panes(), here = spaces().find(s => s.active)?.machine ?? null;
     const rank = (s) => (s.active ? 0 : (s.machine ?? null) === here ? 1 : 2);
-    return spaces().filter(s => s.id !== shared("t3-home.space") && `${s.name} ${s.machine ?? ""} ${place(s, ps)}`.toLowerCase().includes(q))
+    return spaces().filter(s => s.id !== shared("t3-home.space") && `${s.name} ${s.machine ?? ""} ${placeOf(s, ps)}`.toLowerCase().includes(q))
       .sort((a, b) => rank(a) - rank(b) || (a.machine ?? "").localeCompare(b.machine ?? ""))
       .map(s => ({ key: `space:${s.id}`, space: s }));
   }
@@ -96,7 +91,7 @@ export default class NewMenu extends View {
     const t = theme(), on = this.at === i, s = item.space, h = home();
     const short = (p) => (p && h && p.startsWith(h) ? "~" + p.slice(h.length) : p ?? "");
     // A home path means nothing on another machine, and its empty folder is its home.
-    const sub = s ? (s.machine ? place(s, ps) || "~" : short(place(s, ps))) : item.sub;
+    const sub = s ? (s.machine ? placeOf(s, ps) || "~" : short(placeOf(s, ps))) : item.sub;
     return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(s ? s.name : item.name)
       .when(on, el => el.bg(t.selected))

@@ -6,18 +6,13 @@
 import { View, div, svg } from "gpui-kit";
 import { foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, nextCommand } from "herdr";
-import { projectMark, tint } from "./project.js";
-import { tip, tipMark } from "./tip.js";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
+import { projectMark, placeOf, tint } from "./project.js";
+import { tip, tipMark, POINTER_WATCH, pointerGone, pointerMoved } from "./tip.js";
 import { stopsInit, stop, focusRoot, enter } from "./focus.js";
 
-// Where a space is now: its first terminal's live folder, else where it was made.
-// `ps`: panes(), read once by the caller (each read copies every pane).
-function place(s, ps) {
-  const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
-}
-const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
+// Where a space is now. `ps`: panes(), read once by the caller (each read copies every pane).
+const where = (s, ps) => JSON.stringify([s.machine ?? null, placeOf(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
@@ -25,6 +20,9 @@ const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 const FALLBACK = 60000;
 // How long a checkout being opened may take to show up before it's asked for again.
 const OPENING = 5000;
+const find = (n, id) => n?.id === id ? n : (n?.children ?? []).map((c) => find(c, id)).find(Boolean);
+// Docked alone there's no Inbox to be behind.
+const listInView = (root = layout()) => find(root, "sidebar-lists")?.active !== "inbox" && !find(root, "sidebar")?.hidden;
 
 export default class Spaces extends View {
   init(_props, cx) {
@@ -34,13 +32,16 @@ export default class Spaces extends View {
       for (;;) if (await nextCommand() === "focus") enter(this, cx, "space-new");
     });
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
+    this.lastGit = {}; // space -> its git where it last had an answer; kept for one that's gone, as its machine may bring it back
+    this.opening = new Map(); // repo -> when its checkout was opened from its dim row
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
     this.pending = new Set(); // where()s to look at next
+    this.refreshing = new Set(); // machines being looked at
     this.busy = {}; // pane -> an agent working or a program in front of its shell
     this.ready = {}; // machine -> its layout was readable at the last look
     this.at = {}; // space -> its where() at the last look
-    this.watching = new Set(); // local repos' git folders
+    this.watching = new Map(); // local repos' git folders -> their watch's own token
     // Spaces made while this runs wait (at most a moment) for their git, so a
     // worktree appears under its repo instead of jumping there.
     this.shown = new Set(spaces().map((s) => s.id));
@@ -51,6 +52,7 @@ export default class Spaces extends View {
     for (const state of Object.values(this.reconnecting)) state.busy = false;
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
     this.foldedRepos = new Set(JSON.parse(localStorage.getItem("repos.folded") ?? "[]"));
+    this.machinesSeen = this.machinesNow();
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // `git status` walks the whole tree, on another machine a process there:
@@ -58,10 +60,19 @@ export default class Spaces extends View {
     cx.timer.every(250, (cx) => this.checkNew(cx));
   }
 
+  machinesNow() {
+    return JSON.stringify(machines().map((m) => [m.name, m.layout]));
+  }
+
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
-    for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
+    // A machine came or went: its heading needn't wait for the next poll.
+    const seen = this.machinesNow();
+    if (seen !== this.machinesSeen) {
+      this.machinesSeen = seen;
+      this.refreshMachines(cx);
+    }
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
@@ -75,7 +86,14 @@ export default class Spaces extends View {
     const at = {};
     for (const s of sp) at[s.id] = where(s, ps);
     const keys = new Set(Object.values(at).filter((k) => JSON.parse(k)[1]));
-    const due = new Set([...keys].filter((k) => !(k in this.git)));
+    // Where no space is any more: forgotten, so a commit looks only where spaces are and a repo none is in isn't watched.
+    for (const k of Object.keys(this.git)) if (!keys.has(k)) { delete this.git[k]; delete this.checked[k]; this.unsure.delete(k); }
+    // Not while a place is unanswered: a cd within a repo would let it go and watch it again.
+    if ([...keys].every((k) => k in this.git)) {
+      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => JSON.parse(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
+      for (const repo of this.watching.keys()) if (!used.has(repo)) this.watching.delete(repo);
+    }
+    const due = new Set([...keys].filter((k) => !(k in this.git) && !(k in this.checked)));
     for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
     this.at = at;
     const spaceOf = {};
@@ -92,7 +110,7 @@ export default class Spaces extends View {
       if (ready && this.ready[m.name] === false) for (const k of keys) if (JSON.parse(k)[0] === m.name) due.add(k);
       this.ready[m.name] = ready;
     }
-    if (window().active) {
+    if (window().active && listInView()) {
       for (const k of keys) {
         const asks = this.git[k] || this.unsure.has(k);
         if (asks && !this.folded.has(JSON.parse(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);
@@ -109,7 +127,16 @@ export default class Spaces extends View {
 
   refreshMachines(cx) {
     cx.spawn(async cx => {
-      try { const r = await hc(["machine", "ls", "--json"]); if (r.code === 0) this.machines = (JSON.parse(r.stdout).machines ?? []).filter((m) => !m.temporary); } catch {}
+      try {
+        const r = await hc(["machine", "ls", "--json"]);
+        if (r.code === 0) {
+          this.machines = JSON.parse(r.stdout).machines ?? [];
+          // Connected some other way (Add machine, hc machine add): no repair is left to hide its spaces behind.
+          const fixed = this.machines.filter((m) => m.state === "connected" && this.reconnecting[m.name] && !this.reconnecting[m.name].busy);
+          for (const m of fixed) delete this.reconnecting[m.name];
+          if (fixed.length) localStorage.setItem("machines.reconnecting", JSON.stringify(this.reconnecting));
+        }
+      } catch {}
       cx.notify();
     });
   }
@@ -161,33 +188,32 @@ export default class Spaces extends View {
     });
   }
 
-  // One look at a time, each place once however often it was asked for meanwhile.
+  // One look at a time on each machine, so one that hangs holds up only its own places; each place once however often it was asked for meanwhile.
   refreshGit(keys, cx) {
-    for (const k of keys) this.pending.add(k);
-    if (this.refreshing) return;
-    this.refreshing = true;
-    cx.spawn(async (cx) => {
-      while (this.pending.size) {
-        const keys = [...this.pending];
-        this.pending.clear();
-        for (const key of keys) await this.check(key, cx);
-      }
-      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => JSON.parse(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
-      for (const repo of this.watching) if (!used.has(repo)) this.watching.delete(repo);
-      this.refreshing = false;
-      cx.notify();
-    });
+    const now = Date.now(), machineOf = (k) => JSON.parse(k)[0];
+    for (const k of keys) { this.pending.add(k); this.checked[k] = now; }
+    for (const on of new Set([...this.pending].map(machineOf))) {
+      if (this.refreshing.has(on)) continue;
+      this.refreshing.add(on);
+      cx.spawn(async (cx) => {
+        for (let key; (key = [...this.pending].find((k) => machineOf(k) === on));) {
+          this.pending.delete(key);
+          await this.check(key, cx);
+        }
+        this.refreshing.delete(on);
+        cx.notify();
+      });
+    }
   }
 
   // One place's git: branch, ahead/behind, its repo.
   async check(key, cx) {
     const [on, cwd] = JSON.parse(key);
-    this.checked[key] = Date.now();
-    this.unsure.delete(key);
     try {
       // No optional locks: a status that touched the index would wake the watch again.
       // Writes nothing under .git (index lock, fsmonitor cookie): watch() would wake on it.
       const r = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v2", "--branch"], { cwd, on });
+      this.unsure.delete(key); // Only now: until it answers, what it couldn't say stays unsaid.
       if (r.code !== 0) {
         // Only git's own "no" is remembered as no repo; anything else is asked again.
         if (!/not a git repository/i.test(r.stderr)) this.unsure.add(key);
@@ -219,15 +245,17 @@ export default class Spaces extends View {
 
   watch(repo, cx) {
     if (this.watching.has(repo)) return;
-    this.watching.add(repo);
+    // A wait can't be taken back: a repo let go and watched again has a new loop, and the old one, on waking, ends here.
+    const token = {};
+    this.watching.set(repo, token);
     cx.spawn(async (cx) => {
       try {
-        while (this.watching.has(repo)) {
+        while (this.watching.get(repo) === token) {
           await watchFolder(repo);
           const mine = JSON.stringify([null, repo]);
-          if (this.watching.has(repo)) this.refreshGit(Object.keys(this.git).filter((k) => this.git[k]?.repo === mine), cx);
+          if (this.watching.get(repo) === token) this.refreshGit(Object.keys(this.git).filter((k) => this.git[k]?.repo === mine), cx);
         }
-      } catch { this.watching.delete(repo); }
+      } catch { if (this.watching.get(repo) === token) this.watching.delete(repo); }
     });
   }
 
@@ -248,15 +276,21 @@ export default class Spaces extends View {
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     // Home stays in the model's order below, so the moves count it, but it's no one's checkout and has no row.
     const homeId = shared("t3-home.space");
-    const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : this.git[where(w, ps)] ?? null }));
+    // A place not asked about yet (a cd just now) isn't "not a repo": it stays as it was, or this frame reorders the model for good.
+    const gitOf = (w) => {
+      const k = where(w, ps);
+      if (this.git[k] || (k in this.git && !this.unsure.has(k))) this.lastGit[w.id] = this.git[k];
+      return this.lastGit[w.id] ?? null;
+    };
+    const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : gitOf(w) }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const worktrees = (repo) => list.filter((k) => k.g?.linked && k.g.repo === repo);
     // A checkout just opened from its dim row arrives last: it takes that row's place, so the group doesn't jump to the list's end.
-    if (this.opening) {
-      const main = list.findIndex((r) => r.g && !r.g.linked && r.g.repo === this.opening.repo);
-      const first = list.findIndex((r) => r.g?.linked && r.g.repo === this.opening.repo);
+    for (const [repo, at] of this.opening) {
+      const main = list.findIndex((r) => r.g && !r.g.linked && r.g.repo === repo);
+      const first = list.findIndex((r) => r.g?.linked && r.g.repo === repo);
       if (main >= 0 && first >= 0 && main > first) list.splice(first, 0, list.splice(main, 1)[0]);
-      else if (main >= 0 || Date.now() - this.opening.at > OPENING) this.opening = null;
+      else if (main >= 0 || Date.now() - at > OPENING) this.opening.delete(repo);
     }
     // Grouped by repo, as T3's projects, so closing a checkout doesn't scatter its worktrees. One alone isn't worth a row over it.
     const nested = (r) => r.g?.linked && (mains.has(r.g.repo) || worktrees(r.g.repo).length > 1);
@@ -333,7 +367,7 @@ export default class Spaces extends View {
     const draw = (r, ghost) => r.head ? this.repoHead(r, t, ps, ghost) : this.row(r, t, ps, ghost);
     const entry = (r) => ({ key: r.head ? r.w.id : `space-${r.w.id}`, h: 32, m: r.w.machine ?? null, r, el: draw(r), ghost: () => draw(r, true) });
     const plain = (key, m, draw) => ({ key, h: 32, m, el: draw(false), ghost: () => draw(true) });
-    const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
+    const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.filter(m => !m.temporary).map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
       return layout === "loading" || (!layout && this.machines.some(k => k.name === m && k.state === "connected"))
@@ -454,8 +488,8 @@ export default class Spaces extends View {
 
   // Once, however often it's pressed: the new space takes a moment to show.
   openCheckout({ w, g }) {
-    if (this.opening?.repo === g.repo && Date.now() - this.opening.at < OPENING) return;
-    this.opening = { repo: g.repo, at: Date.now() };
+    if (Date.now() - (this.opening.get(g.repo) ?? -Infinity) < OPENING) return;
+    this.opening.set(g.repo, Date.now());
     run("space.new", { folder: w.folder, machine: w.machine ?? "" });
   }
 
@@ -529,8 +563,19 @@ export default class Spaces extends View {
   dragTo(e, cx) {
     const d = this.drag;
     if (!d) return;
+    pointerMoved(e.position);
+    d.box = e.bounds;
     const dy = e.position.y - d.at.y;
     if (!d.moved && Math.hypot(e.position.x - d.at.x, dy) <= 6) return;
+    // Let go outside the window, neither a release nor a leave comes (see pointerGone), and a move doesn't say whether the button's down.
+    if (!d.moved) {
+      const watch = cx.timer.every(POINTER_WATCH, (cx) => {
+        if (this.drag !== d) return watch.cancel();
+        if (!pointerGone(d.box)) return;
+        watch.cancel();
+        this.letGo(cx, true);
+      });
+    }
     d.moved = true;
     // shortcut: measured from the press in window coordinates, so scrolling the list mid-drag isn't followed; take the rows' local_position if that matters.
     d.dy = dy;
@@ -607,6 +652,8 @@ export default class Spaces extends View {
     const colors = Object.fromEntries(sp.filter(p => p.name !== "~").map(p => [p.id, tint(p.name, false)]));
     if (JSON.stringify(colors) !== JSON.stringify(shared("space.colors") ?? {})) setShared("space.colors", colors);
     const rows = this.rows = this.grouped(t);
+    // New space here goes as the space it made arrives, with no leave to say so: it would come back lit.
+    if (this.hot?.startsWith("machine-new-") && !rows.some((e) => e.key === this.hot)) this.hot = null;
     // A row that left the list (closed, folded away) can't be dropped.
     let d = this.drag, shown = rows, lifted = null;
     if (d && !rows.some((e) => e.key === d.key)) d = this.drag = null;

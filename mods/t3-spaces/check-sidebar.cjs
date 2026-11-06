@@ -860,6 +860,28 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(sp.render(cx), "space-lifted"), null);
   assert.equal(sp.drag, null);
   sp.folded.delete(null);
+  // Let go outside the window, neither a release nor a leave comes: where the pointer is ends the drag, and no later click moves a space.
+  const watches = [], every = cx.timer.every, scope = f.scopes.get("t3-spaces");
+  cx.timer.every = (ms, fn) => { const t = { ms, fn, cancel() { t.gone = true; } }; watches.push(t); return t; };
+  const box = { x: 0, y: 0, width: 256, height: 400 }, lift = () => { press("space-s1"); fire(find(sp.render(cx), "space-list"), "on_mouse_move", { position: { x: 0, y: 40 }, bounds: box }, cx); sp.render(cx); };
+  scope.window.mouse_position = () => ({ x: 10, y: 40 });
+  const made = moves().length;
+  lift();
+  const out = watches.at(-1);
+  out.fn(cx);
+  assert.ok(sp.drag, "in the list, it's still lifted");
+  scope.window.mouse_position = () => ({ x: -5, y: 40 });
+  out.fn(cx);
+  assert.deepEqual([sp.drag, out.gone, find(sp.render(cx), "space-lifted")], [null, true, null], "out of it, it goes back and the watch stops");
+  release();
+  assert.equal(moves().length, made, "and the next click moves nothing");
+  scope.window.mouse_position = () => ({ x: 10, y: 40 });
+  lift();
+  release();
+  sp.landing = null;
+  watches.at(-1).fn(cx);
+  assert.ok(watches.at(-1).gone, "released in the list, the watch stops too");
+  cx.timer.every = every;
 }
 
 {
@@ -916,6 +938,19 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.ok(walk(ghost).every(n => !Object.keys(n.handlers).length && !("track_focus" in n.style) && !keyOf(n)), `${e.key}'s ghost is inert`);
     assert.deepEqual(strings(ghost), strings(e.el), `${e.key}'s ghost reads as its row`);
   }
+}
+
+{
+  // New space here goes as the space it made arrives, with no leave to say so: back later, it isn't lit.
+  const f = fixture(256), sp = f.load("t3-spaces"), list = f.spaces();
+  sp.machines = [{ name: "spare", state: "asleep" }];
+  fire(find(sp.render(cx), "machine-new-spare"), "on_hover", true, cx);
+  assert.equal(find(sp.render(cx), "machine-new-spare").style.text_color, f.theme().foreground);
+  list.push({ id: "r", name: "r", active: false, folder: "/r", machine: "spare", tabs: [] });
+  sp.shown.add("r");
+  sp.render(cx);
+  list.pop();
+  assert.equal(find(sp.render(cx), "machine-new-spare").style.text_color, f.theme().dim);
 }
 
 {
@@ -1016,14 +1051,14 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(moves().at(-1), ["space.move", { id: "s9", index: 2 }], "the checkout moves to where the head was");
     list.splice(1, 0, list.pop());
     assert.deepEqual(rows(), ["s0", "s9"]);
-    assert.equal(view.opening, null, "in place, it's done");
+    assert.equal(view.opening.size, 0, "in place, it's done");
     fire(find(view.render(cx), "space-fold-s9"), "on_click", {}, cx);
     assert.deepEqual(rows(), ["s0", "s9", "s1", "s2"]);
     list.splice(1, 1);
     delete view.git[JSON.stringify([null, "/w/Engineer"])];
     // One worktree alone stays a plain row.
     set("s0", null);
-    delete view.git[JSON.stringify([null, "/work/s2"])];
+    set("s2", null);
     assert.deepEqual(rows(), ["s0", "s1", "s2"], "one alone gets no row over it");
     assert.equal(view.ordered()[1].tree, null);
     // No .git folder (a bare repo): nothing to open, so no pen.
@@ -1033,6 +1068,52 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(find(view.render(cx), `repo-${bare}`), "on_click", {}, cx);
     assert.equal(opens(), made, "there the click folds");
     assert.ok(view.foldedRepos.has(bare));
+  }
+  {
+    // A place not asked about yet isn't "not a repo": a cd in a worktree leaves its group and the model's order alone.
+    const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces");
+    list[2].machine = null;
+    const at = dir => JSON.stringify([null, dir]), g = { repo: "/r", linked: true, name: "E", branch: "x", ahead: 0, behind: 0 };
+    const k1 = { pane: "p9", terminal: "t9", tab: "b1", cwd: "/work/p1" };
+    o.panes().push(k1);
+    view.git[at("/work/s0")] = { ...g, linked: false };
+    view.git[at("/work/p1")] = g;
+    view.git[at("/work/s2")] = g;
+    const shape = () => plain(view.ordered().map(r => [r.w.id, r.tree ?? null])), moves = () => o.calls.filter(([name]) => name === "space.move");
+    const grouped = [["s0", null], ["s1", "├─"], ["s2", "└─"]];
+    assert.deepEqual(shape(), grouped);
+    k1.cwd = "/work/p1/src";
+    assert.deepEqual(shape(), grouped, "it stays in its group");
+    assert.deepEqual(moves(), [], "and nothing moves in the model");
+    view.git[at("/work/p1/src")] = g;
+    assert.deepEqual(shape(), grouped);
+    assert.deepEqual(moves(), [], "nor when git answers");
+    k1.cwd = "/away";
+    view.git[at("/away")] = null;
+    view.unsure.add(at("/away"));
+    assert.deepEqual(shape(), grouped, "nor where git couldn't answer");
+    k1.cwd = "/tmp";
+    view.git[at("/tmp")] = null;
+    assert.deepEqual(shape(), [["s0", null], ["s2", "└─"], ["s1", null]], "known not to be a repo, it leaves");
+  }
+  {
+    // Two dim rows opened one after the other: each checkout takes its own row's place, neither group goes to the end.
+    const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces");
+    const space = (id, folder) => ({ id, name: id, active: false, folder, machine: null, tabs: [] });
+    const add = (id, folder, repo, linked) => {
+      list.push(space(id, folder));
+      view.shown.add(id);
+      view.git[JSON.stringify([null, folder])] = { repo: JSON.stringify([null, `/${repo}/.git`]), linked, name: repo, branch: "x", ahead: 0, behind: 0 };
+    };
+    list.splice(0);
+    add("a1", "/ra/1", "ra", true); add("a2", "/ra/2", "ra", true); add("b1", "/rb/1", "rb", true); add("b2", "/rb/2", "rb", true); add("x", "/x", "x", false);
+    for (const repo of ["ra", "rb"]) fire(find(view.render(cx), `repo-${JSON.stringify([null, `/${repo}/.git`])}`), "on_click", {}, cx);
+    add("ma", "/ra", "ra", false); add("mb", "/rb", "rb", false);
+    for (let i = 0; i < 3; i++) {
+      view.ordered();
+      for (const [name, a] of o.calls.splice(0)) if (name === "space.move") list.splice(a.index - 1, 0, list.splice(list.findIndex(s => s.id === a.id), 1)[0]);
+    }
+    assert.deepEqual(list.map(s => s.id), ["ma", "a1", "a2", "mb", "b1", "b2", "x"]);
   }
   {
     // A worktree away from its checkout: the model moves to the rows' order, so space keys go down the list.
@@ -1104,14 +1185,14 @@ for (const width of [208, 240, 256, 320, 480]) {
     drop();
     assert.deepEqual(moves().pop(), ["space.move", { id: "s1", index: 2 }]);
     view.landing = null;
-    delete view.git[JSON.stringify([null, "/work/p1"])];
+    view.git[JSON.stringify([null, "/work/p1"])] = null;
     tree = lift("space-s2", 60);
     assert.deepEqual(order(tree), ["space-s0", "gap-32", "space-s1"], "a lone worktree has nowhere else to go");
     const n = moves().length;
     drop();
     assert.equal(moves().length, n, "so it moves nothing");
     // Without worktrees, a space dropped between two lands between them.
-    for (const id of ["s0", "s2"]) delete view.git[JSON.stringify([null, `/work/${id}`])];
+    for (const id of ["s0", "s2"]) view.git[JSON.stringify([null, `/work/${id}`])] = null;
     tree = lift("space-s0", 40);
     assert.deepEqual(order(tree), ["space-s2", "gap-32", "space-s1"]);
     drop();
@@ -1362,6 +1443,161 @@ for (const width of [208, 240, 256, 320, 480]) {
     await done;
     assert.deepEqual(asks(), [add], "a retry doesn't forget it again");
     assert.deepEqual(Object.keys(sp.reconnecting), [], "paired, nothing's left to repair");
+  }
+  {
+    const flush = async () => { for (let i = 0; i < 40; i++) await new Promise(setImmediate); };
+    const running = () => { const run = { ...cx, spawn: fn => { fn(run); } }; return run; };
+    const answer = machines => ({ code: 0, stdout: JSON.stringify({ machines }) });
+    {
+      // Connected some other way (Add machine, hc machine add): no repair is left, and its spaces show, after a restart too.
+      const f = fixture(256), run = running();
+      f.stores.set("t3-spaces", new Map([["machines.reconnecting", JSON.stringify({ vps: { machine: { name: "vps", target: "me@vps", state: "unreachable" }, removed: true, error: "no route" } })]]));
+      f.answerHc(() => answer([{ name: "vps", target: "me@vps", state: "connected" }]));
+      const sp = f.load("t3-spaces");
+      assert.equal(find(sp.render(run), "space-s2"), null, "until hc says so it's a repair");
+      sp.refreshMachines(run);
+      await flush();
+      assert.ok(find(sp.render(run), "space-s2"), "connected, its spaces are back");
+      assert.equal(f.stores.get("t3-spaces").get("machines.reconnecting"), "{}", "for good");
+      sp.reconnecting.vps = { busy: true };
+      sp.refreshMachines(run);
+      await flush();
+      assert.ok(sp.reconnecting.vps, "a Connect under way ends its own repair");
+    }
+    {
+      // A temporary machine with a space is known as any other: connected, with its +. One with no space isn't listed.
+      const f = fixture(256), run = running();
+      f.answerHc(() => answer([{ name: "vps", target: "vps", state: "connected", temporary: true }, { name: "spare", state: "asleep", temporary: true }]));
+      const sp = f.load("t3-spaces");
+      sp.refreshMachines(run);
+      await flush();
+      const tree = sp.render(run), head = strings(find(tree, "machine-vps"));
+      assert.ok(find(tree, "machine-add-vps") && !head.includes("asleep"), "it isn't asleep");
+      assert.equal(find(tree, "machine-spare"), null);
+    }
+    {
+      // machines() says a machine changed: the headings ask hc at once, not at the next poll.
+      const f = fixture(256), run = running(), sp = f.load("t3-spaces"), asked = () => f.labelled.splice(0).filter(a => a[0] === "machine").length;
+      const scope = f.scopes.get("t3-spaces");
+      asked();
+      sp.checkNew(run);
+      assert.equal(asked(), 0, "nothing changed");
+      scope.machines = () => [{ name: null, layout: "ready" }, { name: "vps", layout: "unavailable" }];
+      sp.checkNew(run);
+      assert.equal(asked(), 1);
+      sp.checkNew(run);
+      assert.equal(asked(), 0, "once per change");
+      await flush();
+    }
+    {
+      // Git's looks: once a place while it answers, one machine doesn't hold up another, only where spaces are, and only in view.
+      const f = fixture(256), run = running(), sp = f.load("t3-spaces"), scope = f.scopes.get("t3-spaces"), list = f.spaces();
+      const at = (dir, on = null) => JSON.stringify([on, dir]);
+      const looks = [], watches = [];
+      let hold = null, away = null;
+      scope.exec = async (cmd, args, { cwd, on }) => {
+        if (args.includes("status")) looks.push(cwd);
+        if (on) await away;
+        if (args.includes("status")) await hold;
+        const top = cwd.split("/").slice(0, 3).join("/");
+        return { code: 0, stderr: "", stdout: args.includes("status") ? "# branch.head x\n" : args.includes("--show-toplevel") ? `${top}\n` : `${top}/.git\n` };
+      };
+      scope.watchFolder = dir => new Promise(res => watches.push({ dir, res }));
+      const count = dir => looks.splice(0).filter(d => d === dir).length;
+      const wake = dir => { for (const w of watches.splice(0).filter(w => { if (w.dir === dir) return true; watches.push(w); return false; })) w.res([]); };
+      list.unshift(list.pop()); // The machine that won't answer comes first: one queue would never reach the rest.
+      let open;
+      hold = new Promise(res => { open = res; });
+      let back;
+      away = new Promise(res => { back = res; });
+      for (let i = 0; i < 3; i++) { sp.checkNew(run); await flush(); }
+      assert.ok(at("/work/p1") in sp.git === false, "still asking");
+      open();
+      hold = null;
+      await flush();
+      sp.checkNew(run);
+      await flush();
+      assert.equal(count("/work/s0"), 1, "the first look isn't asked for again while it runs");
+      assert.ok(at("/work/s0") in sp.git, "a machine that doesn't answer holds up only its own");
+      assert.ok(!(at("/work/s2", "vps") in sp.git));
+      back();
+      away = null;
+      await flush();
+      assert.ok(at("/work/s2", "vps") in sp.git);
+      // A closed repo: forgotten and let go. The first terminal's old folders aren't looked at on a commit.
+      const s1 = list.splice(2, 1)[0], pane = f.panes()[0];
+      sp.checkNew(run);
+      assert.ok(!sp.watching.has("/work/p1/.git") && !(at("/work/p1") in sp.git));
+      for (const dir of ["/work/s0/d1", "/work/s0/d2"]) { pane.cwd = dir; sp.checkNew(run); await flush(); }
+      sp.checkNew(run);
+      assert.equal(watches.filter(w => w.dir === "/work/s0/.git").length, 1, "a cd within the repo keeps its one watch");
+      looks.splice(0);
+      wake("/work/s0/.git");
+      await flush();
+      assert.deepEqual(looks.splice(0), ["/work/s0/d2"], "one commit, one look");
+      wake("/work/p1/.git");
+      await flush();
+      assert.deepEqual(looks.splice(0), [], "a commit in the closed repo looks at nothing");
+      // Opened again while its old watch still waits: one change wakes both, and one watch goes on.
+      list.push(s1);
+      sp.checkNew(run);
+      await flush();
+      list.pop();
+      sp.checkNew(run);
+      list.push(s1);
+      sp.checkNew(run);
+      await flush();
+      assert.equal(watches.filter(w => w.dir === "/work/p1/.git").length, 2, "the old watch can't be taken back");
+      looks.splice(0);
+      wake("/work/p1/.git");
+      await flush();
+      assert.equal(count("/work/p1"), 1);
+      assert.equal(watches.filter(w => w.dir === "/work/p1/.git").length, 1, "the old loop ends, so changes aren't looked at twice");
+      // The fallback look is for what's in view: with the Inbox in front, or the sidebar hidden, it waits.
+      const due = () => { for (const k in sp.checked) sp.checked[k] = 0; looks.splice(0); sp.checkNew(run); return looks.length; };
+      f.ui.window.active = true;
+      f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+      assert.equal(due(), 0, "under the Inbox");
+      await flush();
+      f.slots["sidebar-lists"].active = "lists";
+      f.slots.sidebar.hidden = true;
+      assert.equal(due(), 0, "sidebar hidden");
+      await flush();
+      f.slots.sidebar.hidden = false;
+      assert.ok(due() > 0, "back in view");
+      await flush();
+      delete f.slots["sidebar-lists"];
+      assert.ok(due() > 0, "docked alone, with no Lists to be hidden in");
+      await flush();
+    }
+    {
+      // The icon through a cd: until the new place answers, the space keeps it, not a flash of its letter.
+      const f = fixture(256), sp = f.load("t3-spaces"), scope = f.scopes.get("t3-spaces"), key = dir => JSON.stringify([null, dir]);
+      f.state["space.icons"] = { [key("/work/s0")]: "cache/t3-icons/x.svg", [key("/old")]: "cache/t3-icons/y.svg", [key("/empty")]: null };
+      let open;
+      const gate = new Promise(res => { open = res; });
+      scope.exec = async () => { await gate; return { code: 1, stdout: "", stderr: "" }; };
+      const hasIcon = () => walk(find(sp.render(cx), "space-s0")).some(n => n.kind === "image");
+      assert.ok(hasIcon());
+      f.panes()[0].cwd = "/work/s0/src";
+      assert.ok(hasIcon(), "asking, it keeps the icon");
+      open();
+      await flush();
+      assert.equal(f.state["space.icons"][key("/work/s0/src")], null, "no icon there is an answer every mod can see");
+      assert.ok(key("/work/s0/src") in f.state["space.icons"]);
+      assert.ok(!hasIcon(), "and it shows");
+      assert.ok(!(key("/empty") in f.state["space.icons"]), "answers of no icon stay only for places in use");
+      assert.equal(f.state["space.icons"][key("/old")], "cache/t3-icons/y.svg");
+      // Agents draws beside Spaces, which keeps asking: it asks only where nobody has answered (a worktree has no mark in Spaces).
+      const ag = f.load("t3-agents"), asks = [];
+      f.scopes.get("t3-agents").exec = async (cmd, args, { cwd }) => { if (args.includes("--show-toplevel")) asks.push(cwd); return { code: 1, stdout: "", stderr: "" }; };
+      delete f.state["space.icons"][JSON.stringify(["vps", "/work/s2"])];
+      ag.render(cx);
+      await flush();
+      ag.render(cx);
+      await flush();
+      assert.deepEqual(asks, ["/work/s2"], "once for the unanswered place, never for the answered");
+    }
   }
   {
     // A hover style's color reaches text but never an svg: Herdr colors an icon as it builds the tree. So a button with an icon brightens by state.
