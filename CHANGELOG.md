@@ -6,7 +6,11 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 - Spaces and Agents now move as Inbox does. Folding, sorting, new and closed spaces and ended agents slide and fade over 150ms, where most used to jump.
 - Dragging a space lifts it and the list opens where it will land, instead of drawing a line; a checkout brings its open worktrees.
-- Rows in Lists and Inbox show a press, fold arrows in Lists cross-fade, and hover labels fade in.
+- Rows in Lists and Inbox show a press and fold arrows in Lists cross-fade.
+- Hover labels and details cards no longer get stuck on screen, and don't open while the window isn't active.
+- Moving into a card's snooze menu no longer makes Settle vanish and the clock and menu jump: the card stays as hovered while its menu is open.
+- Moving between a row's controls no longer flashes its details card: it comes back once the pointer leaves the controls, and shows as before on the rest of the row.
+- Hover labels and details cards slide 4px as they fade, in and out, and no longer vanish on the spot: leaving a label, reaching a control in a row or moving to the next row all fade.
 
 - New, Go to and the Actions editor show their contents as soon as they open; their fade left them blank for a moment.
 - A sub-agent's row shows its own details card; its parent's used to stay up over it.

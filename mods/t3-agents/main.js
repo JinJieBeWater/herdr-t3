@@ -8,7 +8,7 @@ import { namer } from "./name.js";
 import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
-import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
 import { MOTION, foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 // T3's one-line row and shelf or folder header.
@@ -226,6 +226,7 @@ export default class Agents extends View {
         else if (this.hovered === rowId) { this.hovered = null; detailsFor(this, null, cx); }
         cx.notify();
       })
+      .on_mouse_move((e) => detailsAt(this, rowId, e))
       .on_click((_e, cx) => {
         // The peek opens where the card stands: no fade, or the two overlap.
         detailsFor(this, null, cx);
@@ -323,7 +324,7 @@ export default class Agents extends View {
         .child(foldArrow("t3-agents", ghost ? null : `${id}-arrow`, open, 12, color))
         .when(!open, (el) => el.child(String(subs.length)));
       if (ghost) return base;
-      return tip(this.hot, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", stop(this, t, id, base
+      return tip(this, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", stop(this, t, id, base
         .id(id)
         // As T3's row controls, hover only lights it: no ground.
         .role("button").accessibility_label(open ? "Collapse sub-agents" : "Expand sub-agents")
@@ -350,12 +351,12 @@ export default class Agents extends View {
       const branch = ps.find((p) => p.pane === a.pane)?.branch, pic = programIcon(a.program, 12, t.muted);
       const up = this.details === key || this.detailsOut === key;
       return Popup.new(`details-${key}`, div()).absolute().top(-1).right(-1).size(1)
-        .when(up && !this.hot, (pop) => pop.content(detailsCard(this, t, key, name, [
+        .when(up, (pop) => pop.content(detailsCard(this, t, key, name, [
           a.space_name && detailsLine(t, projectMark(spaces().find((s) => s.id === a.space) ?? { name: a.space_name }, 12, t, ps), a.space_name),
           machine && detailsLine(t, svg("mods/t3-agents/server.svg").size(12).flex_none().text_color(t.muted), machine),
           branch && detailsLine(t, svg("mods/t3-agents/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
           pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
-        ]).ml(4)));
+        ], { hide: Boolean(this.hot) }).ml(4)));
     };
 
     const row = (a, i, subs = [], ghost) => {
@@ -426,7 +427,7 @@ export default class Agents extends View {
           .child(ghost ? h_flex().h(20).min_w(20).flex_none().items_center().justify_end().child(time)
             : h_flex().id(`when-${a.address}`).relative().h(20).min_w(20).flex_none().items_center().justify_end()
               .child(time)
-              .child(div().absolute().top(0).right(0).child(tip(this.hot, t, pinId, isPinned ? "Unpin" : "Pin", pin()))))
+              .child(div().absolute().top(0).right(0).child(tip(this, t, pinId, isPinned ? "Unpin" : "Pin", pin()))))
           .child(this.status(t, { status: st }, fromKid ? " (sub-agent)" : "", ghost ? undefined : `status-${a.address}`)));
       if (ghost) return base;
       return stop(this, t, rowId, base
@@ -440,6 +441,7 @@ export default class Agents extends View {
           else if (this.hovered === a.address) { this.hovered = null; detailsFor(this, null, cx); }
           cx.notify();
         })
+        .on_mouse_move((e) => detailsAt(this, a.address, e))
         .on_click((_e, cx) => {
           // As a T3 tooltip, a click takes its card down until the pointer comes back.
           detailsFor(this, null, cx);
@@ -556,7 +558,7 @@ export default class Agents extends View {
             .justify_between()
             .child(div().text_size(12).font_medium().text_color(t.muted).child("Agents"))
             .child(
-              tip(this.hot, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", div()
+              tip(this, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", div()
                 .id("ag-sort")
                 .size(26).flex_none().flex().items_center().justify_center().rounded(6)
                 .role("button").accessibility_label("Sort agents")

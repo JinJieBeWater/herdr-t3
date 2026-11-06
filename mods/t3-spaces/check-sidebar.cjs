@@ -67,7 +67,7 @@ function fixture(width) {
   const env = {
     View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
     Button: { new: id => element("button").id(id) },
-    Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: id => element("popup").id(id) }, Input: { new: () => element("input") },
+    Popover: { new: id => element("popover").id(id) }, HoverCard: { new: id => element("hovercard").id(id) }, Popup: { new: (id, trigger) => element("popup").id(id).child(trigger) }, Input: { new: () => element("input") },
     InputState: { new: () => ({ on() {}, value: () => "", set_value() {}, focus() {} }) },
     VirtualListScrollHandle: { new: () => ({ scroll_to_item() {} }) }, v_virtual_list: (id, n, size, key, draw) => { const list = element("list").id(id); for (const row of draw({ start: 0, end: n }, cx)) list.child(row); return list; },
     svg: source => element("svg", source), image: source => element("image", source),
@@ -391,7 +391,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const leaving = (tree, key) => walk(tree).find(n => String(n.key).startsWith(`leaving-${key}-`));
   const fireTimers = ms => { const due = cx.timers.filter(t => t.ms === ms); cx.timers = cx.timers.filter(t => t.ms !== ms); for (const t of due) if (!t.gone) t.fn(cx); };
   // Drawn for its leaving: no handlers, no tooltip, and no id the list uses.
-  const inert = n => walk(n.items[0]).every(c => !Object.keys(c.handlers).length && c.kind !== "hovercard" && typeof c.key !== "string");
+  const inert = n => walk(n.items[0]).every(c => !Object.keys(c.handlers).length && typeof c.key !== "string");
   cx.timers.length = 0;
   const remote = f.agents().find(a => a.address === "vps/t2"), wasStatus = remote.status;
   remote.status = "working";
@@ -871,7 +871,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(plain(view.rows.map(e => e.key)), ["machine-local", "space-s0", `repo-${repo}`, "space-s1", "space-s2", "machine-busy", "machine-loading-busy", "machine-spare", "machine-new-spare"]);
   for (const e of view.rows.filter(e => e.ghost)) {
     const ghost = e.ghost();
-    assert.ok(walk(ghost).every(n => !Object.keys(n.handlers).length && n.kind !== "hovercard" && !("track_focus" in n.style) && !keyOf(n)), `${e.key}'s ghost is inert`);
+    assert.ok(walk(ghost).every(n => !Object.keys(n.handlers).length && !("track_focus" in n.style) && !keyOf(n)), `${e.key}'s ghost is inert`);
     assert.deepEqual(strings(ghost), strings(e.el), `${e.key}'s ghost reads as its row`);
   }
 }
@@ -1357,20 +1357,21 @@ for (const width of [208, 240, 256, 320, 480]) {
       if (n.style.role !== "button") continue;
       assert.ok(n.style.accessibility_label, `${n.key}: a label`);
       assert.ok(!("tooltip" in n.style), `${n.key}: the shell's tooltip isn't T3's`);
-      const tipped = walk(view.render(cx)).some(c => c.kind === "hovercard" && c.items.some(i => i.key === n.key));
+      const tipped = walk(view.render(cx)).some(c => String(c.key).startsWith("tip-over-") && c.items.some(i => i.key === n.key));
       const icon = n.items.length === 1 && n.items[0].kind === "svg", plain = /agent-fold|^(icon|sub|ag|card|slim|close-b|close-o)/.test(n.key);
       if (icon && !plain) assert.ok(tipped, `${n.key}: an icon alone has a hover label`);
     }
   }
   {
-    // A mark with no words says what it is on hover; what sits at the window's bottom opens upward, as a HoverCard doesn't flip.
+    // A mark with no words says what it is on hover; what sits at the window's bottom opens upward, as a Popup doesn't flip.
     const f = fixture(256), ag = f.load("t3-agents"), footer = f.load("t3-chrome", { footer: true });
     const mark = () => find(ag.render(cx), "tip-status-t0-mark");
     assert.equal(strings(mark().style.content).length, 0, "its card waits for the hover");
-    fire(find(ag.render(cx), "status-t0-mark"), "on_hover", true, cx);
+    const over = (on) => { fire(find(ag.render(cx), "status-t0-mark"), "on_hover", on, cx); fire(find(ag.render(cx), "tip-over-status-t0-mark"), "on_hover", on, cx); while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); } };
+    over(true);
     assert.ok(strings(mark().style.content).length > 0);
     assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, strings(mark().style.content)[0]);
-    fire(find(ag.render(cx), "status-t0-mark"), "on_hover", false, cx);
+    over(false);
     assert.equal(strings(mark().style.content).length, 0);
     assert.equal(find(footer.render(cx), "tip-add-machine").style.anchor, "bottom_center");
   }
@@ -1411,7 +1412,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const blank = find(lists.render(cx), "machine-new-spare");
     assert.deepEqual([blank.style.pl, blank.items[0].style.size, blank.style.gap], [10, 16, 10], "New space here lays out as a space's row");
     lists.machines = [{ name: "vps", state: "connected" }];
-    const label = (id) => { lists.hot = id; return strings(find(lists.render(cx), `tip-${id}`).style.content); };
+    const label = (id) => { lists.hot = id; fire(find(lists.render(cx), `tip-over-${id}`), "on_hover", true, cx); while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); } return strings(find(lists.render(cx), `tip-${id}`).style.content); };
     assert.deepEqual(label("space-new"), ["New space"], "⌘N doesn't ask, as this does");
     assert.deepEqual(label("space-new-tab"), ["New tab"]);
     assert.deepEqual(label("machine-add-local"), ["New space here (⌘N)"], "⌘N makes it on this space's machine");
@@ -1462,11 +1463,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(strings(card("t0"))[0], row("t0").style.accessibility_label, "led by the title the row shows");
     // The pointer can report entering the next row before leaving this one.
     hover("vps/t2", true);
-    assert.equal(due(150).length, 0, "the next opens at once");
-    assert.equal(card("t0"), undefined, "one up at a time");
+    assert.equal(card("t0").style.opacity, 0, "the one it replaces fades under it");
     assert.equal(card("vps/t2").style.opacity, 1, "unfaded");
     assert.deepEqual(strings(card("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
-    assert.equal(find(inbox.render(cx), "tip-machine-vps/t2").style.open_delay, 0, "a control's label in the row opens at once too");
+    const labelDelay = (id) => { fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", true, cx); const { ms } = cx.timers.at(-1); fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", false, cx); return ms; };
+    assert.equal(labelDelay("machine-vps/t2"), 0, "a control's label in the row opens at once too");
     hover("t0", false);
     assert.ok(card("vps/t2"), "the late leave of the row before doesn't close it");
     hover("vps/t2", false);
@@ -1477,16 +1478,16 @@ for (const width of [208, 240, 256, 320, 480]) {
     hover("t0", true);
     assert.equal(card("t0").style.opacity, 1, "within 400ms the next still opens at once");
     inbox.hot = "machine-t0";
-    assert.equal(card("t0"), undefined, "a lit control's own label speaks instead");
+    assert.deepEqual([card("t0").style.opacity, card("t0").style.left], [0, -4], "a lit control's own label speaks instead: the card fades back toward the row");
     inbox.hot = null;
-    assert.ok(card("t0"), "and it's back with the pointer on the row");
+    assert.equal(card("t0").style.opacity, 1, "and it's back with the pointer on the row");
     fire(row("t0"), "on_click", {}, cx);
     assert.equal(card("t0").style.opacity, 0, "a click takes it down");
     pass(150);
     assert.equal(card("t0"), undefined);
     hover("t0", false);
     inbox.detailsClosed = Date.now() - 400;
-    assert.equal(find(inbox.render(cx), "tip-machine-vps/t2").style.open_delay, 150, "past 400ms a label waits again");
+    assert.equal(labelDelay("machine-vps/t2"), 150, "past 400ms a label waits again");
     hover("t0", true);
     assert.equal(card("t0"), undefined, "and so does the card");
     pass(150);
@@ -1500,16 +1501,19 @@ for (const width of [208, 240, 256, 320, 480]) {
     const f = fixture(256), tabs = f.load("t3-tabs", { part: "end" }), inbox = f.load("t3-inbox");
     f.spaces()[0].active = true;
     const card = (view, id) => find(view.render(cx), `tip-${id}`).style.content;
+    const lit = (view, id) => { fire(find(view.render(cx), id), "on_hover", true, cx); fire(find(view.render(cx), `tip-over-${id}`), "on_hover", true, cx); while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); } };
     assert.deepEqual(strings(card(tabs, "tab-new")), [], "not while unlit");
-    fire(find(tabs.render(cx), "tab-new"), "on_hover", true, cx);
+    lit(tabs, "tab-new");
     assert.deepEqual(strings(card(tabs, "tab-new")), ["New tab (⌘T)"]);
     assert.equal(card(tabs, "tab-new").style.text_size, 12);
     fire(find(tabs.render(cx), "tab-new"), "on_click", {}, cx);
-    fire(find(inbox.render(cx), "inbox-new-tab"), "on_hover", true, cx);
+    lit(inbox, "inbox-new-tab");
     assert.deepEqual(strings(card(inbox, "inbox-new-tab")), ["New tab"], "a label names its control; what opens says the rest");
     fire(find(inbox.render(cx), "inbox-new-tab"), "on_click", {}, cx);
     assert.deepEqual(strings(card(inbox, "inbox-new-tab")), [], "what opens over it takes its label down");
     inbox.hot = "inbox-scope";
+    fire(find(inbox.render(cx), "tip-over-inbox-scope"), "on_hover", true, cx);
+    while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); }
     assert.deepEqual(strings(card(inbox, "inbox-scope")), ["Filter by space", "Shift+click to pick several"], "a second line only for what can't be seen");
     // A program's icon has no label of its own, as T3's rows.
     f.panes()[0].program = f.agents()[0].program;
@@ -1553,7 +1557,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     hoverName("b0", false);
     hoverName("other", true);
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_down:left", { click_count: 1 }, cx);
-    assert.equal(tabCard("other"), undefined, "a press puts it away");
+    assert.equal(tabCard("other").style.opacity, 0, "a press fades it away");
     fire(find(tabs.render(cx), "tab-other"), "on_mouse_up:left", {}, cx);
     f.calls.pop();
     assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => "truncate" in n.style && n.style.min_w === 0), "the name truncates in the tab itself");
@@ -1598,10 +1602,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     // The pointer moves on within the tab: off the name, onto the ×.
     fire(find(tabs.render(cx), "label-other"), "on_hover", false, cx);
     fire(find(tabs.render(cx), "close-other"), "on_hover", true, cx);
-    assert.equal(card(), undefined, "the × puts the card away at once");
+    assert.deepEqual([card().style.opacity, card().style.top], [0, -4], "the × fades the card away");
+    fire(find(tabs.render(cx), "tip-over-close-other"), "on_hover", true, cx);
+    assert.equal(cx.timers.at(-1).ms, 500, "its label waits long enough for a straight click");
+    while (cx.timers.length) { const t = cx.timers.shift(); if (!t.gone) t.fn(cx); }
     const label = find(tabs.render(cx), "tip-close-other");
-    assert.deepEqual(strings(label.style.content), ["Close tab"], "and has its own label, without the key: it closes the active tab only");
-    assert.deepEqual([label.style.open_delay, label.style.anchor], [500, "top_center"], "waiting long enough for a straight click");
+    assert.deepEqual(strings(label.style.content), ["Close tab"], "and it has no key: it closes the active tab only");
+    assert.equal(label.style.anchor, "top_center");
     fire(find(tabs.render(cx), "close-other"), "on_hover", false, cx);
     fire(find(tabs.render(cx), "label-other"), "on_hover", true, cx);
     pending();

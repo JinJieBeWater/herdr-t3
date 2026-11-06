@@ -66,7 +66,7 @@ function lineOf(node, text) {
 }
 
 function fixture() {
-  const f = { now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [] };
+  const f = { watches: [], tick() { for (const w of [...f.watches]) if (!w.cancelled) w.fn(cx); }, pointer: { x: 0, y: 0 }, active: true, now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [] };
   // The real Date, with its clock at f.now.
   const FakeDate = function (...args) { return args.length ? new Date(...args) : new Date(f.now); };
   FakeDate.now = () => f.now;
@@ -75,7 +75,11 @@ function fixture() {
     focus_handle: () => ({ focus() { f.keys = true; }, is_focused: () => false }),
     spawn: (fn) => f.jobs.push(fn),
     timer: {
-      every: () => ({}),
+      every(_ms, fn) {
+        const watch = { fn, cancelled: false, cancel() { this.cancelled = true; } };
+        f.watches.push(watch);
+        return watch;
+      },
       after(ms, fn) {
         const timer = { at: f.now + ms, fn, cancelled: false, cancel() { this.cancelled = true; } };
         f.timers.push(timer);
@@ -84,7 +88,7 @@ function fixture() {
     },
   };
   const env = {
-    View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
+    window: Object.assign(() => ({ platform: "macos", active: f.active }), { mouse_position: () => f.pointer, viewport_size: () => ({ width: 1200, height: 800 }) }), View: class {}, div: element, image: (src) => { const e = element(); e.style.image = [src]; return e; }, svg: element, v_flex: element, h_flex: element,
     Popover: { new: (id) => element().id(id) }, HoverCard: { new: (id) => element().id(id) }, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, Select: { new: (id) => element().id(id) }, Input: { new: element }, NumberInput: { new: element }, Button: { new: element },
     InputState: { new: (o = {}) => {
       let value = o.value ?? "";
@@ -822,6 +826,28 @@ test("the clock opens its menu without lifting or opening the card, and the card
   assert.ok(find(f.tree, "details-card-A"));
 });
 
+test("an open snooze menu holds its card as hovered: the pointer going into the menu moves and dims nothing", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.add("W", "working"); f.mod.workOpen = true; f.render();
+  // Where things sit: what's out of the flow and what's faded, for every control in the corner.
+  const layout = (id) => { const walk = (n) => !n || typeof n !== "object" ? [] : [[n.key, "absolute" in n.style, n.style.opacity?.[0]], ...n.items.flatMap(walk)]; return walk(find(f.tree, `corner-${id}`)); };
+  const look = (id) => [layout(id), find(f.tree, `card-${id}`).style.opacity[0], holding(f.tree, id).style.text_color[0]];
+  f.mod.hovered = "A"; f.render();
+  f.event("snooze-menu-A", "on_open_change", true); f.render();
+  const before = look("A");
+  f.mod.hovered = null; f.render();
+  assert.deepEqual(look("A"), before);
+  assert.equal(find(f.tree, "settle-A").style.opacity[0], 1, "Settle stays beside the clock");
+  assert.ok(find(f.tree, "card-A").style.bg, "and the card keeps its hover ground");
+  find(f.tree, "snooze-menu-A").handlers.on_open_change(false, f.cx); f.render();
+  assert.equal(find(f.tree, "settle-A").style.opacity[0], 0, "closed, it goes with the hover");
+  assert.equal(find(f.tree, "card-A").style.bg, undefined);
+  f.mod.hovered = "W"; f.render();
+  f.event("snooze-menu-W", "on_open_change", true); f.render();
+  const working = look("W");
+  f.mod.hovered = null; f.render();
+  assert.deepEqual(look("W"), working, "a working card doesn't recede under its menu");
+});
+
 test("a snoozed agent leaves the cards, working or not; undoing is no news, and it wakes where it was, marked Woke", () => {
   const f = fixture(), b = f.add("B", "idle", 200); f.add("A", "working", 100); f.add("C", "idle", 300);
   f.mod.workOpen = true; f.mod.napOpen = true; f.mod.listH = 600;
@@ -1243,22 +1269,143 @@ test("a far-off snooze wakes on time: its timer is re-armed a day at a time", ()
   assert.equal(f.mod.nextWake, 1000 + 3 * 86400000);
 });
 
-test("a hover label fades in once laid out, afresh each time it opens", () => {
+test("a hover label waits, fades in once laid out, fades out before it goes, and comes back from the fade", () => {
   const f = fixture(); f.add("A", "idle", 100);
   const walk = (n) => (n && typeof n === "object" ? [n, ...n.items.flatMap(walk)] : []);
   const body = () => walk(f.mod.render(f.cx)).find((n) => n.key?.startsWith("tip-body-inbox-scope-"));
-  assert.equal(body(), undefined, "closed: no label");
-  f.mod.hot = "inbox-scope";
+  const over = (on) => { f.mod.hot = on ? "inbox-scope" : null; find(f.mod.render(f.cx), "tip-over-inbox-scope").handlers.on_hover(on, f.cx); };
+  const pass = (ms) => f.render(f.now + ms);
+  over(true);
+  assert.equal(body(), undefined, "not before its delay");
+  pass(150);
   const first = body();
   assert.deepEqual(first.style.opacity, [0], "drawn clear first: a transition adopts the first value it sees");
-  assert.equal(body().key, first.key, "the same opening keeps its id");
   first.handlers.on_size_change({ width: 40, height: 20 }, f.cx);
+  assert.deepEqual([body().style.opacity, body().style.top], [[1], [0]]);
+  over(false);
+  assert.deepEqual([body().style.opacity, body().style.top], [[0], [-4]], "still up, fading back toward its control");
+  over(true);
+  assert.equal(body().key, first.key, "back before it went: the same one fades back");
   assert.deepEqual(body().style.opacity, [1]);
-  f.mod.hot = null; f.mod.render(f.cx);
+  pass(150);
+  assert.deepEqual(body().style.opacity, [1], "its going was called off");
+  over(false); pass(150);
+  assert.equal(body(), undefined, "gone: a clear label would still block what it covers");
+  over(true); pass(150);
+  assert.notEqual(body().key, first.key, "reopened, a new id: a size reports only an id's first layout");
+  over(false); pass(150);
+  over(true); f.mod.hot = null; pass(150);
+  assert.equal(body(), undefined, "unlit with no leaving reported: a dialog covers it, and no clear label stays over the dialog");
+});
+
+test("a row's card fades when a control in the row is lit and when another row's opens at once", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.add("B", "idle", 200); f.render();
+  const card = (x) => find(f.tree, `details-card-${x}`);
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  assert.deepEqual([card("A").style.opacity, card("A").style.left], [[1], [0]]);
+  find(f.tree, "snooze-A").handlers.on_hover(true, f.cx); f.render();
+  assert.deepEqual([card("A").style.opacity, card("A").style.left], [[0], [-4]], "up, clear");
+  find(f.tree, "snooze-A").handlers.on_hover(false, f.cx); f.render();
+  assert.deepEqual(card("A").style.opacity, [1], "back as the pointer comes off the control");
+  find(f.tree, "corner-A").handlers.on_hover(true, f.cx); f.render();
+  find(f.tree, "settle-A").handlers.on_hover(true, f.cx); f.render();
+  find(f.tree, "settle-A").handlers.on_hover(false, f.cx); f.render();
+  assert.deepEqual(card("A").style.opacity, [0], "in the gap between two controls, however long: no flash");
+  find(f.tree, "snooze-A").handlers.on_hover(true, f.cx); f.render();
+  assert.deepEqual(card("A").style.opacity, [0]);
+  find(f.tree, "snooze-A").handlers.on_hover(false, f.cx); f.render();
+  find(f.tree, "corner-A").handlers.on_hover(false, f.cx); f.render();
+  assert.deepEqual(card("A").style.opacity, [1], "off the corner, still on the row: it shows");
+  find(f.tree, "corner-A").handlers.on_hover(true, f.cx); f.render();
+  find(f.tree, "card-A").handlers.on_hover(false, f.cx); f.render();
+  find(f.tree, "card-A").handlers.on_hover(true, f.cx); f.render();
+  assert.deepEqual(card("A").style.opacity, [1], "a corner's leave that never came doesn't hold it");
+  f.event("card-A", "on_hover", false); f.event("card-B", "on_hover", true); f.render();
+  assert.deepEqual(card("B").style.opacity, [1], "at once");
+  assert.deepEqual(card("A").style.opacity, [0], "fading under it");
+  f.render(f.now + 150);
+  assert.equal(card("A"), null);
+  assert.deepEqual(card("B").style.opacity, [1]);
+});
+
+// Herdr drops a leave while the pointer's last known place is in the element's last box, and no other comes: these never get an on_hover(false).
+test("a row's card goes when its leave never comes: the pointer's elsewhere, or the window's not active", () => {
+  const box = { x: 10, y: 100, width: 200, height: 36 };
+  for (const away of [(f) => { f.pointer = { x: 20, y: 300 }; }, (f) => { f.active = false; }]) {
+    const f = fixture(); f.add("A", "idle", 100); f.render();
+    const polling = () => f.watches.filter((w) => !w.cancelled).length, before = polling();
+    const card = () => find(f.tree, "details-card-A");
+    f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+    f.pointer = { x: 20, y: 110 };
+    f.event("card-A", "on_mouse_move", { position: f.pointer, local_position: { x: 10, y: 10 }, bounds: box });
+    f.tick(); f.render();
+    assert.deepEqual(card().style.opacity, [1], "the pointer's on it: it stays");
+    away(f);
+    f.mod.hot = "snooze-A"; // Stranded with it.
+    f.tick(); f.render();
+    assert.equal(f.mod.hovered, null);
+    assert.equal(f.mod.hot, null);
+    assert.deepEqual(card().style.opacity, [0], "it fades");
+    f.render(f.now + 150);
+    assert.equal(card(), null);
+    assert.equal(polling(), before, "nothing left polling");
+  }
+});
+
+test("a row's card goes when the pointer heads out of the window from it, and stays when it stops on the row", () => {
+  const box = { x: 0, y: 100, width: 200, height: 36 };
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  const card = () => find(f.tree, "details-card-A");
+  const move = (x, y) => { f.pointer = { x, y }; f.event("card-A", "on_mouse_move", { position: f.pointer, local_position: { x, y: y - 100 }, bounds: box }); };
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  move(40, 110); move(20, 110); move(18, 110);
+  f.tick(); f.render();
+  assert.deepEqual(card().style.opacity, [1], "slowing to a stop on the row, it stays");
+  move(4, 110);
+  f.tick(); f.render();
+  assert.deepEqual(card().style.opacity, [0], "its last step was on its way past the window's left edge: macOS says no more, and it fades");
+});
+
+test("a card with no box yet stays: no move has said where its row is", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  f.pointer = { x: 900, y: 900 };
+  f.tick(); f.render();
+  assert.deepEqual(find(f.tree, "details-card-A").style.opacity, [1]);
+});
+
+test("a hover label goes when its leave never comes, and its control stops being lit", () => {
+  const f = fixture(); f.add("A", "idle", 100);
+  const polling = () => f.watches.filter((w) => !w.cancelled).length, before = polling();
+  const walk = (n) => (n && typeof n === "object" ? [n, ...n.items.flatMap(walk)] : []);
+  const body = () => walk(f.mod.render(f.cx)).find((n) => n.key?.startsWith("tip-body-inbox-scope-"));
   f.mod.hot = "inbox-scope";
-  const again = body();
-  assert.notEqual(again.key, first.key, "reopened, a new id: a size reports only an id's first layout");
-  assert.deepEqual(again.style.opacity, [0]);
+  const over = () => find(f.mod.render(f.cx), "tip-over-inbox-scope");
+  over().handlers.on_hover(true, f.cx);
+  f.render(f.now + 150);
+  f.pointer = { x: 20, y: 10 };
+  over().handlers.on_mouse_move({ bounds: { x: 0, y: 0, width: 40, height: 20 } });
+  f.tick();
+  assert.equal(f.mod.hot, "inbox-scope", "the pointer's on it");
+  assert.ok(body());
+  f.pointer = { x: 20, y: 300 };
+  f.tick();
+  assert.equal(f.mod.hot, null);
+  assert.deepEqual(body().style.opacity, [0], "it fades");
+  f.render(f.now + 150);
+  assert.equal(body(), undefined);
+  assert.equal(polling(), before, "nothing left polling");
+});
+
+test("nothing opens on hover in a window that isn't active", () => {
+  const f = fixture(); f.add("A", "idle", 100); f.render();
+  f.active = false;
+  f.event("card-A", "on_hover", true); f.render(f.now + 150); f.render(f.now + 34);
+  assert.equal(find(f.tree, "details-card-A"), null);
+  f.mod.hot = "inbox-scope";
+  find(f.mod.render(f.cx), "tip-over-inbox-scope").handlers.on_hover(true, f.cx);
+  f.render(f.now + 150);
+  assert.equal(find(f.mod.render(f.cx), "tip-inbox-scope").style.content, undefined);
 });
 
 test("past 40 rows coming and going at once, they just show", () => {

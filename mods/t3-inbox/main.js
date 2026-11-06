@@ -17,7 +17,7 @@ import { kidStatus, descendants, ownStatus, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { tip, tipMark } from "./tip.js";
 import { MOTION, planMotion, flying } from "./motion.js";
-import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { programIcon, detailsLive, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { stopsInit, stop, focusRoot, within, enter, menuJump } from "./focus.js";
 
 const icon = programIcon;
@@ -745,6 +745,7 @@ export default class Inbox extends View {
         this.drag = { from: a.address, at: e.position, grab: e.local_position?.y ?? 0, height: e.bounds?.height ?? 0, moved: false, target: null };
       })
       .on_mouse_move((e, cx) => {
+        detailsAt(this, a.address, e);
         if (this.sweep?.moved) return sweepTo(a, cx);
         const s = sectionOf(a);
         // Nothing lands in Snoozed: a drop can't say when it wakes, as T3's.
@@ -812,17 +813,18 @@ export default class Inbox extends View {
     const branchOf = (a) => ps.find((p) => p.pane === a.pane)?.branch;
     // A row's details, as T3's thread card: on the row's right from its top. A 1px anchor just outside its top right corner, as
     // a Popup hangs from its trigger's bottom left; clamped at the window's bottom the card slides up and still clears the row.
-    // A control lit in the row speaks for itself instead, as T3's group lets one tooltip up at a time.
+    // A control lit in the row speaks for itself instead, as T3's group lets one tooltip up at a time: the card fades, up clear until the pointer goes.
+    // The whole corner holds it, so the gap between two controls doesn't flash it.
     const details = (a) => {
       const machine = machineOf(a), branch = branchOf(a), pic = icon(a.program, 12, t.muted);
       const up = this.details === a.address || this.detailsOut === a.address;
       return Popup.new(`details-${a.address}`, div()).absolute().top(-1).right(-1).size(1)
-        .when(up && !this.hot && !this.napMenu && !dragging && !this.sweep?.moved, (pop) => pop.content(detailsCard(this, t, a.address, title(a), [
+        .when(up && !this.napMenu && !dragging && !this.sweep?.moved, (pop) => pop.content(detailsCard(this, t, a.address, title(a), [
           a.space_name && detailsLine(t, avatar(a.space, a.space_name, 12), a.space_name),
           machine && detailsLine(t, svg("mods/t3-inbox/server.svg").size(12).flex_none().text_color(t.muted), machine),
           branch && detailsLine(t, svg("mods/t3-inbox/git-branch.svg").size(12).flex_none().text_color(t.muted), branch),
           pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
-        ]).ml(4)));
+        ], { hide: Boolean(this.hot) || this.detailsHold === a.address }).ml(4)));
     };
 
     // `ghost`: the copy that follows the pointer, drawn without handlers or ids the list already uses.
@@ -832,7 +834,12 @@ export default class Inbox extends View {
       const going = (kids.get(a.address) ?? []).filter((s) => s === "working").length;
       const meta = [branch, going ? `${going} sub-agent${going > 1 ? "s" : ""} working` : null].filter(Boolean).join(" · ");
       const pic = icon(a.program, 16, t.muted);
-      const over = !dragging && !this.sweep?.moved && (this.hovered === a.address || within(this, [`card-${a.address}`, `settle-${a.address}`, `snooze-${a.address}`, `woke-${a.address}`]));
+      // Snooze is offered for anything not needing the person, working too, as T3's. A failed turn counts as needing them
+      // here, and a mod pane has no terminal to hold the label.
+      const canNap = !ghost && !a.mod && st !== "blocked", menu = canNap && this.napMenu === a.address;
+      // The pointer or keys going into its menu leave the card, but it stays as it was: the menu hangs from the clock, and
+      // Settle going would pull the clock, and the menu with it, out from under the pointer.
+      const over = !dragging && !this.sweep?.moved && (menu || this.hovered === a.address || within(this, [`card-${a.address}`, `settle-${a.address}`, `snooze-${a.address}`, `woke-${a.address}`]));
       // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, in color only so nothing reflows.
       const leads = on || ghost || st === "blocked" || st === "done" || woke(a);
       const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
@@ -840,16 +847,13 @@ export default class Inbox extends View {
         .when(Boolean(machine), (el) => {
           const server = div().when(!ghost, (m) => m.id(`machine-${a.address}`).on_hover(glow(`machine-${a.address}`)).accessibility_label(`On ${machine}`))
             .flex_none().child(svg("mods/t3-inbox/server.svg").size(14).text_color(t.dim));
-          return el.child(ghost ? server : tip(this.hot, t, `machine-${a.address}`, machine, server, { delay }));
+          return el.child(ghost ? server : tip(this, t, `machine-${a.address}`, machine, server, { delay }));
         })
         .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
       // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
       const offer = over && !busy(a);
       const id = `settle-${a.address}`;
-      // Snooze is offered beside it for anything not needing the person, working too, as T3's. A failed turn counts as
-      // needing them here, and a mod pane has no terminal to hold the label. With its menu open the controls stay, though
-      // the pointer has left the card.
-      const canNap = !ghost && !a.mod && st !== "blocked", menu = canNap && this.napMenu === a.address, napOffer = canNap && (over || menu);
+      const napOffer = canNap && over;
       const napId = `snooze-${a.address}`;
       // As in T3, the corner says the state when there's one worth saying (Working, Needs you, Done: finished
       // and not yet seen), else how long ago it last changed. Sized as T3's: 16px mark, 4px gaps, and the
@@ -859,7 +863,7 @@ export default class Inbox extends View {
         .child(mark).child(div().child(label))
         .when(Boolean(time), (el) => el.children(time.split(" ").map((part) => div().font_family(settings().font_family ?? "JetBrains Mono").child(part))));
       // It wakes where it was, so this carries the weight, as T3's; a click dismisses it, and it stays on hover.
-      const wokeMark = woke(a) && tip(this.hot, t, `woke-${a.address}`, "Dismiss Woke notification", stop(this, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
+      const wokeMark = woke(a) && tip(this, t, `woke-${a.address}`, "Dismiss Woke notification", stop(this, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
         .hover((s) => s.underline()).on_hover(glow(`woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
@@ -884,7 +888,7 @@ export default class Inbox extends View {
       // Still at work when it wakes, it says both, as T3's row; hovered, Woke stays and Working makes way.
       const status = running(a) && wokeMark ? h_flex().gap(4).flex_none().items_center().when(!acting, (el) => el.child(word)).child(wokeMark) : word;
       // Hangs from the clock's left edge and out over the sidebar's edge, as T3's: the card stays readable.
-      const clock = canNap && tip(menu ? null : this.hot, t, napId, "Snooze agent", Popover.new(`snooze-menu-${a.address}`).anchor("top_left").open(menu).track_focus(this.napKeys)
+      const clock = canNap && tip(this, t, napId, "Snooze agent", Popover.new(`snooze-menu-${a.address}`).anchor("top_left").open(menu).track_focus(this.napKeys)
         .on_open_change((open, cx) => {
           this.napMenu = open ? a.address : null;
           this.napAt = -1;
@@ -938,15 +942,16 @@ export default class Inbox extends View {
                 .child(div().flex_none().text_color(t.foreground).child(p.label))
                 .when(Boolean(p.when), (row) => row.child(div().flex_none().ml_auto().text_size(12).font_medium().text_color(t.dim).child(p.when))),
             ])));
-        }), { delay });
+        }), { delay, off: menu });
       const corner = ghost ? (verb ? badge(verb) : div())
         : swept(a) ? badge("settle")
         // As T3's corner: hovered, the controls take the slot and the state fades out from under them, but for Woke.
         : h_flex().id(`corner-${a.address}`).relative().h(20).min_w(20).gap(4).flex_none().items_center().justify_end()
+          .when(acting, (el) => el.on_hover((on, cx) => { this.detailsHold = on ? a.address : null; cx.notify(); }))
           .child(div().flex_none().when(quiet, (el) => el.absolute().top(0).right(0)).opacity(quiet ? 0 : 1).transition("opacity", MOTION).child(status))
           .child(h_flex().id(`controls-${a.address}`).h(20).gap(4).flex_none().items_center().when(!acting, (el) => el.absolute().top(0).right(0))
           .when(Boolean(clock), (el) => el.child(clock))
-          .child(div().when(!offer, (el) => el.absolute().top(0).right(0)).child(tip(this.hot, t, id, a.mod ? "Settle and close" : "Settle agent", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
+          .child(div().when(!offer, (el) => el.absolute().top(0).right(0)).child(tip(this, t, id, a.mod ? "Settle and close" : "Settle agent", h_flex().id(id).h(20).px(6).gap(4).flex_none().items_center().rounded(4)
           .text_size(12).text_color(lit(id, t.muted)).opacity(offer ? 1 : 0).transition("opacity", MOTION)
           // Faded out it's no button: a click there is the card's. As T3's row controls, hover only lights it: no ground.
           .when(offer, (el) => el.on_hover(glow(id)).role("button").accessibility_label(a.mod ? "Settle and close" : "Settle").when(!a.mod, (b) => b.on_mouse_down("left", sweepFrom("settle", a))).on_click((_e, cx) => {
@@ -970,7 +975,7 @@ export default class Inbox extends View {
       return (ghost ? base : row(base, a).role("button").accessibility_label(title(a)).on_hover(hover(a))
         .on_click(open(a)).on_size_change((size) => { this.cardH = size.height; }))
         .when(on, (el) => el.bg(t.selected))
-        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
+        .when(!on && !ghost && !dragging && !this.sweep?.moved, (el) => el.when(menu, (m) => m.bg(t.hover)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
         .child(h_flex().h(20).gap(6).items_center().text_size(12).text_color(t.dim)
           .child(avatar(a.space, a.space_name, 16))
           // Lifted, a pin keeps its glyph only while it stays among the pins.
@@ -1023,7 +1028,7 @@ export default class Inbox extends View {
           // T3's corner: the time fades out on hover as the undo arrow fades in over it.
           : h_flex().id(`slim-corner-${a.address}`).relative().h(20).min_w(20).flex_none().items_center().justify_end()
             .child(div().flex_none().text_size(12).text_color(t.dim).opacity(over ? 0 : 1).transition("opacity", MOTION).child(time))
-            .child(div().absolute().top(0).right(0).child(tip(this.hot, t, undoId, undoLabel, undo, { action: napping ? undefined : "t3-inbox.settle", delay }))))
+            .child(div().absolute().top(0).right(0).child(tip(this, t, undoId, undoLabel, undo, { action: napping ? undefined : "t3-inbox.settle", delay }))))
         .when(!ghost, (el) => stop(this, t, `slim-${a.address}`, el));
     };
 
@@ -1151,7 +1156,7 @@ export default class Inbox extends View {
       // tab.new shows the new tab; go back to where the person was.
       if (tabNow) { run("space.select", { id: spaceNow.id }); run("tab.select", { id: tabNow }); }
     };
-    const clearButton = doomed.length > 0 && tip(this.hot, t, "settled-clear", "Clear settled agents", stop(this, t, "settled-clear", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
+    const clearButton = doomed.length > 0 && tip(this, t, "settled-clear", "Clear settled agents", stop(this, t, "settled-clear", h_flex().id("settled-clear").h(20).px(6).flex_none().items_center().rounded(4)
       .text_color(lit("settled-clear", t.dim)).on_hover(glow("settled-clear"))
       .role("button").accessibility_label("Clear settled agents")
       .on_click((_e, cx) => {
@@ -1189,7 +1194,7 @@ export default class Inbox extends View {
 
     // T3's top row: search on the left, then the space filter, new space and new tab.
     const asks = props()?.newMenu && machines().length > 1;
-    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
+    const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6)
       .hover((s) => s.bg(t.hover)).on_hover(glow(id))
       .role("button").accessibility_label(label).on_click(fn)
       .child(svg(`mods/t3-inbox/${icon}.svg`).size(14).text_color(lit(id, t.dim)))), more);
@@ -1252,7 +1257,7 @@ export default class Inbox extends View {
         .role("button").accessibility_label("Search").on_click((_e, cx) => { this.hot = null; run("mod.open", { name: props()?.picker ?? "picker" }); cx.notify(); })
         .child(svg("mods/t3-inbox/search.svg").size(16).flex_none().text_color(lit("inbox-search", t.dim)))
         .child(div().child("Search"))))
-      .child(tip(this.scopeOpen ? null : this.hot, t, "inbox-scope", "Filter by space", filter, { hint: "Shift+click to pick several", below: true }))
+      .child(tip(this, t, "inbox-scope", "Filter by space", filter, { off: this.scopeOpen, hint: "Shift+click to pick several", below: true }))
       .child(tool("inbox-new-space", "New space", "folder-plus", (_e, cx) => {
         this.hot = null;
         // The layout's menu asks which machine, as its mod.json places it; the shipped one can't, so docked alone it's the active space's.

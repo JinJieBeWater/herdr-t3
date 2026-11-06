@@ -37,7 +37,7 @@ const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a3
 const fields = [];
 const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
-  svg: (source) => element("svg", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) },
+  svg: (source) => element("svg", source), Input: { new: () => element("input") }, Popup: { new: (id, trigger) => element("popup").id(id).child(trigger) },
   InputState: { new: ({ value }) => { const f = { text: value, on() {}, value: () => f.text, focus() {} }; fields.push(f); return f; } },
   theme: () => theme, settings: () => ({ zoom }), home: () => "/home/me", keys: () => [], window: () => ({ platform: "macos" }),
   shared: (key) => state[key], setShared: (key, value) => { state[key] = value; },
@@ -48,7 +48,7 @@ const env = {
 };
 const source = ["tip.js", "focus.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
-const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }) };
+const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { every: () => ({ cancel() {} }), after: (_ms, f) => (f(cx), { cancel() {} }) } };
 const load = (props = {}) => {
   const context = vm.createContext({ ...env, props: () => props });
   vm.runInContext(source, context, { filename: "main.js" });
@@ -140,6 +140,7 @@ delete state["bar.compact"];
   fire(find(view.render(), "action-more"), "on_click", {}, cx);
   assert.equal(view.hot, null, "the menu's button doesn't stay lit");
   fire(find(view.render(), "action-more"), "on_hover", true, cx);
+  fire(find(view.render(), "tip-over-action-more"), "on_hover", true, cx);
   const card = find(view.render(), "tip-action-more").style.content;
   assert.deepEqual(strings(card), ["Actions"], "its label, as T3's, while lit");
 

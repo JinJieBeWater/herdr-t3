@@ -52,17 +52,17 @@ function control(view, t, stopPress) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the icon alone, the name left to the hover label. Unset, the full control.
   const s = state(), main = primary(s), compact = shared("bar.compact");
   const box = (id) => h_flex().id(id).h(24).flex_none().items_center().rounded(6).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stopPress);
-  if (!main) return tip(view.hot, t, "action-add", "Add action", stop(view, t, "action-add", box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
+  if (!main) return tip(view, t, "action-add", "Add action", stop(view, t, "action-add", box("action-add").px(8).gap(8).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
     // The dialog covers it, before the pointer can report leaving it.
     .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
     .child(icon("play").size(14)).when(!compact, el => el.child("Add action"))), { below: true });
   return box("actions").text_color(t.dim)
     // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill.
-    .child(tip(view.hot, t, "action-run", `Run ${main.name}`, stop(view, t, "action-run", h_flex().id("action-run").h(22).px(8).gap(8).items_center().rounded_l(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
+    .child(tip(view, t, "action-run", `Run ${main.name}`, stop(view, t, "action-run", h_flex().id("action-run").h(22).px(8).gap(8).items_center().rounded_l(6).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
       .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name)))), { below: true }))
     .child(div().w(1).h(14).flex_none().bg(t.border))
-    .child(tip(view.hot, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
+    .child(tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
         openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
@@ -107,7 +107,7 @@ function menu(view) {
     })
     .child(v_flex().id("actions-list").flex_1().min_h(0).overflow_y_scroll().children(list.map((a, at) =>
       row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
-        .child(tip(view.hot, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
+        .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
           .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })))))

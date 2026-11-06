@@ -71,7 +71,7 @@ export default class WorkspaceChrome extends View {
             .on_click(() => run("t3-inbox.undo")))
           .child("Undo")
           .when(n.live, (el) => stop(this, t, "undo-notice-undo", el, 4)));
-      const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
+      const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit(id)).hover(s => s.bg(t.hover)).on_hover(glow(id))
         .role("button").accessibility_label(label)
         // Each opens over its button, before the pointer can report leaving it.
@@ -81,7 +81,7 @@ export default class WorkspaceChrome extends View {
         .child(button("settings", svg("mods/t3-chrome/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
         .child(button("add-machine", svg("mods/t3-inbox/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
-        .when(Boolean(ready), el => el.child(tip(this.hot, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(24).px(10).flex_none().flex().items_center()
+        .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(24).px(10).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).font_medium().text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow("app-update"))
           .role("button").accessibility_label(`Restart into Herdr ${ready}`)
           .on_click(() => run("app.update")).child("Update"), 12)))));
@@ -90,14 +90,14 @@ export default class WorkspaceChrome extends View {
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
     const inbox = inboxShown();
     return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pr(10).gap(2).items_center().justify_end()
-      .child(tip(this.hot, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+      .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(switchSidebar)
         // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
         .child(svg(`mods/t3-chrome/${inbox ? "layout-list" : "inbox"}.svg`).size(14))), { action: "t3-chrome.sidebar", below: true }))
-      .child(tip(this.hot, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
+      .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(26).flex_none().flex().items_center().justify_center().rounded(6)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow("sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())

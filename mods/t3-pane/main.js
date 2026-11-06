@@ -41,7 +41,7 @@ export default class Pane extends View {
   }
 
   button(t, id, icon, label, action, key) {
-    return tip(this.hot, t, id, label, stop(this, t, id, div()
+    return tip(this, t, id, label, stop(this, t, id, div()
       .id(id)
       .size(26).flex_none().flex().items_center().justify_center()
       .rounded(6)

@@ -374,13 +374,13 @@ export default class Spaces extends View {
         .when(!connected && !rebuilt, el => el.child(div().flex_none().child((machine?.state ?? "asleep").replace(/_/g, " "))))
         .when(rebuilt, el => el.child(h_flex().flex_none().gap(3).items_center()
           .child(div().max_w(140).truncate().child(repair?.error || "rebuilt ·"))
-          .child(tip(this.hot, t, `machine-connect-${m}`, `Connect ${m}`, stop(this, t, `machine-connect-${m}`, div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
+          .child(tip(this, t, `machine-connect-${m}`, `Connect ${m}`, stop(this, t, `machine-connect-${m}`, div().id(`machine-connect-${m}`).text_color(repair?.error ? t.blocked : t.muted)
             .hover(s => s.text_color(t.foreground)).on_hover(this.glow(`machine-connect-${m}`))
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
             .child(repair?.busy ? "Connecting…" : "Connect"), 4)))))
         .child(h_flex().flex_none().gap(2).items_center()
-          .when(connected, el => el.child(tip(this.hot, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, div().id(`machine-add-${id}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
+          .when(connected, el => el.child(tip(this, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, div().id(`machine-add-${id}`).w(26).h(20).flex_none().flex().items_center().justify_center().rounded(4)
             .text_color(this.hot === `machine-add-${id}` ? t.foreground : t.dim).on_hover(this.glow(`machine-add-${id}`))
             .role("button").accessibility_label("New space here")
             .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/plus.svg").size(12)), 4),
@@ -442,7 +442,7 @@ export default class Spaces extends View {
       .text_size(11).text_color(lit)
       .child(foldArrow("t3-spaces", ghost ? null : id, !folded, 12, lit))
       .when(folded && hiding > 0, el => el.child(String(hiding)));
-    return ghost ? el : tip(this.hot, t, id, label, stop(this, t, id, el.id(id)
+    return ghost ? el : tip(this, t, id, label, stop(this, t, id, el.id(id)
       .role("button").accessibility_label(label)
       .on_hover(this.glow(id))
       // Pressing it neither selects nor drags the space.
@@ -627,7 +627,7 @@ export default class Spaces extends View {
     if (d?.moved) d.drawn = true;
     this.landed = null;
     const asks = props()?.newMenu && machines().length > 1;
-    const tool = (id, label, icon, fn, more) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
+    const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(this.hot === id ? t.foreground : t.dim).on_hover(this.glow(id)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
       .on_click(fn).child(svg(`mods/t3-spaces/${icon}.svg`).size(14))), more);
     return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().id("spaces-heading").h(32).flex_none().pl(18).pr(10).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)

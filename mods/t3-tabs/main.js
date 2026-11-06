@@ -4,7 +4,7 @@ import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focus
 import { modStatus, namer, programOf } from "./name.js";
 import { ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
-import { detailsFor } from "./details.js";
+import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
 
 // With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
@@ -179,7 +179,7 @@ export default class Tabs extends View {
     const counts = ["blocked", "working", "done"].map(s => [s, live.filter(a => st(a) === s).length]).filter(([, n]) => n > 0);
     const words = { blocked: "needing you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
-    return tip(this.hot, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
+    return tip(this, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(24).px(6).gap(8).flex_none().items_center().rounded(6)
       .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
       .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
       // It goes when the sidebar shows, before the pointer can report leaving it.
@@ -218,7 +218,7 @@ export default class Tabs extends View {
     const live = awake(st);
     const ps = panes();
     const stopPress = (_e, cx) => cx.stop_propagation();
-    const button = (id, glyph, label, action, key) => tip(this.hot, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
+    const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(26).flex_none().flex().items_center().justify_center().rounded(6).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
       .role("button").accessibility_label(label)
       .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
@@ -246,16 +246,17 @@ export default class Tabs extends View {
       // have measured its anchor before the frame a label starts to fade in. It says the status too, as × covers the mark while it shows.
       // Only what the tab isn't showing: a name cut short or that status. Not yet measured counts as cut.
       const says = status || !(widths.get(c.id) >= Math.ceil(this.nameW[c.id]) + TAB_CHROME);
+      const cardShown = this.details === c.id && this.detailsIn && !this.hot, cardFade = { duration: 150, easing: "ease-out" };
       const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(6 + 16 + 2 - (1 + 8)).size(1)
-        .when((this.details === c.id || this.detailsOut === c.id) && !this.hot && this.pressed === null, pop => pop.content(div().id(`details-card-${c.id}`)
+        .when((this.details === c.id && this.pressed === null) || this.detailsOut === c.id, pop => pop.content(div().id(`details-card-${c.id}`)
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
-          .opacity(this.details === c.id && this.detailsIn ? 1 : 0).transition("opacity", { duration: 150, easing: "ease-out" })
+          .opacity(cardShown ? 1 : 0).top(cardShown ? 0 : -4).transition("opacity", cardFade).transition("top", cardFade)
           .child(status ? `${name} · ${WORDS[status]}` : name)));
       const tab = h_flex().id(tabId).relative().h(24).w(widths.get(c.id)).pl(6).pr(4).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
         .on_hover((on, cx) => {
-          if (on) this.overTab = c.id;
+          if (on) { this.overTab = c.id; detailsWatch(this, c.id, cx); }
           else if (this.overTab === c.id) { this.overTab = null; detailsFor(this, null, cx); }
           cx.notify();
         })
@@ -269,6 +270,7 @@ export default class Tabs extends View {
         ))
         .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = i; this.over = null; this.pressAt = e.position; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_move((e, cx) => {
+          detailsAt(this, c.id, e);
           if (this.pressed === null || this.over === i) return;
           // As T3's tabs: a drag starts 6px from the press, so a click's wobble only selects.
           if (this.over === null && Math.hypot(e.position.x - this.pressAt.x, e.position.y - this.pressAt.y) < 6 * settings().zoom) return;
@@ -292,7 +294,7 @@ export default class Tabs extends View {
           .child(div().size(16).flex_none().flex().items_center().justify_center().child(glyph))
           .child(div().flex_1().min_w(0).truncate().child(label)))
         // Its label waits longer than a card's 150ms, so a straight click never meets it. Its key closes the active tab only.
-        .child(tip(this.hot, t, closeId, "Close tab", div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised)).on_hover(glow(this, closeId))
+        .child(tip(this, t, closeId, "Close tab", div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised)).on_hover(glow(this, closeId))
           .role("button").accessibility_label(`Close ${name}`)
           .on_mouse_down("left", stopPress).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
           .when(over, el => el.child(svg("mods/t3-tabs/x.svg").size(12).text_color(t.foreground)))

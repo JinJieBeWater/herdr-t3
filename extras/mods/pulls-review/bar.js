@@ -7,7 +7,7 @@ import { div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Popup } from "gpui-base";
 import { spaces, panes, focused, exec, watchFolder, window, openOverlay, closeOverlay, props, setShared, shared, theme, settings, home } from "herdr";
 import { launch } from "./open.js";
-import { detailsFor, detailsLine, detailsCard } from "./details.js";
+import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { tip } from "./tip.js";
 
 const MOD = "pulls-review";
@@ -251,6 +251,7 @@ export function reviewMenu(view) {
       if (on) { view.hovered = id; highlight(picks.findIndex(p => p.id === id), cx); }
       else if (view.hovered === id) { view.hovered = null; detailsFor(view, null, cx); cx.notify(); }
     })
+    .on_mouse_move((e) => detailsAt(view, id, e))
     .role("button").accessibility_label(name).on_click(action).children(cells);
   // What the review pane shows, as a menu marks its pick.
   const shown = () => svg("mods/pulls-review/check.svg").size(14).flex_none().text_color(t.muted);
@@ -345,7 +346,7 @@ function commitCard(view, t, id, c, upstream, out, now) {
       c.time && detailsLine(t, svg("mods/pulls-review/clock.svg").size(12).flex_none().text_color(t.muted), when(c.time, now)),
       c.author && detailsLine(t, initial(t, c.author), c.author),
       upstream && detailsLine(t, svg("mods/pulls-review/git-branch.svg").size(12).flex_none().text_color(out ? t.ansi2 : t.muted), out ? `Not on ${upstream} yet` : `On ${upstream}`),
-    ], true).mr(4)));
+    ], { wrap: true, from: 4 }).mr(4)));
 }
 
 // A branch's card, as a commit's: its last commit, then how it stands against the base and its upstream, and where it's checked out.
@@ -363,7 +364,7 @@ function branchCard(view, t, id, b, base, now) {
       b.count !== undefined && detailsLine(t, icon("git-compare"), `${b.count} ahead of ${base}${b.behind ? `, ${b.behind} behind` : ""}`),
       detailsLine(t, icon("git-branch", ahead ? t.ansi2 : t.muted), upstream),
       b.worktree && detailsLine(t, icon("folder"), `Checked out in ${h && b.worktree.startsWith(h) ? "~" + b.worktree.slice(h.length) : b.worktree}`),
-    ], true).mr(4)));
+    ], { wrap: true, from: 4 }).mr(4)));
 }
 
 export function reviewBar(view, t, stop) {
@@ -383,13 +384,13 @@ export function reviewBar(view, t, stop) {
   // The count carries the color; what it counts stays quiet beside it.
   // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill. Its label is the name's first part.
   // Compact, the label gives back the words the count lost, `· merged?` included.
-  const item = ([id, count, noun, ansi, name, args], last) => tip(view.reviewHover, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(8).gap(6).flex_none().items_center()
+  const item = ([id, count, noun, ansi, name, args], last) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(8).gap(6).flex_none().items_center()
     .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
-    .on_hover((on, cx) => { if (on) view.reviewHover = id; else if (view.reviewHover === id) view.reviewHover = null; cx.notify(); })
+    .on_hover((on, cx) => { if (on) view.hot = id; else if (view.hot === id) view.hot = null; cx.notify(); })
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
     // Hovered, the label turns foreground: the count takes its bright twin (ansi + 8) to stay the lead, same hue.
-    .child(div().font_medium().text_color(t[`ansi${view.reviewHover === id ? ansi + 8 : ansi}`]).child(count))
+    .child(div().font_medium().text_color(t[`ansi${view.hot === id ? ansi + 8 : ansi}`]).child(count))
     .when(Boolean(noun) && !compact, el => el.child(noun))
     .when(last, el => el.rounded_r(6)), { below: true });
   const segments = [
@@ -433,7 +434,7 @@ export function reviewBar(view, t, stop) {
   // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
   return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(6).border(1).border_color(t.border).on_mouse_down("left", stop)
     // Stays with no counts: on a clean default branch it's the only way in.
-    .child(tip(view.hot, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).px(5).flex_none().items_center().rounded_l(6).when(!segments.length && !sha, el => el.rounded_r(6))
+    .child(tip(view, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).px(5).flex_none().items_center().rounded_l(6).when(!segments.length && !sha, el => el.rounded_r(6))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
       .on_mouse_down("left", pressed).on_click(openMenu)
       // image, not svg: svg would draw the logo in one tint.

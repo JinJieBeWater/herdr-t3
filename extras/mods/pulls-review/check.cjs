@@ -39,7 +39,7 @@ const zoom = 1.1, calls = [], overlays = [], closed = [], notes = [], launched =
 const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a30", hover: "#202024", ansi1: "#e06c75", ansi2: "#98c379", ansi3: "#c8a84b", ansi4: "#5f8fe0", ansi9: "#f08c95", ansi10: "#b5e09a", ansi11: "#e8cf7a", ansi12: "#8fb4f2" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
 const env = {
   View: class {}, div: () => element(), h_flex: () => element("h"), v_flex: () => element("v"),
-  svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) }, Popup: { new: (id) => element("popup").id(id) },
+  svg: (source) => element("svg", source), image: (source) => element("image", source), Input: { new: () => element("input") }, HoverCard: { new: (id) => element("hovercard").id(id) }, Popup: { new: (id, trigger) => element("popup").id(id).child(trigger) },
   InputState: { new: () => ({ on() {}, value: () => "", focus() {} }) },
   theme: () => theme, settings: () => ({ zoom }), keys: () => [], window: () => ({ platform: "macos", active: true }),
   spaces: () => [{ id: "s", active: true, folder: "/space", tabs: [{ id: "b" }] }], panes: () => [{ pane: "p1", tab: "b", cwd: "/repo/src" }],
@@ -95,8 +95,10 @@ const load = (props = {}, setup = record) => {
   assert.equal(logo.source, "mods/pulls-review/logo.svg");
   assert.ok(fs.existsSync(path.join(__dirname, "logo.svg")));
   fire(find(drawn, "review-pick"), "on_hover", true, cx);
+  fire(find(drawn, "tip-over-review-pick"), "on_hover", true, cx);
   assert.deepEqual(strings(find(bar.render(), "tip-review-pick").style.content), ["Change what to review"], "its card shows on hover");
   fire(find(drawn, "review-pick"), "on_hover", false, cx);
+  fire(find(drawn, "tip-over-review-pick"), "on_hover", false, cx);
   // Each count in its own color, so what there is to review reads at a glance; hovered, its bright twin.
   const countColor = id => find(bar.render(), id).items[0].style.text_color;
   assert.deepEqual(["review-open", "review-changes", "review-ahead", "review-behind"].map(countColor), [theme.ansi4, theme.ansi3, theme.ansi2, theme.ansi1]);
@@ -112,6 +114,7 @@ const load = (props = {}, setup = record) => {
   assert.equal(find(drawn, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
   assert.equal(walk(drawn).filter(n => "tooltip" in n.style).length, 0, "the shell's tooltip isn't Herdr T3's");
   fire(find(drawn, "review-ahead"), "on_hover", true, cx);
+  fire(find(drawn, "tip-over-review-ahead"), "on_hover", true, cx);
   assert.deepEqual(strings(find(bar.render(), "tip-review-ahead").style.content), ["Review 2 commits to push"], "the label names what it does; what it compares stays in the accessibility label");
   fire(find(drawn, "review-ahead"), "on_hover", false, cx);
   Object.assign(shown, { pane: "p9", cwd: "/other" });
@@ -135,6 +138,7 @@ const load = (props = {}, setup = record) => {
   state["bar.compact"] = true;
   assert.deepEqual(strings(find(bar.render(), "review-open")), ["4"]);
   fire(find(bar.render(), "review-open"), "on_hover", true, cx);
+  fire(find(bar.render(), "tip-over-review-open"), "on_hover", true, cx);
   assert.deepEqual(strings(find(bar.render(), "tip-review-open").style.content), ["4 ahead of main · merged?"]);
   fire(find(bar.render(), "review-open"), "on_hover", false, cx);
   assert.match(find(bar.render(), "review-open").style.accessibility_label, /^Review the branch: 4 commits on feat/);
