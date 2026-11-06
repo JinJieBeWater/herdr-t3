@@ -66,7 +66,7 @@ function lineOf(node, text) {
 }
 
 function fixture() {
-  const f = { watches: [], tick() { for (const w of [...f.watches]) if (!w.cancelled) w.fn(cx); }, pointer: { x: 0, y: 0 }, active: true, now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [] };
+  const f = { watches: [], tick() { for (const w of [...f.watches]) if (!w.cancelled) w.fn(cx); }, pointer: { x: 0, y: 0 }, active: true, now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [], writes: [], orderWrites: 0 };
   // The real Date, with its clock at f.now.
   const FakeDate = function (...args) { return args.length ? new Date(...args) : new Date(f.now); };
   FakeDate.now = () => f.now;
@@ -105,8 +105,8 @@ function fixture() {
     theme: () => ({}), settings: () => ({}), props: () => ({}),
     layout: () => ({ id: "sidebar-lists", active: f.mode }),
     shared: (k) => k === "agents.pins" ? f.pins : f.state[k] ?? null,
-    setShared: (k, v) => { if (k === "agents.pins") f.pins = Array.from(v); else f.state[k] = v; },
-    setAgentOrder: (xs) => { f.order = Array.from(xs); },
+    setShared: (k, v) => { f.writes.push(k); if (k === "agents.pins") f.pins = Array.from(v); else f.state[k] = v; },
+    setAgentOrder: (xs) => { f.orderWrites++; f.order = Array.from(xs); },
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async (args) => { f.labelled.push(args.join(" ")); return { code: 0 }; }, nextCommand: () => new Promise(() => {}),
   };
@@ -197,6 +197,10 @@ test("a failed turn needs the person: the terminal's error, which agents() can't
   f.add("kid", "done"); f.terms.at(-1).parent = "B"; f.terms.at(-1).status = "error";
   f.render();
   assert.ok(texts(find(f.tree, "state-B")).includes("Needs you"));
+  f.label("A", "settled", "1:0"); f.rows[0].focused = true; f.render();
+  assert.equal(f.mod.pending.settled.A, "", "a terminal error ends its settle too");
+  const labels = f.jobs.length; f.settle();
+  assert.equal(f.jobs.length, labels, "the failed terminal cannot be settled");
 });
 
 test("looking, seq and data order don't reshuffle; equal times go by address", () => {
@@ -268,6 +272,60 @@ test("the sidebar list in view sets agent.next order", { skip: !lists && "t3-age
   const order = [...f.order], renderAgents = f.loadAgents();
   f.mode = "lists"; renderAgents(); assert.notDeepEqual(f.order, order);
   f.mode = "inbox"; f.render(1500); assert.deepEqual(f.order, order);
+});
+
+test("a layout Inbox keeps computing while hidden, writes only changes and leaves Lists' order alone", () => {
+  const f = fixture(), a = f.add("A", "working"); f.add("B");
+  f.context.props = () => ({ home: "t3-tabs.home" }); f.render();
+  const tick = () => f.watches.find(w => w.ms === 1000).fn(f.cx);
+  f.mod.render = () => { throw new Error("a hidden copy must not draw"); };
+  a.status = "blocked"; f.now = 2000; tick();
+  assert.deepEqual([...f.state["t3-inbox.rows"].order], ["A", "B"]);
+  const before = [f.writes.length, f.orderWrites]; tick(); tick();
+  assert.deepEqual([f.writes.length, f.orderWrites], before, "unchanged data redraws no other mod and resets no navigation");
+  f.mode = "lists"; f.order = ["Lists"]; a.status = "working"; tick();
+  assert.deepEqual(f.order, ["Lists"]);
+  assert.deepEqual([...f.state["t3-inbox.rows"].order], ["A", "B"], "inactive Inbox publishes no rows");
+  f.mode = "inbox"; tick();
+  assert.deepEqual([...f.state["t3-inbox.rows"].order], ["B"]);
+});
+
+test("a drag changing the settled page publishes its drawn rows only once, then causes no redraw loop", () => {
+  const f = fixture(); f.add("A"); f.add("B");
+  f.label("A", "settled", "100:0"); f.label("B", "settled", "200:0");
+  f.mod.open = true; f.mod.limit = 1; f.render();
+  f.mod.drag = { from: "B", moved: true, target: { section: "active" }, height: 36 };
+  f.writes.length = 0; f.render();
+  assert.equal(f.writes.filter(k => k === "t3-inbox.rows").length, 1);
+  f.writes.length = 0; f.render();
+  assert.equal(f.writes.filter(k => k === "t3-inbox.rows").length, 0);
+});
+
+test("a layout Inbox handles Undo through shared state while hidden or behind Lists", () => {
+  for (const mode of ["inbox", "lists"]) {
+    const f = fixture(); f.context.props = () => ({ home: "t3-tabs.home" }); f.mode = mode;
+    let undone = 0;
+    f.mod.remember("Snoozed", 1, () => undone++, f.cx);
+    const n = f.state["t3-inbox.notice"];
+    f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
+    const tick = () => f.watches.find(w => w.ms === 1000).fn(f.cx);
+    tick(); tick(); assert.equal(undone, 1);
+    assert.equal(f.state["t3-inbox.notice"].live, false);
+    f.state["t3-inbox.notice"] = { owner: "tabs", gen: 100, live: true };
+    f.now = 7000;
+    for (const timer of f.timers) if (!timer.cancelled && timer.at <= f.now) { timer.cancel(); timer.fn(f.cx); }
+    assert.equal(f.state["t3-inbox.notice"].owner, "tabs", "an older Inbox notice's timers cannot erase a newer tab-bar action");
+  }
+});
+
+test("Undo pressed just before five seconds runs before expiry, without waiting for the hidden poll", () => {
+  const f = fixture(); f.context.props = () => ({ home: "t3-tabs.home" }); let undone = 0;
+  f.mod.remember("Snoozed", 1, () => undone++, f.cx);
+  const n = f.state["t3-inbox.notice"];
+  f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now + 4999, request: 1 };
+  f.now += 5000;
+  f.timers.find(t => t.at === f.now).fn(f.cx);
+  assert.equal(undone, 1);
 });
 
 test("a pause for the person keeps the run's Working place", () => {
@@ -719,6 +777,28 @@ test("only a mod pane that asks, in a tab with no agent, gets a card", () => {
   assert.deepEqual(cards(two.tree), ["pane:pm"], "one a tab: titles go by tab");
 });
 
+test("a layout gives a split Review its own card and focus even beside a focused agent", () => {
+  const f = fixture(), a = f.add("A"); a.tab = "tr"; a.focused = true; f.review();
+  f.context.props = () => ({ home: "t3-tabs.home" });
+  f.context.focused = () => ({ space: "s1", pane: "pm", tab: "tr", terminal: null, agent: "A" });
+  f.render();
+  assert.ok(find(f.tree, REVIEW) && find(f.tree, "card-A"));
+  assert.ok("bg" in find(f.tree, REVIEW).style);
+  assert.ok(!("bg" in find(f.tree, "card-A").style));
+  assert.equal(f.state["t3-inbox.rows"].view, "pane:pm");
+  f.settle();
+  assert.deepEqual(plain(f.calls), [["t3-tabs.close-pane:pm", null]], "Review returns through its close path, without Home or a label");
+  assert.deepEqual(plain(f.mod.pending), { settled: {}, snoozed: {} });
+});
+
+test("each mod pane asking for Inbox gets its own layout card, including two in one tab", () => {
+  const f = fixture(); f.add("A").tab = "tr"; f.review();
+  const ps = f.context.panes(); f.context.panes = () => [...ps, { pane: "pn", mod: "notes", tab: "tr", title: "Notes" }];
+  f.state["notes.program"] = { inbox: true };
+  f.context.props = () => ({ home: "t3-tabs.home" }); f.render();
+  assert.deepEqual(cards(f.tree).sort(), ["A", "pane:pm", "pane:pn"]);
+});
+
 test("any mod that asks gets a card, by the same rules", () => {
   const f = fixture(); f.review("pm", "t1", "s2");
   const now = f.context.panes(), tabs = f.context.spaces();
@@ -798,11 +878,11 @@ test("with a Home, Settle and Snooze on the agent in view land there, not on the
   assert.deepEqual(plain(s.calls), [["t3-tabs.home"]]);
 });
 
-test("with a Home, the review in view lands there too, then closes", () => {
+test("with a Home, settling Review uses the tab bar's return path", () => {
   const f = fixture(); f.add("A", "idle", 300); f.review(); f.context.props = () => ({ home: "t3-tabs.home" });
   f.context.focused = () => ({ pane: "pm", tab: "tr", terminal: null, agent: "A" }); f.render(); f.calls.length = 0;
   f.settle();
-  assert.deepEqual(plain(f.calls), [["t3-tabs.home"], ["pane.close", { pane: "pm" }]]);
+  assert.deepEqual(plain(f.calls), [["t3-tabs.close-pane:pm", null]]);
 });
 
 test("with a Home, Undo brings the agent back while the person is still there, and moves nothing once they've gone", () => {

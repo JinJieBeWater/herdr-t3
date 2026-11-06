@@ -1,8 +1,8 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
+import { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { descendants, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
+import { descendants, notNews, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { tip, glow } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
@@ -38,23 +38,19 @@ async function goHome(cx) {
   const page = await seen(cx, () => spaces().find(s => s.id === made.id)?.tabs.find(c => c.id !== shell)?.id);
   if (page && shell) run("tab.close", { id: shell, confirmed: true });
 }
-// The next or previous agent. With the Inbox showing, as T3's thread traversal (resolveAdjacentThreadId): the rows it
-// draws, in its order, from the one in view, stopping at either end; with none in view, the first or the last.
-// Otherwise, Lists or a hidden sidebar (where the Inbox draws nothing, so its rows go stale), Herdr's agent.next, which wraps.
-// Here because the tab bar always shows. A row can be a mod pane's (`pane:<id>`), which has no agent to focus.
+// The selected sidebar's rows, shown or hidden, stopping at either end.
 function step(command) {
-  if (!inboxDrawn()) return run(command === "next" ? "agent.next" : "agent.prev");
-  const { order = [], view = null } = shared("t3-inbox.rows") ?? {};
+  const { order = [], view = null } = shared(inboxShown() ? "t3-inbox.rows" : "t3-agents.rows") ?? {};
   const i = view === null ? -1 : order.indexOf(view);
   const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
   if (to?.startsWith("pane:")) run("pane.focus", { pane: to.slice(5) });
-  else if (to) run("agent.focus", { terminal: to });
+  else if (to) run(!agents().some(a => a.address === to) && terminals().some(k => k.address === to) ? "terminal.peek" : "agent.focus", { terminal: to });
 }
 // A space by the keys. Out of view Herdr may have moved its active tab to a closed one's neighbour, and being shown costs an
-// agent its unread done: with the Inbox showing, the tab last shown there. Space first, in one tick, as leave() relies on.
+// agent its unread done: return to the tab last shown there. Space first, in one tick, as leave() relies on.
 function showSpace(s, trail) {
   run("space.select", { id: s.id });
-  const back = inboxShown() && trail[s.id]?.find(id => s.tabs.some(c => c.id === id));
+  const back = trail[s.id]?.find(id => s.tabs.some(c => c.id === id));
   if (back) run("tab.select", { id: back });
 }
 // The spaces the keys count and walk: all but Home, wrapping as space.next does.
@@ -71,18 +67,15 @@ function walkSpaces(by, trail) {
 }
 
 const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
-// A hidden sidebar draws no Inbox: its rows go stale and `t3-inbox.<command>` doesn't reach it.
-const inboxDrawn = () => inboxShown() && !find(layout(), "sidebar")?.hidden;
 
-// What the hidden sidebar's toggle counts. With the inbox showing (t3-inbox), an agent settled there isn't news while it
+// What the hidden sidebar's toggle counts. An agent settled there isn't news while it
 // stays settled. A snoozed one, until it wakes, isn't news either, working or done; while it or what's under it needs the
 // person it shows there, so it counts here too.
 function awake(st, under) {
-  if (!inboxShown()) return agents();
   const now = Date.now(), byAddress = new Map(terminals().map((k) => [k.address, k]));
   return agents().filter((a) => {
     const k = byAddress.get(a.address);
-    return !stillSettled(k, a.status, under(a.address)) && (!(Number(k?.labels?.snoozed) > now) || st(a) === "blocked");
+    return st(a) === "blocked" || (!stillSettled(k, a.status, under(a.address)) && !(Number(k?.labels?.snoozed) > now));
   });
 }
 
@@ -171,9 +164,10 @@ export default class Tabs extends View {
         else if (command.startsWith("close-pane-now:")) await this.closePaneNow(command.slice("close-pane-now:".length), cx);
         else if (command === "home") await goHome(cx);
         else if (command === "next" || command === "prev") step(command);
-        // Here because the tab bar always shows; the brand bar goes with the sidebar. Settling elsewhere does nothing, where a run to the Inbox would be a red toast.
+        // Here because the tab bar always shows; the brand bar goes with the sidebar.
         else if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
-        else if (command === "settle") { if (inboxDrawn()) run("t3-inbox.settle"); }
+        else if (command === "settle") await this.settle(cx);
+        else if (command === "undo") await this.undo(cx);
         // New work doesn't start in Home: New picks its space.
         else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
         else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)), this.trail);
@@ -221,19 +215,92 @@ export default class Tabs extends View {
   }
 
   async closePaneNow(pane, cx) {
-    const ps = panes(), tab = ps.find(p => p.pane === pane)?.tab;
+    const ps = panes(), p = ps.find(p => p.pane === pane), tab = p?.tab;
     const homeTabs = spaces().find(s => s.id === homeId())?.tabs.map(c => c.id) ?? [];
     // Home's last pane gives way to the default page, which is how Home is reset.
     if (homeTabs.includes(tab) && ps.filter(p => homeTabs.includes(p.tab)).length === 1) run("pane.split", { direction: "right", pane, mod: "t3-home" });
     if (ps.filter(p => p.tab === tab).length === 1) await this.leave(tab, cx);
+    else if (!atHome() && focused()?.pane === pane && agents().some(a => a.address === p?.terminal)) await goHome(cx);
+    else if (focused()?.pane === pane && p?.mod && programOf(p)?.inbox) {
+      const mine = agents().filter(a => a.tab === tab), back = mine.find(a => a.address === focused()?.agent) ?? mine[0];
+      if (back) run("agent.focus", { terminal: back.address });
+    }
     run("pane.close", { pane });
+  }
+
+  async writeLabel(address, key, value) {
+    const r = await hc(["label", address, `${key}=${value}`]).catch(e => ({ code: 1, stderr: String(e) }));
+    if (r.code === 0) return true;
+    notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
+    return false;
+  }
+
+  async settle(cx) {
+    if (atHome()) return;
+    const f = { ...focused() }, ps = panes(), p = ps.find(p => p.pane === f.pane), every = agents(), all = terminals();
+    if (p?.mod && programOf(p)?.inbox) {
+      if (!["working", "blocked"].includes(modStatus(p))) await this.closePaneNow(p.pane, cx);
+      return;
+    }
+    const byAddress = new Map(all.map(k => [k.address, k]));
+    let address = f?.pane && !f.terminal ? (every.find(a => a.tab === f.tab && a.address === f.agent) ?? every.find(a => a.tab === f.tab))?.address
+      : f?.terminal ?? f?.agent ?? every.find(a => a.focused)?.address;
+    const seen = new Set();
+    while (address && !every.some(a => a.address === address) && !seen.has(address)) { seen.add(address); address = byAddress.get(address)?.parent; }
+    const a = every.find(a => a.address === address), k = byAddress.get(address);
+    if (!a) return;
+    const kids = subAgents(every, all)(address), own = ownStatus(a.status, address, all);
+    if ([own, ...kids].some(s => s === "working" || s === "blocked")) return;
+    if (stillSettled(k, own, kids)) { await this.writeLabel(address, "settled", ""); return; }
+    const snoozed = k?.labels?.snoozed ?? "";
+    if (!await this.writeLabel(address, "settled", `${Date.now()}:${k?.turn ?? 0}`)) return;
+    if (snoozed) await this.writeLabel(address, "snoozed", "");
+    const pins = shared("agents.pins") ?? [];
+    if (pins.includes(address)) setShared("agents.pins", pins.filter(p => p !== address));
+    const old = shared("t3-inbox.notice"), now = Date.now();
+    const joined = old?.owner === "tabs" && old.live && now - old.at < 5000;
+    const n = { owner: "tabs", action: "Settled", count: (joined ? old.count : 0) + 1, gen: (old?.gen ?? 0) + 1,
+      live: true, shown: joined, at: now, undos: [...(joined ? old.undos : []), { address, snoozed, pins }] };
+    setShared("t3-inbox.notice", n);
+    const update = (change) => {
+      const current = shared("t3-inbox.notice");
+      if (current?.owner === "tabs" && current.gen === n.gen && current.at === n.at) setShared("t3-inbox.notice", change && { ...current, ...change });
+    };
+    if (!joined) cx.timer.after(16, () => update({ shown: true }));
+    cx.timer.after(5000, () => update({ live: false, shown: false }));
+    cx.timer.after(5250, () => update(null));
+    const current = focused();
+    if (["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key])) run("t3-tabs.home");
+  }
+
+  async undo() {
+    const n = shared("t3-inbox.notice");
+    if (!n?.live || Date.now() - n.at >= 5000) return;
+    if (n.owner !== "tabs") {
+      setShared("t3-inbox.undo", { gen: n.gen, at: n.at, requestedAt: Date.now(), request: (shared("t3-inbox.undo")?.request ?? 0) + 1 });
+      return;
+    }
+    setShared("t3-inbox.notice", null);
+    let back;
+    for (const u of [...n.undos].reverse()) {
+      if (!await this.writeLabel(u.address, "settled", "")) continue;
+      back = u.address;
+      if (Number(u.snoozed) > Date.now()) await this.writeLabel(u.address, "snoozed", u.snoozed);
+      const pins = [...(shared("agents.pins") ?? [])];
+      if (u.pins.includes(u.address) && !pins.includes(u.address)) {
+        const next = u.pins.slice(u.pins.indexOf(u.address) + 1).find(p => pins.includes(p));
+        pins.splice(next ? pins.indexOf(next) : pins.length, 0, u.address);
+        setShared("agents.pins", pins);
+      }
+    }
+    if (back && atHome()) run("agent.focus", { terminal: back });
   }
 
   // Going first, so Herdr's neighbour never shows: being shown costs an agent its unread done, one the bar hides included.
   async leave(id, cx) {
     const space = spaces().find(s => s.active);
     // Out of view, closing it moves nothing. A space's last tab takes the space, and Herdr may still ask.
-    if (!inboxShown() || atHome() || !space?.tabs.find(c => c.id === id)?.active || space.tabs.length === 1) return;
+    if (atHome() || !space?.tabs.find(c => c.id === id)?.active || space.tabs.length === 1) return;
     if (agents().some(a => a.tab === id)) return goHome(cx);
     this.goBack(space.id, id);
   }
@@ -272,8 +339,8 @@ export default class Tabs extends View {
     this.wasHome = home;
     // For the closes this mod doesn't make, which leave() can't go ahead of: the tab's menu, the program ending. Herdr has
     // already picked the neighbour, and it may have been shown.
-    const terms = terminals(), every = agents();
-    if (was && all.length && !alive(was.tab) && inboxShown() && !home) {
+    const terms = terminals(), every = agents(), ps = panes();
+    if (was && (!alive(was.tab) || (was.pane && !ps.some(p => p.pane === was.pane))) && !home) {
       // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
       if (was.agent) toHome();
       else if (space?.id === was.space) this.goBack(was.space, was.tab);
@@ -293,7 +360,9 @@ export default class Tabs extends View {
     if (this.going && (tab?.id === this.going.tab || Date.now() > this.going.until)) this.going = null;
     // Until a close's target shows, what shows is Herdr's pick, not somewhere the person went.
     if (space && tab && !home && !this.going) this.trail[space.id] = [tab.id, ...(this.trail[space.id] ?? []).filter(id => id !== tab.id && alive(id))];
-    this.inView = tab && !home ? { tab: tab.id, space: space.id, agent: agents().some(a => a.tab === tab.id) } : null;
+    const pane = focused()?.pane;
+    this.inView = tab && !home ? { tab: tab.id, space: space.id, agent: every.some(a => a.tab === tab.id),
+      pane: every.some(a => a.pane === pane) ? pane : null } : null;
   }
 
   // Once what Herdr's pick showed is out of view, and its seen has come back from the core (or the lower write could land first),
@@ -334,9 +403,8 @@ export default class Tabs extends View {
     return [...(lead ? [lead] : []), ...kin, ...space.tabs.filter(c => !every.some(a => a.tab === c.id))];
   }
 
-  // The next or previous tab the bar shows, going around. In Lists it shows them all: Herdr's own walk.
+  // The next or previous tab the bar shows, going around.
   walkTabs(by) {
-    if (!inboxShown()) return run(by > 0 ? "tab.next" : "tab.prev");
     const list = this.visibleTabs();
     if (!list.length) return;
     run("tab.select", { id: list[(list.findIndex(c => c.active) + by + list.length) % list.length].id });
@@ -434,7 +502,7 @@ export default class Tabs extends View {
     const ps = panes();
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
-      const words = [...every.filter(a => a.tab === c.id).map(st), ...ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p))];
+      const words = [...every.filter(a => a.tab === c.id).map(a => st(a) === "done" && notNews(all.find(k => k.address === a.address), a.status, under(a.address)) ? "idle" : st(a)), ...ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p))];
       return words.includes("blocked") ? "blocked"
         : words.includes("done") ? "done"
         : words.includes("working") ? "working" : null;
@@ -526,6 +594,7 @@ export default class Tabs extends View {
     const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
       ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
       : 8;
+    const notice = sidebar?.hidden && this.undoNotice(t);
     return focusRoot(this, h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
       .on_mouse_up("left", (_e, cx) => { this.pressed = this.over = null; cx.notify(); })
       // Herdr reports no release outside the bar, so leaving ends a drag, as in the inbox.
@@ -539,8 +608,20 @@ export default class Tabs extends View {
         else if (Math.abs(e.delta.y) >= 1) this.walkTabs(e.delta.y > 0 ? -1 : 1);
       })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stopPress, live, st)))
+      .when(Boolean(notice), el => el.child(notice))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
         .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })
         .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-this.stripAt(shown, widths)).children(shown.map(item)))));
+  }
+
+  undoNotice(t) {
+    const n = shared("t3-inbox.notice");
+    if (!n || Date.now() - n.at >= 6000) return null;
+    return h_flex().id(`undo-notice-${n.gen}`).flex_none().h(24).gap(4).items_center().text_size(11).text_color(t.dim)
+      .opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })
+      .child(`${n.action}${n.count === 1 ? "" : ` ${n.count}`},`)
+      .child(h_flex().id("undo-notice-undo").h(24).items_center().font_medium().text_color(t.foreground)
+        .when(n.live && Date.now() - n.at < 5000, el => stop(this, t, "undo-notice-undo", el.hover(s => s.underline()).role("button")
+          .accessibility_label(`Undo: ${n.action}`).on_click(() => run("t3-tabs.undo")), 4)).child("Undo"));
   }
 }

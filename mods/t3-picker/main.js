@@ -4,7 +4,7 @@
 // ↑/↓ and Enter to go, ctrl+d to close a pane (asking first while a program runs), Esc to leave.
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, layout, shared, setShared } from "herdr";
+import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
@@ -66,7 +66,7 @@ export default class Picker extends View {
     // The same marks as the pane headers, tabs and agents list.
     const mark = st === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
       : st === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
-      : st === "done" && !notNews(layout(), terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(7).flex_none().rounded_full().bg(t.done) : null;
+      : st === "done" && !notNews(terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(7).flex_none().rounded_full().bg(t.done) : null;
     return h_flex().id(item.key).w_full().h(ROW).px(8).gap(8).rounded(6).items_center().flex_none()
       .role("button").accessibility_label(item.back ? `Back to ${item.label}` : item.label)
       .when(on, (el) => el.bg(t.selected))

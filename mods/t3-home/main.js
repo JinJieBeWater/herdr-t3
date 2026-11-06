@@ -2,7 +2,7 @@
 // t3-tabs owns the place itself (a space of its own); this is only what it shows until someone arranges something else there.
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, layout, run, shared, theme } from "herdr";
+import { layout, run, shared, theme } from "herdr";
 import { keyOf } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, pressed, justClosed } from "./focus.js";
 
@@ -14,10 +14,9 @@ function find(node, id) {
   }
   return null;
 }
-// As the next key (t3-tabs) has anywhere to go: the rows the Inbox draws while it shows, else any agent.
+// The selected sidebar keeps its rows current while hidden too.
 function hasNext() {
-  const root = layout();
-  return find(root, "sidebar-lists")?.active === "inbox" && !find(root, "sidebar")?.hidden ? shared("t3-inbox.rows")?.order?.length > 0 : agents().length > 0;
+  return shared(find(layout(), "sidebar-lists")?.active === "inbox" ? "t3-inbox.rows" : "t3-agents.rows")?.order?.length > 0;
 }
 const ACTIONS = [
   { id: "next", word: "Next agent", action: "t3-tabs.next", go: () => run("t3-tabs.next"), ready: hasNext },

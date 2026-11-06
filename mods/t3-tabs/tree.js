@@ -27,8 +27,8 @@ export function treeStatus(own, kids) {
   return own !== "done" && kids.includes("working") ? "working" : own;
 }
 
-// A settled agent stays settled until new work: busy now, or a turn ended since. Inbox clears the label as it draws, and a
-// hidden Inbox doesn't draw, so whoever reads the label goes by this, not by the label alone. `k` is its terminal.
+// A settled agent stays settled until new work: busy now, or a turn ended since. Label removal can still be in flight,
+// or the Inbox not started, so the label alone isn't enough. `k` is its terminal.
 export function stillSettled(k, word, kids) {
   const label = k?.labels?.settled;
   if (!label) return false;
@@ -36,10 +36,9 @@ export function stillSettled(k, word, kids) {
   return !busy(word) && !kids.some(busy) && (k.turn ?? 0) <= Number(label.split(":")[1]);
 }
 
-// With the Inbox showing, settled or snoozed (until it wakes) isn't news, so its done dot goes.
-export function notNews(root, k, word, kids) {
-  const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-  return find(root)?.active === "inbox" && (stillSettled(k, word, kids) || Number(k?.labels?.snoozed) > Date.now());
+// Settled or snoozed (until it wakes) isn't news in either sidebar.
+export function notNews(k, word, kids) {
+  return stillSettled(k, word, kids) || Number(k?.labels?.snoozed) > Date.now();
 }
 
 // Snapshot once per render, like namer(): what's under each address, as words.

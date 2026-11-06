@@ -3,9 +3,9 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popup } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, nextCommand } from "herdr";
+import { agents, terminals, panes, spaces, focused, run, hc, notify, theme, layout, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 import { namer } from "./name.js";
-import { kidStatus, ownStatus, subAgents, treeStatus } from "./tree.js";
+import { kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { glow, hoverKept, tip, tipMark } from "./tip.js";
 import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
@@ -57,6 +57,7 @@ export default class Agents extends View {
     this.folded = JSON.parse(localStorage.getItem("folded") ?? "{}");
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
+    cx.timer.every(1000, () => this.compute());
     cx.timer.every(30000, (cx) => cx.notify()); // The rows' times move with nothing else changing.
     // Older installs kept pins in this list's storage; move them over once, before the inbox writes any.
     if (shared("agents.pins") == null && localStorage.getItem("pins")) setShared("agents.pins", JSON.parse(localStorage.getItem("pins")));
@@ -247,9 +248,7 @@ export default class Agents extends View {
     return id ? tipMark(this, t, `${id}-mark`, label, el.id(id)) : el;
   }
 
-  render(cx) {
-    const t = theme();
-    if (props()?.sortMenu) return this.sortMenu(t);
+  compute() {
     const sort = sortOf();
     let list = agents();
     this.listed = new Map(list.map((a) => [a.address, a.status]));
@@ -274,7 +273,8 @@ export default class Agents extends View {
     const kidsOf = new Map(list.map((a) => [a.address, under(a.address)]));
     // As shown: its own word with its sub-agents'. Sorted, a viewed done agent keeps Done.
     const own = (a) => ownStatus(a.status, a.address, all);
-    const shownStatus = (a) => treeStatus(own(a), kidsOf.get(a.address));
+    const shownStatus = (a) => notNews(all.find(k => k.address === a.address), own(a), kidsOf.get(a.address))
+      && treeStatus(own(a), kidsOf.get(a.address)) !== "blocked" ? "idle" : treeStatus(own(a), kidsOf.get(a.address));
     const urgency = new Map(list.map((a) => [a.address, RANK[treeStatus(ownStatus(this.word(a), a.address, all), kidsOf.get(a.address))] ?? 0]));
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);
@@ -282,7 +282,36 @@ export default class Agents extends View {
     const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
     const rest = list.filter((a) => !this.pins.includes(a.address));
     list = [...pinned, ...rest];
-    setAgentOrder(list.map((a) => a.address));
+    const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
+    for (const a of rest) {
+      const r = rankOf(a) || RANK.idle;
+      const id = byPriority ? `sec-${r}` : `sp-${a.space}`;
+      if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
+      else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", space: byPriority ? null : a.space, members: [a] });
+    }
+    const visible = groups.flatMap(g => (!this.isFolded(g.id, g.id === "sec-1") ? g.members : g.members.filter(viewing)).flatMap(a => {
+      const subs = this.tree(all, a.address);
+      return [a.address, ...(!this.isFolded(a.address) ? subs : subs.filter(s => kidStatus(s.t, this.listed) === "blocked")).map(s => s.t.address)];
+    }));
+    const order = [...new Set(visible)], view = order.includes(shown) ? shown : order.includes(ancestor) ? ancestor : null;
+    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
+    if (find(layout())?.active !== "inbox") {
+      const drawn = { order, view };
+      if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-agents.rows") ?? null)) setShared("t3-agents.rows", drawn);
+      const addresses = list.map(a => a.address), key = JSON.stringify(addresses);
+      if (key !== this.agentOrder || shared("t3-agent-order") !== "lists") {
+        this.agentOrder = key;
+        setAgentOrder(addresses);
+        if (shared("t3-agent-order") !== "lists") setShared("t3-agent-order", "lists");
+      }
+    } else this.agentOrder = null;
+    return { sort, list, all, shown, ps, now, viewing, byPriority, own, shownStatus, pinned, groups };
+  }
+
+  render(cx) {
+    const t = theme();
+    if (props()?.sortMenu) return this.sortMenu(t);
+    const { sort, list, all, shown, ps, now, viewing, byPriority, own, shownStatus, pinned, groups } = this.compute();
 
     const withKids = (a, i) => {
       const subs = this.tree(all, a.address);
@@ -390,7 +419,7 @@ export default class Agents extends View {
       const name = full ? more ?? (a.space_name || label(a)) : more ?? (/^\d+$/.test(label(a)) ? a.program?.name || label(a) : label(a));
       const where = full && more && a.space_name && a.space_name !== more ? a.space_name : null;
       // Its sub-agents' word, when it isn't its own, is marked as theirs.
-      const fromKid = st !== own(a);
+      const fromKid = st !== "idle" && st !== own(a);
       const when = this.since(a);
       const lead = h_flex().size(16).flex_none().items_center().justify_center().when(Boolean(pic), el => el.child(pic));
       const server = svg("mods/t3-agents/server.svg").size(12).flex_none().text_color(t.dim);
@@ -447,14 +476,6 @@ export default class Agents extends View {
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
     // space are next to each other in agents(), so neighbours make a group.
-    const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
-    for (const a of rest) {
-      const r = rankOf(a) || RANK.idle;
-      const id = byPriority ? `sec-${r}` : `sp-${a.space}`;
-      if (groups.at(-1)?.id === id) groups.at(-1).members.push(a);
-      else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", space: byPriority ? null : a.space, members: [a] });
-    }
-
     // A group no longer drawn never reports the pointer leaving it, so it would come back lit.
     if (!groups.some((g) => g.id === this.overGroup)) this.overGroup = null;
     const chevron = (g, open, ghost) => {

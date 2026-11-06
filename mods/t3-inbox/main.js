@@ -2,7 +2,7 @@
 // Below, as in T3: Working (busy agents, folded) and Settled (put away by hand until new work brings them back).
 // Settled lives on the agent's own terminal as `settled=<ms>:<turn>`: it ends with the terminal, every mod
 // sees it, and a turn ended since says there was new work even while no window watched. Looking doesn't count.
-// A mod pane in a tab with no agent, which no agent's card leads to, has a card too if its mod asks (`inbox: true` in
+// A mod pane has a card too if its mod asks (`inbox: true` in
 // shared("<mod>.program")): it goes by what its mod reports as an agent does. It's a view whose state lives elsewhere, so
 // Settle closes it: no Settled, no Undo, no pin and no drag.
 // Snoozed, as T3's: `snoozed=<wake ms>` hides an agent, working or not, on a shelf of its own until then, and it wakes
@@ -307,6 +307,7 @@ export default class Inbox extends View {
     this.napOpen = localStorage.getItem("snoozed-open") === "true";
     // The card whose snooze menu is open, and the row its keys are on.
     this.napMenu = null;
+    this.undoRequest = shared("t3-inbox.undo");
     this.napAt = -1;
     this.napKeys = cx.focus_handle();
     this.limit = FIRST;
@@ -333,7 +334,13 @@ export default class Inbox extends View {
     this.keys = cx.focus_handle();
     // "Working 9s" counts up only while such a card shows.
     // Render says so again each time, so a list hidden meanwhile draws nothing.
-    cx.timer.every(1000, (cx) => { if (this.ticking) { this.ticking = false; cx.notify(); } });
+    cx.timer.every(1000, (cx) => {
+      if (props()?.home) {
+        this.consumeUndo(cx);
+        this.compute(cx);
+      }
+      if (this.ticking) { this.ticking = false; cx.notify(); }
+    });
     // The cards' times (5m, 2h) move on by the minute, as T3's do.
     cx.timer.every(60000, (cx) => cx.notify());
     // `t3-inbox.settle` (cmd-shift-s in keys.json): see settleKey in render. `t3-inbox.clear`: Clear's confirm dialog.
@@ -436,20 +443,24 @@ export default class Inbox extends View {
   // T3's undo notice (showThreadUndoNotice): the latest run of one action, "Settled 2 agents", undone together for
   // 5s, then gone. A new notice fades in (a frame clear first: Herdr eases only later changes); it fades out going.
   remember(action, count, undo, cx) {
-    const live = this.notice?.live && this.notice.action === action ? this.notice : null;
+    const live = this.notice?.live && shared("t3-inbox.notice")?.owner !== "tabs" && this.notice.action === action ? this.notice : null;
     const n = live ?? { action, count: 0, undos: [], gen: (this.notice?.gen ?? 0) + 1, shown: false };
     n.count += count; n.undos.push(undo); n.live = true; n.at = Date.now();
     this.notice = n;
+    this.publishNotice(true);
     const ran = n.undos.length;
-    if (!live) cx.timer.after(16, (cx) => { if (this.notice === n && n.live) { n.shown = true; cx.notify(); } });
-    cx.timer.after(5000, (cx) => { if (this.notice === n && n.undos.length === ran) this.forget(cx); });
+    if (!live) cx.timer.after(16, (cx) => { if (this.notice === n && n.live) { n.shown = true; this.publishNotice(); cx.notify(); } });
+    cx.timer.after(5000, (cx) => {
+      if (this.notice === n && n.undos.length === ran) { this.consumeUndo(cx); this.forget(cx); }
+    });
   }
 
   forget(cx) {
     const n = this.notice;
     if (!n?.live) return;
     n.live = false; n.shown = false;
-    cx.timer.after(250, (cx) => { if (this.notice === n) { this.notice = null; cx.notify(); } });
+    this.publishNotice();
+    cx.timer.after(250, (cx) => { if (this.notice === n) { this.notice = null; this.publishNotice(); cx.notify(); } });
     cx.notify();
   }
 
@@ -458,6 +469,21 @@ export default class Inbox extends View {
     if (!this.notice?.live) return;
     for (const undo of [...this.notice.undos].reverse()) undo(cx);
     this.forget(cx);
+  }
+
+  consumeUndo(cx) {
+    const undo = shared("t3-inbox.undo");
+    if (JSON.stringify(undo) === JSON.stringify(this.undoRequest)) return;
+    this.undoRequest = undo;
+    if (undo && undo.gen === this.notice?.gen && undo.at === this.notice?.at && undo.requestedAt < undo.at + 5000) this.undo(cx);
+  }
+
+  publishNotice(fresh = false) {
+    const n = this.notice;
+    const said = n ? { action: n.action, count: n.count, gen: n.gen, shown: n.shown, live: n.live, at: n.at } : null;
+    const before = this.said;
+    this.said = JSON.stringify(said);
+    if (this.said !== before && (fresh || JSON.stringify(shared("t3-inbox.notice") ?? null) === before)) setShared("t3-inbox.notice", said);
   }
 
   // Ends a drag or sweep, and hands the keyboard back to the pane that had it, unless the drop moved on to
@@ -480,21 +506,21 @@ export default class Inbox extends View {
     });
   }
 
-  render(cx) {
-    if (props()?.customSnooze) return customView(this);
-    const t = theme(), now = Date.now();
-    // Herdr scales what a mod sets, and reports sizes and pointer places as drawn: what's kept here is the mod's own, unscaled.
-    const zoom = Number(settings()?.zoom) || 1;
+  compute(cx, publish = true) {
+    const now = Date.now();
     const runs = agents(), all = terminals(), ps = panes(), sp = spaces(), f = focused();
-    // Mod panes that ask for a card (see the top), one a tab. `pane:<id>` is their address, in t3-inbox.rows too.
+    // `pane:<id>` is a mod card's address, in t3-inbox.rows too. Docked alone, keep the original one-card-per-agentless-tab rule.
     const every = [...runs, ...sp.flatMap((s) => s.tabs.flatMap((c) => {
-      const p = ps.find((x) => x.tab === c.id && x.mod && programOf(x)?.inbox);
-      return p && !runs.some((a) => a.tab === c.id) ? [{ ...p, address: `pane:${p.pane}`, status: modStatus(p) ?? "idle", focused: p.pane === f?.pane,
-        space: s.id, space_name: s.name, program: { name: p.title, ...programOf(p) } }] : [];
+      const cards = ps.filter(x => x.tab === c.id && x.mod && programOf(x)?.inbox);
+      return (props()?.home ? cards : runs.some(a => a.tab === c.id) ? [] : cards.slice(0, 1)).map(p => ({ ...p,
+        address: `pane:${p.pane}`, status: modStatus(p) ?? "idle", focused: p.pane === f?.pane,
+        space: s.id, space_name: s.name, program: { name: p.title, ...programOf(p) } }));
     }))];
     // The row in view: the focused agent's, or for a sub-agent with no row of its own (shown in a block, a peek), its
     // nearest listed ancestor's, as T3's resolveSidebarRowThreadId lights the parent of an open sub-agent.
     const inView = (() => {
+      const card = every.find((a) => a.mod && a.pane === f?.pane);
+      if (card) return card.address;
       const own = every.find((a) => a.focused);
       if (own) return own.address;
       const byAddress = new Map(all.map((k) => [k.address, k])), seen = new Set();
@@ -509,8 +535,9 @@ export default class Inbox extends View {
       return k && every.some((a) => a.address === k.address) ? k.address : null;
     })();
     // Read live on the agent itself, so a key or click right after focus moves goes by where it is now.
-    const stoodIn = inView !== null && !every.some((a) => a.focused);
-    const viewing = (a) => a.focused || (stoodIn && a.address === inView);
+    const cardInView = every.some(a => a.mod && a.address === inView);
+    const stoodIn = inView !== null && !every.some(a => a.focused);
+    const viewing = (a) => cardInView ? a.address === inView : a.focused || (stoodIn && a.address === inView);
     // As T3's route reveal: an agent brought into view from elsewhere (a key, the picker, its pane) that the space
     // filter hides widens the filter to every space, kept. Not on the first draw, and a filter you pick isn't undone.
     if (this.inView !== undefined && inView && inView !== this.inView && this.scope.length) {
@@ -532,11 +559,11 @@ export default class Inbox extends View {
     };
     const kids = new Map(every.map((a) => [a.address, descendants(all, a.address).map((k) => kidStatus(k, listed))]));
     // It, or anything under it, is working or needs the person.
-    const busy = (a) => BUSY.has(a.status) || kids.get(a.address).some((s) => BUSY.has(s));
+    const busy = (a) => BUSY.has(ownStatus(a.status, a.address, all)) || kids.get(a.address).some((s) => BUSY.has(s));
     // New work brings a settled agent back (tree.js). Hidden ones too.
     for (const a of every) {
       const label = this.pending.settled[a.address] ?? term.get(a.address)?.labels?.settled;
-      if (label && !stillSettled({ labels: { settled: label }, turn: term.get(a.address)?.turn }, a.status, kids.get(a.address))) this.setLabelDue("settled", a.address, "", cx);
+      if (label && !stillSettled({ labels: { settled: label }, turn: term.get(a.address)?.turn }, ownStatus(a.status, a.address, all), kids.get(a.address))) this.setLabelDue("settled", a.address, "", cx);
     }
     // It with what's under it (tree.js).
     const state = (a) => treeStatus(ownStatus(a.status, a.address, all), kids.get(a.address));
@@ -603,8 +630,33 @@ export default class Inbox extends View {
       this.nextWake = next;
       this.wakeTimer = next < Infinity ? cx.timer.after(Math.min(next - now, DAY), (cx) => { this.nextWake = null; cx.notify(); }) : null;
     }
-    // agent.next goes as the list reads. Only the list showing draws, so the agents list (t3-agents) sets its own.
-    setAgentOrder([...pinned, ...out, ...work, ...nap, ...put].filter((a) => !a.mod).map((a) => a.address));
+    const page = this.open ? put.slice(0, this.limit) : [];
+    const rows = [...page, ...put.filter((a) => viewing(a) && !page.includes(a))];
+    if (publish) this.publishRows([...pinned, ...out, ...busyRows, ...napRows, ...rows], inView,
+      [...pinned, ...out, ...work, ...nap, ...put]);
+    return { now, all, ps, sp, f, every, list, inView, viewing, scope, term, settledAt, kids, busy, state, running, pins,
+      napUntil, wake, hidden, woke, working, newest, pinned, out, work, nap, put, busyRows, napRows, since, started };
+  }
+
+  publishRows(rows, view, ordered = rows) {
+    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
+    const mode = find(layout());
+    if (mode && mode.active !== "inbox") { this.agentOrder = null; return; }
+    const drawn = { order: rows.map((a) => a.address), view };
+    if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);
+    const order = ordered.filter((a) => !a.mod).map((a) => a.address);
+    if (JSON.stringify(order) !== this.agentOrder || shared("t3-agent-order") !== "inbox") {
+      this.agentOrder = JSON.stringify(order);
+      setAgentOrder(order);
+      if (shared("t3-agent-order") !== "inbox") setShared("t3-agent-order", "inbox");
+    }
+  }
+
+  render(cx) {
+    if (props()?.customSnooze) return customView(this);
+    const t = theme(), zoom = Number(settings()?.zoom) || 1;
+    const { now, all, ps, sp, f, every, list, inView, viewing, scope, term, settledAt, kids, busy, state, running, pins,
+      napUntil, wake, hidden, woke, working, newest, pinned, out, work, nap, put, busyRows, napRows, since, started } = this.compute(cx, false);
 
     const title = namer();
     const hover = (a) => (on, cx) => {
@@ -645,7 +697,7 @@ export default class Inbox extends View {
       const cards = [...pinned, ...out, ...busyRows], i = cards.findIndex(viewing);
       if (i < 0 || !xs.includes(cards[i])) return false;
       // With a Home in the layout, that's where it lands: what to look at next stays the person's to say.
-      if (props()?.home) { run(props().home); return true; }
+      if (props()?.home) { if (cards[i].mod) return false; run(props().home); return true; }
       const next = [...cards.slice(i + 1), ...cards.slice(0, i)].find((a) => !xs.includes(a));
       if (next) go(next);
       return Boolean(next);
@@ -674,7 +726,7 @@ export default class Inbox extends View {
         bringBack(seen);
       }, cx);
       const moved = moveOn(xs);
-      for (const a of panes) run("pane.close", { pane: a.pane });
+      for (const a of panes) run(props()?.home ? `t3-tabs.close-pane:${a.pane}` : "pane.close", props()?.home ? undefined : { pane: a.pane });
       return moved;
     };
     const snooze = (a, at, cx) => {
@@ -769,7 +821,7 @@ export default class Inbox extends View {
     // What the next and previous keys walk (t3-chrome): the rows drawn, in order, and the one in view. Written only when
     // it changes: every write redraws every mod.
     const drawn = { order: [...pinned, ...out, ...busyRows, ...napRows, ...rows].map((a) => a.address), view: inView };
-    if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);
+    this.publishRows([...pinned, ...out, ...busyRows, ...napRows, ...rows], inView, [...pinned, ...out, ...work, ...nap, ...put]);
 
     const aim = (to, cx) => {
       if (!this.drag?.moved || JSON.stringify(this.drag.target ?? null) === JSON.stringify(to)) return;
@@ -1172,8 +1224,6 @@ export default class Inbox extends View {
     // T3 shows the undo notice in the sidebar footer's row, so it covers nothing: the layout's footer (t3-chrome) draws it
     // from shared("t3-inbox.notice"). Docked alone, with no footer, it goes over the first shelf's header.
     const n = this.notice;
-    const said = n ? { action: n.action, count: n.count, gen: n.gen, shown: n.shown, live: n.live, at: n.at } : null;
-    if (JSON.stringify(said) !== JSON.stringify(shared("t3-inbox.notice") ?? null)) setShared("t3-inbox.notice", said);
     const footer = (x) => !x?.hidden && ((x?.content?.mod === "t3-chrome" && Boolean(x.content.props?.footer)) || (x?.children ?? []).some(footer));
     const notice = n && !footer(layout()) && h_flex().id(`undo-notice-${n.gen}`).absolute().left(0).right(0).top(-12).h(24).px(10).gap(4).items_center()
       .bg(t.chrome).text_size(11).text_color(t.dim).opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })

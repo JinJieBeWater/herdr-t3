@@ -16,6 +16,7 @@ function element() {
       else if (key === "on_click") node.handlers.click = args[0];
       else if (key === "id") node.key = args[0];
       else if (key === "opacity") node.opacity = args[0];
+      else if (key === "bg") node.fill = args[0];
       return proxy;
     };
   } });
@@ -42,19 +43,19 @@ const panes = [
   { pane: "p3", tab: "c1", terminal: "t3", program: zsh, focused: false },
 ];
 const shared = {}, calls = [];
+let terms = [];
 const cx = { notify() {}, stop_propagation() {} };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
   settings: () => ({ zoom: 1 }),
-  spaces: () => spaces, panes: () => panes, agents: () => [], terminals: () => [], layout: () => null, window: () => ({ platform: "macos" }),
+  spaces: () => spaces, panes: () => panes, agents: () => [], terminals: () => terms, window: () => ({ platform: "macos" }),
   focused: () => ({ pane: panes.find((p) => p.focused && spaces.find((s) => s.active).tabs.some((c) => c.id === p.tab)).pane }),
-  run: (name, args) => calls.push([name, args]), theme: () => ({}), props: () => ({ overlay: "o" }), closeOverlay() {},
+  run: (name, args) => calls.push([name, args]), theme: () => ({ done: "#done" }), props: () => ({ overlay: "o" }), closeOverlay() {},
   shared: (k) => shared[k], setShared: (k, v) => { shared[k] = v; },
   namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
-  ownStatus: (w) => w, subAgents: () => () => [], treeStatus: (own) => own,
 });
-const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["tree.js", "list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const keys = (m) => find(m.render(), "picker-rows")?.items.map((n) => n.key) ?? [];
@@ -116,4 +117,15 @@ panes.splice(-2);
 assert.notEqual(typeof open().render().opacity, "number");
 // Closing says so, for the buttons that open it to toggle.
 { const before = Date.now(); open().close(); assert.ok(shared["t3-picker.closed"] >= before); }
+
+// Status follows the shared attention rule in either mode: quiet labels hide done, new work or waking brings it back.
+panes[1].status = "done";
+terms = [{ address: "t1", turn: 1, labels: {} }];
+const hasDone = n => Boolean(n && typeof n === "object" && (n.fill === "#done" || n.items.some(hasDone)));
+const done = () => hasDone(find(open().render(), "pane:p1"));
+assert.ok(done());
+terms[0].labels.settled = "1:1"; assert.equal(done(), false);
+terms[0].turn = 2; assert.ok(done());
+terms[0].labels = { snoozed: String(Date.now() + 60000) }; assert.equal(done(), false);
+terms[0].labels.snoozed = String(Date.now() - 1); assert.ok(done());
 console.log("ok picker");

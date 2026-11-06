@@ -129,12 +129,15 @@ for (const word of ["working", "blocked", "done"]) {
 }
 delete sharedValues["review-pane.status"];
 
-// A settled agent's done dot goes only while the inbox shows.
+// A settled agent's done dot goes in both sidebar modes.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;
 const dots = () => header.render().items.length;
 const shown = dots();
 terms[0].labels.settled = "1:1";
-assert.equal(dots(), shown);
+assert.equal(dots(), shown - 1, "Lists hide a settled done dot too");
+delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60000);
+assert.equal(dots(), shown - 1, "Lists hide a snoozed done dot too");
+delete terms[0].labels.snoozed; terms[0].labels.settled = "1:1";
 sidebar.children[0].active = "inbox";
 assert.equal(dots(), shown - 1);
 delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60000);
@@ -190,4 +193,4 @@ delete terms[0].labels.settled; delete terms[0].turn;
 
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);
-console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule, a mod pane's its own title and icon; a settled done dot hides under Inbox; a missing pane renders nothing.");
+console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule, a mod pane's its own title and icon; quiet done dots hide in both modes; a missing pane renders nothing.");
