@@ -21,6 +21,8 @@ const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foregr
 const state = () => shared(KEY) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
 // As T3's dialog (max-w-lg): 512 wide, as tall as its fields.
+// The menu: a popup's height is only a maximum, so its list sets its own. REST: its padding, rule and Add action.
+const MENU_MAX = 420, MENU_REST = 45;
 const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", width: 512, props: { actions: "edit", id } });
 
 // A menu hangs from the bar (40px, as Herdr T3's tab bar) under the click, not on the pointer, where it would cover the bar; the app keeps it in the window.
@@ -61,7 +63,7 @@ function control(view, t, stopPress) {
     .child(tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).px(5).flex().items_center().rounded_r(6).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
-        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(420, 45 + s.list.length * 28), props: { actions: "menu" } });
+        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(MENU_MAX, MENU_REST + s.list.length * 28), props: { actions: "menu" } });
         cx.notify();
       })
       .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
@@ -100,11 +102,11 @@ function menu(view) {
       cx.notify();
     })
     // Add action stays outside the list, always in view: with it lit, nothing here is.
-    .child(scrollList(view, "actions-list", { count: list.length, row: 28, at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
+    .child(scrollList(view, "actions-list", { count: list.length, row: 28, height: Math.min(list.length * 28, MENU_MAX - MENU_REST), at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).text_color(t.muted), a.name)
         .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(4).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })); } }).flex_1().min_h(0))
+          .child(svg("mods/t3-actions/settings.svg").size(14)), 4), { below: true })); } }))
     .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
     .child(row("action-new", list.length, svg("mods/t3-actions/plus.svg").size(16).text_color(t.muted), "Add action")));
 }

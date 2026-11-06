@@ -121,11 +121,11 @@ assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
   const saved = state["t3-actions"];
   state["t3-actions"] = { ...saved, list: Array.from({ length: 30 }, (_, i) => ({ id: `n${i}`, name: `N${i}`, command: "x", icon: "play" })) };
   const long = load({ actions: "menu" }), press = (k) => fire(find(long.render(), "actions-menu"), "on_key_down", { key: k }, cx);
-  fire(find(long.render(), "actions-list"), "on_size_change", { height: 280 * zoom }, cx);
-  assert.ok(!find(long.render(), "action-n10"), "only the rows in view are drawn");
-  for (let i = 0; i < 15; i++) press("down");
-  assert.ok(find(long.render(), "action-n15"), "the highlight's row is");
-  for (let i = 0; i < 15; i++) press("down");
+  assert.equal(find(long.render(), "actions-list").style.h, 420 - 45, "the list sets its own height: a popup's is only a maximum, and a flexed list would have none");
+  assert.ok(!find(long.render(), "action-n20"), "only the rows in view are drawn");
+  for (let i = 0; i < 25; i++) press("down");
+  assert.ok(find(long.render(), "action-n25"), "the highlight's row is");
+  for (let i = 0; i < 5; i++) press("down");
   assert.ok(find(long.render(), "action-new") && find(long.render(), "action-n29"), "Add action lit, the list stays where it was");
   state["t3-actions"] = saved;
 }
