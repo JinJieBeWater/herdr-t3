@@ -27,7 +27,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
   - Agents：按 space 或按优先级分组，可置顶，子 agent 缩进在父级下。
   - Inbox：T3 式 Settle。需要你的 agent 以卡片留在上方；结束的由你手动 Settle 进底部的安静列表，有新工作时自动回来。工作中的 agent 折叠进 Working 收纳区。Snooze 把任何不需要你的 agent 藏到你选的时间。
 - **各处同一个名字**：Inbox 卡片、agents 列表、标签和窗格标题用同一条规则给终端取名：Pi 在跑时用 Pi 会话名，其次是你命名过的标签，再其次是有意义的终端标题，最后是程序名。同一个标签里的两个 Pi 各自显示自己的会话名；Pi 退出后在原处启动的 lazygit 显示为 lazygit，不沿用旧会话名。
-- **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。显示 Inbox 时，已 Settle 或 Snooze 的 agent 在标签和窗格标题上也不再显示 done 圆点。
+- **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。显示 Inbox 时，已 Settle 或 Snooze 的 agent 在窗格标题上也不再显示 done 圆点，标签上则不显示任何标记：什么需要你由侧栏来说。
 - **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签；侧栏的 New tab（Lists 和 Inbox 都有）先选 space。侧栏的 New space 在机器多于一台时先问建在哪台；`cmd-n` 不问，直接用当前 space 的机器。不选 agent：在终端里启动。
 - **Home**：Settle 或 Snooze 当前查看的 agent 后，回到一个安静的固定位置，不再跳到下一张卡片，下一步看什么由你决定。在这里按 `cmd-]` 打开最上面的卡片，Undo 能带回刚才的 agent。`cmd-shift-h` 或侧栏顶部的房子按钮可随时进入。它不占 space 序号，窗格也由你安排：分屏放入任意 mod 或程序，都会保留。
@@ -36,7 +36,7 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 - **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，悬停显示机器名。从侧栏底部的服务器图标添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
 - **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 在有程序运行时先询问，没有程序运行时直接关闭。
-- **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的标签和窗格标题用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一张卡片。
+- **Review**（可选，[见扩展](#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在 agent 旁的窗格里打开。它的窗格标题（显示 Lists 时还有标签）用布局的状态标记显示分析进度；单独占一个标签的评审在 Inbox 里也有一张卡片。
 
 ## 安装
 
@@ -61,6 +61,8 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 | `cmd-t`、`ctrl-alt-c` | `t3-tabs.new` | 在当前位置新建标签；在 Home 时打开新建菜单，先选 space |
 | `ctrl-1…9`、`ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | 第 n 个 space，不算 Home |
 | `cmd-alt-]` / `cmd-alt-[`、`ctrl-alt-shift-]` / `ctrl-alt-shift-[` | `t3-tabs.space-next` / `t3-tabs.space-prev` | 下一个或上一个 space，跳过 Home |
+| `cmd-1…9`、`ctrl-alt-1…9` | `t3-tabs.tab:<n>` | 标签栏显示的第 n 个标签 |
+| `cmd-shift-]` / `cmd-shift-[`、`ctrl-tab` / `ctrl-shift-tab`、`ctrl-alt-]` / `ctrl-alt-[` | `t3-tabs.tab-next` / `t3-tabs.tab-prev` | 标签栏显示的下一个或上一个标签 |
 | `cmd-p` | `mod.open:t3-picker` | 按名字或程序跳到任一窗格，或回到上一处（和 Inbox 顶栏的 Search 相同） |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | 下一个或上一个 agent。显示 Inbox 时照 T3：按 Inbox 画出来的行的顺序走（折叠的区只算当前查看的那一行），到两端停住。显示 Lists 时用 Herdr 的 `agent.next` / `agent.prev` |
 | `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，里面有程序在运行时先确认 |
@@ -77,6 +79,7 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 - 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
 - `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
 - 新增 Home：`mods/t3-home` 随其他 `mods/t3-*` 一起覆盖，布局会启用它。把上面新增的按键加进你的 `layout:herdr-t3` 分区，否则 `ctrl-1…9` 会把 Home 算进去。如果想继续跳到下一张卡片，从布局里 `t3-inbox` 的 props 删掉 `"home"`。
+- 显示 Inbox 时，标签栏只放当前 agent 和它周边的标签：把仓库 `keys.json` 里 `cmd-1…9`、`ctrl-alt-1…9`、`ctrl-tab`、`ctrl-shift-tab`、`cmd-shift-]`、`cmd-shift-[`、`ctrl-alt-]`、`ctrl-alt-[` 这几行加进你的 `layout:herdr-t3` 分区，否则这些键会算上被隐藏的标签。
 - 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
 - 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，用本仓库的 `extras/mods/pulls-review` 覆盖 `mods/pulls-review`，再加上 `extras/mods/review`（见下文）。
 - 跳转现在归布局自己（`t3-picker`）：把新的 `mods/t3-picker` 也复制过去，并把 `"cmd-p": "mod.open:t3-picker"` 加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `mod.open:picker`。

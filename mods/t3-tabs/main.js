@@ -2,7 +2,7 @@ import { View, div, svg, image } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, closeOverlay, focused, hc, theme, window, layout, settings, props, shared, setShared, nextCommand, home } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
-import { ownStatus, subAgents, treeStatus } from "./tree.js";
+import { descendants, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
 import { stopsInit, stop, focusRoot, within } from "./focus.js";
@@ -50,12 +50,14 @@ function walkSpaces(by) {
   run("space.select", { id: s.id });
 }
 
-// With the inbox showing (t3-inbox), an agent settled there isn't news: its done is left out.
-// One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one, until it
-// wakes, isn't news either, working or done; while it or what's under it needs the person it shows there, so it
-// counts here too.
+const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
+
+// What the hidden sidebar's toggle counts. With the inbox showing (t3-inbox), an agent settled there isn't news: its
+// done is left out. One that works or gets stuck is unsettled there, so only done needs leaving out. A snoozed one,
+// until it wakes, isn't news either, working or done; while it or what's under it needs the person it shows there, so
+// it counts here too.
 function awake(st) {
-  if (find(layout(), "sidebar-lists")?.active !== "inbox") return agents();
+  if (!inboxShown()) return agents();
   const now = Date.now(), labels = new Map(terminals().map((k) => [k.address, k.labels]));
   return agents().filter((a) => {
     const l = labels.get(a.address);
@@ -137,6 +139,7 @@ export default class Tabs extends View {
     this.over = null;
     this.strip = 0;
     this.nameW = {};
+    this.lastAgent = {};
     if (props()?.part !== "measure") stopsInit(this, cx);
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
     if (!props()?.part) cx.spawn(async (cx) => {
@@ -153,6 +156,12 @@ export default class Tabs extends View {
         else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)));
         else if (command === "space-next") walkSpaces(1);
         else if (command === "space-prev") walkSpaces(-1);
+        else if (command.startsWith("tab:")) {
+          const c = this.visibleTabs()[Number(command.slice("tab:".length)) - 1];
+          if (c) run("tab.select", { id: c.id });
+        }
+        else if (command === "tab-next") this.walkTabs(1);
+        else if (command === "tab-prev") this.walkTabs(-1);
       }
     });
   }
@@ -196,6 +205,49 @@ export default class Tabs extends View {
     // A space's last pane closes the space, and Herdr asks that itself.
     if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return run("pane.close", { pane });
     this.ask([namer()(p)], "", "pane.close", { pane }, cx);
+  }
+
+  // With the Inbox showing, cards lead to the agents, so the bar holds what's around the work in view: the agent, its
+  // sub-agents' tabs, then the tabs with no agent in their own order. In a program's tab the agent is the one last looked
+  // at in this space, so the way back stays in reach. Home has no tabs to show.
+  // shortcut: that memory is gone after a restart, until an agent is looked at again; upgrade if landing in a program's tab after one matters.
+  visibleTabs() {
+    const space = spaces().find(s => s.active);
+    if (!space || atHome()) return [];
+    if (!inboxShown()) return space.tabs;
+    const every = agents(), all = terminals(), f = focused();
+    const here = every.filter(a => a.tab === space.tabs.find(c => c.active)?.id);
+    const viewed = here.find(a => a.focused) ?? here.find(a => a.address === f?.agent) ?? here[0];
+    if (viewed) {
+      // A sub-agent counts as the agent at its top.
+      const byAddress = new Map(all.map(k => [k.address, k]));
+      const seen = new Set();
+      let top = viewed.address;
+      while (!seen.has(top) && byAddress.get(byAddress.get(top)?.parent)?.state === "live") { seen.add(top); top = byAddress.get(top).parent; }
+      this.lastAgent[space.id] = top;
+    }
+    const current = this.lastAgent[space.id];
+    const family = new Set([current, ...descendants(all, current).map(k => k.address)]);
+    const lead = space.tabs.find(c => c.id === every.find(a => a.address === current)?.tab);
+    const kin = space.tabs.filter(c => c !== lead && every.some(a => a.tab === c.id && family.has(a.address)));
+    return [...(lead ? [lead] : []), ...kin, ...space.tabs.filter(c => !every.some(a => a.tab === c.id))];
+  }
+
+  // The next or previous tab the bar shows, going around. In Lists it shows them all: Herdr's own walk.
+  walkTabs(by) {
+    if (!inboxShown()) return run(by > 0 ? "tab.next" : "tab.prev");
+    const list = this.visibleTabs();
+    if (!list.length) return;
+    run("tab.select", { id: list[(list.findIndex(c => c.active) + by + list.length) % list.length].id });
+  }
+
+  // Closing the agent in view lands on Home, as settling it does: what to look at next stays the person's to say. By what
+  // the app reports, so every way to close counts: ×, a key, the tab's menu, the picker, its dialog, the program ending.
+  // Herdr has picked a neighbour by then, which may show for a frame.
+  landOnClose() {
+    const all = spaces(), tab = all.find(s => s.active)?.tabs.find(c => c.active);
+    if (this.viewedTab && all.length && !atHome() && !all.some(s => s.tabs.some(c => c.id === this.viewedTab))) run("t3-tabs.home");
+    this.viewedTab = inboxShown() && !atHome() && tab && agents().some(a => a.tab === tab.id) ? tab.id : null;
   }
 
   // Each tab's width: its whole name while the room allows, else the longest names give way first.
@@ -265,8 +317,9 @@ export default class Tabs extends View {
       .on_size_change((size) => setShared("bar.compact", size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme();
     const space = spaces().find(p => p.active);
-    // Home has no tabs to show: its place is told by the brand bar's button and its pane's header.
-    const shown = atHome() ? [] : space?.tabs ?? [];
+    // At Home, none: its place is told by the brand bar's button and its pane's header.
+    const shown = this.visibleTabs(), inbox = inboxShown();
+    if (!props()?.part) this.landOnClose();
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
     if (this.hot?.startsWith("close-") && !shown.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).
@@ -280,18 +333,20 @@ export default class Tabs extends View {
       .on_mouse_down("left", stopPress).on_click(action).child(glyph)), { action: key, below: true });
     // The tab's most urgent agent, ranked as the app ranks tabs; a done one only while it's still news.
     const statusOf = (c) => {
-      const modWords = ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p));
-      const words = [...every.filter(a => a.tab === c.id).map(st), ...modWords];
+      const words = [...every.filter(a => a.tab === c.id).map(st), ...ps.filter(p => p.tab === c.id && p.mod).map(p => modStatus(p))];
       return words.includes("blocked") ? "blocked"
-        : modWords.includes("done") || live.some(a => a.tab === c.id && st(a) === "done") ? "done"
+        : words.includes("done") ? "done"
         : words.includes("working") ? "working" : null;
     };
     const widths = this.tabWidths(shown, (c) => this.nameW[c.id] ? Math.max(TAB_MIN, Math.ceil(this.nameW[c.id]) + TAB_CHROME) : TAB_FLOOR);
+    // With the Inbox showing, agents' tabs hold their place at the front: only the rest drag, among themselves.
+    const loose = (c) => !inbox || !every.some(a => a.tab === c.id);
     const item = (c, i) => {
       const lead = leadOf(ps.filter(p => p.tab === c.id));
       const program = lead && programOf(lead);
       const name = nameOf(c, lead);
-      const status = statusOf(c), label = c.zoomed ? `${name} Z` : name;
+      // With the Inbox showing, what needs the person is the sidebar's to say, shown or hidden.
+      const status = inbox ? null : statusOf(c), label = c.zoomed ? `${name} Z` : name;
       // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
       const tabId = `tab-${c.id}`, closeId = `close-${c.id}`;
       const over = this.overTab === c.id || within(this, [tabId, closeId]);
@@ -328,15 +383,16 @@ export default class Tabs extends View {
         .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.pressed = i; this.over = null; this.pressAt = e.position; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
         .on_mouse_move((e, cx) => {
           detailsAt(this, c.id, e);
-          if (this.pressed === null || this.over === i) return;
+          if (this.pressed === null || this.over === i || !loose(shown[this.pressed]) || !loose(c)) return;
           // As T3's tabs: a drag starts 6px from the press, so a click's wobble only selects.
           if (this.over === null && Math.hypot(e.position.x - this.pressAt.x, e.position.y - this.pressAt.y) < 6 * settings().zoom) return;
           this.over = i;
           cx.notify();
         })
         .on_mouse_up("left", (_e, cx) => {
-          const from = this.pressed, dragged = this.over !== null; this.pressed = this.over = null;
-          if (dragged && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
+          const from = this.pressed, to = this.over; this.pressed = this.over = null;
+          // To the line it shows: past a tab that can't take a drop, the last one that can.
+          if (to !== null && from !== to) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === shown[to].id) + 1 });
           // Short of a drag it was a click on the pressed tab, wherever the release lands.
           else run("tab.select", { id: shown[from ?? i].id });
           cx.notify();
@@ -384,7 +440,7 @@ export default class Tabs extends View {
       })
       .on_scroll_wheel((e, cx) => {
         if (Math.abs(e.delta.x) > Math.abs(e.delta.y)) { this.strip -= e.delta.x / settings().zoom; cx.notify(); }
-        else if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next");
+        else if (Math.abs(e.delta.y) >= 1) this.walkTabs(e.delta.y > 0 ? -1 : 1);
       })
       .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stopPress, live, st)))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()

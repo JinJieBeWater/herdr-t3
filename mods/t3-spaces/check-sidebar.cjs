@@ -1856,5 +1856,96 @@ for (const width of [208, 240, 256, 320, 480]) {
     await say("new");
     assert.deepEqual(made(), [["tab.new", {}]], "elsewhere New is a tab there");
   }
+  // With the Inbox showing, the bar holds the agent in view and what's around it; the sidebar says what needs the person.
+  {
+    const f = fixture(256), spawn = cx.spawn, jobs = [];
+    const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs;
+    tabs.splice(0, tabs.length, ...["prog", "other", "mine", "kid", "rev"].map(id => ({ id, name: id, named: true, active: false })));
+    const agent = (address, tab, status, parent) => ({ address, pane: `p-${tab}`, tab, space: "s0", space_name: "project 0", title: tab, status, program, parent, state: "live", focused: false });
+    const list = [agent("A", "mine", "working"), agent("B", "other", "blocked"), agent("K", "kid", "working", "A")];
+    f.agents().splice(0, f.agents().length, ...list);
+    f.terminals().splice(0, f.terminals().length, ...list);
+    f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })),
+      { pane: "p-prog", terminal: "sh", tab: "prog", title: "lazygit" }, { pane: "p-rev", terminal: null, mod: "review", tab: "rev", title: "review" });
+    cx.spawn = fn => jobs.push(fn);
+    const view = f.load("t3-tabs");
+    cx.spawn = spawn;
+    const say = async command => { f.commands.push(command); jobs[0](cx); await new Promise(resolve => setImmediate(resolve)); };
+    const taken = () => JSON.parse(JSON.stringify(f.calls.splice(0)));
+    const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; };
+    const shown = () => find(view.render(cx), "tab-strip").items.map(n => walk(n).map(x => x.key).find(k => /^tab-/.test(k ?? "")).slice(4));
+    const inbox = (on) => { f.slots["sidebar-lists"] = { id: "sidebar-lists", active: on ? "inbox" : "lists" }; };
+    const spins = () => walk(find(view.render(cx), "tab-strip")).some(n => n.source === "mods/workspace-chrome/spinner.svg");
+    const bang = () => strings(find(view.render(cx), "tab-strip")).includes("!");
+
+    pick("mine", "A"); inbox(false);
+    assert.deepEqual(shown(), ["prog", "other", "mine", "kid", "rev"], "Lists keeps every tab in its order");
+    assert.ok(spins() && bang(), "and every mark");
+    inbox(true);
+    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "the agent in view first, its sub-agent, then tabs with no agent; no other agent");
+    assert.ok(!spins() && !bang(), "no marks: that's the sidebar's");
+    f.slots.sidebar.hidden = true;
+    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "the same with the sidebar hidden");
+    assert.ok(!spins() && !bang(), "no marks there either");
+    assert.ok(find(view.render(cx), "agents-blocked"), "its toggle still counts");
+    delete f.slots.sidebar.hidden;
+
+    pick("prog");
+    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "in a program's tab, the agent last looked at stays");
+    pick("kid", "K");
+    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "a sub-agent counts as the agent at its top");
+    pick("other", "B");
+    assert.deepEqual(shown(), ["other", "prog", "rev"], "another agent takes the place");
+    pick("prog");
+    assert.deepEqual(shown(), ["other", "prog", "rev"]);
+
+    // Keys and the wheel go by what's shown, around the ends; Lists keeps Herdr's own.
+    pick("mine", "A"); view.render(cx); taken();
+    await say("tab:3");
+    assert.deepEqual(taken(), [["tab.select", { id: "prog" }]], "the third shown, not the third of the space");
+    await say("tab:9");
+    assert.deepEqual(taken(), [], "past the end, nothing");
+    await say("tab-prev");
+    assert.deepEqual(taken(), [["tab.select", { id: "rev" }]], "round the start");
+    await say("tab-next");
+    assert.deepEqual(taken(), [["tab.select", { id: "kid" }]], "the other agent's tab between them is skipped");
+    fire(view.render(cx), "on_scroll_wheel", { delta: { x: 0, y: -3 } }, cx);
+    assert.deepEqual(taken(), [["tab.select", { id: "kid" }]], "the wheel too");
+    inbox(false); view.render(cx); taken();
+    await say("tab:3");
+    assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "in Lists, the third of the space");
+    await say("tab-next");
+    assert.deepEqual(taken(), [["tab.next", {}]]);
+    inbox(true);
+
+    // Only tabs with no agent drag, and among themselves.
+    const press = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_down:left", { position: { x: 0, y: 0 }, click_count: 1 }, cx);
+    const over = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_move", { position: { x: 50, y: 0 } }, cx);
+    const release = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_up:left", {}, cx);
+    view.render(cx); taken();
+    press("mine"); over("prog"); release("prog");
+    assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "an agent's tab doesn't drag");
+    press("rev"); over("prog"); release("prog");
+    assert.deepEqual(taken(), [["tab.move", { id: "rev", index: 1 }]], "to its place in the space's real order");
+    press("rev"); over("prog"); over("mine"); release("mine");
+    assert.deepEqual(taken(), [["tab.move", { id: "rev", index: 1 }]], "an agent's tab takes no drop: it lands at the line it showed");
+
+    // Closing the agent in view lands on Home, however it went; nothing else does.
+    const close = (id) => { const i = tabs.findIndex(c => c.id === id); tabs.splice(i, 1); const a = list.findIndex(x => x.tab === id); if (a >= 0) { f.agents().splice(f.agents().findIndex(x => x.tab === id), 1); f.terminals().splice(f.terminals().findIndex(x => x.tab === id), 1); list.splice(a, 1); } };
+    pick("mine", "A"); view.render(cx); taken();
+    close("other"); view.render(cx);
+    assert.deepEqual(taken(), [], "another tab closing stays put");
+    pick("prog"); view.render(cx); close("rev"); view.render(cx);
+    assert.deepEqual(taken(), [], "so does a program's tab");
+    pick("mine", "A"); view.render(cx);
+    close("mine"); pick("prog"); view.render(cx);
+    assert.deepEqual(taken(), [["t3-tabs.home", {}]], "the agent in view closing goes Home, past Herdr's neighbour");
+    view.render(cx);
+    assert.deepEqual(taken(), [], "once");
+    inbox(false); pick("kid", "K"); view.render(cx); close("kid"); pick("prog"); view.render(cx);
+    assert.deepEqual(taken(), [], "Lists keeps Herdr's neighbour");
+  }
+
   console.log("ok: sidebar widths 208/240/256/320/480, pins, tree, colors, space drag, search/settings, tabs and pane controls, inbox Working/Settle, Home.");
 })().catch(e => { console.error(e); process.exit(1); });

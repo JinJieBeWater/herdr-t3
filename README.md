@@ -27,7 +27,7 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
   - Agents: grouped by space or by priority, pins, sub-agents nested under their parent.
   - Inbox: T3-style Settle. Agents that need you stay up top as cards; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf. Snooze hides any agent that doesn't need you until a time you pick.
 - **One name everywhere**: Inbox cards, the agents list, tabs and pane headers name a terminal the same way: its Pi session while Pi runs in it, then a tab you named, then a telling terminal title, else the program. Two Pis in one tab read as their own sessions; lazygit started where Pi was reads as lazygit, not the old session.
-- **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. While Inbox shows, a settled or snoozed agent's done dot leaves the tabs and pane headers too.
+- **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. While Inbox shows, a settled or snoozed agent's done dot leaves the pane headers too, and the tabs show no marks at all: what needs you is the sidebar's to say.
 - **Slim tabs, framed panes**: 24px tabs, as T3's panel tabs; rounded panes with a 28px header (name, folder, status; split, zoom and close on hover).
 - **New**: the tab bar's `+` opens a terminal tab in the current space; the sidebar's New tab, in Lists and Inbox alike, picks a space first. Its New space asks which machine once there is more than one; `cmd-n` doesn't ask and uses the current space's machine. No agent picker: start agents in the terminal.
 - **Home**: settling or snoozing the agent in view lands on one quiet place, not the next card, so what to look at next stays yours. `cmd-]` opens the top card from there, and Undo brings the agent back. `cmd-shift-h` or the house in the sidebar's top bar goes there anytime. It takes no number among your spaces, and its panes are yours to fill: split in any mod or program, and it's kept.
@@ -36,7 +36,7 @@ The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
 - **Other machines**: spaces group by machine once there is more than one, and Inbox cards from elsewhere carry a server mark that names the machine on hover. Add a machine from the server icon in the sidebar footer; a rebuilt one offers Connect, and New space asks which machine.
 - **Project icons**: a space shows its repo's favicon, found on its own machine, else a monogram in one of T3's colors.
 - **Closing asks first**: a tab's or pane's ×, `cmd-w` and `cmd-shift-w` confirm while a program is running in it, and close at once when none is.
-- **Review** (optional, [see Extras](#pullsreview)): a bar in the tab row counts what there is to review in the focused worktree, and a click opens that review in a pane beside the agent. Its tab and pane header show the analysis with the layout's marks, and the Inbox gives a review in a tab of its own a card.
+- **Review** (optional, [see Extras](#pullsreview)): a bar in the tab row counts what there is to review in the focused worktree, and a click opens that review in a pane beside the agent. Its pane header (and in Lists its tab) show the analysis with the layout's marks, and the Inbox gives a review in a tab of its own a card.
 
 ## Install
 
@@ -61,6 +61,8 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-t`, `ctrl-alt-c` | `t3-tabs.new` | A new tab here; at Home, New, which picks the space first |
 | `ctrl-1…9`, `ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | Your nth space, not counting Home |
 | `cmd-alt-]` / `cmd-alt-[`, `ctrl-alt-shift-]` / `ctrl-alt-shift-[` | `t3-tabs.space-next` / `t3-tabs.space-prev` | The next or previous space, going around Home |
+| `cmd-1…9`, `ctrl-alt-1…9` | `t3-tabs.tab:<n>` | The nth tab the bar shows |
+| `cmd-shift-]` / `cmd-shift-[`, `ctrl-tab` / `ctrl-shift-tab`, `ctrl-alt-]` / `ctrl-alt-[` | `t3-tabs.tab-next` / `t3-tabs.tab-prev` | The next or previous tab the bar shows |
 | `cmd-p` | `mod.open:t3-picker` | Go to any pane by its name or program, or back (the same as Inbox's Search) |
 | `cmd-]` / `cmd-[` | `t3-chrome.next` / `t3-chrome.prev` | The next or previous agent. With Inbox showing, as T3's: the rows it draws, in its order (a folded shelf only its row in view), stopping at either end. With Lists showing, Herdr's `agent.next` / `agent.prev` |
 | `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
@@ -76,6 +78,7 @@ Herdr doesn't update mods or layouts from others, and adding this again would in
 - By hand: copy the same files over the old ones. Mods reload by themselves on save; no restart.
 - Kept: pins, folds, sort, the Settled shelf and settled agents. They live in `data/`, `shared.json` and terminal labels, not in the mod folders. Lost: your own edits to the overwritten files, including the focus ring color; set it again after overwriting the layout.
 - `keys.json` and the extras stay as they are; compare them with the repo only if the commit log mentions them. Commits marked `!` rename things (for example `refactor!: rename the layout and theme to herdr-t3`); follow what they rename.
+- With Inbox showing, the tab bar holds the agent in view and what's around it: add the `cmd-1…9`, `ctrl-alt-1…9`, `ctrl-tab`, `ctrl-shift-tab`, `cmd-shift-]`, `cmd-shift-[`, `ctrl-alt-]` and `ctrl-alt-[` lines from the repo's `keys.json` to your `layout:herdr-t3` section, or those keys will count tabs the bar hides.
 - Home is new: `mods/t3-home` comes with the other `mods/t3-*`, and the layout turns it on. Add the keys above to your `layout:herdr-t3` section, or `ctrl-1…9` will count Home. To keep moving on to the next card instead, remove `"home"` from `t3-inbox`'s props in the layout.
 - From before Focus became Inbox (`t3-focus` → `t3-inbox`): rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves), in `keys.json` change `t3-focus.settle` to `t3-inbox.settle`, then delete `mods/t3-focus`.
 - Actions and the Review bar moved out of `t3-tabs`: copy the new `mods/t3-actions` too (your actions are kept: they live in `shared.json`), and for Review overwrite `mods/pulls-review` with this repo's `extras/mods/pulls-review` and add `extras/mods/review` (below).
