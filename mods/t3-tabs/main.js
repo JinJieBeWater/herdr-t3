@@ -12,6 +12,18 @@ import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
 // The layout's lists leave it out and the keys that walk spaces go around it, so it takes no number. This mod answers for it
 // because the tab bar always shows; the sidebar, with its brand bar, can be hidden.
 const homeId = () => shared("t3-home.space");
+// Reads "Home", with a zero-width space nobody types: a space someone else calls Home is never taken for it, and being wrong would hide theirs.
+const HOME_NAME = "Home\u200b";
+let renaming = false;
+// The id is this computer's (shared.json) and the space the core's, so another window on that core finds Home by its name.
+function knowHome() {
+  const all = spaces(), known = all.find(s => s.id === homeId());
+  // A Home made before it had a name of its own.
+  if (known?.name === "Home" && !renaming) { renaming = true; run("space.rename", { id: known.id, name: HOME_NAME }); }
+  if (known) return;
+  const found = all.find(s => s.machine === null && s.named && s.name === HOME_NAME);
+  if (found) setShared("t3-home.space", found.id);
+}
 const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
 // spaces() catches up a frame or so after a command, so each step waits to see the one before.
 async function seen(cx, look) {
@@ -27,10 +39,11 @@ async function goHome(cx) {
   // Before this computer's layout is read, a Home that exists reads as missing.
   const here = machines().find(m => m.name === null);
   if (here && here.layout !== "ready") return;
+  knowHome();
   if (spaces().some(s => s.id === homeId())) return run("space.select", { id: homeId() });
   const before = new Set(spaces().map(s => s.id));
-  run("space.new", { name: "Home", machine: "", folder: home() });
-  const made = await seen(cx, () => spaces().find(s => !before.has(s.id) && s.name === "Home"));
+  run("space.new", { name: HOME_NAME, machine: "", folder: home() });
+  const made = await seen(cx, () => spaces().find(s => !before.has(s.id) && s.name === HOME_NAME));
   if (!made) return;
   setShared("t3-home.space", made.id);
   // A new space comes with a shell, and a space can't lose its last tab: the page goes in first.
@@ -324,6 +337,7 @@ export default class Tabs extends View {
   // the bar keeps; which agent it holds and where a close lands both read from it, so they can't disagree.
   // shortcut: it's gone after a restart, so Herdr's pick stands until a tab has been shown; upgrade if that matters.
   track() {
+    knowHome();
     const all = spaces(), space = all.find(s => s.active), tab = space?.tabs.find(c => c.active), home = atHome();
     const alive = (id) => all.some(s => s.tabs.some(c => c.id === id));
     const was = this.inView;

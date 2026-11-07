@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-07
 
+- Another window on the same core now finds your Home instead of making a second one and listing the first as a project. Home keeps looking like Home; a space of yours called Home is never taken for it.
 - `scripts/update.sh` updates an install with one command: it overwrites the layout and mods, merges `keys.json` and says which keys it replaced, and keeps the focus ring color, the theme and the Review and theme-export blocks. The Update section of the README says only that now; the old manual steps are gone.
 - Closing the agent in view when it's its space's only tab now goes straight to Home. It used to show another space's tab first for a moment, which could cost that agent its unread done.
 - A Settle or Snooze the core refuses no longer leaves `Settled, Undo` up for something that didn't happen, and an Undo the core refuses keeps its notice, so it can be pressed again.

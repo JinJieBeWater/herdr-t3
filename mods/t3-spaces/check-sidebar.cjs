@@ -2193,6 +2193,23 @@ for (const width of [208, 240, 256, 320, 480]) {
     key({ key: "p", key_char: "p", modifiers: {} });
     assert.equal(lit(), "priority");
   }
+  // Another window on the core finds Home by its own name, and nothing that only looks like it.
+  {
+    const f = fixture(256), list = f.spaces(), tabs = f.load("t3-tabs");
+    const place = (id, name, extra) => list.push({ id, name, named: true, active: false, machine: null, tabs: [], ...extra });
+    place("mine", "Home");
+    place("plain", "Home\u200b", { named: false });
+    place("far", "Home\u200b", { machine: "kvm" });
+    tabs.render(cx);
+    assert.equal(f.state["t3-home.space"], undefined, "a space someone calls Home, an unnamed one, another machine's: none is this Home");
+    place("h", "Home\u200b");
+    tabs.render(cx);
+    assert.equal(f.state["t3-home.space"], "h");
+    f.state["t3-home.space"] = "mine"; f.calls.length = 0;
+    tabs.render(cx); tabs.render(cx);
+    assert.deepEqual(plain(f.calls.filter(([name]) => name === "space.rename")), [["space.rename", { id: "mine", name: "Home\u200b" }]], "a Home made before gets the name, once");
+    assert.equal(f.state["t3-home.space"], "mine", "the Home it knows stays");
+  }
   // Home: a space of its own, in no list, and the keys that walk spaces go around it.
   {
     const f = fixture(256), list = f.spaces(), jobs = [], spawn = cx.spawn;
@@ -2211,12 +2228,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(made(), [], "too soon to tell: no second Home");
     f.scopes.get("t3-tabs").machines = machines;
     await say("home");
-    assert.deepEqual(made(), [["space.new", { name: "Home", machine: "", folder: "/home/test" }]]);
+    assert.deepEqual(made(), [["space.new", { name: "Home\u200b", machine: "", folder: "/home/test" }]]);
     // A slow core: past 2s it still counts as the Home it asked for, or it'd be an orphan in the lists.
     for (let i = 0; i < 100; i++) await tick();
     assert.equal(f.state["t3-home.space"], undefined, "not known until it's seen");
     // In the model's middle: its place doesn't change the keys' count or the spaces' rows.
-    const home = { id: "h", name: "Home", active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] };
+    const home = { id: "h", name: "Home\u200b", named: true, active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] };
     list[0].active = false; list.splice(1, 0, home);
     await tick();
     assert.equal(f.state["t3-home.space"], "h");

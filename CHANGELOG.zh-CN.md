@@ -4,6 +4,7 @@
 
 ## 2026-11-07
 
+- 同一 core 的另一个窗口现在能认出已有的 Home，不再另建一个、并把原来的当作项目列出来。Home 看起来没有变化；你自己叫 Home 的 space 不会被认作它。
 - `scripts/update.sh` 用一条命令更新已安装的布局：覆盖布局和 mod，合并 `keys.json` 并说明替换了哪些键，保留聚焦边框颜色、主题、Review 和主题导出的块。README 的「更新」一节改为只讲这个，旧的手动步骤已删除。
 - 关掉正在看的 agent 时，如果它是所在 space 唯一的标签，现在会直接回到 Home。以前会先短暂显示别的 space 的标签，可能让那里的 agent 丢掉未读的 done。
 - core 拒绝写入时，Settle 或 Snooze 不再留下 `Settled, Undo` 提示；Undo 写入失败时，提示也会保留，可以再点一次。
