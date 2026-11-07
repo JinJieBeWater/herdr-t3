@@ -65,13 +65,15 @@ const posters = {
   actions() {
     accent("#4fd17a", "#6b93ff", "70%", "30%");
     // The window with the run's tool output cut out of its pane, so it opens on the findings.
-    const s = 1200 / W, top = 300, from = 950, gap = from - 165, cut = H, skip = 0;
+    const s = 1200 / W, top = 300, from = 235, gap = from - 165, cut = H, skip = 0;
     const win = shot("actions.png", { w: W, h: 1400, left: 60, top, cssW: 1200, style: "background: #1e1e2e;" });
     win.style.backgroundImage = "none";
     const piece = (x, y, w, h, l, t) => { const p = document.createElement("div"); p.style.cssText = "position:absolute;left:" + l * s + "px;top:" + t * s + "px;width:" + w * s + "px;height:" + h * s + "px;background:url(../actions.png) " + -x * s + "px " + -y * s + "px / " + W * s + "px " + H * s + "px no-repeat;"; win.append(p); };
     piece(0, 0, W, 165, 0, 0);
     piece(0, 165, 563, 1235, 0, 165);
-    piece(563, from, W - 563, cut - from, 563, 165);
+    // Right of x 2700 (the open menu starts at 2728, a word gap before it) the shot has the open menu down to y 430, and a line under its edge: that part starts below both, as the menu is drawn larger on its own.
+    piece(563, from, 2700 - 563, cut - from, 563, 165);
+    piece(2700, 460, W - 2700, cut - 460, 2700, 460 - gap);
     piece(563, cut + skip, W - 563, H - cut - skip, 563, cut - gap);
     win.style.overflow = "hidden";
     // The window's buttons, which a shot leaves out.

@@ -27,7 +27,7 @@ up() {
     "$D/xdg/config" "$D/xdg/state" "$D/xdg/data" "$D/xdg/run" "$D/xdg/cache"
   printf '[user]\n\tname = Avery Chen\n\temail = avery@example.com\n[init]\n\tdefaultBranch = main\n' > "$H/.gitconfig"
 
-  # Pi itself, with a config of its own: one provider, no extensions, no packages.
+  # Pi itself, with a config of its own: one provider and, from the pi-stuff clone, pi-herdr-theme, so Pi wears the window's colors.
   pi=$(realpath "$HOME/.bun/bin/pi" 2>/dev/null || realpath "$(command -v pi)")
   ln -s "$pi" "$H/.bun/bin/pi"; ln -s "$pi" "$H/.local/bin/pi"
   ln -s "$(realpath "$(command -v jin.review)")" "$H/.local/bin/jin.review"
@@ -35,7 +35,7 @@ up() {
   # Copies, for /retro: a skill it reads shows on screen by its path.
   mkdir -p "$H/.agents/skills"; cp -RL "$HOME/.agents/skills/retro" "$HOME/.agents/skills/writing-for-agents" "$H/.agents/skills/"
   jq -n --arg s "$H/.agents/skills" '{defaultProvider: "opencode-go", defaultModel: "deepseek-v4.1-flash", defaultThinkingLevel: "high", hideThinkingBlock: true,
-    skills: [$s + "/retro", $s + "/writing-for-agents"]}' > "$H/.pi/agent/settings.json"
+    skills: [$s + "/retro", $s + "/writing-for-agents"], theme: "herdr", packages: [$t]}' --arg t "${PI_HERDR_THEME:-$H/code/pi-stuff/packages/pi-herdr-theme}" > "$H/.pi/agent/settings.json"
   # jin.review's daemon, in English, analyzing with that pi.
   echo '{ "locale": "en", "llm": { "provider": "local-agent", "agent": "pi", "agentModel": "" } }' > "$H/.pulls.review/shared-settings.json"
   for a in claude codex pi; do ln -s "$src/scripts/demo/fake-agent" "$D/bin/$a"; done
@@ -88,9 +88,10 @@ SWIFT
   [ -z "$back" ] || "$W" window focus "$back" >/dev/null
 }
 
-# The layout, plus the stagehand in a 0px block; `layout review` adds the Review bar, as its README says.
+# The layout, plus the stagehand and t3-theme-export (for pi-herdr-theme) in 0px blocks; `layout review` adds the Review bar, as its README says.
 layout() {
   jq --arg r "${1-}" '(.. | objects | select(.id? == "work-bottom-inset") | .children) += [{ "id": "stage", "type": "block", "size": { "px": 0 }, "content": { "mod": "demo-stage" } }]
+    | (.. | objects | select(.id? == "work") | .children) += [{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }]
     | if $r == "review" then (.. | objects | select(.id? == "tabs-row") | .children) |= (.[0:1] + [{ "id": "review", "type": "block", "size": { "px": 0 }, "window_drag": true, "content": { "mod": "pulls-review", "props": { "block": "review" } } }] + .[1:]) else . end' \
     "$src/layouts/herdr-t3.json" > "$A/layouts/herdr-t3.json"
 }
@@ -101,7 +102,7 @@ install_app() {
   layout
   cp "$src/layouts/herdr-t3.svg" "$A/layouts/"; cp "$src"/extras/themes/*.json "$A/themes/"; cp "$src/keys.json" "$A/"
   cat > "$A/settings.json" <<EOF
-{ "appearance": "dark", "theme": "catppuccin-mocha", "font": "Geist Mono", "font_size": 12, "ui_font": "Geist", "zoom": 1.1,
+{ "appearance": "dark", "theme": { "light": "catppuccin-latte", "dark": "catppuccin-mocha" }, "font": "Geist Mono", "font_size": 12, "ui_font": "Geist", "zoom": 1.1,
   "minimum_contrast": 3, "sounds": { "enabled": false } }
 EOF
   cat > "$A/shared.json" <<'EOF'
