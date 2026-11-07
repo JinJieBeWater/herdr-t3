@@ -79,6 +79,17 @@ const shown = (list) => list.items.map((n) => [n.key, n.style.top]);
   assert.deepEqual(shown(list(25)).length, 6, "a row since gone doesn't scroll it past the end");
 }
 
+// The row the pointer lit, half in view, doesn't move the list from under the pointer; a key still brings its row into view.
+{
+  const v = { scrollTop: { l: 5 } }, list = (at) => scrollList(v, "l", { count: 20, row: 10, at, height: 60, draw, wheeled() {} });
+  list(-1).handlers.on_mouse_move({ local_position: { y: 58 * zoom } }, cx);
+  assert.deepEqual(shown(list(6)).at(-1), [6, 55], "lit by the pointer: no move");
+  assert.deepEqual(shown(list(7)).at(-1), [7, 50], "by a key: into view");
+  list(7).handlers.on_hover(false, cx);
+  v.scrollTop.l = 5;
+  assert.deepEqual(shown(list(6)).at(-1), [6, 50], "the pointer gone, the lit row comes into view");
+}
+
 // Not known, it's measured, in zoomed pixels: every row until then, none scrolled.
 {
   const v = {}, list = () => scrollList(v, "l", { count: 20, row: 10, at: 9, draw, wheeled() {} });

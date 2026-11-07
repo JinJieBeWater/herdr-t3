@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- Moving the pointer over a popup list that scrolls, as New and Go to, no longer scrolls it: a row half in view at the top or bottom stays put when the pointer lights it. The keys still bring the highlight into view.
 - The README is short now: what this is, why, how to install and start. The full feature list, every key, what an update keeps and the known limits moved to [the guide](docs/user/guide.md), and the extras to [their own page](docs/user/extras.md).
 - The house button is gone from the top of the sidebar. In its place, past the window buttons, Herdr's logo and name, where Herdr's own layout has them, take you Home: the logo dimmed and set apart from the window buttons, the name muted. They're lit while you're there. The window buttons sit 1pt higher, on the bar's middle line.
 

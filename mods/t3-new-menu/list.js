@@ -35,7 +35,9 @@ export function menuJump(view, e, labels, at) {
 export function scrollList(view, id, { count, row, at = -1, height, draw, wheeled }) {
   const seen = height ?? view.listHeight?.[id], max = seen === undefined ? 0 : Math.max(0, count * row - seen);
   let top = Math.max(0, Math.min(view.scrollTop?.[id] ?? 0, max));
-  if (at >= 0 && at < count && seen !== undefined) top = Math.max(0, Math.min(top, at * row, max), (at + 1) * row - seen);
+  // The row the pointer lit stays where it is: brought wholly into view, the row under the pointer changes and the list follows the pointer.
+  const pointed = view.pointerY?.[id] === undefined ? -1 : Math.floor((view.pointerY[id] + top) / row);
+  if (at >= 0 && at < count && at !== pointed && seen !== undefined) top = Math.max(0, Math.min(top, at * row, max), (at + 1) * row - seen);
   view.scrollTop = { ...view.scrollTop, [id]: top };
   const first = seen === undefined ? 0 : Math.floor(top / row), end = seen === undefined ? count : Math.min(count, Math.ceil((top + seen) / row));
   const rows = [];
@@ -46,6 +48,8 @@ export function scrollList(view, id, { count, row, at = -1, height, draw, wheele
       const h = size.height / (Number(settings()?.zoom) || 1);
       if (h !== seen) { view.listHeight = { ...view.listHeight, [id]: h }; cx.notify(); }
     }))
+    .on_mouse_move((e) => { view.pointerY = { ...view.pointerY, [id]: e.local_position.y / (Number(settings()?.zoom) || 1) }; })
+    .on_hover((on) => { if (!on) view.pointerY = { ...view.pointerY, [id]: undefined }; })
     // From the scroll as it is now: a trackpad sends several events between two renders.
     .on_scroll_wheel((e, cx) => {
       // Herdr hands a wheel to what's under a popup too.
