@@ -517,7 +517,7 @@ export default class Tabs extends View {
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
           .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-close.svg").size(16) : svg("mods/t3-tabs/icons/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));
     const space = spaces().find(p => p.active);
-    // At Home, none: its place is told by the brand bar's button and its pane's header.
+    // At Home, none: the brand bar's lit mark tells where this is.
     if (!props()?.part) this.track();
     const shown = this.visibleTabs(), inbox = inboxShown();
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.

@@ -321,8 +321,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
   assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
-  assert.deepEqual([...header.items[0].items.map(n => n.key), header.items[1].key], ["tip-home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Home, the sidebar switch and toggle; search is a shortcut");
-  assert.deepEqual([header.style.pr, header.style.gap, find(header, "home").style.size, find(header, "home").style.rounded, header.items[0].style.gap], [8, undefined, 28, 8, undefined], "T3's 28px buttons, side by side so they stand over the list's top row");
+  assert.deepEqual(header.items.map(n => n.key).filter(k => typeof k === "string"), ["home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Herdr's mark (Home, no tooltip), the sidebar switch and toggle; search is a shortcut");
+  assert.ok(walk(find(header, "home")).some(n => n.kind === "image") && strings(find(header, "home")).includes("Herdr"), "Herdr's mark and name, as its own layout has them");
+  assert.deepEqual([header.style.pl, header.style.pr, find(header, "sidebar-mode").style.size, find(header, "sidebar-mode").style.rounded], [76, 8, 28, 8], "past the window buttons; T3's 28px buttons, side by side so they stand over the list's top row");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
   const footer = f.load("t3-chrome", { footer: true });
@@ -2253,11 +2254,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.ok(!f.calls.some(([name]) => name === "space.move"), "and the rows' order still counts it: nothing moves");
     f.calls.length = 0;
 
-    // At Home the bar is empty, the button says so, and what the bar's keys would do elsewhere stays out of it.
+    // At Home the bar is empty, Herdr's mark is lit and goes there, and what the bar's keys would do elsewhere stays out of it.
     const strip = f.load("t3-tabs", { part: "strip" }).render(cx);
     assert.equal(find(strip, "tab-page"), null, "no tab");
     assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new"), null, "no +");
-    assert.equal(find(f.load("t3-chrome").render(cx), "home").style.bg, f.theme().selected);
+    const mark = () => find(f.load("t3-chrome").render(cx), "home");
+    assert.deepEqual([mark().style.text_color, walk(mark()).find(n => n.kind === "image").style.opacity, mark().style.bg], [f.theme().foreground, 1, undefined], "lit at Home, without a background");
     fire(find(f.load("t3-chrome").render(cx), "home"), "on_click", {}, cx);
     assert.deepEqual(made(), [["t3-tabs.home", {}]]);
     await say("new");
@@ -2301,7 +2303,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.equal(f.state["t3-focus"], null);
     }
 
-    // Its pane's header says nothing of it: the brand bar's button tells where this is.
+    // Its pane's header says nothing of it: the brand bar's lit mark tells where this is.
     const panes = f.panes();
     panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "t3-home" });
     assert.ok(!strings(f.load("t3-pane", { pane: "ph" }).render(cx)).includes("t3-home"));

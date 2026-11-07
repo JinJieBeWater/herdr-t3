@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-08
+
+- The house button is gone from the top of the sidebar. In its place, past the window buttons, Herdr's logo and name, where Herdr's own layout has them, take you Home: the logo dimmed and set apart from the window buttons, the name muted. They're lit while you're there. The window buttons sit 1pt higher, on the bar's middle line.
+
 ## 2026-11-07
 
 - Another window on the same core now finds your Home instead of making a second one and listing the first as a project. Home keeps looking like Home; a space of yours called Home is never taken for it.

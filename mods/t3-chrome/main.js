@@ -1,6 +1,6 @@
-import { View, div, svg } from "gpui-kit";
+import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { theme, run, props, updates, layout, shared, spaces } from "herdr";
+import { theme, run, props, updates, layout, shared, spaces, window, settings } from "herdr";
 import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 
@@ -60,26 +60,32 @@ export default class WorkspaceChrome extends View {
     }
     // Room for the macOS window buttons (layout traffic_lights), a place to drag the window, and the
     // sidebar toggle at its right edge; while the sidebar is hidden, t3-tabs shows it after the buttons.
-    const inbox = inboxShown();
-    // Lit while there: with no tabs showing, it says where this is.
-    const atHome = spaces().some((s) => s.active && s.id === shared("t3-home.space"));
-    // T3's 28px title bar buttons, side by side instead of its 12 apart, so each stands over a button of the list's top row below.
-    return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pr(8).items_center().justify_end()
-      .child(h_flex().flex_none().items_center()
-      .child(tip(this, t, "home", "Home", stop(this, t, "home", div().id("home").size(28).flex_none().flex().items_center().justify_center().rounded(8)
-        .text_color(atHome ? t.foreground : lit("home")).hover(s => s.bg(t.hover)).on_hover(glow(this, "home"))
-        .when(atHome, (el) => el.bg(t.selected))
+    const inbox = inboxShown(), w = window();
+    // Herdr's mark and name where its own layout has them, past the macOS window buttons; a click goes Home, which has no
+    // button of its own. Its colours are louder than anything else here, so it waits at 70% and its name is muted, both lit
+    // on hover like the buttons. As T3's, no tooltip. The window buttons are screen points, unzoomed: the last ends at 68
+    // (traffic_lights x 16, three 12s 8 apart), and the logo's tile shows 16pt from it, less the PNG's 2 of clear edge and
+    // this button's 6 in. Short of room the name gives way, never the buttons.
+    const left = w?.platform === "macos" && !w?.fullscreen ? (68 + 16 - 2) / (settings().zoom || 1) - 6 : 8, on = this.hot === "home"
+      // Lit at Home too: its tab bar is empty and its panes may be anyone's, so this says where you are.
+      || spaces().some((s) => s.active && s.id === shared("t3-home.space"));
+    return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pl(left).pr(8).items_center()
+      .child(stop(this, t, "home", h_flex().id("home").h(28).min_w(0).px(6).gap(8).items_center().rounded(8)
+        .text_size(14).font_medium().text_color(on ? t.foreground : t.muted).hover(s => s.bg(t.hover)).on_hover(glow(this, "home"))
         .role("button").accessibility_label("Home")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.home"))
-        .child(svg("mods/t3-chrome/icons/house.svg").size(14)), 8), { action: "t3-tabs.home", below: true }))
+        .child(image("frame/welcome/herdr.png").size(20).flex_none().rounded(5).opacity(on ? 1 : 0.7))
+        .child(div().min_w(0).truncate().child("Herdr")), 8))
+      .child(div().flex_1())
+      // T3's 28px title bar buttons, side by side instead of its 12 apart, so each stands over a button of the list's top row below.
       .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-mode"))
         .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.sidebar"))
         // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
-        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true })))
+        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true }))
       .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
