@@ -176,7 +176,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       ], { hide: Boolean(view.hot) }).ml(4)));
   };
 
-  const row = (a, i, subs = [], ghost) => {
+  const row = (a, _i, subs = [], ghost) => {
     const pic = icon(a.program, 16, t.foreground);
     const more = detail.get(a.address);
     // An agent on another machine (`vps/t7`) says which.

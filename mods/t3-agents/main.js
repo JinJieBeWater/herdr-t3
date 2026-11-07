@@ -190,7 +190,7 @@ export default class Agents extends View {
     const pinned = this.pins.map((p) => list.find((a) => a.address === p)).filter(Boolean);
     const rest = list.filter((a) => !this.pins.includes(a.address));
     list = [...pinned, ...rest];
-    const groups = pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : [];
+    const groups = /** @type {any[]} */ (pinned.length ? [{ id: "pinned", label: "Pinned", status: null, members: pinned }] : []);
     for (const a of rest) {
       const r = rankOf(a) || RANK.idle;
       const id = byPriority ? `sec-${r}` : `sp-${a.space}`;
@@ -229,7 +229,7 @@ export default class Agents extends View {
     const gone = this.hovered;
     if (gone && !entries.some((e) => e.key === gone)) {
       this.hovered = this.hot = null;
-      this.detailsWait?.cancel();
+      /** @type {any} */ (this).detailsWait?.cancel();
       if (this.details === gone) this.details = null;
       if (this.detailsOut === gone) this.detailsOut = null;
     }

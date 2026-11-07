@@ -22,7 +22,7 @@ export default class PullsReview extends View {
     }
   }
 
-  close() { if (this.search) menuClosed(); }
+  close() { if (/** @type {any} */ (this).search) menuClosed(); }
 
   render() {
     const p = props() ?? {};

@@ -113,7 +113,7 @@ const env = {
   // Paths build into nothing here; painting one is an element like any other.
   PathBuilder: (() => { const chain = new Proxy({}, { get: () => () => chain }); return { stroke: () => chain, fill: () => chain }; })(),
   window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search commits" ? commitField : field },
-  v_virtual_list: (_id, count, sizes, key, render) => { assert.equal(sizes.length, count); render({ start: 0, end: count }).forEach(Boolean); return element(); },
+  v_virtual_list: (_id, count, sizes, _key, render) => { assert.equal(sizes.length, count); render({ start: 0, end: count }).forEach(Boolean); return element(); },
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => calls.push(["scroll", i]) }) },
   TextView: { markdown: element },
   panes: () => [{ pane: "p9", mod: "review", tab: "b", zoomed: false }], focused: () => ({ tab: "b" }),

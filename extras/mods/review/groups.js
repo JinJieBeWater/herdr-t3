@@ -115,6 +115,7 @@ export function donut(t, value) {
  * tab is the one shown (raised a pixel, on a shadow). Its category icon (grey until shown), label and critical mark over
  * its counts; its progress as a donut; with subgroups and a `toggle`, a caret that opens them.
  */
+/** @param {any} view @param {any} t @param {string} id @param {any} g @param {{ active?: boolean, expanded?: boolean, toggle?: any, pick: any }} options */
 function groupTab(view, t, id, g, { active = false, expanded = false, toggle, pick }) {
   const [, darkHue, lightHue] = CATEGORY[g.category] ?? CATEGORY.other, hue = isLight(t.background) ? lightHue : darkHue;
   const stats = groupStats(view, g), subgroups = g.children?.length ?? 0, critical = g.critical || (g.children ?? []).some(c => c.critical);

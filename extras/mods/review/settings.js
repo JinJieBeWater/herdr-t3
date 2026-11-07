@@ -1,9 +1,9 @@
 import { div, svg, image } from "gpui-kit";
-import { v_flex, h_flex, Switch } from "gpui-base";
+import { h_flex, Switch } from "gpui-base";
 import { exec, window as appWindow } from "herdr";
 import { request } from "./daemon.js";
 import { scrollList } from "./list.js";
-import { PANE, LU, HOVER, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, isLight, pickMark, searchField, popover } from "./controls.js";
+import { PANE, HOVER, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, isLight, pickMark, searchField, popover } from "./controls.js";
 
 const sunken = (t) => isLight(t.background) ? "#0000000a" : "#ffffff0f", raised = (t) => isLight(t.background) ? "#ffffffa6" : "#00000099";
 

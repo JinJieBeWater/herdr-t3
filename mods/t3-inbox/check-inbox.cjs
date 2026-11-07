@@ -382,7 +382,7 @@ test("Settle in view moves down the cards, then from the top", () => {
 });
 
 test("times read as T3's", () => {
-  const f = fixture(), a = f.add("A", "working"), b = f.add("B", "working"); f.mod.workOpen = true;
+  const f = fixture(); f.add("A", "working"); const b = f.add("B", "working"); f.mod.workOpen = true;
   f.render(); f.render(1000 + 3720000);
   assert.deepEqual(texts(find(f.tree, "state-A")).slice(-2), ["1h", "2m"]);
   b.status = "idle"; f.render(4000000); f.render(4002000);

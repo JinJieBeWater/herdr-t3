@@ -103,8 +103,8 @@ export default class Menu extends View {
       });
   }
 
-  choose(i, cx) {
-    const it = items(props(), this.git)[i];
+  choose(i, _cx) {
+    const it = /** @type {any} */ (items(props(), this.git)[i]);
     if (!it) return;
     closeOverlay(props()?.overlay);
     if (it[1] === "worktree") openOverlay({ mod: "worktree", kind: "dialog", ...(it[2].action === "open" ? { width: 560, height: 480 } : { width: 440, height: 260 }), props: it[2] });
@@ -114,7 +114,7 @@ export default class Menu extends View {
     else run(it[1], it[2]);
   }
 
-  render(cx) {
+  render() {
     const t = theme();
     const list = items(props(), this.git);
     return v_flex()

@@ -1530,7 +1530,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       const at = (dir, on = null) => JSON.stringify([on, dir]);
       const looks = [], watches = [];
       let hold = null, away = null;
-      scope.exec = async (cmd, args, { cwd, on }) => {
+      scope.exec = async (_cmd, args, { cwd, on }) => {
         if (args.includes("status")) looks.push(cwd);
         if (on) await away;
         if (args.includes("status")) await hold;
@@ -1625,7 +1625,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.equal(f.state["space.icons"][key("/old")], "cache/t3-icons/y.svg");
       // Agents draws beside Spaces, which keeps asking: it asks only where nobody has answered (a worktree has no mark in Spaces).
       const ag = f.load("t3-agents"), asks = [];
-      f.scopes.get("t3-agents").exec = async (cmd, args, { cwd }) => { if (args.includes("--show-toplevel")) asks.push(cwd); return { code: 1, stdout: "", stderr: "" }; };
+      f.scopes.get("t3-agents").exec = async (_cmd, args, { cwd }) => { if (args.includes("--show-toplevel")) asks.push(cwd); return { code: 1, stdout: "", stderr: "" }; };
       delete f.state["space.icons"][JSON.stringify(["vps", "/work/s2"])];
       ag.render(cx);
       await flush();
@@ -2434,7 +2434,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.terminals().splice(0, f.terminals().length, ...list);
     f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
     f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
-    const view = f.load("t3-tabs"), pane = id => f.panes().find(p => p.pane === `p${id}`), zooms = () => f.calls.filter(([name]) => ["pane.zoom", "pane.focus"].includes(name));
+    const view = f.load("t3-tabs"), zooms = () => f.calls.filter(([name]) => ["pane.zoom", "pane.focus"].includes(name));
     const frame = (tab, on, zoomed) => {
       tabs.forEach(c => { c.active = c.id === tab; });
       f.panes().forEach(p => { p.focused = p.pane === `p${on}`; p.zoomed = p.pane === `p${zoomed}`; });
@@ -2481,7 +2481,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const labels = () => f.labelled.map(a => a.join(" "));
     f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
 
-    let [a, n] = setup();
+    let [, n] = setup();
     pick("mine", "A"); exit("mine", "next");
     assert.deepEqual(labels(), [], "nothing while it's still on screen");
     pick("prog");
@@ -2489,7 +2489,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     pick("prog");
     assert.deepEqual(labels(), ["label N herdr.seen=0"], "once");
 
-    [a, n] = setup(); n.labels.snoozed = "1";
+    [, n] = setup(); n.labels.snoozed = "1";
     pick("mine", "A"); exit("mine", "next"); delete n.labels.snoozed; pick("prog");
     assert.deepEqual(labels(), ["label N herdr.seen=0", "label N snoozed=1"], "a woken snooze the showing cleared comes back too");
 

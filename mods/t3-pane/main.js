@@ -74,7 +74,7 @@ export default class Pane extends View {
       .child(svg(icon).size(14)), 8), { action: key });
   }
 
-  render(cx) {
+  render() {
     const t = theme();
     const p = this.me();
     if (!p) return div();

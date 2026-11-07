@@ -95,7 +95,7 @@ export default class Picker extends View {
   render() {
     const t = theme(), ps = panes(), items = this.items();
     // Opens on Back, else where you are.
-    if (this.at === null) this.at = Math.max(0, items.findIndex((r) => r.back || r.here));
+    if (this.at === null) this.at = Math.max(0, items.findIndex((r) => /** @type {any} */ (r).back || r.here));
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);

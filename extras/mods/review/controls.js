@@ -62,7 +62,7 @@ export function checkMark(t, state) {
 
 // The pane's buttons, text or icon, share one 24px height so a toolbar's controls line up.
 // As the app's ActionButton: bordered, faded until hovered (`btn-action`); `primary` filled; `note` dim words after the label.
-export function button(t, id, label, action, { color, icon, after, primary, spin, note } = {}) {
+export function button(t, id, label, action, { color, icon, after, primary, spin, note } = /** @type {{ color?: any, icon?: any, after?: any, primary?: boolean, spin?: any, note?: any }} */ ({})) {
   // As T3's xs button: 7 in past its border.
   return h_flex().id(id).h(24).px(7).gap(4).flex_none().items_center().rounded(8).text_size(12).font_medium().border_1()
     .when(!primary, el => el.border_color(t.border).text_color(color ?? t.foreground).opacity(0.75).hover(s => s.opacity(1).bg(HOVER)))
@@ -76,7 +76,7 @@ export function button(t, id, label, action, { color, icon, after, primary, spin
 
 // As T3's icon-sm in DiffPanel's header (`size` 24: its icon-xs, beside an xs button), faded until hovered as the app's
 // ActionIconButton; `active` (its popup open) on the active tone.
-export function iconButton(t, id, icon, label, action, { color, spin, disabled, active, size = 28 } = {}) {
+export function iconButton(t, id, icon, label, action, { color, spin, disabled, active, size = 28 } = /** @type {{ color?: any, spin?: any, disabled?: any, active?: any, size?: number }} */ ({})) {
   return div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(color ?? t.foreground)
     .when(Boolean(disabled), el => el.opacity(DISABLED))
     .when(!disabled, el => el.opacity(active ? 1 : FADED).when(Boolean(active), el => el.bg(ACTIVE)).hover(s => s.opacity(1).bg(HOVER)))

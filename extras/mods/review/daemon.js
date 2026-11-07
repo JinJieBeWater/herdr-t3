@@ -37,7 +37,7 @@ export async function request(root, method, path, body) {
   catch { r = await call(await connect(root, true), method, path, body); }
   if (r.status === 401) r = await call(await connect(root, true), method, path, body);
   if (!r.ok) throw new Error((await r.text()).trim() || `jin.review answered ${r.status}`);
-  return r.json();
+  return /** @type {Promise<any>} */ (r.json());
 }
 
 /** POSTs to the review API, which names the worktree in the body. */

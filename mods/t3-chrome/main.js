@@ -1,5 +1,5 @@
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex } from "gpui-base";
+import { h_flex } from "gpui-base";
 import { theme, run, props, updates, layout, shared, spaces } from "herdr";
 import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";

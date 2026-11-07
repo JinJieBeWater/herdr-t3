@@ -389,7 +389,7 @@ export function reviewBar(view, t, stop) {
   // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
   // The block ends where the bar does, so the logo, last, stays put as the counts come and go.
   return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stop)
-    .children(segments.flatMap((s, i) => [item(s, i === 0), div().w(1).h(22).flex_none().bg(t.border)]))
+    .children(segments.flatMap((s, i) => [item(/** @type {any} */ (s), i === 0), div().w(1).h(22).flex_none().bg(t.border)]))
     // Stays with no counts: on a clean default branch it's the only way in.
     .child(tip(view, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).w(segments.length ? 23 : 22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")

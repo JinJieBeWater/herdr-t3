@@ -11,7 +11,7 @@ const FILE_ICONS = [[/\.vue$/, "vue"], [/\.tsx$/, "typescript-react"], [/\.jsx$/
   [/\.[cm]?ts$/, "typescript"], [/\.[cm]?js$/, "javascript"], [/\.json5?$/, "json"], [/\.ya?ml$/, "yaml"], [/\.toml$/, "toml"], [/\.md$/, "markdown"],
   [/\.html?$/, "html"], [/\.(?:css|postcss)$/, "css"], [/\.s[ac]ss$/, "sass"], [/\.svg$/, "svg"], [/\.(?:png|jpe?g|gif|webp|avif|ico)$/, "image"],
   [/\.(?:woff2?|ttf|otf|eot)$/, "font"], [/package\.json$/, "npm"], [/\.(?:test|spec)\.[cm]?[jt]sx?$/, "typescript-test"]];
-const fileIcon = (path) => FILE_ICONS.find(([match]) => match.test(path))?.[1] ?? "file";
+const fileIcon = (path) => FILE_ICONS.find(([match]) => /** @type {RegExp} */ (match).test(path))?.[1] ?? "file";
 const FOLDER_ICONS = { src: "folder-src", dist: "folder-dist", node_modules: "folder-node", test: "folder-tests", tests: "folder-tests", public: "folder-public",
   components: "folder-components", utils: "folder-utils", config: "folder-config", assets: "folder-images", scripts: "folder-scripts", styles: "folder-styles", lib: "folder-lib" };
 // A chain of folders (`packages/cli/src`) is named by its last. Always closed, as the app's FileTree draws them.

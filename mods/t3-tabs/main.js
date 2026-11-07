@@ -155,9 +155,9 @@ export default class Tabs extends View {
         // Here because the tab bar always shows; the brand bar goes with the sidebar.
         else if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
         else if (command === "settle") await this.settle(cx);
-        else if (command === "undo") await this.undo(cx);
+        else if (command === "undo") await this.undo();
         // New work doesn't start in Home: New picks its space.
-        else if (command === "new") run(...(atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
+        else if (command === "new") run(.../** @type {[string, any?]} */ (atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
         else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)), this.trail);
         else if (command === "space-next") walkSpaces(1, this.trail);
         else if (command === "space-prev") walkSpaces(-1, this.trail);
@@ -536,9 +536,9 @@ export default class Tabs extends View {
       // have measured its anchor before the frame a label starts to fade in. It says the status too, as × covers the mark while it shows.
       // Only what the tab isn't showing: a name cut short or that status. Not yet measured counts as cut.
       const says = status || !(widths.get(c.id) >= Math.ceil(this.nameW[c.id]) + TAB_CHROME);
-      const cardShown = this.details === c.id && this.detailsIn && !this.hot, cardFade = { duration: 150, easing: "ease-out" };
+      const cardShown = /** @type {any} */ (this).details === c.id && /** @type {any} */ (this).detailsIn && !this.hot, cardFade = /** @type {const} */ ({ duration: 150, easing: "ease-out" });
       const details = Popup.new(`details-${c.id}`, div()).absolute().bottom(0).left(6 + 16 + 2 - (1 + 8)).size(1)
-        .when((this.details === c.id && this.pressed === null) || this.detailsOut === c.id, pop => pop.content(div().id(`details-card-${c.id}`)
+        .when((/** @type {any} */ (this).details === c.id && this.pressed === null) || /** @type {any} */ (this).detailsOut === c.id, pop => pop.content(div().id(`details-card-${c.id}`)
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).text_color(t.foreground)
           .opacity(cardShown ? 1 : 0).top(cardShown ? 0 : -4).transition("opacity", cardFade).transition("top", cardFade)
           .child(status ? `${name} · ${WORDS[status]}` : name)));
@@ -592,7 +592,7 @@ export default class Tabs extends View {
           .when(over, el => el.child(svg("mods/t3-tabs/icons/x.svg").size(12).text_color(t.foreground)))
           .when(!over && status != null, el => el.child(mark(t, status)))
           .when(over, el => stop(this, t, closeId, el, 4)), { action: c.active ? "t3-tabs.close-tab" : undefined, below: true, delay: 500 }))
-        .when([this.overTab, this.details, this.detailsOut].includes(c.id), el => el.child(details));
+        .when([this.overTab, /** @type {any} */ (this).details, /** @type {any} */ (this).detailsOut].includes(c.id), el => el.child(details));
       // A tab goes by its mouse-up, which a key isn't.
       return stop(this, t, tabId, tab, 6, { enter: () => run("tab.select", { id: c.id }) });
     };

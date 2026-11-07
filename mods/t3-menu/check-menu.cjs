@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const el = () => new Proxy({}, { get: (o, k) => (k === "when" ? (c, f) => (c ? f(p) : p) : () => p) }), p = el();
+const el = () => new Proxy({}, { get: (_o, k) => (k === "when" ? (c, f) => (c ? f(p) : p) : () => p) }), p = el();
 let target = {}, calls = [];
 const context = vm.createContext({
   View: class {}, div: el, svg: el, v_flex: el, h_flex: el,

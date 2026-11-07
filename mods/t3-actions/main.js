@@ -241,7 +241,7 @@ export default class Actions extends View {
 
   close() {
     stopsEnd(this);
-    if (this.keys) setShared(MENU_CLOSED, Date.now());
+    if (/** @type {any} */ (this).keys) setShared(MENU_CLOSED, Date.now());
   }
 
   render() {

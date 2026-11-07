@@ -298,7 +298,7 @@ export default class Spaces extends View {
     }
     // Grouped by repo, as T3's projects, so closing a checkout doesn't scatter its worktrees. One alone isn't worth a row over it.
     const nested = (r) => r.g?.linked && (mains.has(r.g.repo) || worktrees(r.g.repo).length > 1);
-    const out = [];
+    const out = /** @type {any[]} */ ([]);
     const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
     const hang = (top) => {
       const kids = worktrees(top.g.repo), folded = this.foldedRepos.has(top.g.repo);
@@ -539,7 +539,7 @@ export default class Spaces extends View {
       .when(!on && !this.drag?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
       // Held by its space and where it was drawn: a move under it doesn't change what's lifted.
       .on_mouse_down("left", (e) => {
-        this.drag = { id: w.id, key: rowId, at: e.position, top: this.motion?.at.get(rowId)?.y ?? 0, moved: false };
+        this.drag = { id: w.id, key: rowId, at: e.position, top: /** @type {any} */ (this).motion?.at.get(rowId)?.y ?? 0, moved: false };
       })
       // A press that never became a drag is a click.
       .on_mouse_up("left", (_e, cx) => {
@@ -628,7 +628,7 @@ export default class Spaces extends View {
     this.drag = null;
     if (d?.drawn) {
       this.landed = { key: d.key, y: d.y };
-      const l = this.lift(this.rows, d.key), index = back || !l ? null : this.dest(l, d);
+      const l = this.lift(this.rows, d.key), index = back || !l ? null : this.dest(l, /** @type {any} */ (d));
       if (index) {
         run("space.move", { id: d.id, index });
         this.landing = { key: d.key, slot: d.slot, at: Date.now() };
@@ -684,7 +684,7 @@ export default class Spaces extends View {
             // The layout's menu asks which machine, as its mod.json places it; the shipped one can't, so docked alone it's the active space's.
             const closing = justClosed(this, `${props()?.newMenu}.pickClosed`);
             if (!asks) run("space.new");
-            else if (!closing) openOverlay({ mod: props().newMenu, kind: "popup", frame: "none", at: "top", offset: 96, width: 576, height: 420, props: { pick: true } });
+            else if (!closing) openOverlay({ mod: props().newMenu, kind: "popup", frame: "none", at: /** @type {any} */ ("top"), offset: 96, width: 576, height: 420, props: { pick: true } });
             cx.notify();
           }, { action: asks ? null : "space.new" }))
           .child(tool("space-new-tab", "New tab", "square-pen", (_e, cx) => { this.hot = null; const menu = props()?.newMenu ?? "new-menu"; if (!justClosed(this, `${menu}.closed`)) run("mod.open", { name: menu }); cx.notify(); }))))
