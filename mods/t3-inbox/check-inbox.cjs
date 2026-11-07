@@ -75,9 +75,9 @@ function lineOf(node, text) {
 }
 
 function fixture() {
-  const f = { watches: [], tick() { for (const w of [...f.watches]) if (!w.cancelled) w.fn(cx); }, pointer: { x: 0, y: 0 }, active: true, now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [], writes: [], orderWrites: 0 };
+  /** @type {any} */ const f = { watches: [], tick() { for (const w of [...f.watches]) if (!w.cancelled) w.fn(cx); }, pointer: { x: 0, y: 0 }, active: true, now: 1000, rows: [], terms: [], order: [], calls: [], jobs: [], timers: [], data: new Map(), pins: [], mode: "inbox", notifications: [], state: {}, labelled: [], writes: [], orderWrites: 0 };
   // The real Date, with its clock at f.now.
-  const FakeDate = function (...args) { return args.length ? new Date(...args) : new Date(f.now); };
+  /** @type {any} */ const FakeDate = function (...args) { return args.length ? new Date(...args) : new Date(f.now); };
   FakeDate.now = () => f.now;
   const cx = {
     notify() { f.notified = true; }, stop_propagation() {}, bind_keys(b) { f.bound = b; },

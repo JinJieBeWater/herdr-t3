@@ -106,7 +106,7 @@ export function headerPress(view, file, x, cx) {
   cx.notify();
 }
 
-export function diffView(view, t, _cx) {
+export function diffView(view, t) {
   const items = view.items(), sticky = view.stickyFile();
   view.stuck = Boolean(sticky);
   return v_flex().size_full().min_w(0).overflow_hidden()

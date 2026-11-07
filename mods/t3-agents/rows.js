@@ -110,9 +110,9 @@ export function agentStatus(view, t, a, note = "", id) {
 }
 
 export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPriority, own, shownStatus, groups }) {
-  const withKids = (a, i) => {
+  const withKids = (a) => {
     const subs = agentTree(all, a.address);
-    const r = { key: a.address, h: ROW + STACK, el: row(a, i, subs), ghost: () => row(a, i, subs, true) };
+    const r = { key: a.address, h: ROW + STACK, el: row(a, subs), ghost: () => row(a, subs, true) };
     // A sub-agent with no pane of its own isn't in agents(): it's placed by the agent it hangs from, and has no branch to name, as its folder may be another worktree.
     const sub = (s) => ({ key: `sub-${s.t.address}`, h: ROW + STACK, el: agentSubRow(view, t, s, shown, (name, key) => details(list.find((x) => x.address === s.t.address) ?? { ...s.t, space: a.space, space_name: a.space_name }, name, key)), ghost: () => agentSubRow(view, t, s, shown, null, true) });
     if (!view.isFolded(a.address)) return [r, ...subs.map(sub)];
@@ -176,7 +176,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       ], { hide: Boolean(view.hot) }).ml(4)));
   };
 
-  const row = (a, _i, subs = [], ghost) => {
+  const row = (a, subs = [], ghost) => {
     const pic = icon(a.program, 16, t.foreground);
     const more = detail.get(a.address);
     // An agent on another machine (`vps/t7`) says which.

@@ -118,7 +118,7 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
   const items = [], byPath = new Map(review.files.map(file => [file.path, file]));
   const push = (item, size) => { items.push({ ...item, size }); };
   const notesOf = (g, path) => [g, ...g.children].flatMap(x => x.notes[path] ?? []);
-  const fileItems = (_g, path) => {
+  const fileItems = (path) => {
     const file = byPath.get(path);
     if (!file) return;
     push({ key: `f:${path}`, kind: "file", file }, FILE);
@@ -157,10 +157,10 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
       }
     }
   };
-  for (const path of group.files) fileItems(group, path);
+  for (const path of group.files) fileItems(path);
   for (const child of group.children) {
     push({ key: `g:${child.key}`, kind: "group", group: child }, GROUP);
-    for (const path of child.files) fileItems(child, path);
+    for (const path of child.files) fileItems(path);
   }
   return items;
 }

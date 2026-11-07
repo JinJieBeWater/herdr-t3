@@ -24,6 +24,8 @@ share zoom mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-picker extras/mods/
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$inbox/mods/t3-inbox/"
 rsync -a --delete $gen "$src/mods/t3-actions/" "$actions/mods/t3-actions/"
+# Their jsconfig.json (each person's own, never copied) includes these, and no mod folder ships them.
+for r in "$inbox" "$actions" "$review"; do mkdir -p "$r/types"; cp "$src"/types/*.d.ts "$r/types/"; done
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.
 for d in "$src"/mods/t3-*/; do rsync -a --delete $gen "$d" "$app/mods/$(basename "$d")/"; done
 # The Review extra (pulls-review and review): config.json is the person's own, so it is never shipped or deleted.

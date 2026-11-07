@@ -103,7 +103,7 @@ export default class Menu extends View {
       });
   }
 
-  choose(i, _cx) {
+  choose(i) {
     const it = /** @type {any} */ (items(props(), this.git)[i]);
     if (!it) return;
     closeOverlay(props()?.overlay);
@@ -128,7 +128,7 @@ export default class Menu extends View {
       .on_key_down((e, cx) => {
         if (e.key === "down") this.at = (this.at + 1) % list.length;
         else if (e.key === "up") this.at = (this.at + list.length - 1) % list.length;
-        else if (e.key === "enter") this.choose(this.at, cx);
+        else if (e.key === "enter") this.choose(this.at);
         else if (e.key === "escape") closeOverlay(props().overlay);
         else return;
         cx.notify();
@@ -148,7 +148,7 @@ export default class Menu extends View {
             .text_color(t.foreground)
             .when(i === this.at, (el) => el.bg(t.selected))
             .hover((s) => s.bg(t.hover))
-            .on_click((_e, cx) => this.choose(i, cx))
+            .on_click(() => this.choose(i))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
             .child(svg(menuIcon(it[1])).size(16).mx(-2).flex_none().text_color(t.muted))
             .child(div().flex_1().min_w(0).truncate().child(it[0]))

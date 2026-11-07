@@ -31,7 +31,7 @@ vm.runInContext(src, context);
 const { stopsInit, stopsEnd, stop, focusRoot, onStop, within, enter } = context.focus;
 
 function fakeCx() {
-  const cx = { notified: 0, ticks: [], notify() { cx.notified++; }, stop_propagation() {} };
+  /** @type {any} */ const cx = { notified: 0, ticks: [], notify() { cx.notified++; }, stop_propagation() {} };
   cx.focus_handle = () => { const h = { focus() { holding = h; }, is_focused: () => holding === h }; return h; };
   cx.timer = { every(_ms, fn) { const task = { fn, gone: false, cancel() { task.gone = true; } }; cx.ticks.push(task); return task; } };
   cx.tick = () => cx.ticks.filter((task) => !task.gone).forEach((task) => task.fn(cx));

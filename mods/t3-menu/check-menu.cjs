@@ -17,7 +17,7 @@ const menu = new context.Menu();
 const choose = (props, label) => {
   target = props; calls = [];
   const i = vm.runInContext("items", context)(props, null).findIndex((it) => it[0] === label);
-  menu.choose(i, {});
+  menu.choose(i);
   return JSON.parse(JSON.stringify(calls));
 };
 

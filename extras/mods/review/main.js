@@ -290,10 +290,10 @@ export default class ReviewPane extends View {
     const column = () => v_flex().size_full().min_w(0).min_h(0)
       .when(!sidebar && !hidden, el => el.child(groupTabs(this, t)))
       .when(Boolean(group) && (!wide || group.children.length > 0) && this.atTop(), el => el.child(groupHeader(this, t, group)))
-      .child(!wide ? div().flex_1().min_h(0).child(diffView(this, t, cx))
+      .child(!wide ? div().flex_1().min_h(0).child(diffView(this, t))
         : h_resizable("review-aside-width").flex_1().min_h(0)
           .child(resizable_panel().size(Math.max(ASIDE_MIN, Math.round(row / 5))).size_range(ASIDE_MIN, Math.max(ASIDE_MIN, Math.round(row * ASIDE_MAX_RATIO))).child(aside(this, t)))
-          .child(resizable_panel().child(diffView(this, t, cx))));
+          .child(resizable_panel().child(diffView(this, t))));
     // Its run over, nothing else closes the panel: the next run would bring it back, or the next press only close it unseen.
     const { running, error } = analysisStatus(this);
     if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;

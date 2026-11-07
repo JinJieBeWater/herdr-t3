@@ -622,7 +622,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // working, everywhere, for as long as the longest-working one has worked.
   const f = fixture(256), inbox = f.load("t3-inbox");
   f.agents()[0].status = "idle"; f.terminals().find(c => c.address === "child").status = "idle";
-  f.terminals().find(c => c.address === "grandchild").status_ms = Date.now() - 90000;
+  /** @type {any} */ (f.terminals().find(c => c.address === "grandchild")).status_ms = Date.now() - 90000;
   assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
   f.agents()[0].status = "done"; f.panes()[0].status = "done";
   const drawn = inbox.render(cx);
@@ -1457,7 +1457,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   {
     // A rebuilt machine: one click forgets it and pairs again, and a failed pairing can be retried without forgetting twice.
     const f = fixture(256);
-    let done;
+    /** @type {any} */ let done;
     const run = { ...cx, spawn: fn => { done = fn(run); } };
     const sp = f.load("t3-spaces"), vps = { name: "vps", target: "me@vps:2222", session: "main", state: "unreachable", why: 'a different core answers there ("c2")' };
     sp.machines = [{ ...vps, why: "connection refused" }];

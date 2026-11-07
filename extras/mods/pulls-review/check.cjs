@@ -246,7 +246,7 @@ const load = (props = {}, setup = record) => {
     return { code: 128, stdout: "" };
   };
   const r = { root: "/repo", branch: "feat", base: "main", baseRef: "origin/main", unmerged: 4 };
-  let reading;
+  /** @type {any} */ let reading;
   const run = { ...cx, spawn: fn => { reading = fn(run); } };
   const click = async (picked) => {
     show(picked);
