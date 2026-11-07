@@ -1,7 +1,9 @@
 # The Review scene, sourced by `stage.sh scene review`: a real multi-file pull request on pulls.review, in a tab of its
 # own, with its AI analysis (by pi, through jin.review's daemon) and agents still at work around it.
 clear_stage
-reopen "layout review"
+# One column of diff, so the cover's crop reads larger.
+unified() { jq '."review.prefs".split = false' "$A/shared.json" > "$A/shared.json.new" && mv "$A/shared.json.new" "$A/shared.json"; layout review; }
+reopen unified
 root=$code/pulls.review branch=feat/analyze-in-daemon
 git -C "$root" checkout -q "$branch"
 # Its daemon on a port of its own: yours may hold the default, and the pane finds this one by ~/.pulls.review/daemon.pid.

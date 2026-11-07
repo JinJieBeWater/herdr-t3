@@ -15,7 +15,7 @@ done
 # herdr-t3-inbox: a contributor's one-line fix, under review.
 cd "$code/herdr-t3-inbox"
 git checkout -q -b fix/working-pill-days
-python3 -I - mods/t3-inbox/main.js <<'PY'
+python3 -I - mods/t3-inbox/row-view.js <<'PY'
 import sys
 p = sys.argv[1]; s = open(p).read()
 old = "  return s < 60 ? `${s}s` : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;\n"

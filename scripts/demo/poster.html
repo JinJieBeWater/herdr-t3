@@ -52,8 +52,8 @@ const posters = {
   inbox() {
     accent("#f0a33a", "#6b93ff", "76%", "34%");
     // Without the title bar's row: a shot has no window buttons, and the toggle would float beside the room they leave.
-    const s = 0.8, left = 690, top = 60, w = 566 * s, h = 630, head = 82, card = 370, foot = 1902, bottom = 90;
-    const side = shot("inbox.png", { w: 566, h: h / s, left, top, cssW: w, cls: "lift", style: "background: #141418;" });
+    const s = 0.8, left = 690, top = 60, w = 566 * s, h = 630, head = 92, card = 410, foot = 1880, bottom = 90;
+    const side = shot("inbox.png", { w: 566, h: h / s, left, top, cssW: w, cls: "lift", style: "background: #181825;" });
     side.style.backgroundImage = "none"; side.style.overflow = "hidden";
     const piece = (y, ph, t) => { const p = document.createElement("div"); p.style.cssText = "position:absolute;left:0;top:" + t + "px;width:" + w + "px;height:" + ph * s + "px;background:url(../inbox.png) 0 " + -y * s + "px / " + W * s + "px " + H * s + "px no-repeat;"; side.append(p); };
     piece(head, card - head, 0);
@@ -65,8 +65,8 @@ const posters = {
   actions() {
     accent("#4fd17a", "#6b93ff", "70%", "30%");
     // The window with the run's tool output cut out of its pane, so it opens on the findings.
-    const s = 1200 / W, top = 300, from = 640, gap = from - 165, cut = 1745, skip = 1830 - 1745;
-    const win = shot("actions.png", { w: W, h: 1400, left: 60, top, cssW: 1200, style: "background: #1d1d22;" });
+    const s = 1200 / W, top = 300, from = 950, gap = from - 165, cut = H, skip = 0;
+    const win = shot("actions.png", { w: W, h: 1400, left: 60, top, cssW: 1200, style: "background: #1e1e2e;" });
     win.style.backgroundImage = "none";
     const piece = (x, y, w, h, l, t) => { const p = document.createElement("div"); p.style.cssText = "position:absolute;left:" + l * s + "px;top:" + t * s + "px;width:" + w * s + "px;height:" + h * s + "px;background:url(../actions.png) " + -x * s + "px " + -y * s + "px / " + W * s + "px " + H * s + "px no-repeat;"; win.append(p); };
     piece(0, 0, W, 165, 0, 0);
@@ -77,17 +77,17 @@ const posters = {
     // The window's buttons, which a shot leaves out.
     ["#ed6a5e", "#f5bf4f", "#61c554"].forEach((c, i) => { const d = document.createElement("div"); d.style.cssText = "position:absolute;left:" + (36 + i * 40) * s + "px;top:" + 28 * s + "px;width:" + 24 * s + "px;height:" + 24 * s + "px;border-radius:50%;background:" + c + ";"; win.append(d); });
     // The bar's control and the menu it opens, larger.
-    shot("actions.png", { x: 3040, y: 12, w: 305, h: 66, left: 910, top: 88, cssW: 240, style: "background-color: #141418;" });
-    shot("actions.png", { x: 2730, y: 90, w: 611, h: 397, left: 730, top: 158, cssW: 420, cls: "lift" });
+    shot("actions.png", { x: 3050, y: 10, w: 300, h: 66, left: 910, top: 88, cssW: 240, style: "background-color: #181825;" });
+    shot("actions.png", { x: 2726, y: 78, w: 620, h: 350, left: 730, top: 158, cssW: 420, cls: "lift" });
     text("div", "kicker", "HERDR T3 · ACTIONS");
     text("h1", "", "Your commands,<br><em>one click away.</em>", "font-size: 68px;");
     text("div", "sub", "Tests, a dev server, a retro over your agents' sessions.", "top: 232px; width: 620px; font-size: 21px;");
   },
   review() {
     accent("#e86bb0", "#8f6bff", "50%", "70%");
-    // One thing to see: the groups the analysis made, over a note it left on the code.
-    shot("review.png", { x: 1150, y: 400, w: 2190, h: 1000, left: 60, top: 372, cssW: 1080 });
-    shot("review.png", { x: 605, y: 258, w: 1565, h: 120, left: 60, top: 268, cssW: 1080, cls: "lift" });
+    // One thing to see: the groups the analysis made, over what it says one of them does and its files.
+    shot("review.png", { x: 600, y: 400, w: 2300, h: 1000, left: 60, top: 352, cssW: 1080 });
+    shot("review.png", { x: 610, y: 255, w: 2068, h: 118, left: 60, top: 268, cssW: 1080, cls: "lift" });
     text("div", "kicker", "HERDR T3 · PULLS.REVIEW");
     text("h1", "", "A 43-file PR,<br><em>sorted by AI.</em>");
   },
