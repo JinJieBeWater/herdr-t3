@@ -5,6 +5,9 @@ English · [中文](CHANGELOG.zh-CN.md)
 ## 2026-11-07
 
 - Closing the agent in view when it's its space's only tab now goes straight to Home. It used to show another space's tab first for a moment, which could cost that agent its unread done.
+- A Settle or Snooze the core refuses no longer leaves `Settled, Undo` up for something that didn't happen, and an Undo the core refuses keeps its notice, so it can be pressed again.
+- A Review pane's popup closed with Escape opens again at once from its button; it used to ignore a click for a moment.
+- A machine's heading in Spaces no longer stays lit when Herdr drops the pointer's leave.
 
 ## 2026-11-06
 

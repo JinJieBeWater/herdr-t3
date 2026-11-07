@@ -826,6 +826,18 @@ for (const width of [208, 240, 256, 320, 480]) {
   const rows = tree => find(tree, "space-rows").items.filter(n => keyOf(n)?.startsWith("fly-")).map(n => keyOf(n.items[0]) ?? `gap-${n.items[0].style.h}`);
   const fly = (tree, key) => walk(tree).find(n => keyOf(n)?.startsWith(`fly-${key}-`));
   const moves = () => f.calls.filter(([name]) => name === "space.move");
+  {
+    // A machine's lit chevron goes with the pointer even when its leave never comes, as an agents group's does.
+    const every = cx.timer.every, watches = [], scope = f.scopes.get("t3-spaces"), was = scope.window.mouse_position;
+    cx.timer.every = (ms, fn) => { const t = { ms, fn, cancel() { t.gone = true; } }; watches.push(t); return t; };
+    scope.window.mouse_position = () => ({ x: 10, y: 10 });
+    fire(find(sp.render(cx), "machine-local"), "on_hover", true, cx);
+    fire(find(sp.render(cx), "machine-local"), "on_mouse_move", { position: { x: 10, y: 10 }, bounds: { x: 0, y: 0, width: 208, height: 32 } }, cx);
+    scope.window.mouse_position = () => ({ x: 10, y: 300 });
+    watches.at(-1).fn(cx);
+    assert.equal(sp.overMachine, null, "off it, no leave needed");
+    cx.timer.every = every; scope.window.mouse_position = was;
+  }
   press("space-s0"); move(4, 3);
   assert.equal(find(sp.render(cx), "space-lifted"), null, "under 6px it's still a click");
   const still = find(sp.render(cx), "space-s0");
@@ -2690,6 +2702,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.state["t3-inbox.notice"] = { owner: "tabs", live: true, at: Date.now(), undos: [{ address: "t0", pins: [] }] };
     await f.load("t3-tabs").undo();
     assert.deepEqual(f.calls, [], "failed Undo does not jump to an agent it could not restore");
+    assert.deepEqual(plain(f.state["t3-inbox.notice"].undos.map(u => u.address)), ["t0"], "and its notice stays, so Undo can be tried again");
   }
 
   {

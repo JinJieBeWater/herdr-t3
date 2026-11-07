@@ -149,9 +149,10 @@ export default class ReviewPane extends View {
     cx.notify();
   }
 
-  closePopup(cx) {
+  // `outside`: closed by a press outside it, which may be on its own button.
+  closePopup(cx, outside = false) {
     if (!this.popup) return;
-    this.closedPopup = this.popup; this.popup = null; this.popupClosedAt = Date.now();
+    this.closedPopup = outside ? this.popup : null; this.popup = null; this.popupClosedAt = Date.now();
     this.modelInput.set_value(""); this.commitSearch.set_value(""); this.pageAt = -1; this.settingsPage = null;
     cx.notify();
   }

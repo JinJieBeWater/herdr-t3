@@ -8,7 +8,7 @@ import { foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
 import { projectMark, placeOf, tint } from "./project.js";
-import { dragGone, glow, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
+import { dragGone, glow, hoverKept, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 
 // Where a space is now. `ps`: panes(), read once by the caller (each read copies every pane).
@@ -382,15 +382,10 @@ export default class Spaces extends View {
       const folded = this.folded.has(m);
       const id = m ?? "local";
       // Drawn as the agents list's shelves, T3's: 2 and 8 in, the chevron at the row's end and its + as T3's folder has it, 24 and 2 before.
-      const head = h_flex().id(`machine-${id}`).h(ROW).flex_none().mx(2).px(8).gap(8).items_center()
+      // By the row's id: this computer's m is null, which a cleared field would equal. Kept as Agents' headings are, as a leave can go missing.
+      const head = hoverKept(this, "overMachine", `machine-${id}`, h_flex().id(`machine-${id}`).h(ROW).flex_none().mx(2).px(8).gap(8).items_center()
         .text_size(12).font_medium().text_color(t.dim)
-        .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`)
-        .on_hover((on, cx) => {
-          // By the row's id: this computer's m is null, which a cleared field would equal.
-          if (on) this.overMachine = `machine-${id}`;
-          else if (this.overMachine === `machine-${id}`) this.overMachine = null;
-          cx.notify();
-        })
+        .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`))
         .on_click((_e, cx) => {
           folded ? this.folded.delete(m) : this.folded.add(m);
           localStorage.setItem("machines.folded", JSON.stringify([...this.folded]));

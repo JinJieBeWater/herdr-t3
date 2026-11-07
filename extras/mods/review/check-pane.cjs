@@ -561,8 +561,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(pane.popup === "settings");
   pane.key({ keystroke: "escape" }, cx);
   assert.ok(pane.popup !== "settings");
+  // Closed by Escape, the gear opens it again at once: only a press outside it is the gear's own.
+  press("settings");
+  assert.equal(pane.popup, "settings", "Escape then the gear reopens it");
   // The settings set unified or split, kept for the next pane; picking the one set changes nothing.
-  pane.popupClosedAt = 0; press("settings");
   press("view-split");
   assert.equal(pref("split"), true);
   press("view-unified");

@@ -269,10 +269,12 @@ export default class Tabs extends View {
       setShared("t3-inbox.undo", { gen: n.gen, at: n.at, requestedAt: Date.now(), request: (shared("t3-inbox.undo")?.request ?? 0) + 1 });
       return;
     }
+    // Gone while the writes run, so a second press can't repeat them; back with what failed, so it can be tried again.
     setShared("t3-inbox.notice", null);
     let back;
+    const failed = [];
     for (const u of [...n.undos].reverse()) {
-      if (!await this.writeLabel(u.address, "settled", "")) continue;
+      if (!await this.writeLabel(u.address, "settled", "")) { failed.unshift(u); continue; }
       back = u.address;
       if (Number(u.snoozed) > Date.now()) await this.writeLabel(u.address, "snoozed", u.snoozed);
       const pins = [...(shared("agents.pins") ?? [])];
@@ -282,6 +284,7 @@ export default class Tabs extends View {
         setShared("agents.pins", pins);
       }
     }
+    if (failed.length) setShared("t3-inbox.notice", { ...n, count: failed.length, undos: failed });
     if (back && atHome()) focusAgent(back);
   }
 

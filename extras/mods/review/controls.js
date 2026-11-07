@@ -47,7 +47,7 @@ export function popover(view, t, id) {
   return v_flex().id(id).rounded(8).bg(t.popover).border_1().border_color(t.border).text_size(14).shadow_lg()
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .on_scroll_wheel((_e, cx) => cx.stop_propagation())
-    .on_mouse_down_out((_e, cx) => view.closePopup(cx));
+    .on_mouse_down_out((_e, cx) => view.closePopup(cx, true));
 }
 
 // The reviewed box, drawn as the app's ReviewCheckbox: checked, partly (a folder), or not. Handlers are the caller's.
