@@ -2567,6 +2567,11 @@ for (const width of [208, 240, 256, 320, 480]) {
       see("mine", "A"); taken();
       await say("close-tab-now:mine");
       assert.deepEqual(taken(), [["space.select", { id: "h" }], ["tab.close", { id: "mine", confirmed: true }]], "the agent in view: Home first, then the close");
+      see("mine", "A"); taken();
+      const all = tabs.splice(0, tabs.length, ...tabs.filter(c => c.id === "mine"));
+      await say("close-tab-now:mine");
+      assert.deepEqual(taken(), [["space.select", { id: "h" }], ["tab.close", { id: "mine", confirmed: true }]], "its space's last tab too: Herdr would show another space's");
+      tabs.splice(0, tabs.length, ...all);
       // Herdr moved the space's own active tab to the closed one's neighbour, out of sight: a key back mustn't show it, which would cost it its unread done.
       see("prog"); see("mine", "A"); taken();
       f.spaces()[0].active = false; f.spaces().at(-1).active = true; closer.render(ctx);

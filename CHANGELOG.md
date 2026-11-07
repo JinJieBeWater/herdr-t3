@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-07
+
+- Closing the agent in view when it's its space's only tab now goes straight to Home. It used to show another space's tab first for a moment, which could cost that agent its unread done.
+
 ## 2026-11-06
 
 - Radii, spacing, sizes and type across the layout now follow T3 Code, one value per use: [the values](docs/t3-tokens.md).

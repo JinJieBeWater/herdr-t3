@@ -288,9 +288,12 @@ export default class Tabs extends View {
   // Going first, so Herdr's neighbour never shows: being shown costs an agent its unread done, one the bar hides included.
   async leave(id, cx) {
     const space = spaces().find(s => s.active);
-    // Out of view, closing it moves nothing. A space's last tab takes the space, and Herdr may still ask.
-    if (atHome() || !space?.tabs.find(c => c.id === id)?.active || space.tabs.length === 1) return;
+    // Out of view, closing it moves nothing.
+    if (atHome() || !space?.tabs.find(c => c.id === id)?.active) return;
+    // The space's last tab too: its space goes with it, and Herdr would show another space's tab.
     if (agents().some(a => a.tab === id)) return goHome(cx);
+    // A space's last tab takes the space, and Herdr may still ask.
+    if (space.tabs.length === 1) return;
     this.goBack(space.id, id);
   }
 
