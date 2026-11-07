@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-07
 
+- `scripts/update.sh` updates an install with one command: it overwrites the layout and mods, merges `keys.json` and says which keys it replaced, and keeps the focus ring color, the theme and the Review and theme-export blocks. The Update section of the README says only that now; the old manual steps are gone.
 - Closing the agent in view when it's its space's only tab now goes straight to Home. It used to show another space's tab first for a moment, which could cost that agent its unread done.
 - A Settle or Snooze the core refuses no longer leaves `Settled, Undo` up for something that didn't happen, and an Undo the core refuses keeps its notice, so it can be pressed again.
 - A Review pane's popup closed with Escape opens again at once from its button; it used to ignore a click for a moment.
@@ -26,7 +27,7 @@ English · [中文](CHANGELOG.zh-CN.md)
   - **Settle holds everywhere**: `cmd-shift-s` works in Lists and with the sidebar hidden, and lands on Home. A settled or snoozed agent shows no done dot in Lists, the tabs, pane headers or Go to; in Lists its row stays in place, idle.
   - **A hidden sidebar keeps its mode**: the keys go on working by that mode's rows, which keep up while hidden, and `Settled, Undo` shows in the tab bar for 5s.
 - A Review belongs to the space, as several agents share its worktree.
-  - **One per space**: the bar brings up the open one, in another tab too, instead of opening another. `Open in` picks where a new one goes. Each has an Inbox card, in a pane too, and it lights while the focus is on it.
+  - **One per space**: the bar brings up the open one, in another tab too, instead of opening another. `Open in` picks where a new one goes. From a version with a pane per tab, close the extras: the bar brings up the one in the current tab first. Each has an Inbox card, in a pane too, and it lights while the focus is on it.
   - **Settling a review goes back**: closing or settling the one in view returns to where you opened it from, not Home, as you'll likely have something to say to the agent.
   - **The bar counts and opens**: `3 uncommitted │ 5 ahead of main │ ↑2 │ ↓1 │ logo`. The logo stays put as counts come and go, the counts have no color (color means an agent's status here) and a narrow bar tells them apart by icon. The logo's menu only picks what to review.
   - **The pane switches**: `‹ Commit 2 of 5 ›` and the list of this diff's commits are in its own toolbar now.

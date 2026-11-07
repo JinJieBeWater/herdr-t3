@@ -76,20 +76,18 @@ Inbox 的做法来自 [T3 Code](https://github.com/pingdotgg/t3code)。
 
 Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装从不覆盖已有文件，只会装出一份改了名的副本（如 `t3-inbox-2`）。更新要靠覆盖：
 
-- 对你的 Herdr agent 说：「从 github.com/JinJieBeWater/herdr-t3 更新 Herdr T3：用仓库最新的文件覆盖我已安装的 `mods/t3-*` 和 `layouts/herdr-t3.*`，然后对每个 mod 跑 `herdr-app check`。」如果首次安装时因为重名改过名字，就覆盖改名后的那份。
-- 手动更新：把同样的文件复制过去覆盖旧的。mod 保存后自动重载，不用重启。
-- Lists 和 Inbox 现在用同一套规则，一些键的效果变了：见更新日志。`keys.json` 没有变化。复制 `mods/t3-*`，用 Review 的话再复制 `extras/mods/pulls-review` 和 `extras/mods/review`，并删掉已移除的文件（`rsync -a --delete`）。以前每个标签各开了一个 Review 窗格的，把多余的关掉：Review 栏优先用当前标签里的那个。
-- 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent。这些存在 `data/`、`shared.json` 和终端标签里，不在 mod 目录中。会丢掉：你自己对被覆盖文件的修改，包括聚焦边框颜色；覆盖布局后重新设置即可。
-- `keys.json` 和可选扩展保持原样；只有提交记录提到它们时，再和仓库对比。带 `!` 的提交会改名（例如 `refactor!: rename the layout and theme to herdr-t3`），按提交里的改名同步调整。
-- 新增 Home：`mods/t3-home` 随其他 `mods/t3-*` 一起覆盖，布局会启用它。把上面新增的按键加进你的 `layout:herdr-t3` 分区，否则 `ctrl-1…9` 会把 Home 算进去。如果想继续跳到下一张卡片，从布局里 `t3-inbox` 的 props 删掉 `"home"`。
-- `cmd-shift-b` 和 `cmd-shift-s` 现在在布局显示的任何时候都可用：把你 `layout:herdr-t3` 分区里的这两项改成 `t3-tabs.sidebar` 和 `t3-tabs.settle`（以前是 `t3-chrome.sidebar` 和 `t3-inbox.settle`），否则会提示未知命令。
-- 显示 Inbox 时，标签栏只放当前 agent 和它周边的标签：把仓库 `keys.json` 里 `cmd-1…9`、`ctrl-alt-1…9`、`ctrl-tab`、`ctrl-shift-tab`、`cmd-shift-]`、`cmd-shift-[`、`ctrl-alt-]`、`ctrl-alt-[` 这几行加进你的 `layout:herdr-t3` 分区，否则这些键会算上被隐藏的标签。
-- 从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）：把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），把 `keys.json` 里的 `t3-focus.settle` 改成 `t3-inbox.settle`，再删掉 `mods/t3-focus`。
-- 动作和 Review 栏已移出 `t3-tabs`：把新的 `mods/t3-actions` 也复制过去（动作会保留，它们存在 `shared.json` 里）；用 Review 的话，用本仓库的 `extras/mods/pulls-review` 覆盖 `mods/pulls-review`，再加上 `extras/mods/review`（见下文）。
-- 跳转现在归布局自己（`t3-picker`）：把新的 `mods/t3-picker` 也复制过去，并把 `"cmd-p": "mod.open:t3-picker"` 加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `mod.open:picker`。
-- `cmd-]` / `cmd-[` 现在归布局自己（`t3-tabs.next` / `.prev`，以前是 `t3-chrome.next` / `.prev`）：在你的 `layout:herdr-t3` 分区里设置它们，会覆盖 `global` 里的 `agent.next`。
-- 关闭标签和窗格现在会先确认：把仓库 `keys.json` 里的 `cmd-w`、`ctrl-alt-shift-x`、`cmd-shift-w`、`ctrl-alt-x` 四行加进你的 `layout:herdr-t3` 分区，会覆盖 `global` 里的 `tab.close` 和 `pane.close`。
-- Agent 模式已移除（最后包含它的提交是 `a8cbcd4`）：覆盖后删掉 `keys.json` 里的 `"cmd-shift-a": "t3-tabs.view"`。
+```sh
+git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/scripts/update.sh
+```
+
+也可以对你的 Herdr agent 说：「更新 Herdr T3：clone github.com/JinJieBeWater/herdr-t3，运行里面的 `scripts/update.sh`，然后对每个 `mods/t3-*` 跑 `herdr-app check`。」mod 保存后自动重载，不用重启。脚本需要 `jq` 和 `rsync`；缺少其中之一，或者你的 `keys.json`、布局不是有效的 JSON 时，它会在改动任何文件前停下。
+
+- 覆盖：`mods/t3-*` 和 `layouts/herdr-t3.*`（并删掉已移除的文件），以及你已安装的 Review、主题导出扩展和附带主题。没安装的扩展不会被装上。
+- 合并 `keys.json`：仓库的按键写进你的 `layout:herdr-t3` 分区，相同的键被替换，并逐条打印被替换的，方便你改回去；其他按键和分区不动。你的分区里有、仓库没有的键也会打印出来：旧键（比如 `"cmd-shift-a": "t3-tabs.view"`）可以删掉。
+- 会保留：置顶、折叠、排序、Settled 收纳区和已 Settle 的 agent（存在 `data/`、`shared.json` 和终端标签里），以及你的动作；已安装布局里的主题、当前选中的侧栏、聚焦边框颜色、Review 和主题导出的块。
+- 会丢掉：你对被覆盖文件的其他修改，比如从 `t3-inbox` 的 props 删掉 `"home"` 以继续跳到下一张卡片；需要重新改。
+- 如果首次安装时因为重名改过名字，脚本并不知道：它会装上原来的名字，你可以让布局改回指向自己那份，或者删掉那份。
+- 改了什么、一些键的效果有什么变化：见[更新日志](CHANGELOG.zh-CN.md)。从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）时，先把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），再删掉 `mods/t3-focus`。
 
 ## 它会运行什么
 
@@ -106,11 +104,11 @@ Herdr 不会更新别人做的 mod 和布局。再添加一次也不行：安装
 
 ### pulls.review
 
-`extras/mods/pulls-review` 和 `extras/mods/review`：Review 栏和评审窗格，配合[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)（CLI 叫 `jin.review`）使用。Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下打开那份评审，每个 space 一个：窗格设置里的 `Open in` 决定是 agent 旁边的窗格还是独立标签。窗格自己的顶栏负责在这份 diff 的 commit 之间切换。Analyze automatically 只对点计数生效。它也单独发布为 [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review)：按[它的 README](https://github.com/JinJieBeWater/herdr-pulls-review/blob/main/README.zh-CN.md) 安装（`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`，或者把两个目录复制进 `~/.config/herdr-app/mods/`），然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面。`scripts/sync.sh` 同步布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
+`extras/mods/pulls-review` 和 `extras/mods/review`：Review 栏和评审窗格，配合[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)（CLI 叫 `jin.review`）使用。Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下打开那份评审，每个 space 一个：窗格设置里的 `Open in` 决定是 agent 旁边的窗格还是独立标签。窗格自己的顶栏负责在这份 diff 的 commit 之间切换。Analyze automatically 只对点计数生效。它也单独发布为 [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review)：按[它的 README](https://github.com/JinJieBeWater/herdr-pulls-review/blob/main/README.zh-CN.md) 安装（`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`，或者把两个目录复制进 `~/.config/herdr-app/mods/`），然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面。`scripts/update.sh` 更新布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态：`t3-tabs` 和 `t3-pane` 读取 `shared("review.status")`。
 
 ### 给 Pi 用的主题导出
 
-`extras/mods/t3-theme-export` 是 [pi-herdr-theme](https://github.com/JinJieBeWater/pi-stuff/tree/main/packages/pi-herdr-theme) 在 Herdr 这一侧的部分。pi-herdr-theme 是[我的 Pi 配置](https://github.com/JinJieBeWater/pi-stuff)里的一个 Pi 扩展，让 Pi 的配色跟着 Herdr 走。这个 mod 没有界面：Herdr 实际显示的颜色一变（设置页点选、布局主题、系统明暗、内置预设都算），它就把 `{ "name", "colors" }` 写到 `~/.cache/herdr-app-theme.json`；扩展监听这个文件，重新生成 Pi 主题。两边只靠这个路径和格式对接，改的时候要一起改。两边都要装：把目录复制进 `~/.config/herdr-app/mods/`，再让你的 Herdr agent 在这个布局的 `work` 列末尾加一次 `{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }`。不要设成隐藏，隐藏的块不会启动。它只在放了这个块的布局里运行：切到其他布局后 Pi 保持原来的颜色，想跟随就在那个布局里也加上。`scripts/sync.sh` 同步这个布局时会保留这个块。
+`extras/mods/t3-theme-export` 是 [pi-herdr-theme](https://github.com/JinJieBeWater/pi-stuff/tree/main/packages/pi-herdr-theme) 在 Herdr 这一侧的部分。pi-herdr-theme 是[我的 Pi 配置](https://github.com/JinJieBeWater/pi-stuff)里的一个 Pi 扩展，让 Pi 的配色跟着 Herdr 走。这个 mod 没有界面：Herdr 实际显示的颜色一变（设置页点选、布局主题、系统明暗、内置预设都算），它就把 `{ "name", "colors" }` 写到 `~/.cache/herdr-app-theme.json`；扩展监听这个文件，重新生成 Pi 主题。两边只靠这个路径和格式对接，改的时候要一起改。两边都要装：把目录复制进 `~/.config/herdr-app/mods/`，再让你的 Herdr agent 在这个布局的 `work` 列末尾加一次 `{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }`。不要设成隐藏，隐藏的块不会启动。它只在放了这个块的布局里运行：切到其他布局后 Pi 保持原来的颜色，想跟随就在那个布局里也加上。`scripts/update.sh` 更新这个布局时会保留这个块。
 
 ### 主题和设置
 

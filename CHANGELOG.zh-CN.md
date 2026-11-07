@@ -4,6 +4,7 @@
 
 ## 2026-11-07
 
+- `scripts/update.sh` 用一条命令更新已安装的布局：覆盖布局和 mod，合并 `keys.json` 并说明替换了哪些键，保留聚焦边框颜色、主题、Review 和主题导出的块。README 的「更新」一节改为只讲这个，旧的手动步骤已删除。
 - 关掉正在看的 agent 时，如果它是所在 space 唯一的标签，现在会直接回到 Home。以前会先短暂显示别的 space 的标签，可能让那里的 agent 丢掉未读的 done。
 - core 拒绝写入时，Settle 或 Snooze 不再留下 `Settled, Undo` 提示；Undo 写入失败时，提示也会保留，可以再点一次。
 - Review 窗格的弹窗用 Esc 关掉后，再点按钮能立即打开，以前会有一小会儿点了没反应。
@@ -26,7 +27,7 @@
   - **Settle 到处生效**：`cmd-shift-s` 在 Lists 和隐藏侧栏时都能用，并回到 Home。已 Settle 或 Snooze 的 agent 在 Lists、标签、窗格标题和 Go to 里都不再显示 done 圆点；在 Lists 里它留在原位，显示为 idle。
   - **隐藏侧栏后模式继续生效**：按键继续按该模式的行走，这些行隐藏时也保持最新；`Settled, Undo` 显示在标签栏 5 秒。
 - Review 属于 space，因为多个 agent 共用它的工作树。
-  - **每个 space 一个**：Review 栏会跳到已开着的那个，在别的标签也一样，不再新开。`Open in` 决定新开时的位置。每个 Review 都有 Inbox 卡片，分屏也有，焦点在它上面时点亮。
+  - **每个 space 一个**：Review 栏会跳到已开着的那个，在别的标签也一样，不再新开。`Open in` 决定新开时的位置。以前每个标签各开了一个 Review 窗格的，把多余的关掉：Review 栏优先用当前标签里的那个。每个 Review 都有 Inbox 卡片，分屏也有，焦点在它上面时点亮。
   - **Settle Review 会返回**：关掉或 Settle 正在看的 Review，回到打开它之前的地方，不去 Home，因为看完通常要回去跟 agent 说话。
   - **Review 栏只统计和打开**：`3 uncommitted │ 5 ahead of main │ ↑2 │ ↓1 │ logo`。计数增减时 logo 不动；计数不再有颜色（颜色在这里表示 agent 状态），窄窗口用图标区分。logo 菜单只用来选 review 什么。
   - **切换在窗格里**：`‹ Commit 2 of 5 ›` 和这份 diff 的 commit 列表移到了窗格自己的顶栏。

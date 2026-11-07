@@ -27,5 +27,7 @@ for f in $(find shared mods extras/mods -name 'check*.cjs'); do
   out=$(cd "$app" && node "$src/$f" 2>&1) || { echo "FAIL $f"; echo "$out" | tail -20; fail=1; }
 done
 
+scripts/check-update.sh || fail=1
+
 [ "$fail" = 0 ] && echo "all checks passed"
 exit "$fail"
