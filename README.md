@@ -2,90 +2,66 @@
 
 English · [中文](README.zh-CN.md)
 
-A [T3 Code](https://github.com/pingdotgg/t3code)-like layout for Herdr App: an Inbox sidebar with T3-style Settle or Lists (Spaces + Agents), slim tabs, framed panes and Actions, plus an optional Review bar for pulls.review.
+A layout for [Herdr App](https://herdr.dev) that lets you keep many agents running and look only at the ones that need you.
 
 ![Herdr T3](preview.png)
 
-Only want the Settle sidebar? It is also published alone: [herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox).
-
-## Philosophy
-
-**Save human attention.**
-
-You can keep adding agents, but your attention doesn't grow with them. Everything in Herdr T3 is designed around this: the window speaks only when it needs you, and what to look at next stays yours. Where a choice comes up, behavior goes by what saves attention and looks by T3 Code: [the model](docs/layout-model.md).
+## Why
 
 > It's so nice to have 14 threads running and zero visible. Why let working threads get in the way of things that need your attention?
 >
 > — [Theo](https://x.com/theo/status/2114131018575962496)
 
-The Inbox follows [T3 Code](https://github.com/pingdotgg/t3code).
+I'd worked this way in T3 Code: what's running stays out of sight, what needs me shows up, I put it away when I'm done, and it comes back by itself when something new happens. I wanted to work the same way in Herdr, so I brought over T3 Code's Inbox and its look, and fitted them to Herdr's tabs, panes and machines.
 
 ## Features
 
-- **Two sidebars, one key apart** (`cmd-shift-b`): Inbox organizes by attention and Lists by project, with the same rules for closing, walking and settling. Only the tab bar differs.
-  - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their repo, checkout open or not; grouped by machine once there's more than one.
-  - Agents: grouped by space or by priority, pins, sub-agents nested under their parent.
-  - Inbox: T3-style Settle. Agents that need you stay up top as cards; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf. Snooze hides any agent that doesn't need you until a time you pick.
-- **One name everywhere**: Inbox cards, the agents list, tabs and pane headers name a terminal the same way: its Pi session while Pi runs in it, then a tab you named, then a telling terminal title, else the program. Two Pis in one tab read as their own sessions; lazygit started where Pi was reads as lazygit, not the old session.
-- **The same status marks everywhere**: a spinner while working, `!` when blocked or its turn failed, a dot when done. A settled or snoozed agent's done dot leaves everywhere, in Lists too. While Inbox shows, the tabs show no marks at all: what needs you is the sidebar's to say.
-- **Slim tabs, framed panes**: 24px tabs, as T3's panel tabs; rounded panes with a 28px header (name, folder, status; split, zoom and close on hover).
-- **New**: the tab bar's `+` opens a terminal tab in the current space; the sidebar's New tab, in Lists and Inbox alike, picks a space first. Its New space asks which machine once there is more than one; `cmd-n` doesn't ask and uses the current space's machine. No agent picker: start agents in the terminal.
-- **Home**: settling or snoozing the agent in view lands on one quiet place, not the next card, so what to look at next stays yours. Its buttons, or `cmd-]`, `cmd-p` and `cmd-t`, say what's next; Undo brings the agent back. `cmd-shift-h` or Herdr's logo at the sidebar's top left goes there anytime. It takes no number among your spaces, and its panes are yours to fill: split in any mod or program, and it's kept.
-- **Go to** (`cmd-p`, or Inbox's Search): a row for every pane, agents and programs alike, named and marked as its pane header is (a tab's name counts only if you gave it), so typing `lazygit` lands on its pane, beside an agent or not, in any space. The first row goes back to the pane your last jump from here left, so `cmd-p`, Enter goes back and forth.
-- **Actions**, as T3 Code's run button: at the tab bar's top right, `▶` runs the action you ran last, `▾` lists them all (click one to run it), with a gear to edit each and Add action. Each action is a command run in a new tab, or split right/down, in the focused terminal's folder or its own. Edited in the app, not in a file. It is the `t3-actions` mod, installed with the layout and also published [on its own](https://github.com/JinJieBeWater/herdr-t3-actions) for other layouts.
-- **Other machines**: spaces group by machine once there is more than one, and Inbox cards from elsewhere carry a server mark that names the machine on hover. Add a machine from the server icon in the sidebar footer; a rebuilt one offers Connect, and New space asks which machine.
-- **Project icons**: a space shows its repo's favicon, found on its own machine, else a monogram in one of T3's colors.
-- **Closing asks first**: a tab's or pane's ×, `cmd-w`, `cmd-shift-w` and the right-click menus' Close confirm while a program is running in it, and close at once when none is.
-- **Review** (optional, [see Extras](#pullsreview)): a bar in the tab row counts what there is to review in the focused worktree, and a click opens that review: one per space, in a pane or a tab, brought up if it's already open. Switching commits is the pane's own. Its pane header (and in Lists its tab) show the analysis with the layout's marks, and the Inbox gives it a card.
+- **Inbox and Lists**: two sidebars, one key apart. Inbox sorts agents by what needs you, with T3-style Settle and Snooze; Lists sorts them by project. Both follow the same rules.
+- **Home**: putting away the agent you're looking at lands on a quiet page, not the next card. What to look at next is yours to pick.
+- **One name, one set of marks**: cards, lists, tabs and pane headers name and mark each terminal the same way.
+- **Go to** (`cmd-p`): jump to any pane, agent or program, by its name.
+- **Actions**: T3 Code's run button for your own commands, in a new tab or a split.
+- **Slim tabs and framed panes**, in T3 Code's look.
+- **Other machines**: their spaces grouped by machine, their cards marked.
+- **Review** (optional): what's left to review in the worktree, in a pane beside the agent.
+
+Each in detail: [the guide](docs/user/guide.md).
 
 ## Install
 
-Ask your Herdr agent to add `herdr.dev/layouts/JinJieBeWater/herdr-t3`. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg`, every `mods/t3-*` into `~/.config/herdr-app/`, and merge `keys.json` into yours. How it should look and behave: [RECIPE.md](RECIPE.md).
+Ask your Herdr agent to add `herdr.dev/layouts/JinJieBeWater/herdr-t3`. By hand: copy `layouts/herdr-t3.json`, `layouts/herdr-t3.svg` and every `mods/t3-*` into `~/.config/herdr-app/`, and merge `keys.json` into yours.
+
+Only want the Inbox? It is also published alone: [herdr-t3-inbox](https://github.com/JinJieBeWater/herdr-t3-inbox).
 
 ## Quick start
 
-- **Sidebar**: the button at the top right of the sidebar (or `cmd-shift-b`) switches between Lists and Inbox; the one next to it hides the sidebar.
-- **Inbox**: hover a finished card and click `✓ Settle` to put it away; new work brings it back, or click the undo arrow on its row. `cmd-shift-s`, in Lists or with the sidebar hidden too, settles the agent in view and lands on Home, or brings it back if it is settled; `cmd-]` then opens the top card, so you can work down them one at a time. Drag a card or row, as in T3: move it 6px to lift it; the `Pinned` and `Active` labels open, the lifted row says what letting go will do (Pin, Unpin, Settle, Un-settle) and the list opens a gap where it will land. Pinned keeps your order; Active and Settled keep their own. Esc or leaving the sidebar sideways puts it back; leaving off the top or bottom lands it where the badge says; Working cards don't lift. Press a card's `✓ Settle` (or a settled row's undo) and move across rows to settle (or bring back) the whole run. The agents list shares these pins. A review has a card of its own, on Working while it analyzes and back in Active when that ends: click it to get back from anywhere, and Settle closes it and goes back where you opened it from (it reopens from the Review bar, with your marks and analysis).
-- **Focus ring** (off by default): in `~/.config/herdr-app/layouts/herdr-t3.json`, set the pane's `focus.color` from `"background"` to `"accent"` (or any theme color) to ring the focused pane. It applies on save.
-- **Snooze**: hover a card (working ones too, not one that needs you), click the clock and pick a time. It waits on the Snoozed shelf and wakes where it was, marked `Woke` until you look at it or click that. It shows meanwhile while it needs you; a failed turn, new work you give it in view, a pin or Settle ends the snooze. `Undo` takes it back for 5 seconds; on the shelf, hover a row for the crossed-out alarm clock (press and move across rows to wake the run), or drag it out.
+1. `cmd-shift-b` (or the button at the sidebar's top right) switches between Inbox and Lists.
+2. In Inbox, hover a finished card and click `✓ Settle` to put it away; new work brings it back. `cmd-shift-s` settles the agent you're looking at and goes Home.
+3. From Home, `cmd-]` opens the top card, so you can work down them one by one.
+4. Hover a card and click the clock to Snooze it until a time you pick.
+
+Dragging, sweeping across rows, pins and the rest: [Everyday use](docs/user/guide.md#everyday-use).
 
 ## Keys
 
-The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install merges them):
+| Key | Does |
+| --- | --- |
+| `cmd-shift-b` | Switch the sidebar between Inbox and Lists |
+| `cmd-shift-s` | Settle the agent you're looking at and go Home, or bring it back |
+| `cmd-]` / `cmd-[` | Next or previous agent, in the sidebar's order |
+| `cmd-p` | Go to any pane |
+| `cmd-shift-h` | Go Home |
+| `cmd-t` | New tab here; at Home, pick the space first |
 
-| Key | Command | Does |
-| --- | --- | --- |
-| `cmd-shift-b` | `t3-tabs.sidebar` | Switches the sidebar between Lists and Inbox |
-| `cmd-shift-s` | `t3-tabs.settle` | Settles the agent in view and goes to Home, or brings it back if it's settled. In either sidebar, shown or hidden; a busy agent stays, a pinned one loses its pin |
-| `cmd-shift-h` | `t3-tabs.home` | Goes to Home |
-| `cmd-t`, `ctrl-alt-c` | `t3-tabs.new` | A new tab here; at Home, New, which picks the space first |
-| `ctrl-1…9`, `ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | Your nth space, not counting Home |
-| `cmd-alt-]` / `cmd-alt-[`, `ctrl-alt-shift-]` / `ctrl-alt-shift-[` | `t3-tabs.space-next` / `t3-tabs.space-prev` | The next or previous space, going around Home |
-| `cmd-1…9`, `ctrl-alt-1…9` | `t3-tabs.tab:<n>` | The nth tab the bar shows |
-| `cmd-shift-]` / `cmd-shift-[`, `ctrl-tab` / `ctrl-shift-tab`, `ctrl-alt-]` / `ctrl-alt-[` | `t3-tabs.tab-next` / `t3-tabs.tab-prev` | The next or previous tab the bar shows |
-| `cmd-p` | `mod.open:t3-picker` | Go to any pane by its name or program, or back (the same as Inbox's Search) |
-| `cmd-]` / `cmd-[` | `t3-tabs.next` / `t3-tabs.prev` | The next or previous top-level agent, in the selected sidebar's order, stopping at either end, shown or hidden. Inbox walks the rows it draws (a folded shelf only its row in view); Lists walks folded groups too |
-| `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
-| `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if a program is running in it |
-
-Otherwise tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inbox are by mouse.
+All of them: [Keys](docs/user/guide.md#keys).
 
 ## Update
-
-Herdr doesn't update mods or layouts from others, and adding this again would install a renamed second copy (`t3-inbox-2`), since an install never overwrites. Update by overwriting instead:
 
 ```sh
 git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/scripts/update.sh
 ```
 
-Or tell your Herdr agent: "Update Herdr T3: clone github.com/JinJieBeWater/herdr-t3, run its `scripts/update.sh`, then run `herdr-app check` on each `mods/t3-*`." Mods reload by themselves on save; no restart. It needs `jq` and `rsync`, and stops before changing anything if one is missing or your `keys.json` or layout isn't valid JSON.
-
-- It overwrites `mods/t3-*` and `layouts/herdr-t3.*`, deleting files that are gone, and the Review and theme-export extras and the extra themes you've installed. Extras you haven't are left out.
-- It merges `keys.json`: the repo's keys go into your `layout:herdr-t3` section, replacing the same key, and it prints each one it replaced so a remap can go back. Your other keys and sections stay. It also prints keys of yours that aren't in the repo: an old one (`"cmd-shift-a": "t3-tabs.view"`, say) can be deleted.
-- Kept: pins, folds, sort, the Settled shelf and settled agents, which live in `data/`, `shared.json` and terminal labels, and your actions. From the installed layout: the theme, the sidebar you were on, the focus ring color and the Review and theme-export blocks.
-- Lost: your other edits to the overwritten files, such as removing `"home"` from `t3-inbox`'s props to keep moving on to the next card; make those again.
-- If the first install renamed something because of a clash, the script doesn't know: it installs the original names, so point the layout back at your copy or delete it.
-- What changed, and what some keys now do: the [changelog](CHANGELOG.md). From before Focus became Inbox (`t3-focus` → `t3-inbox`), first rename `data/t3-focus` to `data/t3-inbox` (the cards' order and shelves) and delete `mods/t3-focus`.
+It overwrites the layout and its mods and merges `keys.json`; your pins, settled agents, actions, theme and focus ring stay. What it keeps and what it doesn't: [Update](docs/user/guide.md#update).
 
 ## What it runs
 
@@ -98,34 +74,11 @@ No network requests.
 
 ## Extras (optional)
 
-Not part of the layout and not copied by an install; add them by hand if you want them.
+- **pulls.review**: a Review bar and a review pane.
+- **Theme export for Pi**: Pi's colors follow Herdr's.
+- **Themes**: Catppuccin and T3 Code, light and dark.
 
-### pulls.review
-
-`extras/mods/pulls-review` and `extras/mods/review`: a Review bar and a review pane, for [my pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo) (its CLI is `jin.review`). The bar counts what there is to review in the focused worktree (the branch's commits past the default branch, uncommitted files, commits to push and pull), and a click opens that review, one per space: `Open in` in the pane's settings picks a pane beside the agent or a tab. The pane's own toolbar switches between the diff's commits. Analyze automatically applies to a count's click only. Also published alone as [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review): install it as [its README](https://github.com/JinJieBeWater/herdr-pulls-review#install) says (`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`, or copy both folders into `~/.config/herdr-app/mods/`), then ask your Herdr agent to put its block in this layout's `tabs-row` row, right after `tabs`. `scripts/update.sh` keeps that block when it updates the layout. The pane's tab and header show its analysis with this layout's marks: `t3-tabs` and `t3-pane` read `shared("review.status")`.
-
-### Theme export for Pi
-
-`extras/mods/t3-theme-export` is the Herdr half of [pi-herdr-theme](https://github.com/JinJieBeWater/pi-stuff/tree/main/packages/pi-herdr-theme), a Pi extension in [my Pi setup](https://github.com/JinJieBeWater/pi-stuff) that makes Pi's colors follow Herdr's. The mod has no UI: whenever the colors Herdr draws with change (a pick in Settings, a layout's theme, the system's light or dark mode, a built-in preset), it writes `{ "name", "colors" }` to `~/.cache/herdr-app-theme.json`; the extension watches that file and regenerates Pi's theme. The two only share that path and format, so change them together. Install both: copy the folder into `~/.config/herdr-app/mods/`, then ask your Herdr agent to add `{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }` at the end of this layout's `work` column, once. Leave it shown: a hidden block never starts. It only runs in a layout that has it: switch to another and Pi keeps its colors, so add the block there too if you want Pi to follow. `scripts/update.sh` keeps that block when it updates this layout.
-
-### Theme and settings
-
-The layout sets no theme: yours stays. `extras/themes/` holds two light and dark pairs if you want them:
-
-- `catppuccin-mocha` and `catppuccin-latte`: [Catppuccin](https://catppuccin.com)'s official palette, terminal colors as its spec gives them and the panels in Catppuccin's own surfaces (mantle behind, base for cards, surface0 for selection and borders), with blue as the accent.
-- `t3-code-dark` and `t3-code-light`: the colors T3 Code's web app draws by default, a true black canvas with accent `#346bf1` and a `#fcfcfc` canvas with accent `#1b4ed8`, with the VS Code terminal palette T3 Code uses. Terminal text takes the chat's 90% foreground, so an agent's replies read like T3 Code's.
-
-Copy the files you want into `~/.config/herdr-app/themes/` and pick one in Settings, or set a pair in `settings.json` so it follows the system's light and dark mode, for example `"theme": { "light": "catppuccin-latte", "dark": "catppuccin-mocha" }`. The preview's other settings:
-
-```json
-{
-  "font": "Geist Mono",
-  "ui_font": "Geist",
-  "font_size": 12,
-  "zoom": 1.1,
-  "minimum_contrast": 3
-}
-```
+How to add them: [the extras](docs/user/extras.md).
 
 ## Credits and license
 

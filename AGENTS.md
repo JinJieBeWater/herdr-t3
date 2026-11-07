@@ -10,15 +10,25 @@ A mod's SVGs live in its own `icons/` and it names only those, or Herdr's shippe
 
 ## Finishing a change
 
-1. `RECIPE.md`, `RECIPE.zh-CN.md` and both changelogs say the new behaviour, in both languages.
+1. `RECIPE.md`, `RECIPE.zh-CN.md`, both changelogs and, where they describe it, both READMEs and `docs/user/` say the new behaviour, in both languages.
 2. Run `scripts/sync.sh`. It also writes outside this repo: the installed `~/.config/herdr-app` and the working trees of `herdr-t3-inbox`, `herdr-t3-actions` and `herdr-pulls-review`, which then need their own commits.
 3. `scripts/check.sh` prints `all checks passed`.
 4. Anything visible is seen whole in a screenshot of the demo window, at the default sidebar width. A check passing or one word showing doesn't show a layout fits.
 
-## References
+## Docs
 
-- `docs/layout-model.md`: read before changing what Lists, Inbox, Settle, Snooze or Home do.
-- `docs/t3-tokens.md`: read before changing a size, radius, spacing or color.
+Two audiences, two sets:
+
+- **Using the layout**: the READMEs, the changelogs and `docs/user/`. They say what the person sees and does, and link only to each other.
+- **Working on it**: this file, `GLOSSARY.md`, `docs/adr/`, `docs/internals/` and `docs/research/`. Rules we hold ourselves to, trade-offs and implementation notes go here.
+
+`docs/internals/t3-tokens.md`: read before changing a size, radius, spacing or color.
+
+## Agent skills
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
 
 ## Demo window
 

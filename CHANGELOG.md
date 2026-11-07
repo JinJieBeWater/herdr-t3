@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- The README is short now: what this is, why, how to install and start. The full feature list, every key, what an update keeps and the known limits moved to [the guide](docs/user/guide.md), and the extras to [their own page](docs/user/extras.md).
 - The house button is gone from the top of the sidebar. In its place, past the window buttons, Herdr's logo and name, where Herdr's own layout has them, take you Home: the logo dimmed and set apart from the window buttons, the name muted. They're lit while you're there. The window buttons sit 1pt higher, on the bar's middle line.
 
 ## 2026-11-07
@@ -17,7 +18,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-06
 
-- Radii, spacing, sizes and type across the layout now follow T3 Code, one value per use: [the values](docs/t3-tokens.md).
+- Radii, spacing, sizes and type across the layout now follow T3 Code, one value per use.
   - **Popups**: menus are 28px rows with radius 4 and 14px text. New, Go to, the Actions editor, Custom snooze and close confirmations are drawn as T3's dialogs and command palette, radius 16, with its footer, keycaps and × button.
   - **Sidebar**: buttons are T3's 28px; cards, rows and shelves take its gaps; Inbox's top row is 48px and Spaces' heading lines up with it; the footer is 44px.
   - **Work area**: `+` and pane buttons are 24px at radius 8; Home's keycaps are T3's; the tab bar's controls group as T3's.
@@ -26,7 +27,7 @@ English · [中文](CHANGELOG.zh-CN.md)
   - **Updating**: copy `mods/t3-*` and `layouts/herdr-t3.*`, and with Review the extras, deleting what's gone (`rsync -a --delete`). Standalone `t3-actions` also holds the close confirmation now.
 - The Inbox space filter's menu now measures as T3's and the layout's other popups: radius 8 and inset 4, a shadow, flush 32px rows that used to sit 34 apart, and a shorter search field. Its search text starts 20px from the icon, as T3's, so 4px before the names, and stays inside the button's left edge.
 - Switching to a pane hidden behind a zoom now shows it: the zoom moves to that pane and the panes beside it stay hidden. It used to light the card while the screen stayed on the zoomed pane and the keyboard went dead, and the zoomed agent lost its unread done. A toast or an outside `agent.focus` still corrects a frame late, and the done comes back.
-- Lists and Inbox now keep one set of rules, and differ only in how they organize: by project, or by attention. [The model](docs/layout-model.md).
+- Lists and Inbox now keep one set of rules, and differ only in how they organize: by project, or by attention.
   - **Closing and coming back, in Lists too**: closing the agent in view lands on Home, closing any other tab goes back to the tab you were on, and going back to a space shows the tab you left there.
   - **`cmd-]` and `cmd-[`** walk top-level agents in the sidebar's order and stop at either end, where in Lists they used to wrap. Inbox walks the rows it draws; Lists walks folded groups too.
   - **Settle holds everywhere**: `cmd-shift-s` works in Lists and with the sidebar hidden, and lands on Home. A settled or snoozed agent shows no done dot in Lists, the tabs, pane headers or Go to; in Lists its row stays in place, idle.
