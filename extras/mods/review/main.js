@@ -6,7 +6,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, InputState } from "gpui-base";
 import { focused, panes, props, setShared, shared, spaces, theme, window as appWindow } from "herdr";
-import { buildItems, contentWidth, groupFiles, pageLabel } from "./rows.js";
+import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk } from "./rows.js";
 import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
 import { colors, loadReview, pollReview, applyReview, analyzeReview } from "./review-load.js";
 import { loadSettings, models, submitModel, pageRows, locale, settingsPanel } from "./settings.js";
@@ -236,6 +236,17 @@ export default class ReviewPane extends View {
 
   currentFile() { return this.review?.files.find(file => file.path === this.current) ?? null; }
 
+  rowsWanted() {
+    const g = this.switching ? null : this.group();
+    return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles(), this.asked) : [];
+  }
+
+  // A file by its path, from a map made once per read: a branch's files run to thousands, and a render looks up a group's every one.
+  fileAt(path) {
+    if (this.pathsOf !== this.review) { this.pathsOf = this.review; this.paths = new Map(this.review?.files.map(file => [file.path, file])); }
+    return this.paths.get(path);
+  }
+
   render(cx) {
     const t = theme();
     // Herdr doesn't tell a mod pane its tab, and a tab opened for it may not have the focus yet when it starts: a pane
@@ -277,9 +288,10 @@ export default class ReviewPane extends View {
         this.load(cx);
       }
     }
-    // The group shown has files without rows (just opened, or changed since): ask for them, once per version.
-    const missing = !this.switching && this.group() && groupFiles(this.group()).map(path => this.review.files.find(f => f.path === path)).filter(f => f && !f.hunks && !this.asked.has(f.sha));
-    if (missing?.length && !this.loading) this.load(cx);
+    // Files in view or just after have no rows (just opened, scrolled to, or changed since): ask for them, once per version.
+    // Not after a failed read (Retry and the slow timer read again) nor while a mark lands (its own read follows): a read
+    // then would fail or be dropped, give its files back, and ask again at once.
+    if (this.rowsWanted().length && !this.loading && !this.error && !this.marking) this.load(cx);
     const wide = this.width >= WIDE, sidebar = this.sidebarShown(), group = this.group();
     // A group newly shown, however it came to be, opens its subgroups; its tab's caret folds them.
     if (this.groupKey !== this.expandedFor) { this.expandedFor = this.groupKey; this.expandedTab = this.groupKey; }

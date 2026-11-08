@@ -17,6 +17,26 @@ export const codeInset = (split) => split ? 52 : 92;
 const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g;
 const columns = (row) => Math.min(MAX_COLUMNS, row ? row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0) : 0);
 
+// A group's rows run past the 8 MB one read carries: a read asks for at most ROW_BUDGET changed lines, from the files in view
+// and the LOOKAHEAD after them, so the rest come as the list reaches them. As the daemon's FIRST_ROWS for an open.
+export const ROW_BUDGET = 3000, LOOKAHEAD = 10;
+
+/** The paths of a read's rows: in view or just after, without rows and not yet asked for, while they fit (the first always). */
+export function rowsToAsk(paths, fileAt, inView, asked) {
+  let first = -1, last = -1;
+  paths.forEach((path, i) => { if (inView.has(path)) { if (first < 0) first = i; last = i; } });
+  const out = [];
+  let lines = 0;
+  for (const path of paths.slice(Math.max(first, 0), Math.max(last, 0) + LOOKAHEAD + 1)) {
+    const f = fileAt(path);
+    if (!f || f.hunks || asked.has(f.sha)) continue;
+    const size = f.additions + f.deletions;
+    if (out.length && lines + size > ROW_BUDGET) break;
+    out.push(path); lines += size;
+  }
+  return out;
+}
+
 /**
  * Cuts each row's tokens, in place, at MAX_COLUMNS characters (at least as many columns), as they arrive: a line of a log or
  * minified file runs to megabytes, which Herdr's engine can't measure or draw before it interrupts the render.

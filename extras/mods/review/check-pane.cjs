@@ -23,7 +23,7 @@ const load = (file, env) => {
 // Values made in another realm compare unequal to this one's: compare them as JSON.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const rows = load("rows.js", {});
-const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows })", rows);
+const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk })", rows);
 
 const row = (kind, old, next) => ({ kind, old, new: next, tokens: [[`${kind}${old ?? ""}:${next ?? ""}`]] });
 // A run of deletions faces the additions after it; context faces itself.
@@ -75,6 +75,16 @@ const huge = [{ kind: "+", new: 1, tokens: [["{", "#fff"], ["x".repeat(100000), 
 clipRows(huge);
 assert.deepEqual(plain(huge[0].tokens.map(([text, color]) => [text.length, color])), [[1, "#fff"], [999, "#0f0"]]);
 assert.equal(contentWidth([{ kind: "row", lines: huge }]), contentWidth([long("a".repeat(1000))]));
+// A big group's rows run past the 8 MB a read carries: a read asks for the files in view and the 10 after them that have
+// none and weren't asked for, while they fit in 3000 changed lines, the first one always.
+const many = Array.from({ length: 40 }, (_, i) => ({ path: `f${i}`, sha: `s${i}`, additions: 500, deletions: 0 }));
+const fileAt = (p) => many.find(f => f.path === p), paths = many.map(f => f.path);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(), new Set())), ["f0", "f1", "f2", "f3", "f4", "f5"]);
+many[0].hunks = []; many[1].hunks = [];
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f20", "f21"]), new Set(["s22"]))), ["f20", "f21", "f23", "f24", "f25", "f26"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f38"]), new Set())), ["f38", "f39"]);
+many[30].additions = 9000;
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f30"]), new Set())), ["f30"]);
 // Split, an added file isn't paired: its rows are "solo", the whole width, measured on their own.
 const added = { ...review, files: [file("n.ts", { status: "added", hunks: [{ header: null, rows: [row("+", undefined, 1), row("+", undefined, 2)] }] })] };
 const soloItems = plain(buildItems(added, { key: "n", files: ["n.ts"], notes: {}, children: [] }, { ...opts, split: true }));
@@ -130,7 +140,7 @@ const env = {
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
   run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
-  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth, clipRows,
+  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk,
   // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going.
   review: async (_root, route, body) => {
     routes.push(route);
@@ -1137,5 +1147,40 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.open("/commit/c1", cx); await wait();
   assert.ok(pane.review === null && pane.error === "gone" && !pane.switching);
   mainScope.review = daemon;
+  // A pane of its own on /repo's /branch/fix, its daemon `api` until a test swaps the scope's.
+  const paneOf = async (extra = {}) => {
+    const scope = load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, ...extra });
+    const p = new scope.Mod();
+    p.init({}, cx); await wait();
+    return { p, scope };
+  };
+  {
+    // A rows read that fails gives its files back: Retry asks for them again, and they leave "Loading…".
+    const { p, scope } = await paneOf();
+    delete p.fileAt("a.ts").hunks; p.version++;
+    scope.review = () => Promise.reject(new Error("for now"));
+    p.load(cx); await wait();
+    assert.ok(p.error === "for now" && !p.asked.has("a.ts"));
+    const asks = [];
+    scope.review = (root, route, body) => { if (route === "/api/review") asks.push(body.rows); return daemon(root, route, body); };
+    p.render(cx); await wait();
+    assert.deepEqual(asks, [], "no read again by itself after a failure");
+    p.load(cx); await wait();
+    assert.deepEqual(plain(asks), [["a.ts"]]);
+    assert.ok(!p.error && p.fileAt("a.ts").hunks && !p.items().some(i => i.loading));
+    // So does one dropped because a reviewed mark landed meanwhile: the mark's own read asks for them.
+    delete p.fileAt("a.ts").hunks; p.asked.clear(); p.version++; asks.length = 0;
+    let answer, mark;
+    scope.review = (root, route, body) => route === "/api/review" ? (asks.push(body.rows), new Promise(r => { answer = () => r(daemon(root, route, body)); }))
+      : route === "/api/review/reviewed" ? new Promise(r => { mark = r; }) : daemon(root, route, body);
+    p.load(cx);
+    p.setReviewed(p.fileAt("c.ts"), true, cx);
+    answer(); await wait(); p.render(cx); await wait();
+    assert.ok(!p.asked.has("a.ts") && asks.length === 1, "dropped, and no read until the mark lands");
+    scope.review = (root, route, body) => { if (route === "/api/review") asks.push(body.rows); return daemon(root, route, body); };
+    mark({}); await wait();
+    assert.deepEqual(plain(asks.at(-1)), ["a.ts"]);
+    assert.ok(p.fileAt("a.ts").hunks);
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();

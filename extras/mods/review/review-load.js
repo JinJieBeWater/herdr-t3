@@ -1,6 +1,6 @@
 import { exec, theme, watchFolder } from "herdr";
 import { review } from "./daemon.js";
-import { clipRows, groupFiles } from "./rows.js";
+import { clipRows } from "./rows.js";
 import { pref } from "./controls.js";
 
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
@@ -49,9 +49,12 @@ export function loadReview(view, cx, poll = false) {
   // Switching, the group shown is the old page's: the new page's first group comes with the read instead.
   const { root, page } = view, t = theme(), group = view.switching ? null : view.group(), marks = view.marks, id = ++view.loadId;
   view.loading = { root, page }; view.again = false; view.dirty = false;
-  // Rows only for the group's files that have none: apply() keeps the rest, and each asked-for file is highlighted anew.
-  const rows = poll || !group ? [] : groupFiles(group).filter(path => view.review.files.some(f => f.path === path && !f.hunks));
-  for (const file of view.review?.files ?? []) if (rows.includes(file.path)) view.asked.add(file.sha);
+  // Rows only for the files in view or just after that have none: apply() keeps the rest, and each asked-for file is highlighted anew.
+  const rows = poll || !group ? [] : view.rowsWanted();
+  // Asked until this read's answer is applied: one that fails or is dropped gives them back, for the next read to ask again.
+  const mine = (view.review?.files ?? []).filter(file => rows.includes(file.path) && !view.asked.has(file.sha)).map(file => file.sha);
+  for (const sha of mine) view.asked.add(sha);
+  let applied = false;
   const key = JSON.stringify(colors(t));
   cx.timer.after(LOAD_TIMEOUT, (cx) => {
     if (id !== view.loadId || !view.loading) return;
@@ -68,7 +71,7 @@ export function loadReview(view, cx, poll = false) {
       if (JSON.stringify(colors(theme())) !== key) { view.again = true; return; }
       // Read before a reviewed mark landed, it would undo the mark on screen: the mark's own read follows.
       if (view.marking || marks !== view.marks) return;
-      view.apply(r);
+      view.apply(r); applied = true;
       view.error = null;
       watchReview(view, cx);
       loadBaseCommits(view, cx);
@@ -88,6 +91,7 @@ export function loadReview(view, cx, poll = false) {
       }
     }
     finally {
+      if (!applied) for (const sha of mine) view.asked.delete(sha);
       if (id === view.loadId) {
         view.loading = null;
         view.report();

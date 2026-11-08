@@ -93,7 +93,7 @@ export function groupHeader(view, t, g) {
 
 // As the app's countGroupStats, countGroupFiles and groupProgress: a group's own files and its subgroups'.
 export function groupStats(view, g) {
-  const files = groupFiles(g).map(path => view.review.files.find(f => f.path === path)).filter(Boolean);
+  const files = groupFiles(g).map(path => view.fileAt(path)).filter(Boolean);
   return {
     added: files.reduce((n, f) => n + f.additions, 0), deleted: files.reduce((n, f) => n + f.deletions, 0), count: files.length,
     progress: files.length ? files.filter(f => f.reviewed).length / files.length : 1,
