@@ -6,10 +6,11 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, spaces, focused, theme, layout, shared, setShared, setAgentOrder, settings, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { glow, tip } from "./tip.js";
-import { stopsInit, stopsEnd, stop, focusRoot, enter } from "./focus.js";
+import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 import { menuJump } from "./list.js";
 import { MOTION, planMotion, flying, leavingRows } from "./motion.js";
 import { agentEntries, agentStatus, STACK, RANK, SECTION } from "./rows.js";
+import { sidebarParts } from "./sidebar.js";
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
   { id: "grouped", label: "Grouped by space", icon: "layers" },
@@ -19,7 +20,10 @@ const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[
 const SORT_WIDTH = 200;
 
 export default class Agents extends View {
-  async close() { stopsEnd(this); }
+  async close() {
+    if (props()?.sortMenu) setShared("t3-agents.sortClosed", Date.now());
+    stopsEnd(this);
+  }
 
   init(_props, cx) {
     if (props()?.sortMenu) {
@@ -201,8 +205,7 @@ export default class Agents extends View {
     // counts: Idle folds by default, and leaving a row there would take it off the walk, with no key back.
     const order = [...new Set(groups.flatMap(g => g.members.map(a => a.address)))];
     const view = order.includes(ancestor) ? ancestor : null;
-    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-    if (find(layout())?.active !== "inbox") {
+    if (sidebarParts(layout()).stack?.active !== "inbox") {
       const drawn = { order, view };
       if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-agents.rows") ?? null)) setShared("t3-agents.rows", drawn);
       const addresses = list.map(a => a.address), key = JSON.stringify(addresses);
@@ -260,8 +263,9 @@ export default class Agents extends View {
                 .text_color(this.hot === "ag-sort" ? t.foreground : t.dim)
                 .hover((s) => s.bg(t.hover))
                 .on_hover(glow(this, "ag-sort"))
-                .on_mouse_down("left", (e) => { this.sortFrom = e.bounds; })
+                .on_mouse_down("left", (e) => { pressed(this); this.sortFrom = e.bounds; })
                 .on_click((_e, cx) => {
+                  if (justClosed(this, "t3-agents.sortClosed")) { this.sortFrom = null; return; }
                   this.hot = null; // The menu covers it, before the pointer can report leaving it.
                   // Hung from the button, right edges together, as T3's menus. No press (the keyboard), the app's default.
                   const b = this.sortFrom, z = Number(settings()?.zoom) || 1;

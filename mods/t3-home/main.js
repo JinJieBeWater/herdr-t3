@@ -5,18 +5,11 @@ import { h_flex, v_flex } from "gpui-base";
 import { layout, run, shared, theme } from "herdr";
 import { keyOf } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, pressed, justClosed } from "./focus.js";
+import { sidebarParts } from "./sidebar.js";
 
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
 // The selected sidebar keeps its rows current while hidden too.
 function hasNext() {
-  return shared(find(layout(), "sidebar-lists")?.active === "inbox" ? "t3-inbox.rows" : "t3-agents.rows")?.order?.length > 0;
+  return shared(sidebarParts(layout()).stack?.active === "inbox" ? "t3-inbox.rows" : "t3-agents.rows")?.order?.length > 0;
 }
 const ACTIONS = [
   { id: "next", word: "Next agent", action: "t3-tabs.next", go: () => run("t3-tabs.next"), ready: hasNext },

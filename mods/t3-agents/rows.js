@@ -33,13 +33,15 @@ function duration(ms) {
 }
 
 // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
-function agentTree(all, addr, lead = []) {
-  const kids = all.filter((k) => k.parent === addr && k.state === "live");
+function agentTree(all, addr, lead = [], seen = new Set()) {
+  if (seen.has(addr)) return [];
+  seen.add(addr);
+  const kids = all.filter((k) => k.parent === addr && k.state === "live" && !seen.has(k.address));
   return kids.flatMap((k, i) => {
     const last = i === kids.length - 1;
     return [
       { t: k, depth: lead.length + 1, lines: [...lead, last ? "└" : "├"] },
-      ...agentTree(all, k.address, [...lead, last ? "" : "│"]),
+      ...agentTree(all, k.address, [...lead, last ? "" : "│"], seen),
     ];
   });
 }
@@ -201,7 +203,8 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
           // The row's about to move from under the pointer.
           view.hovered = view.hot = null;
           detailsFor(view, null, cx);
-          setShared("agents.pins", isPinned ? view.pins.filter((p) => p !== a.address) : [...view.pins, a.address]);
+          if (isPinned) run(`t3-tabs.unpin:${a.address}`);
+          else setShared("agents.pins", [...view.pins, a.address]);
           // A pin ends a snooze. Here, not in the Inbox: it may not have started yet.
           if (!isPinned && all.find((k) => k.address === a.address)?.labels?.snoozed) cx.spawn(async () => {
             const r = await hc(["label", a.address, "snoozed="]).catch((e) => ({ code: 1, stderr: String(e) }));

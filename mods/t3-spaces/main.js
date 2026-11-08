@@ -6,46 +6,35 @@
 import { View, div, svg } from "gpui-kit";
 import { foldArrow, planMotion, flying, leavingRows } from "./motion.js";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
-import { projectMark, placeOf, tint } from "./project.js";
+import { spaces, machines, panes, focused, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, props, layout, nextCommand } from "herdr";
+import { projectMark, tint } from "./project.js";
+import { repoFacts } from "./repos.js";
 import { dragGone, glow, hoverKept, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
+import { sidebarParts } from "./sidebar.js";
 
-// Where a space is now. `ps`: panes(), read once by the caller (each read copies every pane).
-const where = (s, ps) => JSON.stringify([s.machine ?? null, placeOf(s, ps)]);
-const base = (path) => path.replace(/\/+$/, "").split("/").pop();
-
-// Changes made outside Herdr (an editor's save, a commit in another app): looked
-// for this often, in repos the list shows, while the window is in front.
-const FALLBACK = 60000;
 // How long a checkout being opened may take to show up before it's asked for again.
 const OPENING = 5000;
 // T3's project row, and its list's 1px between items (gap-px). A drag's math goes by the pitch.
 const ROW = 32, STACK = 1, PITCH = ROW + STACK;
-const find = (n, id) => n?.id === id ? n : (n?.children ?? []).map((c) => find(c, id)).find(Boolean);
 // Docked alone there's no Inbox to be behind.
-const listInView = (root = layout()) => find(root, "sidebar-lists")?.active !== "inbox" && !find(root, "sidebar")?.hidden;
+const listInView = (root = layout()) => {
+  const { rail, stack } = sidebarParts(root);
+  return stack?.active !== "inbox" && !rail?.hidden;
+};
 
 export default class Spaces extends View {
   async close() { stopsEnd(this); }
 
   init(_props, cx) {
     stopsInit(this, cx);
+    this.dragKeys = cx.focus_handle();
     // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
     cx.spawn(async (cx) => {
       for (;;) if (await nextCommand() === "focus") enter(this, cx, "space-new");
     });
-    this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
-    this.lastGit = {}; // space -> its git where it last had an answer; kept for one that's gone, as its machine may bring it back
+    this.repos = repoFacts({ exec, watchFolder, cx });
     this.opening = new Map(); // repo -> when its checkout was opened from its dim row
-    this.checked = {}; // where() -> when it was last looked at
-    this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
-    this.pending = new Set(); // where()s to look at next
-    this.refreshing = new Set(); // machines being looked at
-    this.busy = {}; // pane -> an agent working or a program in front of its shell
-    this.ready = {}; // machine -> its layout was readable at the last look
-    this.at = {}; // space -> its where() at the last look
-    this.watching = new Map(); // local repos' git folders -> their watch's own token
     // Spaces made while this runs wait (at most a moment) for their git, so a
     // worktree appears under its repo instead of jumping there.
     this.shown = new Set(spaces().map((s) => s.id));
@@ -60,7 +49,7 @@ export default class Spaces extends View {
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     // `git status` walks the whole tree, on another machine a process there:
-    // only when its answer could have changed (see `due`).
+    // only when its answer could have changed (repos.js).
     cx.timer.every(250, (cx) => this.checkNew(cx));
   }
 
@@ -77,56 +66,8 @@ export default class Spaces extends View {
       this.machinesSeen = seen;
       this.refreshMachines(cx);
     }
-    const due = this.due(now, sp, panes());
-    if (due.size) this.refreshGit(due, cx);
+    this.repos.update({ spaces: sp, panes: panes(), machines: machines(), active: window().active, visible: listInView(), folded: this.folded }, now);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
-  }
-
-  // Places whose git could have changed: new ones (a new space, a cd), where a
-  // command or an agent's turn just ended (a checkout, a commit, edits), those on
-  // a machine that is back, and repos in view whose fallback is due.
-  due(now, sp, ps) {
-    // Moved there: what it knew of that place may be old.
-    const at = {};
-    for (const s of sp) at[s.id] = where(s, ps);
-    const keys = new Set(Object.values(at).filter((k) => JSON.parse(k)[1]));
-    // Where no space is any more: forgotten, so a commit looks only where spaces are and a repo none is in isn't watched.
-    for (const k of Object.keys(this.git)) if (!keys.has(k)) { delete this.git[k]; delete this.checked[k]; this.unsure.delete(k); }
-    // Not while a place is unanswered: a cd within a repo would let it go and watch it again.
-    if ([...keys].every((k) => k in this.git)) {
-      const used = new Set(Object.values(this.git).filter(Boolean).map((g) => JSON.parse(g.repo)).filter(([on]) => !on).map(([, repo]) => repo));
-      for (const repo of this.watching.keys()) if (!used.has(repo)) this.watching.delete(repo);
-    }
-    const due = new Set([...keys].filter((k) => !(k in this.git) && !(k in this.checked)));
-    for (const [id, k] of Object.entries(at)) if (this.at[id] && this.at[id] !== k && keys.has(k)) due.add(k);
-    this.at = at;
-    const spaceOf = {};
-    for (const s of sp) for (const t of s.tabs ?? []) spaceOf[t.id] = s;
-    const busy = {};
-    for (const p of ps) {
-      if (!p.terminal || !spaceOf[p.tab]) continue;
-      busy[p.pane] = p.status === "working" || !(p.program?.shell || p.program?.agent);
-      if (this.busy[p.pane] && !busy[p.pane]) this.sameRepo(at[spaceOf[p.tab].id], keys).forEach((k) => due.add(k));
-    }
-    this.busy = busy;
-    for (const m of machines()) {
-      const ready = m.layout === "ready";
-      if (ready && this.ready[m.name] === false) for (const k of keys) if (JSON.parse(k)[0] === m.name) due.add(k);
-      this.ready[m.name] = ready;
-    }
-    if (window().active && listInView()) {
-      for (const k of keys) {
-        const asks = this.git[k] || this.unsure.has(k);
-        if (asks && !this.folded.has(JSON.parse(k)[0]) && now - (this.checked[k] ?? 0) > FALLBACK) due.add(k);
-      }
-    }
-    return due;
-  }
-
-  // `key` and the other places in its repo (a commit there moves their ahead/behind).
-  sameRepo(key, keys) {
-    const repo = this.git[key]?.repo;
-    return [key, ...(repo ? [...keys].filter((k) => this.git[k]?.repo === repo) : [])];
   }
 
   refreshMachines(cx) {
@@ -192,77 +133,6 @@ export default class Spaces extends View {
     });
   }
 
-  // One look at a time on each machine, so one that hangs holds up only its own places; each place once however often it was asked for meanwhile.
-  refreshGit(keys, cx) {
-    const now = Date.now(), machineOf = (k) => JSON.parse(k)[0];
-    for (const k of keys) { this.pending.add(k); this.checked[k] = now; }
-    for (const on of new Set([...this.pending].map(machineOf))) {
-      if (this.refreshing.has(on)) continue;
-      this.refreshing.add(on);
-      cx.spawn(async (cx) => {
-        for (let key; (key = [...this.pending].find((k) => machineOf(k) === on));) {
-          this.pending.delete(key);
-          await this.check(key, cx);
-        }
-        this.refreshing.delete(on);
-        cx.notify();
-      });
-    }
-  }
-
-  // One place's git: branch, ahead/behind, its repo.
-  async check(key, cx) {
-    const [on, cwd] = JSON.parse(key);
-    try {
-      // No optional locks: a status that touched the index would wake the watch again.
-      // Writes nothing under .git (index lock, fsmonitor cookie): watch() would wake on it.
-      const r = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v2", "--branch"], { cwd, on });
-      this.unsure.delete(key); // Only now: until it answers, what it couldn't say stays unsaid.
-      if (r.code !== 0) {
-        // Only git's own "no" is remembered as no repo; anything else is asked again.
-        if (!/not a git repository/i.test(r.stderr)) this.unsure.add(key);
-        this.git[key] = null;
-        return;
-      }
-      // The repo's own .git folder names it; a worktree's top differs from it.
-      const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on });
-      const common = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on });
-      const repo = common.stdout.trim();
-      const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
-      const info = { name, branch: null, ahead: 0, behind: 0, repo: JSON.stringify([on, repo]), linked: repo !== `${top.stdout.trim()}/.git` };
-      for (const line of r.stdout.split("\n")) {
-        if (line.startsWith("# branch.head ")) info.branch = line.slice(14);
-        else if (line.startsWith("# branch.ab ")) {
-          const [a, b] = line.slice(12).split(" ");
-          info.ahead = Math.abs(parseInt(a, 10)) || 0;
-          info.behind = Math.abs(parseInt(b, 10)) || 0;
-        }
-      }
-      this.git[key] = info;
-      if (!on) this.watch(repo, cx);
-    } catch {
-      // Couldn't ask (the machine is away): keep what it showed, look again later.
-      this.git[key] ??= null;
-      this.unsure.add(key);
-    }
-  }
-
-  watch(repo, cx) {
-    if (this.watching.has(repo)) return;
-    // A wait can't be taken back: a repo let go and watched again has a new loop, and the old one, on waking, ends here.
-    const token = {};
-    this.watching.set(repo, token);
-    cx.spawn(async (cx) => {
-      try {
-        while (this.watching.get(repo) === token) {
-          await watchFolder(repo);
-          const mine = JSON.stringify([null, repo]);
-          if (this.watching.get(repo) === token) this.refreshGit(Object.keys(this.git).filter((k) => this.git[k]?.repo === mine), cx);
-        }
-      } catch { if (this.watching.get(repo) === token) this.watching.delete(repo); }
-    });
-  }
-
   menu(w) {
     // A popup is as tall as its items; height is only the most.
     openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "space", target: { id: w.id } } });
@@ -276,17 +146,11 @@ export default class Spaces extends View {
   // Spaces in order, each worktree space moved under its main checkout's.
   ordered() {
     const sp = spaces(), ps = panes();
-    const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
+    const ready = (w) => this.shown.has(w.id) || this.repos.forSpace(w, ps).answered || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     // Home stays in the model's order below, so the moves count it, but it's no one's checkout and has no row.
     const homeId = shared("t3-home.space");
-    // A place not asked about yet (a cd just now) isn't "not a repo": it stays as it was, or this frame reorders the model for good.
-    const gitOf = (w) => {
-      const k = where(w, ps);
-      if (this.git[k] || (k in this.git && !this.unsure.has(k))) this.lastGit[w.id] = this.git[k];
-      return this.lastGit[w.id] ?? null;
-    };
-    const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : gitOf(w) }));
+    const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : this.repos.forSpace(w, ps).git }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const worktrees = (repo) => list.filter((k) => k.g?.linked && k.g.repo === repo);
     // A checkout just opened from its dim row arrives last: it takes that row's place, so the group doesn't jump to the list's end.
@@ -559,8 +423,10 @@ export default class Spaces extends View {
     if (!d.moved && Math.hypot(e.position.x - d.at.x, dy) <= 6) return;
     // Let go outside the window, neither a release nor a leave comes (see pointerGone), and a move doesn't say whether the button's down.
     if (!d.moved) {
+      this.dragKeys.focus();
+      this.dragFocus = true;
       const watch = cx.timer.every(POINTER_WATCH, (cx) => {
-        if (this.drag !== d) return watch.cancel();
+        if (this.drag !== d) { watch.cancel(); if (!this.drag) this.letGo(cx, true); return; }
         if (!dragGone(d.box)) return;
         watch.cancel();
         this.letGo(cx, true);
@@ -621,6 +487,12 @@ export default class Spaces extends View {
   letGo(cx, back) {
     const d = this.drag;
     this.drag = null;
+    if (this.dragFocus) {
+      this.dragFocus = false;
+      const back = focused();
+      if (back?.pane) run("pane.focus", { pane: back.pane });
+      else if (back?.terminal) run("pane.focus", { terminal: back.terminal });
+    }
     if (d?.drawn) {
       this.landed = { key: d.key, y: d.y };
       const l = this.lift(this.rows, d.key), index = back || !l ? null : this.dest(l, /** @type {any} */ (d));
@@ -669,6 +541,11 @@ export default class Spaces extends View {
     const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(28).flex_none().flex().items_center().justify_center().rounded(8).text_color(this.hot === id ? t.foreground : t.dim).on_hover(glow(this, id)).on_mouse_down("left", () => pressed(this)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
       .on_click(fn).child(svg(`mods/t3-spaces/icons/${icon}.svg`).size(16)), 8), more);
     return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(14)
+      .when(this.dragFocus, el => el.track_focus(this.dragKeys).on_key_down((e, cx) => {
+        if (e.keystroke !== "escape" || !this.dragFocus) return;
+        cx.stop_propagation();
+        this.letGo(cx, true);
+      }))
       // As tall as Inbox's top row, T3's.
       .child(h_flex().id("spaces-heading").h(48).flex_none().pl(18).pr(8).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
@@ -688,7 +565,7 @@ export default class Spaces extends View {
         // Released anywhere in the list, it lands where the gap is.
         .on_mouse_up("left", (_e, cx) => this.letGo(cx))
         // Herdr reports no release outside the sidebar, so leaving ends a drag, as in the inbox: back where it was.
-        .on_hover((on, cx) => { if (!on && this.drag) this.letGo(cx, true); })
+        .on_hover((on, cx) => { if (!on && (this.drag || this.dragFocus)) this.letGo(cx, true); })
         .child(v_flex().id("space-content").w_full().flex_none().px(8).pb(8)
           // Inside the padding, so the rows that left and the lifted one line up with the rows.
           .child(v_flex().id("space-rows").relative().gap(STACK)
