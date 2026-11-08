@@ -95,7 +95,7 @@ export function inboxTop(view, t, model) {
           draw: (i) => choice(found[i], i), wheeled: (keep) => { view.scopeAt = keep; } })))
         .when(found.length === 0, (el) => el.child(div().p(8).text_center().line_height("20px").text_color(t.dim).child("No matching spaces.")))));
   // T3's top group: 8 in and the search field 4 before its buttons, which touch. The right edge is the brand bar's above, so the two rows of icons line up.
-  const top = h_flex().id("inbox-top").h(48).px(8).gap(4).flex_none().items_center()
+  const top = h_flex().id("inbox-top").h(32).px(8).gap(4).flex_none().items_center()
     // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
     .child(stop(view, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
       .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow(view, "inbox-search")).on_mouse_down("left", () => pressed(view))

@@ -269,7 +269,9 @@ export default class Spaces extends View {
             .role("button").accessibility_label(`Connect ${m}`)
             .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
             .child(repair?.busy ? "Connecting…" : "Connect"), 4)))))
-        .child(h_flex().flex_none().gap(2).items_center()
+        // T3's folder sizes: a 24px + with a 14px icon (icon-xs) and a 12px chevron, in the heading buttons' two columns, 50 and
+        // 22px from the sidebar's edge. The -2 sits on the group: on the chevron's own box it threw the whole group past the edge.
+        .child(h_flex().flex_none().mr(-2).gap(10).items_center()
           .when(connected, el => el.child(tip(this, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, div().id(`machine-add-${id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8)
             .text_color(this.hot === `machine-add-${id}` ? t.foreground : t.dim).on_hover(glow(this, `machine-add-${id}`))
             .role("button").accessibility_label("New space here")
@@ -322,12 +324,13 @@ export default class Spaces extends View {
   }
 
   // A checkout's fold arrow: at the row's end, and folded, the count before it, as T3's folder; dim, brightening when hovered.
-  // -6: past T3's micro button's padding, its chevron stands in the column of a machine's and a folder's chevron.
+  // -8: past T3's micro button's padding and 2 more, its 12px chevron stands in the column of a machine's and a folder's,
+  // 22px from the sidebar's edge, under the headings' last button.
   // The count just shows: it changes with the arrow, and a fade there isn't worth an element of its own.
   foldButton(t, id, repo, hiding, ghost) {
     const folded = this.foldedRepos.has(repo), lit = this.hot === id ? t.foreground : t.dim;
     const label = folded ? "Expand worktrees" : "Collapse worktrees";
-    const el = div().h(20).min_w(20).mr(-6).px(6).gap(4).flex_none().flex().items_center().justify_center().rounded(4)
+    const el = div().h(20).min_w(20).mr(-8).px(6).gap(4).flex_none().flex().items_center().justify_center().rounded(4)
       // raised: the row under it already shows hover or selected.
       .text_size(11).text_color(lit)
       .when(folded && hiding > 0, el => el.child(String(hiding)))
@@ -547,7 +550,7 @@ export default class Spaces extends View {
         this.letGo(cx, true);
       }))
       // As tall as Inbox's top row, T3's.
-      .child(h_flex().id("spaces-heading").h(48).flex_none().pl(18).pr(8).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
+      .child(h_flex().id("spaces-heading").h(32).flex_none().pl(18).pr(8).items_center().justify_between().text_size(12).font_medium().text_color(t.dim)
         .child(div().text_color(t.muted).child("Spaces"))
         // The same two as Inbox's top row, so switching modes moves nothing.
         .child(h_flex().flex_none().items_center()
@@ -566,7 +569,7 @@ export default class Spaces extends View {
         .on_mouse_up("left", (_e, cx) => this.letGo(cx))
         // Herdr reports no release outside the sidebar, so leaving ends a drag, as in the inbox: back where it was.
         .on_hover((on, cx) => { if (!on && (this.drag || this.dragFocus)) this.letGo(cx, true); })
-        .child(v_flex().id("space-content").w_full().flex_none().px(8).pb(8)
+        .child(v_flex().id("space-content").w_full().flex_none().px(8).pt(4).pb(8)
           // Inside the padding, so the rows that left and the lifted one line up with the rows.
           .child(v_flex().id("space-rows").relative().gap(STACK)
             .children(leavingRows(this))

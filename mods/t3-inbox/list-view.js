@@ -10,7 +10,7 @@ import { FIRST, MORE } from "./row-model.js";
 // T3's slim rows and Show more (h-9) and its shelves' headers (h-8), logical px.
 export const SLIM = 36, SHELF = 32;
 // T3's list: 1px between its items (gap-px), a card's item adding 2 above and below (py-0.5); 8 in, and a card's 2 more at the top.
-export const STACK = 1, CARD_GAP = 5, LIST_TOP = 0;
+export const STACK = 1, CARD_GAP = 5, LIST_TOP = 8;
 
 export function inboxList(view, t, model, actions, drag, draw, cx) {
   const { list, every, sp, scope, kids, working, pinned, out, work, nap, put, busyRows, napRows, busy } = model;
@@ -38,7 +38,8 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
     .child(div().flex_1().child(label))
     .when(Boolean(extra), (el) => el.child(extra))
     .child(div().font_normal().child(String(count)))
-    .child(svg(`mods/t3-inbox/icons/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(view.overShelf === id ? t.foreground : t.dim)));
+        // 12px, as T3's section chevron; -2: its middle under the top row's last button, 22px from the sidebar's edge.
+    .child(svg(`mods/t3-inbox/icons/chevron-${open ? "down" : "right"}.svg`).size(12).mr(-2).flex_none().text_color(view.overShelf === id ? t.foreground : t.dim)));
 
   // The list's motion, as T3's (Sidebar.motion.ts): when the rows' order or sections change, a row that moved slides from
   // where it was, one that's new fades in from 40px above, one that left fades out where it was; 150ms ease-out. Not

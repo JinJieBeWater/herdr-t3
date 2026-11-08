@@ -279,7 +279,8 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
   if (!groups.some((g) => g.id === view.overGroup)) view.overGroup = null;
   const chevron = (g, open, ghost) => {
     const color = !ghost && view.overGroup === g.id ? t.foreground : t.dim;
-    return div().flex_none().text_color(color).child(foldArrow("t3-agents", ghost ? null : `chevron-${g.id}`, open, 12, color));
+    // 12px, as T3's section chevron; -2: its middle 22px from the sidebar's edge, under the headings' last button.
+    return div().flex_none().mr(-2).text_color(color).child(foldArrow("t3-agents", ghost ? null : `chevron-${g.id}`, open, 12, color));
   };
   // Drawn as Inbox's shelves, T3's: a dim label, then at the far edge the count and the chevron, an indicator that lights with its row.
   const shelf = (g, open, ghost) => {

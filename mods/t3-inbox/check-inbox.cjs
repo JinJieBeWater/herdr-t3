@@ -846,10 +846,10 @@ test("a row that leaves fades out where it was, then goes", () => {
   const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.listH = 600; f.render();
   f.rows.splice(0, 1); f.terms.splice(0, 1); f.render(1100);
   const ghost = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("leaving-A-") ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 0], "drawn as it was, where it was");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 8], "drawn as it was, where it was");
   assert.equal(at(flyOf(f, "B")).top, 83, "B slides up from under it");
   f.render(1116);
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 40], "fading, 40px down: nothing above it stays");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 48], "fading, 40px down: nothing above it stays");
   f.render(1300);
   assert.equal(ghost(), null);
 });
@@ -873,7 +873,7 @@ test("a dropped row slides from where it was let go, and nothing moves while dra
   // Let go, from where the ghost was (390, below the list's top row), in the list's terms. B isn't the one in view.
   f.event("t3-inbox-root", "on_mouse_up:left"); f.render(1100);
   const b = flyOf(f, "B"), y = f.mod.motion.at.get("B").y;
-  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 390 - 48 - y]);
+  assert.deepEqual([b.key, b.style.top[0]], ["fly-B-1", 390 - 32 - y]);
 });
 
 // Herdr scales what a mod sets and reports what it measures as drawn, so at a zoom a drag has to go by one or the other.
@@ -2108,5 +2108,5 @@ test("a card and a settled row measure as T3's, and the lists stack as its does"
   assert.deepEqual(["h", "px", "gap", "rounded"].map((k) => num(slim, k)), [36, 10, 10, 6]);
   assert.deepEqual(["h", "min_w"].map((k) => num(find(slim, "slim-corner-B"), k)), [24, 32], "T3's corner");
   assert.equal(num(find(f.tree, "settled"), "gap"), 1, "gap-px between a shelf's rows");
-  assert.deepEqual(["h", "px", "gap"].map((k) => num(find(f.tree, "inbox-top"), k)), [48, 8, 4], "T3's top group");
+  assert.deepEqual(["h", "px", "gap"].map((k) => num(find(f.tree, "inbox-top"), k)), [32, 8, 4], "the search field alone, its middle on the pane headers'");
 });

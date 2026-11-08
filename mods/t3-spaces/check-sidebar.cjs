@@ -1054,7 +1054,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const ids = () => [...sp.ordered().map(r => r.w.id)];
     assert.deepEqual(ids(), ["s0", "s1", "s2"]);
     const arrow = find(sp.render(cx), "space-fold-s0");
-    assert.equal(arrow.style.mr + arrow.style.px, 0, "past its padding, its chevron ends where the row's content does, as a folder's");
+    assert.equal(arrow.style.mr + arrow.style.px, -2, "past its padding, its 12px chevron ends 2 past the row's content, as a folder's: its middle 22px from the sidebar's edge");
     // T3 turns its arrow; Herdr can't, so the two directions cross-fade in one slot, ids stable so the fade plays.
     const way = (tree, name) => find(tree, `space-fold-s0-${name}`);
     assert.deepEqual([way(arrow, "down").items[0].source, way(arrow, "down").style.opacity, way(arrow, "right").style.opacity, arrow.items.length], ["mods/t3-spaces/icons/chevron-down.svg", 1, 0, 1], "a checkout shows its fold arrow at the end, as an agent parent");
@@ -1102,7 +1102,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Its arrow is a checkout's: dim until itself hovered, in the same column.
     const foldId = `${headId}-fold`;
     assert.equal(find(root, foldId).style.text_color, o.theme().dim, "the arrow is dim, as a checkout's");
-    assert.equal(find(root, foldId).style.mr, -6);
+    assert.equal(find(root, foldId).style.mr, -8, "in the column of the headings' last button");
     // Its arrow folds, and makes nothing.
     const before = o.calls.length;
     let halted = false;
@@ -1741,10 +1741,12 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.deepEqual(f.calls.splice(0), [["mod.open", { name: "t3-picker" }]], "the keyboard's click has no press: it opens");
       delete f.state["t3-picker.closed"];
     }
-    // A machine's row is T3's shelf with its folder's +: 24, 2 before the chevron at the row's end. Its dot follows its name.
+    // A machine's row is T3's shelf with its folder's +. The + and the chevron stand in the heading's two button columns:
+    // in 8 + 2 + 8, the group 2 past the edge puts a 12px chevron's middle 22 from the sidebar's, and a 24px + 10 before it, 50.
+    // Not on the chevron's own box: there Herdr drew the whole group past the sidebar's edge.
     const lists = f.load("t3-spaces", menu), row = find(lists.render(cx), "machine-local");
     const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style;
-    assert.deepEqual([row.style.h, row.style.mx, row.style.px, add.size, add.rounded, slots.gap], [32, 2, 8, 24, 8, 2]);
+    assert.deepEqual([row.style.h, row.style.mx, row.style.px, add.size, add.rounded, slots.gap, slots.mr, find(row, "machine-fold-local").style.mr], [32, 2, 8, 24, 8, 10, -2, undefined]);
     assert.equal(row.style.text_size, 12, "the same size as the agents' group headers and Inbox's shelves");
     assert.ok(row.items.findIndex(n => find(n, "machine-state-local")) < row.items.findIndex(n => find(n, "machine-add-local")), "the dot is before the +");
     // Hover labels name the control, and its key only when the key does the same.

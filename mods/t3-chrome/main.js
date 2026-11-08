@@ -110,13 +110,13 @@ export default class WorkspaceChrome extends View {
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.sidebar"))
         // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
-        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(14)), 8), { action: "t3-tabs.sidebar", below: true }))
+        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(16)), 8), { action: "t3-tabs.sidebar", below: true }))
       .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(28).flex_none().flex().items_center().justify_center().rounded(8)
         .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
         .role("button").accessibility_label("Hide sidebar")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/t3-chrome/icons/panel-left.svg").size(14)), 8), { action: "layout.toggle:sidebar", below: true })));
+        .child(svg("mods/t3-chrome/icons/panel-left.svg").size(16)), 8), { action: "layout.toggle:sidebar", below: true })));
   }
 }

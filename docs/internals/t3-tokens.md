@@ -41,8 +41,9 @@
 | 确认框 | `ui/alert-dialog.tsx` | 同对话框 |
 | 命令面板 | `ui/command.tsx`、`CommandPalette*.tsx` | 最宽 576，最高 420，圆角 16；搜索纵向 6；底部纵向 10，上边线 |
 | 标签关闭 | `ui/panel-tab-close-button.tsx` | 16，圆角 4，图标 12 |
-| 标题栏按钮 | `index.css` | 28，间距 12 |
+| 标题栏按钮 | `index.css`、`ui/sidebar.tsx` 的 `SidebarTrigger` | 28，间距 12，图标 16 |
 | 侧栏 | `Sidebar*.tsx`、`ui/sidebar.tsx` | 见源码；RECIPE 里已写明的是之前量过的值，仍要对照 |
+| 侧栏图标 | `SidebarThreadHeader.tsx`、`SidebarProjectFolderHeader.tsx`、`ui/collapsible-section-header.tsx`、`SidebarThreadRow.tsx` | 图标跟着按钮框走：28 的按钮图标 16，24 的小按钮（`icon-xs`）图标 14；收纳区和文件夹的折叠箭头、行内控件和标记 12 |
 | 面板标签 | 终端和预览面板的标签组件 | 见源码 |
 
 ## 有意不同

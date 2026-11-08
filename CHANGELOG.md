@@ -4,11 +4,16 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- The top of the sidebar, as T3's:
+  - Inbox's Search row and Lists' Spaces heading line up with the pane headers on the right. They used to sit 8px lower.
+  - The first card sits 8px under Search. It used to sit 10px lower.
+  - Icons are T3's sizes: 16px in the buttons at the top, the brand bar's included, which used to be 14px; 14px in a machine's +; 12px for the fold arrows.
+  - The fold arrows and a machine's + stand under the buttons above them, in two columns. They used to sit a few pixels off.
+  - The three rows of buttons at the top are evenly spaced.
 - Moving the pointer from one row to the next swaps the details card at once. The old card used to fade out under the new one, which flickered.
 - Herdr's logo and name sit at the top left of the sidebar, past the window buttons, where Herdr's own layout has them. Click them to go Home. They light up while you're there. The house button is gone.
 - On macOS the window buttons sit on the brand bar's middle line, 1pt higher than before.
 - They stay on that line at any zoom. When the zoom changes, the layout updates the button position in your installed `herdr-t3` layout. A copy saved under another name is left alone.
-- The Inbox's first card sits 8px under Search, as in T3. It used to sit 10px lower.
 - Popup lists that scroll, such as New and Go to, stay still when the pointer moves over them. They used to scroll a half-hidden row into view under the pointer. The arrow keys still scroll to the highlighted row.
 - The README is shorter: what this is, how to install it and how to start. Features, keys, updating and known limits are in [the guide](docs/user/guide.md). The extras have [their own page](docs/user/extras.md).
 - Inbox:

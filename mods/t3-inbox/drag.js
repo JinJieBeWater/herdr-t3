@@ -179,7 +179,7 @@ export function inboxDrag(view, t, model, actions) {
     return false;
   };
 
-  const TOP = 48; // The top row above the list.
+  const TOP = 32; // The top row above the list.
   const ghostTop = () => Math.max(TOP + LIST_TOP + 24, Math.min(d.y - d.grab, (view.height ?? Infinity) - d.height - 8));
   // Ends a drag or sweep, and hands the keyboard back to the pane that had it, unless the drop moved on to
   // another agent. Not FocusHandle.release(): that frees the handle, and the next drag would throw.
