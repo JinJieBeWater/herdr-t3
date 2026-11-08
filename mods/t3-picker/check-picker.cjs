@@ -17,6 +17,7 @@ function element() {
       else if (key === "id") node.key = args[0];
       else if (key === "opacity") node.opacity = args[0];
       else if (key === "bg") node.fill = args[0];
+      else if (key === "tab_index") node.tabIndex = args[0];
       return proxy;
     };
   } });
@@ -44,7 +45,7 @@ const panes = [
 ];
 const shared = {}, calls = [];
 let terms = [];
-const cx = { notify() {}, stop_propagation() {} };
+const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }) };
 const context = vm.createContext({
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, type(v) { value = v; on.change({}, cx); }, submit() { on.submit(); } }; } },
@@ -55,7 +56,7 @@ const context = vm.createContext({
   shared: (k) => shared[k], setShared: (k, v) => { shared[k] = v; },
   namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
 });
-const src = ["tree.js", "list.js", "zoom.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["tree.js", "list.js", "zoom.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const keys = (m) => find(m.render(), "picker-rows")?.items.map((n) => n.key) ?? [];
@@ -128,4 +129,6 @@ terms[0].labels.settled = "1:1"; assert.equal(done(), false);
 terms[0].turn = 2; assert.ok(done());
 terms[0].labels = { snoozed: String(Date.now() + 60000) }; assert.equal(done(), false);
 terms[0].labels.snoozed = String(Date.now() - 1); assert.ok(done());
+// Tab reaches the footer's New tab, as every control in a popup.
+assert.equal(find(open().render(), "picker-new").tabIndex, 0);
 console.log("ok picker");

@@ -71,9 +71,9 @@ function control(view, t, stopPress) {
       .child(svg("mods/t3-actions/icons/chevron-down.svg").size(16)), 8), { below: true }));
 }
 
-// The menu takes the keyboard, as the shipped menu does.
+// The menu takes the keyboard, as the shipped menu does. As T3's, nothing is lit until a key or the pointer gets there.
 function initMenu(view, cx) {
-  view.at = 0;
+  view.at = -1;
   view.keys = cx.focus_handle();
   view.keys.focus();
   stopsInit(view, cx, "modal");
@@ -86,13 +86,13 @@ function menu(view) {
   const row = (id, at, i, label) => h_flex().id(id).h(28).px(8).gap(8).rounded(4).items_center().flex_none()
     .text_color(t.foreground).when(view.at === at, el => el.bg(t.selected))
     .role("button").accessibility_label(label)
-    .on_hover((on, cx) => { if (on && view.at !== at) { view.at = at; cx.notify(); } })
+    .on_hover((on, cx) => { const to = on ? at : view.at === at ? -1 : view.at; if (to !== view.at) { view.at = to; cx.notify(); } })
     .on_click(() => { done(); picks[at](); })
     .child(i).child(div().flex_1().min_w(0).truncate().child(label));
   return focusRoot(view, v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(14)
     .track_focus(view.keys).on_key_down((e, cx) => {
       // On a row's Edit, Enter is Edit's.
-      if (e.key === "enter") { if (onStop(view)) return; done(); picks[view.at](); }
+      if (e.key === "enter") { if (onStop(view)) return; if (view.at >= 0) { done(); picks[view.at](); } }
       else if (e.key === "escape") done();
       else {
         const to = menuJump(view, e, labels, view.at);

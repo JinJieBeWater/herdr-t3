@@ -10,6 +10,7 @@ import { launch } from "./open.js";
 import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { glow, tip } from "./tip.js";
 import { step, scrollList } from "./list.js";
+import { stop } from "./focus.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -335,7 +336,7 @@ function branchCard(view, t, id, b, base, now) {
     ], { wrap: true, from: 4 }).mr(4)));
 }
 
-export function reviewBar(view, t, stop) {
+export function reviewBar(view, t, stopPress) {
   if (onHome()) return null;
   // Looked up on each render, so the frame that shows another space already shows its own counts.
   const r = view.reviews?.get(JSON.stringify(reviewLocation()));
@@ -351,7 +352,7 @@ export function reviewBar(view, t, stop) {
   // The count leads; what it counts stays quiet beside it.
   // As T3's xs buttons in a Group: 22, the outline's inside (a hover card's wrapper has no height for h_full to fill), the
   // outline's 1 and 7 in. Its label is the name's first part. Compact, the label gives back the words the count lost, `· merged?` included.
-  const item = ([id, count, noun, icon, name, args, arrow = ""], first) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], h_flex().id(id).h(22).px(7).gap(4).flex_none().items_center()
+  const item = ([id, count, noun, icon, name, args, arrow = ""], first) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], stop(view, t, id, h_flex().id(id).h(22).px(7).gap(4).flex_none().items_center()
     .text_size(12).font_medium().text_color(t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
     // Herdr has no group hover. Entering the next segment can report before leaving this one.
     .on_hover(glow(view, id))
@@ -359,7 +360,7 @@ export function reviewBar(view, t, stop) {
     .when(compact, el => el.child(svg(`mods/${MOD}/icons/${icon}.svg`).size(14).flex_none()))
     .child(div().text_color(t.foreground).child(compact ? count : arrow + count))
     .when(Boolean(noun) && !compact, el => el.child(noun))
-    .when(first, el => el.rounded_l(7)), { below: true });
+    .when(first, el => el.rounded_l(7)), first ? 7 : 0), { below: true });
   const segments = [
     r.changed > 0 && ["review-changes", String(r.changed), "uncommitted", "file-diff", `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"]],
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
@@ -368,7 +369,7 @@ export function reviewBar(view, t, stop) {
     r.ahead > 0 && ["review-ahead", String(r.ahead), null, "arrow-up", `Review ${n(r.ahead, "commit")} to push: on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`], "↑"],
     r.behind > 0 && ["review-behind", String(r.behind), null, "arrow-down", `Review ${n(r.behind, "commit")} to pull: on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`], "↓"],
   ].filter(Boolean);
-  const pressed = (e, cx) => { view.reviewPress = e.position; view.pressAt = Date.now(); stop(e, cx); };
+  const pressed = (e, cx) => { view.reviewPress = e.position; view.pressAt = Date.now(); stopPress(e, cx); };
   const openMenu = (_e, cx) => {
     view.hot = null; cx.notify();
     // The button toggles: the press that brought this click closed the menu, so the click leaves it closed. 50 ms, for
@@ -388,12 +389,12 @@ export function reviewBar(view, t, stop) {
   };
   // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
   // The block ends where the bar does, so the logo, last, stays put as the counts come and go.
-  return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stop)
+  return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stopPress)
     .children(segments.flatMap((s, i) => [item(/** @type {any} */ (s), i === 0), div().w(1).h(22).flex_none().bg(t.border)]))
     // Stays with no counts: on a clean default branch it's the only way in.
-    .child(tip(view, t, "review-pick", "Change what to review", h_flex().id("review-pick").h(22).w(segments.length ? 23 : 22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
+    .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", h_flex().id("review-pick").h(22).w(segments.length ? 23 : 22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
       .on_mouse_down("left", pressed).on_click(openMenu)
       // As T3's icon-xs, 24 with the outline's sides. image, not svg: svg would draw the logo in one tint.
-      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()), { below: true }));
+      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()), 7), { below: true }));
 }

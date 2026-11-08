@@ -10,6 +10,7 @@ import { focusPane } from "./zoom.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { step, scrollList } from "./list.js";
+import { stopsInit, stop, focusRoot } from "./focus.js";
 
 // As T3's command item: 6 + a 20px title + a 16px line + 6.
 const ROW = 48;
@@ -21,7 +22,8 @@ const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/icons/terminal.svg").size(
 
 
 export default class Picker extends View {
-  init() {
+  init(_props, cx) {
+    stopsInit(this, cx, "modal");
     this.at = null;
     this.filter = "";
     this.input = InputState.new({ placeholder: "Search terminals…" });
@@ -99,7 +101,7 @@ export default class Picker extends View {
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);
-    return v_flex().id("picker").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
+    return focusRoot(this, v_flex().id("picker").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         const to = step(e, this.at, items.length);
@@ -128,10 +130,10 @@ export default class Picker extends View {
           .child(hint("Esc", "Close")))
         // New work goes through New, which picks the space (and for a new space, the machine).
         // T3's CommandFooterAction: no fill of its own, its words brighten.
-        .child(h_flex().id("picker-new").gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
+        .child(stop(this, t, "picker-new", h_flex().id("picker-new").gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
           .role("button").accessibility_label("New tab").hover((s) => s.text_color(t.foreground))
           .on_click(() => { closeOverlay(props().overlay); run("mod.open", { name: "t3-new-menu" }); })
           .child(svg("mods/t3-picker/icons/square-pen.svg").size(14).text_color(t.muted))
-          .child("New tab")));
+          .child("New tab"), 8))));
   }
 }

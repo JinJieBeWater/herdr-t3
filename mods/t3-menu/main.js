@@ -1,13 +1,15 @@
 // Context menus (Herdr's items). Opened as a popup with
 // props { tab: "pane" | "tab" | "space" | "global", target }.
-// ↑/↓ move, Enter runs, Esc closes. An item is [label, command, args];
+// ↑/↓, Home, End and typeahead move, Enter runs, Esc closes. An item is [label, command, args];
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
-// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose() and T3's measures differ from the shipped one.
+// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose(), T3's measures and the list's moves
+// (shared/list.js, the one way every popup's list moves) differ from the shipped one.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec } from "herdr";
+import { menuJump } from "./list.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -89,7 +91,8 @@ function shortcut(name, args) {
 
 export default class Menu extends View {
   init(_props, cx) {
-    this.at = 0;
+    // As T3's, nothing is lit until a key or the pointer gets there.
+    this.at = -1;
     this.git = null;
     this.handle = cx.focus_handle();
     this.handle.focus();
@@ -126,11 +129,13 @@ export default class Menu extends View {
       .bg(t.popover)
       .text_size(14)
       .on_key_down((e, cx) => {
-        if (e.key === "down") this.at = (this.at + 1) % list.length;
-        else if (e.key === "up") this.at = (this.at + list.length - 1) % list.length;
-        else if (e.key === "enter") this.choose(this.at);
+        if (e.key === "enter") { if (this.at >= 0) this.choose(this.at); }
         else if (e.key === "escape") closeOverlay(props().overlay);
-        else return;
+        else {
+          const to = menuJump(this, e, list.map((it) => it[0]), this.at);
+          if (to < 0) return;
+          this.at = to;
+        }
         cx.notify();
       })
       .children(
@@ -147,7 +152,7 @@ export default class Menu extends View {
             .justify_between()
             .text_color(t.foreground)
             .when(i === this.at, (el) => el.bg(t.selected))
-            .hover((s) => s.bg(t.hover))
+            .on_hover((on, cx) => { const to = on ? i : this.at === i ? -1 : this.at; if (to !== this.at) { this.at = to; cx.notify(); } })
             .on_click(() => this.choose(i))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
             .child(svg(menuIcon(it[1])).size(16).mx(-2).flex_none().text_color(t.muted))

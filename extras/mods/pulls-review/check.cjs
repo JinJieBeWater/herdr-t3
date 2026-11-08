@@ -49,10 +49,10 @@ const env = {
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
   appHome: () => "/app", home: () => "/Users/me", readTextFile: async () => '{ "open": "herdr" }',
 };
-const source = ["details.js", "tip.js", "list.js", "zoom.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["details.js", "tip.js", "list.js", "zoom.js", "focus.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
-const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
+const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
 // `setup` gets the module's scope before init, to stand in for git; by default it records what open.js's launch gets.
 const record = (scope) => { scope.launch = (input) => { launched.push(plain(input)); }; };
 const load = (props = {}, setup = record) => {
@@ -89,6 +89,11 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(keys(find(drawn, "pulls-review")), ["tip-review-changes", "div", "tip-review-open", "div", "tip-review-ahead", "div", "tip-review-behind", "div", "tip-review-pick"]);
   assert.equal(strings(find(drawn, "tip-review-ahead").style.content).length, 0, "its card waits for the hover");
   assert.ok("rounded_l" in find(drawn, "review-changes").style && "rounded_r" in find(drawn, "review-pick").style && !("rounded_l" in find(drawn, "review-pick").style), "the end parts' fills follow the outline's corners");
+  // In keyboard mode Tab reaches each count and the logo, as it does the Actions beside them.
+  state["t3-focus"] = "someone";
+  for (const id of ["review-changes", "review-open", "review-ahead", "review-behind", "review-pick"]) assert.equal(find(bar.render(), id).style.tab_index, 0, `${id} is a Tab stop`);
+  delete state["t3-focus"];
+  assert.equal(find(bar.render(), "review-pick").style.tab_index, undefined, "out of it, a press keeps the terminal's keyboard");
   assert.equal(find(drawn, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
   for (const n of walk(drawn)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
   // The logo, in its own colors and on disk: a missing file draws nothing, and the button shows blank.

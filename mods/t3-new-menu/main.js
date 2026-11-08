@@ -1,26 +1,11 @@
 // New: pick the space and open a terminal tab there, or start a new space, on a machine picked as T3 picks an environment.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { theme, spaces, machines, panes, run, closeOverlay, props, window, keys, home, shared, setShared } from "herdr";
+import { theme, spaces, machines, panes, run, closeOverlay, props, home, shared, setShared } from "herdr";
 import { projectMark, placeOf } from "./project.js";
 import { step, scrollList } from "./list.js";
-
-function shortcut(name) {
-  const k = keys().find(b => b.section === "global" && b.action === name);
-  if (!k?.keys.trim()) return "";
-  const mac = window()?.platform === "macos";
-  const names = mac ? { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘", fn: "fn" } : { ctrl: "Ctrl", alt: "Alt", shift: "Shift", cmd: "Super", fn: "Fn" };
-  const alias = { secondary: mac ? "cmd" : "ctrl", super: "cmd", win: "cmd" };
-  return k.keys.trim().split(/\s+/).map(stroke => {
-    const parts = stroke.split("-");
-    let key = parts.pop();
-    if (key === "") { key = "-"; parts.pop(); }
-    const held = new Set(parts.map(m => alias[m.toLowerCase()] ?? m.toLowerCase()));
-    if (/^[A-Z]$/.test(key)) held.add("shift");
-    const label = key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1).toLowerCase();
-    return [...Object.keys(names).filter(m => held.has(m)).map(m => names[m]), label].join(mac ? "" : "+");
-  }).join(" ");
-}
+import { keyOf, keyLabel } from "./tip.js";
+import { stopsInit, stop, focusRoot } from "./focus.js";
 
 // As T3's command item: 6 + a 20px title + a 16px line + 6.
 const ROW = 48;
@@ -29,7 +14,8 @@ const LIST_MAX = 420 - 2 - 48 - 8 - 28 - 8 - 41;
 const STATE = { ready: "Connected", loading: "Loading…", unavailable: "Unavailable" };
 
 export default class NewMenu extends View {
-  init() {
+  init(_props, cx) {
+    stopsInit(this, cx, "modal");
     this.at = 0;
     this.filter = "";
     this.picking = Boolean(props()?.pick); // choosing the machine for a new space; the sidebar's New space opens here
@@ -114,7 +100,7 @@ export default class NewMenu extends View {
             .child(svg("mods/t3-new-menu/icons/server.svg").size(12).flex_none().text_color(t.muted))
             .child(div().flex_none().text_color(t.muted).child(`${s.machine} ·`)))
           .child(div().min_w(0).truncate().child(sub))))
-      .when(Boolean(s) && i < 9, el => el.child(div().flex_none().text_size(12).font_medium().text_color(t.muted).child(`⌘${i + 1}`)));
+      .when(Boolean(s) && i < 9, el => el.child(div().flex_none().text_size(12).font_medium().text_color(t.muted).child(keyLabel(`cmd-${i + 1}`))));
   }
 
   render() {
@@ -122,11 +108,11 @@ export default class NewMenu extends View {
     const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);
     // ⌘N doesn't ask: it only names what this button does when there's nothing to ask.
-    const newKey = this.machineRows().length > 1 ? "" : shortcut("space.new");
+    const newKey = this.machineRows().length > 1 ? "" : keyOf("space.new");
     // T3's CommandFooterAction: no fill of its own, its words brighten.
     const footButton = (id, label) => h_flex().id(id).gap(4).px(8).rounded(8).items_center().flex_none().text_size(12).line_height("16px")
       .role("button").accessibility_label(label).hover(s => s.text_color(t.foreground));
-    return v_flex().id("new-menu").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
+    return focusRoot(this, v_flex().id("new-menu").size_full().min_h(0).rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px")
       .on_key_down((e, cx) => {
         if (e.key === "escape") return closeOverlay(props().overlay);
         const to = step(e, this.at, items.length);
@@ -149,10 +135,10 @@ export default class NewMenu extends View {
           .child(hint("↑ ↓", "Navigate"))
           .child(hint("Enter", this.picking ? "New space" : "New tab"))
           .child(hint("Esc", "Close")))
-        .when(this.picking, el => el.child(footButton("new-back", "Back to spaces").on_click((_e, cx) => this.showMachines(false, cx)).child("← Spaces")))
-        .when(!this.picking, el => el.child(footButton("space-new", "New space").on_click((_e, cx) => this.newSpace(cx))
+        .when(this.picking, el => el.child(stop(this, t, "new-back", footButton("new-back", "Back to spaces").on_click((_e, cx) => this.showMachines(false, cx)).child("← Spaces"), 8)))
+        .when(!this.picking, el => el.child(stop(this, t, "space-new", footButton("space-new", "New space").on_click((_e, cx) => this.newSpace(cx))
           .child(svg("mods/t3-new-menu/icons/folder-plus.svg").size(14).text_color(t.muted))
           .child("New space")
-          .when(Boolean(newKey), row => row.child(key(newKey))))));
+          .when(Boolean(newKey), row => row.child(key(newKey))), 8)))));
   }
 }

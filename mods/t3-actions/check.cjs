@@ -123,7 +123,7 @@ assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
   const long = load({ actions: "menu" }), press = (k) => fire(find(long.render(), "actions-menu"), "on_key_down", { key: k }, cx);
   assert.equal(find(long.render(), "actions-list").style.h, 420 - 45, "the list sets its own height: a popup's is only a maximum, and a flexed list would have none");
   assert.ok(!find(long.render(), "action-n20"), "only the rows in view are drawn");
-  for (let i = 0; i < 25; i++) press("down");
+  for (let i = 0; i < 26; i++) press("down");
   assert.ok(find(long.render(), "action-n25"), "the highlight's row is");
   for (let i = 0; i < 5; i++) press("down");
   assert.ok(find(long.render(), "action-new") && find(long.render(), "action-n29"), "Add action lit, the list stays where it was");
@@ -183,7 +183,15 @@ delete state["bar.compact"];
   // The menu goes by arrows and Enter.
   const selected = (n) => find(n.render(), "action-a1").style.bg === theme.selected;
   const menu = load({ actions: "menu" }), key = (k) => fire(find(menu.render(), "actions-menu"), "on_key_down", { key: k }, cx);
-  assert.ok(selected(menu), "it opens on the first row");
+  assert.ok(!selected(menu) && find(menu.render(), "action-new").style.bg !== theme.selected, "as T3's, nothing lit until a key or the pointer gets there");
+  overlays.length = 0; calls.length = 0;
+  key("enter");
+  assert.equal(overlays.length + calls.length, 0, "so Enter runs nothing");
+  // The pointer lights the row it's on, and leaving it puts the light out, as the Snooze menu's.
+  fire(find(menu.render(), "action-a1"), "on_hover", true, cx);
+  assert.ok(selected(menu));
+  fire(find(menu.render(), "action-a1"), "on_hover", false, cx);
+  assert.ok(!selected(menu), "leaving the row clears it");
   key("up");
   assert.equal(find(menu.render(), "action-new").style.bg, theme.selected, "up wraps to the last row");
   overlays.length = 0;

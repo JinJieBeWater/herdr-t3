@@ -17,6 +17,7 @@ function element() {
       else if (key === "on_key_down") node.handlers.key = args[0];
       else if (key === "id") node.key = args[0];
       else if (key === "opacity") node.opacity = args[0];
+      else if (key === "tab_index") node.tabIndex = args[0];
       return proxy;
     };
   } });
@@ -33,15 +34,16 @@ const text = (n) => typeof n === "string" ? n : n?.items ? n.items.map(text).joi
 let spaces, machines;
 let openProps = {};
 const calls = [], state = {};
-const cx = { notify() {}, stop_propagation() {} };
+const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }) };
+let platform = "macos";
 const context = vm.createContext({
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element, Input: { new: element },
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
   settings: () => ({ zoom: 1 }),
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
-  shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform: "macos" }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder,
+  shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder,
 });
-const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["list.js", "tip.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const list = (m) => find(m.render(), "new-rows");
@@ -60,6 +62,11 @@ let m = open();
 assert.deepEqual(keysOf(m), ["space:r2", "space:r1", "space:a", "space:b"]);
 press(m, "3", true);
 assert.deepEqual(take(), [["tab.new", { space: "a" }]]);
+// A row's number reads as the platform names the key that picks it.
+assert.ok(text(find(list(m), "space:a")).includes("⌘3"));
+platform = "linux";
+assert.ok(text(find(list(open()), "space:a")).includes("Super+3"), "not a Mac's ⌘ elsewhere");
+platform = "macos";
 
 // New work doesn't start in Home, shown or not.
 state["t3-home.space"] = "a";
@@ -100,8 +107,10 @@ click(m, "machine:kvm");
 assert.deepEqual(take(), [["space.new", { machine: "kvm" }]]);
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
+assert.equal(find(m.render(), "new-back").tabIndex, 0, "Tab reaches ← Spaces");
 find(m.render(), "new-back").handlers.click({}, cx);
 assert.deepEqual(keysOf(m), ["space:a", "space:b", "space:r1"], "Back returns to the spaces");
+assert.equal(find(m.render(), "space-new").tabIndex, 0, "and New space, so the machine step is there without a mouse");
 m = open();
 find(m.render(), "space-new").handlers.click({}, cx);
 click(m, "machine:");
