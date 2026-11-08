@@ -10,7 +10,9 @@
 set -eu
 src=$(cd "$(dirname "$0")/../.." && pwd)
 D=${DEMO:-/private/tmp/herdr-t3-demo} H=$D/home A=$D/app
-case $D in /private/tmp/*) ;; *) echo "DEMO must be under /private/tmp (it is deleted by down, and pi shortens paths only under its realpath)" >&2; exit 1;; esac
+case $D in *..*) echo "DEMO can't climb out with .." >&2; exit 1;; /private/tmp/?*) ;; *) echo "DEMO must be under /private/tmp (it is deleted by down, and pi shortens paths only under its realpath)" >&2; exit 1;; esac
+# down deletes only a folder up made.
+mark=$D/.herdr-t3-demo
 
 # Only the demo's variables: an agent's shell exports its own core, app and pi dirs, which would leak in.
 demo() {
@@ -20,11 +22,14 @@ demo() {
     HERDR_APP_HOME="$A" HERDR_TELEMETRY=0 DO_NOT_TRACK=1 PI_SKIP_VERSION_CHECK=1 "$@"
 }
 mine() { [ "$(demo hc server status --json | jq -r .core.id)" != "$(hc server status --json | jq -r .core.id)" ]; }
+# app.pid outlives the window, and after a restart its number can be another program's: only a Herdr with this app home counts.
+ours() { [ -f "$D/app.pid" ] && ps eww -o command= -p "$(cat "$D/app.pid")" 2>/dev/null | grep -q "HERDR_APP_HOME=$A "; }
 
 up() {
   [ -e "$D" ] && { echo "$D exists: stage.sh down first" >&2; exit 1; }
   mkdir -p "$H/.local/bin" "$H/.bun/bin" "$H/.pi/agent" "$H/.pulls.review" "$A/mods" "$A/layouts" "$A/themes" "$D/bin" \
     "$D/xdg/config" "$D/xdg/state" "$D/xdg/data" "$D/xdg/run" "$D/xdg/cache"
+  touch "$mark"
   printf '[user]\n\tname = Avery Chen\n\temail = avery@example.com\n[init]\n\tdefaultBranch = main\n' > "$H/.gitconfig"
 
   # Pi itself, with a config of its own: one provider and, from the pi-stuff clone, pi-herdr-theme, so Pi wears the window's colors.
@@ -53,7 +58,7 @@ up() {
 # Its window, on the Mac's built-in screen (window.json's bounds are that screen's points), with no What's new.
 # A session of its own, so it outlives the shell that started it.
 app() {
-  [ -f "$D/app.pid" ] && kill -0 "$(cat "$D/app.pid")" 2>/dev/null && { echo "the demo window is open" >&2; return; }
+  ours && { echo "the demo window is open" >&2; return; }
   v=$(defaults read /Applications/Herdr.app/Contents/Info CFBundleShortVersionString)
   jq -n --arg v "$v" '{last_run: $v, presented: [$v]}' > "$A/update-notes.json"
   set -- $(swift - <<'SWIFT'
@@ -121,7 +126,8 @@ EOF
 
 down() {
   [ -d "$D" ] || { echo "nothing at $D"; return; }
-  [ -f "$D/app.pid" ] && kill "$(cat "$D/app.pid")" 2>/dev/null || true
+  [ -f "$mark" ] || { echo "$D wasn't made by stage.sh up: not deleting it" >&2; exit 1; }
+  ! ours || kill "$(cat "$D/app.pid")" 2>/dev/null || true
   demo jin.review --stop >/dev/null 2>&1 || true
   # --stop can leave a daemon started with --port running: its pid file names it.
   p=$(jq -r '.pid // empty' "$H/.pulls.review/daemon.pid" 2>/dev/null || true); [ -z "$p" ] || kill "$p" 2>/dev/null || true
@@ -139,7 +145,7 @@ clear_stage() {
 }
 # The window again, for what it reads once, at start: a layout's blocks, the Inbox's store.
 reopen() {
-  kill "$(cat "$D/app.pid")"; sleep 2
+  ! ours || kill "$(cat "$D/app.pid")"; sleep 2
   [ -z "${1-}" ] || $1
   app
   demo herdr-app do layout.switch '{"name":"herdr-t3"}' >/dev/null

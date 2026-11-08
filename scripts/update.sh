@@ -4,7 +4,8 @@
 set -eu
 src=$(cd "$(dirname "$0")/.." && pwd)
 app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
-gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
+# The checks run from the repo: they aren't sent, and -s lets --delete take an older update's copies.
+gen="--exclude gpui-kit.d.ts --exclude jsconfig.json --filter=-s_check*.cjs"
 layout="$app/layouts/herdr-t3.json"
 keys="$app/keys.json"
 

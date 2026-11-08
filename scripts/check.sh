@@ -1,5 +1,5 @@
 #!/bin/sh
-# Every check this repo has: the shared modules' copies, `herdr-app check` on each mod, and each mod's checks in a fake herdr.
+# Every check this repo has: the shared modules' copies, `herdr-app check` and `tsc` on each mod, and each mod's checks in a fake herdr.
 # They run from an installed Herdr App home, where some look for the shipped icons.
 set -u
 src=$(cd "$(dirname "$0")/.." && pwd)
@@ -14,8 +14,15 @@ for s in shared/*.js; do
   done
 done
 
+# The options live here, not in each mod's jsconfig.json: that file is gpui-shell's, gitignored and written fresh by
+# `herdr-app check` with defaults that fail these mods. These are the ones its notes explain, plus skipLibCheck, which a
+# jsconfig.json implies.
+ts="--noEmit --allowJs --checkJs --target ES2022 --module ES2022 --moduleResolution bundler --lib ES2022 --strict
+  --strictNullChecks false --noImplicitAny false --useUnknownInCatchVariables false --skipLibCheck"
 for d in mods/t3-*/ extras/mods/*/; do
   out=$(herdr-app check "$d" 2>&1) || { echo "FAIL herdr-app check $d"; echo "$out" | tail -20; fail=1; }
+  # gpui-kit.d.ts is the API `herdr-app check` just wrote.
+  out=$(bunx -p typescript tsc $ts "$d"*.js "$d"gpui-kit.d.ts types/*.d.ts 2>&1) || { echo "FAIL tsc $d"; echo "$out" | tail -20; fail=1; }
 done
 
 # A wrong icon path draws nothing and raises nothing. Paths built at runtime aren't caught here.

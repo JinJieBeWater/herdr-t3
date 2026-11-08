@@ -8,7 +8,7 @@ ok() { "$@" || { echo "FAIL check-update: $*"; exit 1; }; }
 is() { [ "$(jq -r "$1" "$2")" = "$3" ] || { echo "FAIL check-update: $1 in $2 isn't $3"; exit 1; }; }
 
 mkdir -p "$app/mods/t3-tabs" "$app/mods/mine" "$app/mods/pulls-review" "$app/layouts" "$app/themes"
-touch "$app/mods/t3-tabs/stale.js" "$app/mods/mine/main.js" "$app/themes/t3-code-dark.json"
+touch "$app/mods/t3-tabs/stale.js" "$app/mods/t3-tabs/check-old.cjs" "$app/mods/t3-tabs/jsconfig.json" "$app/mods/mine/main.js" "$app/themes/t3-code-dark.json"
 echo '{"open":"herdr"}' > "$app/mods/pulls-review/config.json"
 echo '{"global":{"a":"b"},"layout:herdr-t3":{"cmd-p":"old","cmd-x":"mine"}}' > "$app/keys.json"
 review='{"id":"my-review","type":"block","content":{"mod":"pulls-review"}}'
@@ -26,6 +26,9 @@ mv "$app/keys.good" "$app/keys.json"
 out=$(HERDR_APP_HOME="$app" "$src/scripts/update.sh")
 ok test ! -e "$app/mods/t3-tabs/stale.js"
 ok test -f "$app/mods/t3-home/main.js"
+# The checks stay in the repo, and an older update's copies go; gpui-shell's jsconfig.json stays.
+ok test -z "$(find "$app/mods" -name 'check*.cjs')"
+ok test -f "$app/mods/t3-tabs/jsconfig.json"
 ok test -f "$app/mods/mine/main.js"
 ok test -f "$app/mods/review/main.js"
 ok test ! -e "$app/mods/t3-theme-export"
