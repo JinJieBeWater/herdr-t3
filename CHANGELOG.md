@@ -17,7 +17,7 @@ English · [中文](CHANGELOG.zh-CN.md)
   - The fold arrows and a machine's + stand under the buttons above them, in two columns. They used to sit a few pixels off.
   - The three rows of buttons at the top are evenly spaced.
 - Moving the pointer from one row to the next swaps the details card at once. The old card used to fade out under the new one, which flickered.
-- Herdr's logo and name sit at the top left of the sidebar, past the window buttons, where Herdr's own layout has them. Click them to go Home. They light up while you're there. The house button is gone.
+- Herdr's logo and name sit at the top left of the sidebar, past the window buttons, where Herdr's own layout has them. Click them to go Home. They light up on hover and while you're there, with no background behind them. The house button is gone.
 - On macOS the window buttons sit on the brand bar's middle line, 1pt higher than before.
 - They stay on that line at any zoom. When the zoom changes, the layout updates the button position in your installed `herdr-t3` layout. A copy saved under another name is left alone.
 - Popup lists that scroll, such as New and Go to, stay still when the pointer moves over them. They used to scroll a half-hidden row into view under the pointer. The arrow keys still scroll to the highlighted row.

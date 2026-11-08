@@ -88,7 +88,7 @@ export default class WorkspaceChrome extends View {
     const inbox = inboxShown(), w = window();
     // Herdr's mark and name where its own layout has them, past the macOS window buttons; a click goes Home, which has no
     // button of its own. Its colours are louder than anything else here, so it waits at 70% and its name is muted, both lit
-    // on hover like the buttons. As T3's, no tooltip. The window buttons are screen points, unzoomed: the last ends at 68
+    // on hover, with no background behind them. As T3's, no tooltip. The window buttons are screen points, unzoomed: the last ends at 68
     // (traffic_lights x 16, three 12s 8 apart), and the logo's tile shows 16pt from it, less the PNG's 2 of clear edge and
     // this button's 6 in. Short of room the name gives way, never the buttons.
     const left = w?.platform === "macos" && !w?.fullscreen ? (68 + 16 - 2) / (settings().zoom || 1) - 6 : 8, on = this.hot === "home"
@@ -96,7 +96,7 @@ export default class WorkspaceChrome extends View {
       || spaces().some((s) => s.active && s.id === shared("t3-home.space"));
     return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pl(left).pr(8).items_center()
       .child(stop(this, t, "home", h_flex().id("home").h(28).min_w(0).px(6).gap(8).items_center().rounded(8)
-        .text_size(14).font_medium().text_color(on ? t.foreground : t.muted).hover(s => s.bg(t.hover)).on_hover(glow(this, "home"))
+        .text_size(14).font_medium().text_color(on ? t.foreground : t.muted).on_hover(glow(this, "home"))
         .role("button").accessibility_label("Home")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.home"))
