@@ -158,9 +158,10 @@ function showSubgroup(view, parent, child, cx) {
 export function groupTabs(view, t) {
   // Not the group shown while its header, at the list's top, lists them: one place at a time, as a sticky header.
   const open = view.review.groups.find(g => g.key === view.expandedTab && g.children.length && !(g.key === view.groupKey && view.atTop()));
-  // The shown tab is raised a pixel: each row's top pixel keeps it from the clip.
-  const row = (id) => h_flex().id(id).pt(1).gap(6).overflow_x_scroll();
-  return v_flex().id("group-tabs").flex_none().px(16).pt(9).pb(8).gap(6).border_b(1).border_color(t.border)
+  // The shown tab is raised a pixel: each row's top pixel keeps it from the clip. Each row has the bar's inset in it, so a
+  // tab scrolled aside is cut at the pane's edge, not 16px in.
+  const row = (id) => h_flex().id(id).px(16).pt(1).gap(6).overflow_x_scroll();
+  return v_flex().id("group-tabs").flex_none().pt(9).pb(8).gap(6).border_b(1).border_color(t.border)
     .child(row("group-tab-row").children(view.review.groups.map(g => groupTab(view, t, `group-tab-${g.key}`, g, {
       active: g.key === view.groupKey, expanded: view.expandedTab === g.key,
       toggle: (cx) => { view.expandedTab = view.expandedTab === g.key ? null : g.key; cx.notify(); },
@@ -171,7 +172,7 @@ export function groupTabs(view, t) {
       },
     }))))
     .when(Boolean(open), el => el
-      .child(h_flex().gap(4).items_center()
+      .child(h_flex().px(16).gap(4).items_center()
         .child(svg(`${LU}/folder-open.svg`).size(14).flex_none().opacity(FADED))
         .child(div().opacity(FADED).child("subgroups of"))
         .child(div().child(open.label))

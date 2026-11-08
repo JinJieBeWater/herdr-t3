@@ -11,6 +11,7 @@ English · [中文](CHANGELOG.zh-CN.md)
   - The Review bar's `↑` and `↓` counts name the same in their hover label: `Review main → origin/main`. It used to read `Review 2 commits to push`.
   - `Analyzing…` has no spinner of its own. The pane header's spinner already shows the run.
   - Its other spinners are in `working`, as everywhere else in the layout. They used to take the text color.
+  - When the group tabs don't fit, they're cut off at the pane's edge as they scroll. They used to be cut off 16px in from the edge, mid-tab, with an empty strip beyond.
 - The top of the sidebar, as T3's:
   - Inbox's Search row and Lists' Spaces heading line up with the pane headers on the right. They used to sit 8px lower.
   - The first card sits 8px under Search. It used to sit 10px lower.
