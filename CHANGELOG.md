@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- In a pane header, the terminal's address and the name sit 6px apart and read as one label. The folder stays 12px after the name. They used to be spaced alike, 12px each.
 - The top of the sidebar, as T3's:
   - Inbox's Search row and Lists' Spaces heading line up with the pane headers on the right. They used to sit 8px lower.
   - The first card sits 8px under Search. It used to sit 10px lower.

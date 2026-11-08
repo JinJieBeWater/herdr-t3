@@ -97,16 +97,17 @@ export default class Pane extends View {
       // 4 + the frame's 2 is a tab's 6: with its 16px slot and 2 to the name, the icon and first word stand under the first tab's.
       .pl(4)
       .pr(2)
-      .gap(12)
+      // The terminal and its name read as one label, 6 apart; the folder stands 12 off it.
+      .gap(6)
       .items_center()
       .text_size(14)
       .on_hover((on, cx) => this.headHover(on, cx))
       .on_mouse_move((e) => { pointerMoved(e.position); this.box = e.bounds; })
       .on_click(() => run("pane.focus", { pane }))
-      .child(div().size(16).mr(-10).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
+      .child(div().size(16).mr(-4).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
       .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
       .child(div().min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
-      .child(div().relative().flex_1().min_w(0).h_full().flex().items_center()
+      .child(div().relative().flex_1().min_w(0).h_full().ml(6).flex().items_center()
         .child(div().flex_1().min_w(0).truncate().pr(12).text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
         .when(this.hovered || within(this, [head, ...tools]), el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(12).flex_none().gap(4).items_center().bg(t.background)
