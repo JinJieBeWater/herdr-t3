@@ -2,7 +2,7 @@
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, machines, panes, run, closeOverlay, props, home, shared, setShared } from "herdr";
-import { projectMark, placeOf } from "./project.js";
+import { projectMark, placeOf, newTab } from "./project.js";
 import { step, scrollList } from "./list.js";
 import { keyOf, keyLabel } from "./tip.js";
 import { stopsInit, stop, focusRoot } from "./focus.js";
@@ -57,7 +57,7 @@ export default class NewMenu extends View {
   choose(item) {
     if (!item || item.off) return;
     closeOverlay(props().overlay);
-    if (item.space) run("tab.new", { space: item.space.id });
+    if (item.space) newTab(item.space);
     else run("space.new", { machine: item.machine ?? "" });
   }
 

@@ -41,7 +41,7 @@ const context = vm.createContext({
   InputState: { new: () => { const on = {}; let value = ""; return { on: (e, f) => { on[e] = f; }, value: () => value, focus() {}, set_value(v) { value = v; }, type(v) { value = v; on.change({}, cx); } }; } },
   settings: () => ({ zoom: 1 }),
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
-  shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder,
+  shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder, newTab: (s) => calls.push(["tab.new", { space: s.id, folder: s.folder }]),
 });
 const src = ["list.js", "tip.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
@@ -61,7 +61,7 @@ spaces = [remote("r1"), local("a"), remote("r2", true), local("b")];
 let m = open();
 assert.deepEqual(keysOf(m), ["space:r2", "space:r1", "space:a", "space:b"]);
 press(m, "3", true);
-assert.deepEqual(take(), [["tab.new", { space: "a" }]]);
+assert.deepEqual(take(), [["tab.new", { space: "a", folder: "/home/me/a" }]]);
 // A row's number reads as the platform names the key that picks it.
 assert.ok(text(find(list(m), "space:a")).includes("⌘3"));
 platform = "linux";
@@ -94,7 +94,7 @@ m.spaceInput.type("nothing");
 assert.equal(list(m), null);
 press(m, "down"); // no rows: nothing to reach, nothing thrown
 click(open(), "space:r1");
-assert.deepEqual(take(), [["tab.new", { space: "r1" }]]);
+assert.deepEqual(take(), [["tab.new", { space: "r1", folder: "" }]]);
 
 // New space asks which machine; one that's away can't be picked.
 m = open();

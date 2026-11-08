@@ -3,6 +3,7 @@ import { namer, programOf } from "./name.js";
 import { descendants } from "./tree.js";
 import { focusAgent, focusPane } from "./zoom.js";
 import { sidebarParts } from "./sidebar.js";
+import { newTab } from "./project.js";
 
 // One instance per Tabs view; the Herdr operations also admit the check's fake core.
 export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), namer, programOf, focusAgent, focusPane }) {
@@ -301,7 +302,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
       else if (command === "home") await goHome(cx);
       else if (command === "next" || command === "prev") step(command);
       // New work doesn't start in Home: New picks its space.
-      else if (command === "new") run(.../** @type {[string, any?]} */ (atHome() ? ["mod.open", { name: "t3-new-menu" }] : ["tab.new"]));
+      else if (command === "new") atHome() ? run("mod.open", { name: "t3-new-menu" }) : newTab(spaces().find(s => s.active));
       else if (command.startsWith("space:")) selectSpace(Number(command.slice("space:".length)));
       else if (command === "space-next") walkSpaces(1);
       else if (command === "space-prev") walkSpaces(-1);

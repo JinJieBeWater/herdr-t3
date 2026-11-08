@@ -168,7 +168,7 @@ async function check() {
       assert.deepEqual(made(), [["space.select", { id: to }]], `${command} wraps at ${from}`);
     }
     await say("new");
-    assert.deepEqual(made(), [["tab.new", {}]], "elsewhere New is a tab there");
+    assert.deepEqual(made(), [["tab.new", { space: "s2", folder: "/work/s2" }]], "elsewhere New is a tab there, where its terminals are");
   }
 
   // With the Inbox showing, the bar holds the agent in view and what's around it; the sidebar says what needs the person.

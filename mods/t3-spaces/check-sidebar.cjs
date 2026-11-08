@@ -1367,7 +1367,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // New opens a terminal tab in the space picked: no agent step.
   const menu = f.load("t3-new-menu"); f.calls.length = 0;
   menu.choose(menu.items().find(item => item.space?.id === f.spaces()[0].id));
-  assert.deepEqual(f.calls.splice(0), [["tab.new", { space: f.spaces()[0].id }]], "New opens a tab");
+  assert.deepEqual(f.calls.splice(0), [["tab.new", { space: "s0", folder: "/work/s0" }]], "New opens a tab where the space's terminals are, as its folder shows, not where it was made (/work/p0)");
   // Two machines: New space asks which, as T3's Add project asks for an environment.
   fire(find(menu.render(cx), "space-new"), "on_click", {}, cx);
   assert.deepEqual(f.calls, [], "New space asks first");
@@ -1442,7 +1442,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(root, "tab-new"), null);
   const end = f.load("t3-tabs", { part: "end", block: "tabs-end" });
   fire(find(end.render(cx), "tab-new"), "on_click", {}, cx);
-  assert.deepEqual(f.calls.pop(), ["tab.new", {}], "the tab bar's + opens a tab in its space");
+  assert.deepEqual(f.calls.pop(), ["tab.new", { space: "s0", folder: "/work/s0" }], "the tab bar's + opens a tab in its space, where its terminals are");
   f.calls.length = 0;
   fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);
   fire(find(end.render(cx), "tabs-end"), "on_size_change", { width: 34 }, cx);

@@ -27,9 +27,9 @@ let target = {}, calls = [];
 const context = vm.createContext({
   View: class {}, div: el, svg: el, v_flex: el, h_flex: el,
   run: (name, args) => calls.push(args === undefined ? [name] : [name, args]), props: () => target, closeOverlay() {}, openOverlay() {},
-  theme: () => theme, keys: () => [], settings: () => ({ zoom: 1 }), terminals: () => [{ address: "t1", labels: {} }], spaces: () => [], panes: () => [], exec: async () => ({ code: 1 }),
+  theme: () => theme, keys: () => [], settings: () => ({ zoom: 1 }), terminals: () => [{ address: "t1", labels: {} }], spaces: () => [{ id: "s1", folder: "/work/p1", tabs: [{ id: "b1" }] }], panes: () => [{ pane: "p1", tab: "b1", cwd: "/work/s1" }], exec: async () => ({ code: 1 }),
 });
-const src = ["list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
+const src = ["project.js", "list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Menu = class").replace(/^export /gm, "");
 vm.runInContext(src, context);
 const cx = { notify() {}, stop_propagation() {}, spawn() {}, focus_handle: () => ({ focus() {} }) };
@@ -44,6 +44,7 @@ const choose = (props, label) => {
 assert.deepEqual(choose({ tab: "tab", target: { id: "b1", space: "s1" } }, "Close"), [["t3-tabs.close-tab:b1"]], "a tab's Close asks and leaves first");
 assert.deepEqual(choose({ tab: "pane", target: { pane: "p1", terminal: "t1" } }, "Close pane"), [["t3-tabs.close-pane:p1"]], "so does a pane's");
 assert.deepEqual(choose({ tab: "tab", target: { id: "b1", space: "s1" } }, "Rename"), [["tab.rename", { id: "b1" }]], "the rest is Herdr's");
+assert.deepEqual(choose({ tab: "tab", target: { id: "b1", space: "s1" } }, "New tab"), [["tab.new", { space: "s1", folder: "/work/s1" }]], "New tab opens where the space's terminals are, not where it was made");
 assert.deepEqual(choose({ tab: "space", target: { id: "s1" } }, "Close"), [["space.close", { id: "s1" }]], "a space's Close is Herdr's, which asks itself");
 
 // A tab's menu (Rename, New tab, Close), opened by a right-click, moves as every popup's list (shared/list.js).

@@ -1,9 +1,9 @@
 // A space's mark, as T3 Code's sidebar draws a project (ProjectFavicon): the project's own icon when it has
 // one, else a two-letter monogram tinted with a color its name picks. One rule, with a copy in each mod that
-// draws spaces (t3-inbox, t3-spaces, t3-new-menu, t3-tabs).
+// draws spaces or opens a tab in one (t3-inbox, t3-agents, t3-picker, t3-spaces, t3-new-menu, t3-tabs, t3-menu).
 import { image, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { exec, readTextFile, appHome, settings, shared, setShared, spaces, panes } from "herdr";
+import { exec, readTextFile, appHome, settings, shared, setShared, spaces, panes, run } from "herdr";
 import { Buffer } from "buffer";
 import { createHash } from "crypto";
 import * as fs from "fs/promises";
@@ -107,6 +107,9 @@ export function placeOf(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps?.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
+
+// A terminal tab where the space is now, as its mark and folder say: Herdr's tab.new alone starts where the space was made.
+export const newTab = (s) => run("tab.new", { space: s.id, folder: placeOf(s, panes()) });
 
 // Shared "space.icons": [machine, folder] -> the copy's path or null, so every mod shows what one found.
 // shortcut: folders with an icon that no space uses any more stay listed; prune them if the list ever grows noticeably.

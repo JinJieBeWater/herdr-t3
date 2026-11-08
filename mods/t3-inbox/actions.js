@@ -1,6 +1,7 @@
 import { focused, run, shared, setShared, props, notify, openOverlay } from "herdr";
 import { focusAgent, focusPane } from "./zoom.js";
 import { detailsFor } from "./details.js";
+import { placeOf } from "./project.js";
 
 export function inboxActions(view, model) {
   const { every, viewing, term, napUntil, wake, state, settledAt, busy, pinned, out, busyRows, sp, ps, put } = model;
@@ -116,7 +117,7 @@ export function inboxActions(view, model) {
       const mine = ps.filter((p) => tabs.includes(p.tab));
       // The space stays: pane.close refuses its last pane, so a space left empty gets a fresh shell tab first,
       // where its terminals are now: an unnamed space is named after that, and s.folder is only where it began.
-      if (mine.every((p) => gone.has(p.pane))) run("tab.new", { space: id, folder: mine.find((p) => p.cwd)?.cwd || s.folder });
+      if (mine.every((p) => gone.has(p.pane))) run("tab.new", { space: id, folder: placeOf(s, ps) });
       for (const a of doomed.filter((a) => a.space === id)) run("pane.close", { pane: a.pane });
     }
     // tab.new shows the new tab; go back to where the person was.

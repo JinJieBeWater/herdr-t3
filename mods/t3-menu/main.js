@@ -10,6 +10,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec } from "herdr";
 import { menuJump } from "./list.js";
+import { placeOf } from "./project.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -51,12 +52,15 @@ function items(p, git) {
         ["Close pane", "pane.close", { pane: tg.pane }],
       ];
     }
-    case "tab":
+    case "tab": {
+      // Where its space is now, as the space's mark and folder say; with no space named, tab.new takes the active one.
+      const sp = spaces().find((s) => (tg.space ? s.id === tg.space : s.active));
       return [
         ["Rename", "tab.rename", { id: tg.id }],
-        ["New tab", "tab.new", { space: tg.space }],
+        ["New tab", "tab.new", { space: tg.space, folder: sp && placeOf(sp, panes()) }],
         ["Close", "tab.close", { id: tg.id }],
       ];
+    }
     case "space":
       return [
         ["Rename", "space.rename", { id: tg.id }],

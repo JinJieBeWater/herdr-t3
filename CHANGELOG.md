@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- A new tab opens in the folder its space shows, its first terminal's, by `+`, `cmd-t`, a tab's menu and New alike. It used to open where the space was made, so a space whose agent had moved on to another folder showed one folder and opened tabs in another.
 - In a pane header, the terminal's address and the name sit 6px apart and read as one label. The folder stays 12px after the name. They used to be spaced alike, 12px each.
 - Review pane:
   - Its title names a branch against its upstream as the commits flow: `main → origin/main` to push, `origin/main → main` to pull. It used to read `To push: main` and `To pull: main`.
