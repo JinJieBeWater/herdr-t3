@@ -656,7 +656,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
   f.agents()[0].status = "done"; f.panes()[0].status = "done";
   const drawn = inbox.render(cx);
-  assert.ok(strings(find(drawn, "state-t0")).includes("Done") && strings(drawn).includes("1 sub-agent working"), "an unread reply isn't hidden by a working sub-agent");
+  assert.ok(strings(find(drawn, "state-t0")).includes("Done"), "an unread reply isn't hidden by a working sub-agent");
+  assert.ok(!find(drawn, "subs-t0") && !strings(drawn).some(s => s.includes("sub-agent")), "as T3's sidebar, a card says nothing of its sub-agents");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Done");
   assert.ok(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), "its tab shows the done dot");
   f.agents()[0].status = "idle"; f.panes()[0].status = "idle";

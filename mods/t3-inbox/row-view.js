@@ -36,7 +36,7 @@ function left(ms, now) {
 }
 
 export function inboxRowView(view, t, model, actions, drag) {
-  const { now, ps, sp, state, viewing, kids, running, woke, busy, pins, started, since, wake, hidden, napUntil, settledAt } = model;
+  const { now, ps, sp, state, viewing, running, woke, busy, pins, started, since, wake, hidden, napUntil, settledAt } = model;
   const { settle, unsettle, away, pick } = actions;
   const { dragging, plan, verb, badge, swept, row, open, sweepFrom, justDropped } = drag;
   const zoom = Number(settings()?.zoom) || 1;
@@ -74,8 +74,8 @@ export function inboxRowView(view, t, model, actions, drag) {
   const card = (a, ghost) => {
     const st = state(a), on = viewing(a);
     const machine = machineOf(a), branch = branchOf(a);
-    const going = (kids.get(a.address) ?? []).filter((s) => s === "working").length;
-    const meta = [branch, going ? `${going} sub-agent${going > 1 ? "s" : ""} working` : null].filter(Boolean).join(" · ");
+    // As T3's sidebar, a card says nothing of its sub-agents: its state takes theirs in (tree.js).
+    const meta = branch ?? "";
     const pic = icon(a.program, 14, t.muted);
     // Snooze is offered for anything not needing the person, working too, as T3's. A failed turn counts as needing them
     // here, and a mod pane has no terminal to hold the label.
@@ -173,7 +173,8 @@ export function inboxRowView(view, t, model, actions, drag) {
         // Marks go on the third line when there is one, as in T3, so the title keeps its whole line.
         .when(Boolean(marks) && !meta, (el) => el.child(marks)))
       .when(Boolean(meta), (el) => el.child(h_flex().h(16).mt(2).gap(6).items_center().text_size(12).text_color(t.dim)
-        .child(div().flex_1().min_w(0).truncate().child(meta))
+        // T3's MiddleTruncate: a branch's start and end tell it apart.
+        .child(div().flex_1().min_w(0).overflow_hidden().whitespace_nowrap().text_ellipsis_middle().child(meta))
         .when(Boolean(marks), (m) => m.child(marks))))
       .when(!ghost, (el) => stop(view, t, `card-${a.address}`, el));
   };
