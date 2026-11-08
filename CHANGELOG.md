@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
+- Moving the pointer from one row to the next swaps the details card at once. The old card used to fade out under the new one, which flickered.
 - Herdr's logo and name sit at the top left of the sidebar, past the window buttons, where Herdr's own layout has them. Click them to go Home. They light up while you're there. The house button is gone.
 - On macOS the window buttons sit on the brand bar's middle line, 1pt higher than before.
 - They stay on that line at any zoom. When the zoom changes, the layout updates the button position in your installed `herdr-t3` layout. A copy saved under another name is left alone.

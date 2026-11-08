@@ -1941,9 +1941,8 @@ test("a row's card fades when a control in the row is lit and when another row's
   assert.deepEqual(card("A").style.opacity, [1], "a corner's leave that never came doesn't hold it");
   f.event("card-A", "on_hover", false); f.event("card-B", "on_hover", true); f.render();
   assert.deepEqual(card("B").style.opacity, [1], "at once");
-  assert.deepEqual(card("A").style.opacity, [0], "fading under it");
+  assert.equal(card("A"), null, "the one it replaces goes at once, as T3's: no card fading under it");
   f.render(f.now + 150);
-  assert.equal(card("A"), null);
   assert.deepEqual(card("B").style.opacity, [1]);
 });
 

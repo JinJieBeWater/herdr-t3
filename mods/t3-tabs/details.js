@@ -42,7 +42,8 @@ export function detailsWatch(view, key, cx) {
   });
 }
 
-// 150ms to the first card, which fades in. What opens at once does so unfaded, as T3's, while what it replaces fades out.
+// 150ms to the first card, which fades in. What opens at once does so unfaded, and what it replaces goes with no fade:
+// T3's tooltip group (data-instant) switches cards in one frame, where two cards crossing would flicker.
 // A transition adopts the first value it sees, so a card draws clear for a frame or two before its target changes.
 export function detailsFor(view, key, cx) {
   if (!key) view.detailsHold = null;
@@ -58,12 +59,11 @@ export function detailsFor(view, key, cx) {
     return;
   }
   const live = detailsLive(view);
-  if (view.detailsOut === key) {
+  if (live || view.detailsOut === key) {
     view.detailsFade?.cancel();
     view.detailsOut = null;
   }
   if (live) {
-    if (view.details && view.details !== key) fadeOut(view, view.details, cx);
     view.details = key;
     view.detailsIn = true;
     return;

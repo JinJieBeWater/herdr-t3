@@ -1803,7 +1803,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(strings(card("t0"))[0], row("t0").style.accessibility_label, "led by the title the row shows");
     // The pointer can report entering the next row before leaving this one.
     hover("vps/t2", true);
-    assert.equal(card("t0").style.opacity, 0, "the one it replaces fades under it");
+    assert.equal(card("t0"), undefined, "the one it replaces goes at once, as T3's tooltip group (data-instant): no fading card under the new one");
     assert.equal(card("vps/t2").style.opacity, 1, "unfaded");
     assert.deepEqual(strings(card("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
     const labelDelay = (id) => { fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", true, cx); const { ms } = cx.timers.at(-1); fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", false, cx); return ms; };
