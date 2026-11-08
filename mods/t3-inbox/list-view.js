@@ -138,7 +138,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
       };
       // The layout's T3 dialog is t3-actions'; published alone (no `home` prop) this mod has only the shipped one.
       openOverlay(props()?.home ? { mod: "t3-actions", kind: "dialog", frame: "none", width: 512, props: { actions: "confirm", ...ask } }
-        : { mod: "confirm", kind: "dialog", width: 400, height: 170, props: ask });
+        : { mod: "confirm", kind: "dialog", props: ask });
       cx.notify();
     })
     .child("Clear"), 4));
