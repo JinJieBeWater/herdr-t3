@@ -6,12 +6,16 @@ import { keys, window } from "herdr";
 
 // An action's key as the new menu writes it: ⇧⌘O. Read from the bindings, so a rebound key says so.
 export function keyOf(action) {
-  const k = keys().find(b => b.action === action);
-  if (!k?.keys.trim()) return "";
+  return keyLabel(keys().find(b => b.action === action)?.keys ?? "");
+}
+
+// Keys as keys.json writes them (`cmd-shift-o`), as this platform names them.
+export function keyLabel(strokes) {
+  if (!strokes.trim()) return "";
   const mac = window()?.platform === "macos";
   const names = mac ? { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘", fn: "fn" } : { ctrl: "Ctrl", alt: "Alt", shift: "Shift", cmd: "Super", fn: "Fn" };
   const alias = { secondary: mac ? "cmd" : "ctrl", super: "cmd", win: "cmd" };
-  return k.keys.trim().split(/\s+/).map(stroke => {
+  return strokes.trim().split(/\s+/).map(stroke => {
     const parts = stroke.split("-");
     let key = parts.pop();
     if (key === "") { key = "-"; parts.pop(); }

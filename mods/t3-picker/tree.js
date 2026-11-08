@@ -15,8 +15,10 @@ export const kidStatus = (k, listed) => {
 };
 
 // Live sub-agents of `addr`, all the way down.
-export function descendants(all, addr) {
-  return all.filter((k) => k.parent === addr && k.state === "live").flatMap((k) => [k, ...descendants(all, k.address)]);
+export function descendants(all, addr, seen = new Set()) {
+  if (seen.has(addr)) return [];
+  seen.add(addr);
+  return all.filter((k) => k.parent === addr && k.state === "live" && !seen.has(k.address)).flatMap((k) => [k, ...descendants(all, k.address, seen)]);
 }
 
 // Its own word with what's under it: needing the person first, then its own done, then busy or waiting on
