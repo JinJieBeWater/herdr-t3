@@ -25,13 +25,13 @@
 ## 日常用法
 
 - **侧栏**：侧栏右上角的按钮（或 `cmd-shift-b`）在 Lists 和 Inbox 之间切换；旁边那个按钮隐藏侧栏。
-- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s`（Lists 和隐藏侧栏时也能用）Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回；接着按 `cmd-]` 打开最上面的卡片，可以逐张处理。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。Review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭并回到打开它之前的地方（从 Review 栏可以重开，已审标记和分析结果都还在）。
+- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s`（Lists 和隐藏侧栏时也能用）Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。你自己取回的 agent（点撤销箭头、拖出 Settled 或按 `cmd-shift-s`）排到 Active 顶部。点 `Undo` 则放回原位。接着按 `cmd-]` 打开最上面的卡片，可以逐张处理。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。Review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭并回到打开它之前的地方（从 Review 栏可以重开，已审标记和分析结果都还在）。
 - **聚焦边框**（默认关闭）：把 `~/.config/herdr-app/layouts/herdr-t3.json` 里窗格的 `focus.color` 从 `"background"` 改成 `"accent"`（或其他主题色），聚焦的窗格就会有边框。保存即生效。
 - **Snooze**：鼠标移到卡片上（工作中的也可以，需要你的不行），点时钟选时间。它进 Snoozed 收纳区等待，到点回到原位并标 `Woke`，直到你看过它或点一下这个标记。其间需要你时它会出现；这一轮失败、你在查看时给了新工作、置顶或 Settle 都会结束 Snooze。5 秒内可以点 `Undo` 撤回；在收纳区里，悬停一行出现划掉的闹钟（按住划过多行可以一次叫醒整段），也可以把它拖出来。
 
 ## 快捷键
 
-布局自带的，写在 `keys.json` 的 `layout:herdr-t3` 里（安装时会合并进去）：
+布局自带的，写在 `keys.json` 的 `layout:herdr-t3` 里（安装时会合并进去）。这些只覆盖 macOS 的键：`keys.json` 不能按平台区分按键，所以在 Linux 和 Windows 上，Herdr 自己的键（`ctrl-shift-w` 关闭标签、`alt-1…` 选 space 等）仍执行 Herdr 的命令，绕过布局的规则，比如关闭前确认、序号不算 Home。请在你自己的 `keys.json` 里把它们绑到下面的命令。
 
 | 快捷键 | 命令 | 作用 |
 | --- | --- | --- |
@@ -48,7 +48,9 @@
 | `cmd-w`、`ctrl-alt-shift-x` | `t3-tabs.close-tab` | 关闭标签，里面有程序在运行时先确认 |
 | `cmd-shift-w`、`ctrl-alt-x` | `t3-tabs.close-pane` | 关闭窗格，里面有程序在运行时先确认 |
 
-其他标签、space 和窗格操作沿用 Herdr 自己的快捷键。Inbox 里的置顶、拖动和 Clear 用鼠标。
+其他标签、space 和窗格操作沿用 Herdr 自己的快捷键。Inbox 里的置顶和拖动用鼠标；Clear 和其他按钮一样能用键盘。
+
+键盘操作：用 Herdr 的 `pane.go` 移到侧栏列表后，Tab 能走遍窗口里的所有控件，包括 Review 栏的计数段和 logo，Enter 或 Space 和点击效果相同。在新建菜单和跳转里，Tab 还能走到底部按钮（New space、`← Spaces`、New tab）。
 
 ## 更新
 
@@ -72,4 +74,4 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - Home 是一个单独的 space：切到其他布局、执行 `herdr-app ls` 或从另一台机器看时，会看到它。
 - 你给 Home 改了名后，同一 Herdr core 的另一个窗口认不出它，会再建一个 Home。
 - 其他机器上的 space 没有 Review 栏。
-- 这次启动 Herdr 后 Inbox 还没显示过时，侧栏隐藏期间它保持不了顺序，也不能 Settle。
+- 这次启动 Herdr 后 Inbox 还没显示过时，侧栏隐藏期间它不更新卡片顺序，`cmd-]` 和 `cmd-[` 可能按旧顺序走。`cmd-shift-s` 照常能 Settle。

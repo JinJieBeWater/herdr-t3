@@ -68,7 +68,10 @@ It overwrites the layout and its mods and merges `keys.json`; your pins, settled
 - `t3-spaces`: read-only `git status` / `git rev-parse` in your spaces' folders, watches those repos for changes (`watchFolder`), and `hc machine ls --json`. Clicking Connect on a rebuilt machine runs `hc machine rm` and `hc machine add`.
 - `t3-inbox`: `hc label <agent> settled=<ms>:<turn>` when an agent is settled or unsettled.
 - `t3-inbox`: `hc label <agent> snoozed=<ms>` when an agent is snoozed or wakes.
-- `t3-spaces`, `t3-agents`, `t3-inbox`, `t3-new-menu`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
+- `t3-tabs`: `hc get` before closing a terminal, to see whether a program is running in it. `hc label` when `cmd-shift-s` settles or brings back an agent, and to give back an unread done (`herdr.seen`) or a Woke mark (`snoozed`) that Herdr cleared when it showed a tab you didn't pick.
+- `t3-agents`: `hc label <agent> snoozed=` when pinning a snoozed agent ends its snooze.
+- `t3-chrome`: on macOS, when the zoom changes, it rewrites the window button position in the installed `layouts/herdr-t3.json`, so the buttons stay on the brand bar's middle line.
+- `t3-spaces`, `t3-agents`, `t3-inbox`, `t3-new-menu`, `t3-picker`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
 
 No network requests.
 

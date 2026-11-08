@@ -36,7 +36,7 @@
 ## 快速上手
 
 1. `cmd-shift-b`（或侧栏右上角的按钮）在 Inbox 和 Lists 之间切换。
-2. 在 Inbox 里，鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来。`cmd-shift-s` 收起正在看的 agent 并回到 Home。
+2. 在 Inbox 里，鼠标移到已结束的卡片上，点 `✓ Settle` 把它 Settle；有新工作时它会自己回来。`cmd-shift-s` Settle 当前查看的 agent 并回到 Home。
 3. 在 Home 按 `cmd-]` 打开最上面的卡片，可以逐张处理。
 4. 鼠标移到卡片上，点时钟，可以把它 Snooze 到你选的时间。
 
@@ -47,7 +47,7 @@
 | 快捷键 | 作用 |
 | --- | --- |
 | `cmd-shift-b` | 侧栏在 Inbox 和 Lists 之间切换 |
-| `cmd-shift-s` | 收起正在看的 agent 并回到 Home，已收起的则取回 |
+| `cmd-shift-s` | Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回 |
 | `cmd-]` / `cmd-[` | 按侧栏的顺序到下一个或上一个 agent |
 | `cmd-p` | 跳到任一窗格 |
 | `cmd-shift-h` | 回到 Home |
@@ -68,7 +68,10 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - `t3-spaces`：在各 space 的目录里运行只读的 `git status` / `git rev-parse`，监听这些仓库的变化（`watchFolder`），运行 `hc machine ls --json`。点重装机器的 Connect 时运行 `hc machine rm` 和 `hc machine add`。
 - `t3-inbox`：Settle 或取消 Settle 时运行 `hc label <agent> settled=<ms>:<turn>`。
 - `t3-inbox`：Snooze 或唤醒时运行 `hc label <agent> snoozed=<ms>`。
-- `t3-spaces`、`t3-agents`、`t3-inbox`、`t3-new-menu`：为每个 space 的图标，在 space 所在的位置（它的机器上）运行 `git rev-parse --show-toplevel`、`sh` 文件检测和 `base64`；找到的图标复制到 `cache/t3-icons/`。
+- `t3-tabs`：关闭终端前运行 `hc get`，看里面有没有程序在跑。用 `cmd-shift-s` Settle 或取回 agent 时运行 `hc label`；Herdr 显示了你没选的标签、清掉了未读的 done（`herdr.seen`）或 Woke 标记（`snoozed`）时，也用它还回去。
+- `t3-agents`：置顶一个 Snooze 中的 agent、结束它的 Snooze 时，运行 `hc label <agent> snoozed=`。
+- `t3-chrome`：macOS 上缩放变化时，改写已安装的 `layouts/herdr-t3.json` 里的窗口按钮位置，让按钮留在品牌栏的中线上。
+- `t3-spaces`、`t3-agents`、`t3-inbox`、`t3-new-menu`、`t3-picker`：为每个 space 的图标，在 space 所在的位置（它的机器上）运行 `git rev-parse --show-toplevel`、`sh` 文件检测和 `base64`；找到的图标复制到 `cache/t3-icons/`。
 
 不发网络请求。
 

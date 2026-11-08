@@ -25,13 +25,13 @@ Each part in more detail than the [README](../../README.md).
 ## Everyday use
 
 - **Sidebar**: the button at the top right of the sidebar (or `cmd-shift-b`) switches between Lists and Inbox; the one next to it hides the sidebar.
-- **Inbox**: hover a finished card and click `✓ Settle` to put it away; new work brings it back, or click the undo arrow on its row. `cmd-shift-s`, in Lists or with the sidebar hidden too, settles the agent in view and lands on Home, or brings it back if it is settled; `cmd-]` then opens the top card, so you can work down them one at a time. Drag a card or row, as in T3: move it 6px to lift it; the `Pinned` and `Active` labels open, the lifted row says what letting go will do (Pin, Unpin, Settle, Un-settle) and the list opens a gap where it will land. Pinned keeps your order; Active and Settled keep their own. Esc or leaving the sidebar sideways puts it back; leaving off the top or bottom lands it where the badge says; Working cards don't lift. Press a card's `✓ Settle` (or a settled row's undo) and move across rows to settle (or bring back) the whole run. The agents list shares these pins. A review has a card of its own, on Working while it analyzes and back in Active when that ends: click it to get back from anywhere, and Settle closes it and goes back where you opened it from (it reopens from the Review bar, with your marks and analysis).
+- **Inbox**: hover a finished card and click `✓ Settle` to put it away; new work brings it back, or click the undo arrow on its row. `cmd-shift-s`, in Lists or with the sidebar hidden too, settles the agent in view and lands on Home, or brings it back if it is settled. An agent you bring back yourself, with the undo arrow, a drag out of Settled or `cmd-shift-s`, goes on top of Active. `Undo` puts it back where it was. `cmd-]` then opens the top card, so you can work down them one at a time. Drag a card or row, as in T3: move it 6px to lift it; the `Pinned` and `Active` labels open, the lifted row says what letting go will do (Pin, Unpin, Settle, Un-settle) and the list opens a gap where it will land. Pinned keeps your order; Active and Settled keep their own. Esc or leaving the sidebar sideways puts it back; leaving off the top or bottom lands it where the badge says; Working cards don't lift. Press a card's `✓ Settle` (or a settled row's undo) and move across rows to settle (or bring back) the whole run. The agents list shares these pins. A review has a card of its own, on Working while it analyzes and back in Active when that ends: click it to get back from anywhere, and Settle closes it and goes back where you opened it from (it reopens from the Review bar, with your marks and analysis).
 - **Focus ring** (off by default): in `~/.config/herdr-app/layouts/herdr-t3.json`, set the pane's `focus.color` from `"background"` to `"accent"` (or any theme color) to ring the focused pane. It applies on save.
 - **Snooze**: hover a card (working ones too, not one that needs you), click the clock and pick a time. It waits on the Snoozed shelf and wakes where it was, marked `Woke` until you look at it or click that. It shows meanwhile while it needs you; a failed turn, new work you give it in view, a pin or Settle ends the snooze. `Undo` takes it back for 5 seconds; on the shelf, hover a row for the crossed-out alarm clock (press and move across rows to wake the run), or drag it out.
 
 ## Keys
 
-The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install merges them):
+The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install merges them). They cover macOS's keys only: `keys.json` can't bind a key by platform, so on Linux and Windows Herdr's own keys (`ctrl-shift-w` closing a tab, `alt-1…` picking a space and the rest) still run Herdr's commands, skipping the layout's rules such as asking before a close and leaving Home out of the count. Bind them to the commands below in your own `keys.json`.
 
 | Key | Command | Does |
 | --- | --- | --- |
@@ -48,7 +48,9 @@ The layout's own, in the `layout:herdr-t3` section of `keys.json` (an install me
 | `cmd-w`, `ctrl-alt-shift-x` | `t3-tabs.close-tab` | Closes the tab, asking first if a program is running in it |
 | `cmd-shift-w`, `ctrl-alt-x` | `t3-tabs.close-pane` | Closes the pane, asking first if a program is running in it |
 
-Otherwise tabs, spaces and panes keep Herdr's own keys. Pinning, dragging and Clear in Inbox are by mouse.
+Otherwise tabs, spaces and panes keep Herdr's own keys. Pinning and dragging in Inbox are by mouse; Clear takes the keyboard as other buttons do.
+
+By keyboard: move onto a sidebar list with Herdr's `pane.go` and Tab walks every control in the window, the Review bar's counts and logo included, with Enter or Space doing what a click does. In New and Go to, Tab also reaches the footer's buttons (New space, `← Spaces`, New tab).
 
 ## Update
 
@@ -72,4 +74,4 @@ Or tell your Herdr agent: "Update Herdr T3: clone github.com/JinJieBeWater/herdr
 - Home is a space of its own: switch to another layout, run `herdr-app ls` or look from another machine, and it shows as one.
 - Rename Home and another window on the same Herdr core won't know it: it makes a second Home.
 - A space on another machine has no Review bar.
-- Until the Inbox has shown once since Herdr started, it can't keep its order or Settle while the sidebar is hidden.
+- Until the Inbox has shown once since Herdr started, it doesn't keep its card order while the sidebar is hidden, so `cmd-]` and `cmd-[` may walk an old order. `cmd-shift-s` settles as usual.

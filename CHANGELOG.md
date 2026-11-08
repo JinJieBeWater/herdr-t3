@@ -4,9 +4,40 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-08
 
-- Moving the pointer over a popup list that scrolls, as New and Go to, no longer scrolls it: a row half in view at the top or bottom stays put when the pointer lights it. The keys still bring the highlight into view.
-- The README is short now: what this is, why, how to install and start. The full feature list, every key, what an update keeps and the known limits moved to [the guide](docs/user/guide.md), and the extras to [their own page](docs/user/extras.md).
-- The house button is gone from the top of the sidebar. In its place, past the window buttons, Herdr's logo and name, where Herdr's own layout has them, take you Home: the logo dimmed and set apart from the window buttons, the name muted. They're lit while you're there. The window buttons sit 1pt higher, on the bar's middle line.
+- Herdr's logo and name sit at the top left of the sidebar, past the window buttons, where Herdr's own layout has them. Click them to go Home. They light up while you're there. The house button is gone.
+- On macOS the window buttons sit on the brand bar's middle line, 1pt higher than before.
+- They stay on that line at any zoom. When the zoom changes, the layout updates the button position in your installed `herdr-t3` layout. A copy saved under another name is left alone.
+- The Inbox's first card sits 8px under Search, as in T3. It used to sit 10px lower.
+- Popup lists that scroll, such as New and Go to, stay still when the pointer moves over them. They used to scroll a half-hidden row into view under the pointer. The arrow keys still scroll to the highlighted row.
+- The README is shorter: what this is, how to install it and how to start. Features, keys, updating and known limits are in [the guide](docs/user/guide.md). The extras have [their own page](docs/user/extras.md).
+- Inbox:
+  - Undo after a Settle puts the agent back where it was in Active. This holds however you settled it and in whichever window you press Undo.
+  - Undo takes effect at once. It used to take up to a second.
+  - `cmd-shift-s` on a settled agent puts it on top of Active, as the undo arrow and a drag out of Settled do.
+  - Settling a pinned card unpins it at once. If the Settle fails, the pin goes back to its place.
+  - On a slow remote machine, a Settle stays settled. An older write arriving late no longer undoes it.
+  - A window in the background no longer clears a snooze that's due. `Woke` is still there when you come back.
+  - Clear asks `Close 2 terminals?`, as closing a tab does.
+  - The Settle button's label shows `cmd-shift-s` only on the card in view, the one the key acts on. Once that card is settled, its undo arrow shows the key too.
+  - The undo arrow's label reads `Un-settle`, as the drag badge does.
+- Lists:
+  - Unpinning with the pin button shows `Unpinned, Undo`, as in Inbox. Undo puts the pin back in its place.
+  - Clicking the sort button again closes its menu, as other popup buttons do.
+  - Spaces no longer scans untracked files for git info, which saves a lot of disk work in a big repo.
+- While you drag a space or a tab, Esc puts it back, as in Inbox.
+- Sometimes Herdr shows a tab you didn't pick, such as when a program ends by itself. The layout then gives back the unread done or `Woke` this cleared. If giving it back fails, one notice says so and it keeps trying. It used to fail silently.
+- Menus and keyboard:
+  - Right-click menus light one row at a time. Enter runs the lit row, never the first by default.
+  - Right-click menus take Home, End and typing a row's first letters.
+  - The Actions menu opens with nothing lit, so Enter right after opening runs nothing.
+  - In right-click menus and the Actions menu, moving the pointer off a row clears its light.
+  - Tab reaches the Review bar's counts and logo.
+  - Tab reaches the footer buttons of New (New space, `← Spaces`) and Go to (New tab). New space's machine step no longer needs a mouse.
+  - New's number hints follow the platform: `⌘1` on macOS, `Super+1` elsewhere.
+- Review:
+  - Changing the language, agent or model in its settings saves only that setting. It no longer undoes a change made in another Review pane or a moment before.
+  - Marking a file reviewed and quickly unmarking it keeps the last press.
+- `scripts/update.sh` no longer copies the mods' test files into the app folder. It removes the ones an older update left there.
 
 ## 2026-11-07
 
