@@ -1,25 +1,50 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { theme, run, props, updates, layout, shared, spaces, window, settings } from "herdr";
+import { theme, run, props, updates, layout, shared, spaces, window, settings, appHome, readTextFile, writeTextFile, notify } from "herdr";
 import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
-
-function find(node, id) {
-  if (node?.id === id) return node;
-  for (const child of node?.children ?? []) {
-    const found = find(child, id);
-    if (found) return found;
-  }
-  return null;
-}
+import { sidebarParts } from "./sidebar.js";
 
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
-const inboxShown = () => find(layout(), "sidebar-lists")?.active === "inbox";
+const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 export default class WorkspaceChrome extends View {
   async close() { stopsEnd(this); }
 
   init(_props, cx) {
     stopsInit(this, cx);
+    if (!props()?.footer) {
+      this.alignLights(cx);
+      // The brand copy stays alive with the sidebar hidden; no redraw is needed until a zoom actually changes the file.
+      cx.timer.every(250, cx => this.alignLights(cx));
+    }
+  }
+
+  alignLights(cx) {
+    if (shared("layout") !== "herdr-t3") return;
+    const root = /** @type {any} */ (layout()), w = window(), zoom = Number(settings().zoom) || 1;
+    if (w?.platform !== "macos" || w.fullscreen || root?.titlebar !== "none" || !root.traffic_lights || this.lightsWriting) return;
+    // Once per zoom and layout value: an update that rewrites the layout is aligned again, a failure isn't retried.
+    const seen = `${zoom}:${root.traffic_lights[1]}`;
+    if (this.lightsSeen === seen) return;
+    this.lightsSeen = seen;
+    // Native buttons are unzoomed, centered 8px below y; the brand row's center is 20 logical px.
+    const y = Math.round((12 + 20 * (zoom - 1)) * 1000) / 1000;
+    if (root.traffic_lights[1] === y) return;
+    this.lightsWriting = true;
+    cx.spawn(async () => {
+      try {
+        const file = `${appHome()}/layouts/herdr-t3.json`, before = await readTextFile(file);
+        if (before === null) throw new Error("Couldn't read the layout file.");
+        const saved = JSON.parse(before);
+        if (saved.titlebar !== "none" || !saved.traffic_lights || saved.traffic_lights[1] === y) return;
+        saved.traffic_lights = [saved.traffic_lights[0], y];
+        const after = before.replace(/("traffic_lights"\s*:\s*)\[[^\]]*\]/, (_match, key) => key + JSON.stringify(saved.traffic_lights));
+        if (JSON.stringify(JSON.parse(after)) !== JSON.stringify(saved)) throw new Error("Couldn't locate the layout's window buttons.");
+        await writeTextFile(file, after, before);
+      } catch (e) {
+        notify({ title: "Couldn't align the window buttons", body: String(e), level: "error" });
+      } finally { this.lightsWriting = false; }
+    });
   }
 
   render() {
