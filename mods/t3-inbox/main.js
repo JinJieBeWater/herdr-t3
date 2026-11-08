@@ -11,7 +11,7 @@
 
 import { View } from "gpui-kit";
 import { v_flex, InputState } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout } from "herdr";
+import { agents, terminals, panes, spaces, focused, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, window } from "herdr";
 import { modStatus, programOf } from "./name.js";
 import { descendants, ownStatus, stillSettled } from "./tree.js";
 import { stopsInit, stopsEnd, focusRoot, enter } from "./focus.js";
@@ -22,6 +22,7 @@ import { inboxActions } from "./actions.js";
 import { inboxDrag } from "./drag.js";
 import { inboxRowView } from "./row-view.js";
 import { inboxList } from "./list-view.js";
+import { sidebarParts } from "./sidebar.js";
 
 // A label write render keeps asking for waits this long (ms) after failing.
 const RETRY = 60000;
@@ -49,6 +50,7 @@ export default class Inbox extends View {
     this.limit = FIRST;
     // Labels written but not back from the core yet: label → address → value ("" = removed).
     this.pending = { settled: {}, snoozed: {} };
+    this.unsettledBefore = { ...(shared("t3-inbox.unsettled") ?? {}) };
     // Labels with writes under way, by `key address`: how many, and whether the label can't yet be taken at its word.
     this.writing = {};
     // Writes that failed, and when.
@@ -71,15 +73,12 @@ export default class Inbox extends View {
     // "Working 9s" counts up only while such a card shows.
     // Render says so again each time, so a list hidden meanwhile draws nothing.
     cx.timer.every(1000, (cx) => {
-      if (props()?.home) {
-        this.consumeUndo(cx);
-        this.compute(cx);
-      }
+      if (props()?.home) this.compute(cx);
       if (this.ticking) { this.ticking = false; cx.notify(); }
     });
     // The cards' times (5m, 2h) move on by the minute, as T3's do.
     cx.timer.every(60000, (cx) => cx.notify());
-    // `t3-inbox.settle` (cmd-shift-s in keys.json): see settleKey in actions.js. `t3-inbox.clear`: Clear's confirm dialog.
+    // `t3-inbox.clear`: Clear's confirm dialog. `t3-inbox.settle`: the settle key standalone (keys.json); the layout binds `t3-tabs.settle`, which the tab bar handles even when hidden.
     // `t3-inbox.custom-snooze:<address>:<wake ms>`: the Custom dialog, a copy of this mod with no loop of its own.
     // `t3-inbox.undo`: the undo notice's Undo, when the sidebar footer (t3-chrome) shows it.
     cx.spawn(async (cx) => {
@@ -111,17 +110,18 @@ export default class Inbox extends View {
   }
 
   // Shown at once; the label comes back from the core a moment later.
-  setLabel(key, addr, value, cx) {
+  setLabel(key, addr, value, cx, failed = null) {
     this.pending[key][addr] = value;
     const slot = `${key} ${addr}`, w = this.writing[slot] ?? (this.writing[slot] = { out: 0, unsure: false });
-    // Undone before the first write has landed: the label says this already, and the two can land either way round.
-    w.unsure = w.unsure || (w.out > 0 && (terminals().find((k) => k.address === addr)?.labels?.[key] ?? "") === value);
+    // Overlapping writes can land either way round: keep the last intent until all have answered, then say it again.
+    w.unsure = w.unsure || w.out > 0;
     w.out++;
     cx.spawn(async (cx) => {
       const r = await hc(["label", addr, `${key}=${value}`]).catch((e) => ({ code: 1, stderr: String(e) }));
       if (--w.out === 0) delete this.writing[slot];
       if (r.code !== 0) {
         if (this.pending[key][addr] === value) delete this.pending[key][addr];
+        failed?.();
         this.refused[`${key} ${addr} ${value}`] = Date.now();
         notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
         // A Settle or Snooze that didn't happen: the notice says one fewer, or goes. Its Undo would only rewrite what's there.
@@ -188,6 +188,7 @@ export default class Inbox extends View {
   }
 
   compute(cx, publish = true) {
+    this.consumeUndo(cx);
     const now = Date.now();
     const runs = agents(), all = terminals(), ps = panes(), sp = spaces(), f = focused();
     // `pane:<id>` is a mod card's address, in t3-inbox.rows too. Docked alone, keep the original one-card-per-agentless-tab rule.
@@ -208,6 +209,11 @@ export default class Inbox extends View {
     // A space that's gone reads as all; its id stays stored, so the scope returns with it.
     const scope = this.scope.filter((id) => sp.some((s) => s.id === id));
     const term = new Map(all.map((k) => [k.address, k]));
+    // The key reports an explicit return; a label cleared by Undo, even in another window, keeps its place.
+    const unsettled = shared("t3-inbox.unsettled") ?? {};
+    const returned = new Set(all.filter((k) => unsettled[k.address] !== undefined && unsettled[k.address] !== this.unsettledBefore[k.address]
+      && !k.labels?.settled && this.pending.settled[k.address] === undefined).map((k) => k.address));
+    for (const addr of returned) this.unsettledBefore[addr] = unsettled[addr];
     for (const [key, of] of Object.entries(this.pending)) {
       for (const [k, v] of Object.entries(of)) if (!term.has(k) || (!this.writing[`${key} ${k}`]?.unsure && (term.get(k).labels?.[key] ?? "") === v)) delete of[k];
     }
@@ -227,14 +233,14 @@ export default class Inbox extends View {
     for (const a of every) {
       const until = napUntil(a);
       if (!until) continue;
-      const turned = viewing(a) && running(a) && ["idle", "done"].includes(this.changed[a.address]?.s);
-      if (failed(a) || turned || (viewing(a) && until <= now)) this.setLabelDue("snoozed", a.address, "", cx);
+      const turned = window().active && viewing(a) && running(a) && ["idle", "done"].includes(this.changed[a.address]?.s);
+      if (failed(a) || turned || (window().active && viewing(a) && until <= now)) this.setLabelDue("snoozed", a.address, "", cx);
     }
     const tabs = new Map(sp.flatMap((s) => s.tabs.map((c) => [c.id, c])));
     this.track(every.map((a) => ({
       address: a.address, s: state(a) === "blocked" ? "blocked" : running(a) ? "working"
         : state(a) === "done" && kids.get(a.address).includes("working") ? "done" : "idle",
-      turn: term.get(a.address)?.turn ?? 0, excluded: pins.includes(a.address) || Boolean(settledAt(a)) || hidden(a),
+      turn: term.get(a.address)?.turn ?? 0, excluded: pins.includes(a.address) || Boolean(settledAt(a)) || hidden(a), returned: returned.has(a.address),
       // A mod pane first seen is one just opened.
       first: /** @type {any} */ (a).mod ? now : 0,
       // Its own word's change: with a sub-agent speaking for it, the tab's time needn't be about that.
@@ -259,8 +265,7 @@ export default class Inbox extends View {
   }
 
   publishRows(rows, view, ordered = rows) {
-    const find = (n) => n?.id === "sidebar-lists" ? n : (n?.children ?? []).map(find).find(Boolean);
-    const mode = find(layout());
+    const { stack: mode } = sidebarParts(layout());
     if (mode && mode.active !== "inbox") { this.agentOrder = null; return; }
     const drawn = { order: rows.map((a) => a.address), view };
     if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);

@@ -132,6 +132,13 @@ function fixture() {
     const mod = new context.Mod(); mod.init({}, cx);
     return () => mod.render(cx);
   };
+  f.loadTabs = () => {
+    const src = bundle(path.join(__dirname, "../t3-tabs"), "main.js", new Set(["name.js"]));
+    const context = vm.createContext({ ...env });
+    vm.runInContext(src, context);
+    const mod = new context.Mod(); mod.init({}, cx);
+    return mod;
+  };
   f.add = (address, status = "idle", ms = 100) => {
     const row = { address, status, seq: f.rows.length + 1, space: "s1", space_name: "One", pane: address, program: {}, focused: false };
     f.rows.push(row);
@@ -169,6 +176,230 @@ function fixture() {
   };
   return f;
 }
+
+test("an old settle cleanup cannot overwrite a newer turn's Settle", async () => {
+  const f = fixture(), a = f.add("A", "working");
+  f.terms[0].turn = 1; f.label("A", "settled", "500:1"); f.mod.open = f.mod.workOpen = true;
+  const held = [];
+  f.context.hc = (args) => new Promise((done) => { f.labelled.push(args.join(" ")); held.push(done); });
+  const answer = async (i, value) => { f.label("A", "settled", value); held[i]({ code: 0 }); await new Promise(setImmediate); f.flush(); };
+  f.render(); f.flush();
+  a.status = "done"; f.terms[0].turn = 2; f.render(2000);
+  f.mod.hovered = "A"; f.render(); f.event("settle-A", "on_click"); f.flush();
+  await answer(1, "2000:2"); f.render(2100);
+  await answer(0, ""); f.render(2200);
+  assert.deepEqual(f.labelled, ["label A settled=", "label A settled=2000:2", "label A settled=2000:2"], "the last intent is written again after both replies");
+  assert.deepEqual(slims(find(f.tree, "settled")), ["A"], "the newer Settle stays visible while repairing the core");
+  await answer(2, "2000:2"); f.render(2300);
+  assert.equal(f.terms[0].labels.settled, "2000:2");
+  assert.deepEqual(Object.keys(f.mod.pending.settled), []);
+});
+
+test("a background window leaves an expired snooze marked Woke until the window is active", () => {
+  const f = fixture(), a = f.add("A"); a.focused = true; f.active = false;
+  f.label("A", "snoozed", "2000"); f.render(); f.render(2001); f.flush();
+  assert.deepEqual(f.labelled, [], "a selected pane in a background window has not been seen");
+  assert.ok(find(f.tree, "woke-A"));
+  f.active = true; f.render(2002); f.flush();
+  assert.deepEqual(f.labelled, ["label A snoozed="]);
+});
+
+test("a background window does not end a snooze when its selected agent starts work", () => {
+  const f = fixture(), a = f.add("A"); a.focused = true; f.active = false;
+  f.label("A", "snoozed", "9000"); f.render(); a.status = "working"; f.render(2000); f.flush();
+  assert.deepEqual(f.labelled, []);
+  f.terms[0].status = "error"; f.render(2100); f.flush();
+  assert.deepEqual(f.labelled, ["label A snoozed="], "failures still wake the agent in a background window");
+});
+
+test("a failed card Settle restores the pin in its original place and keeps pins made since", async () => {
+  const f = fixture(); f.add("A"); f.add("B"); f.add("C"); f.add("D"); f.pins = ["A", "B"];
+  f.context.hc = async () => ({ code: 1, stderr: "offline" });
+  f.mod.hovered = "A"; f.render(); f.pins = ["A", "B", "C"];
+  f.event("settle-A", "on_click"); f.flush();
+  assert.deepEqual(f.pins, ["B", "C"], "a pin made since the last draw is kept too");
+  f.pins.push("D");
+  await new Promise(setImmediate); f.render(1100);
+  assert.deepEqual(f.pins, ["A", "B", "C", "D"]);
+  assert.equal(f.notifications.at(-1).body, "offline");
+  assert.notEqual(f.mod.notice?.live, true, "a failed operation offers no Undo");
+});
+
+test("a card Settle removes its pin immediately, and a quick Undo keeps it", async () => {
+  const f = fixture(); f.add("A"); f.add("B"); f.pins = ["A", "B"];
+  const held = []; f.context.hc = () => new Promise((done) => held.push(done));
+  f.mod.hovered = "A"; f.render(); f.event("settle-A", "on_click"); f.flush();
+  assert.deepEqual(f.pins, ["B"], "the pin goes while the write is pending");
+  f.mod.undo(f.cx); f.flush();
+  held[0]({ code: 0 }); await new Promise(setImmediate); f.flush();
+  assert.deepEqual(f.pins, ["A", "B"], "an older successful Settle cannot undo a newer Undo's pin restore");
+});
+
+test("a failed Settle after a quick Undo preserves newer pin choices", async () => {
+  const f = fixture(); f.add("A"); f.add("B"); f.add("C"); f.pins = ["A", "B"];
+  const held = []; f.context.hc = () => new Promise(done => held.push(done));
+  f.mod.hovered = "A"; f.render(); f.event("settle-A", "on_click"); f.flush();
+  f.mod.undo(f.cx); f.flush();
+  assert.deepEqual(f.pins, ["A", "B"]);
+  f.pins = ["B", "C"];
+  held[0]({ code: 1, stderr: "offline" }); await new Promise(setImmediate);
+  assert.deepEqual(f.pins, ["B", "C"], "the failed older Settle cannot restore an undone pin again");
+});
+
+test("a pinned Settle leaves Pinned immediately through the card, key or drop, while the write is pending", () => {
+  for (const via of ["card", "key", "drop"]) {
+    const f = fixture(), p = f.add("P"); f.add("Q"); f.pins = ["P", "Q"]; f.mod.open = true;
+    f.context.hc = () => new Promise(() => {});
+    f.mod.hovered = "P"; f.mod.listH = 600; f.render();
+    if (via === "card") f.event("settle-P", "on_click");
+    else if (via === "key") { p.focused = true; f.settle(); }
+    else {
+      f.mod.drag = { from: "P", moved: true, y: 400, grab: 10, height: 82, target: { section: "settled" } }; f.render();
+      f.event("t3-inbox-root", "on_mouse_up:left");
+    }
+    f.flush(); f.render();
+    assert.deepEqual(f.pins, ["Q"], `${via}: the pin goes before the core answers`);
+    assert.equal(find(f.tree, "card-P"), null, `${via}: no pinned card left behind`);
+    assert.deepEqual(slims(find(f.tree, "settled")), ["P"], `${via}: already on Settled`);
+  }
+});
+
+test("only the agent in view advertises the settle key, the layout's or the standalone Inbox's", () => {
+  const f = fixture(), a = f.add("A"), b = f.add("B"); a.focused = true;
+  f.context.keys = () => [{ action: "t3-tabs.settle", keys: "cmd-shift-s" }, { action: "t3-inbox.settle", keys: "cmd-x" }];
+  const label = (id) => {
+    f.mod.hovered = id; f.render(); f.mod.hot = `settle-${id}`;
+    f.event(`tip-over-settle-${id}`, "on_hover", true); f.render(f.now + 150);
+    return texts(find(f.tree, `tip-settle-${id}`));
+  };
+  assert.ok(label("A").includes("Settle agent (⇧⌘S)"));
+  assert.ok(!label("B").join("").includes("⇧⌘S"), "the key acts on A, so B has no key hint");
+  f.context.keys = () => [{ action: "t3-inbox.settle", keys: "cmd-shift-s" }];
+  assert.ok(label("A").includes("Settle agent (⇧⌘S)"), "standalone, the Inbox's own command holds the key");
+  f.context.keys = () => [{ action: "t3-tabs.settle", keys: "cmd-shift-s" }];
+  const unsettle = () => {
+    f.mod.open = true; f.mod.hovered = "B"; f.render();
+    f.mod.hot = "unsettle-B"; f.event("tip-over-unsettle-B", "on_hover", true); f.render(f.now + 150);
+    return texts(find(f.tree, "tip-unsettle-B")).join("");
+  };
+  f.label("B", "settled", "500:0");
+  assert.ok(!unsettle().includes("⇧⌘S"), "a settled row out of view: the key would act on A");
+  a.focused = false; b.focused = true;
+  assert.ok(unsettle().includes("⇧⌘S"), "the settled agent in view: the key brings it back");
+});
+
+test("Clear confirms terminals, as closing a tab does", () => {
+  const f = fixture(); f.add("A").tab = "ta"; f.add("B").tab = "tb";
+  for (const id of ["A", "B"]) f.label(id, "settled", "500:0");
+  f.render();
+  const opened = []; f.context.openOverlay = (o) => opened.push(o);
+  f.event("settled-clear", "on_click");
+  assert.equal(opened[0].props.title, "Close 2 terminals?");
+});
+
+test("a shared Undo request is consumed on the next draw without waiting for the timer", () => {
+  const f = fixture(), a = f.add("A"); a.focused = true; f.render(); f.settle();
+  const n = f.state["t3-inbox.notice"];
+  f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
+  f.render();
+  assert.equal(f.mod.pending.settled.A, "");
+  assert.equal(f.mod.notice.live, false);
+  assert.deepEqual(f.active(), ["A"]);
+});
+
+test("an external label clear and a local Undo keep their old places", async () => {
+  const f = fixture(), a = f.add("A", "idle", 100); f.add("B", "idle", 300);
+  f.label("A", "settled", "500:0"); f.render();
+  f.label("A", "settled", ""); f.render(2000);
+  assert.deepEqual(f.active(), ["B", "A"], "a cleared label alone says nothing about an explicit return");
+  f.render(2100); assert.equal(f.mod.changed.A.at, 0, "a repeated snapshot is no newer news");
+  const g = fixture(); g.add("A", "idle", 100).focused = true; g.add("B", "idle", 300); g.render();
+  g.settle(); g.flush(); await new Promise(setImmediate);
+  g.label("A", "settled", "1000:0"); g.render(1100);
+  g.mod.undo(g.cx); g.flush(); await new Promise(setImmediate);
+  g.label("A", "settled", ""); g.render(2000);
+  assert.deepEqual(g.active(), ["B", "A"], "Undo restores the previous order");
+});
+
+test("Undo after the tab-bar settle key restores the old Active order", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
+  const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200).focused = true; f.add("C", "idle", 100);
+  const tabs = f.loadTabs(); f.render();
+  assert.deepEqual(f.active(), ["A", "B", "C"]);
+  await tabs.settle(f.cx); f.label("B", "settled", "1000:0"); f.render(1100);
+  assert.deepEqual(f.active(), ["A", "C"]);
+  await tabs.undo(); f.label("B", "settled", ""); f.render(1200);
+  assert.deepEqual(f.active(), ["A", "B", "C"], "Undo is no news");
+});
+
+test("the settle key reports a real return once, even when its signal and the core snapshot arrive apart", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
+  for (const signalFirst of [true, false]) {
+    const f = fixture(), g = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200).focused = true; f.add("C", "idle", 100);
+    g.rows = f.rows; g.terms = f.terms; g.state = f.state;
+    f.label("B", "settled", "500:0"); f.render(); g.render();
+    let finish;
+    f.env.hc = () => new Promise(resolve => { finish = resolve; });
+    const tabs = f.loadTabs(), returning = tabs.settle(f.cx);
+    if (signalFirst) { finish({ code: 0 }); await returning; } else f.label("B", "settled", "");
+    f.render(1100);
+    assert.deepEqual(f.active(), signalFirst ? ["A", "C"] : ["A", "B", "C"], "neither half alone moves the row");
+    if (signalFirst) f.label("B", "settled", ""); else { finish({ code: 0 }); await returning; }
+    f.render(1200); g.render(20000);
+    assert.deepEqual(f.active(), ["B", "A", "C"]);
+    assert.deepEqual(g.active(), ["B", "A", "C"], "the other window receives the same explicit return");
+    assert.equal(f.mod.changed.B.at, 1200);
+    f.render(1300); assert.equal(f.mod.changed.B.at, 1200, "a persistent signal is consumed once");
+  }
+});
+
+test("a background window can miss the whole tab-bar notice and still distinguish Undo from a real key return", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
+  for (const undo of [true, false]) {
+    const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200).focused = true; f.add("C", "idle", 100); f.render();
+    let reply;
+    f.env.hc = async (args) => {
+      const [key, value] = args[2].split("="); f.label(args[1], key, value);
+      if (undo && value) await new Promise(resolve => { reply = resolve; });
+      return { code: 0 };
+    };
+    const tabs = f.loadTabs(), settling = tabs.settle(f.cx);
+    if (!undo) await settling;
+    f.render(11000);
+    assert.equal(f.state["t3-inbox.notice"] ?? null, null, "the observer has seen no live notice");
+    if (undo) { reply(); await settling; }
+    f.now = 11100;
+    if (undo) await tabs.undo(); else await tabs.settle(f.cx);
+    f.render(11200);
+    assert.equal(f.state["t3-inbox.notice"], null);
+    assert.deepEqual(f.active(), undo ? ["A", "B", "C"] : ["B", "A", "C"]);
+  }
+});
+
+test("Undo in another window keeps Active order through Inbox, footer and tab-bar entry points", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
+  for (const via of ["inbox", "footer", "tabs"]) {
+    const f = fixture(), g = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200).focused = true; f.add("C", "idle", 100);
+    g.rows = f.rows; g.terms = f.terms; g.state = f.state;
+    g.context.window = Object.assign(() => ({ platform: "macos", active: false }), g.env.window);
+    const tabs = f.loadTabs(); f.render(); g.render();
+    if (via === "tabs") await tabs.settle(f.cx); else { f.settle(); f.flush(); await new Promise(setImmediate); }
+    f.label("B", "settled", "1000:0"); f.render(1100); g.render(1100);
+    if (via === "inbox") f.mod.undo(f.cx); else { await tabs.undo(); f.render(); }
+    f.flush(); await new Promise(setImmediate); f.label("B", "settled", "");
+    f.render(1200); g.render(20000);
+    assert.deepEqual(f.active(), ["A", "B", "C"], `${via}: the action window keeps its place`);
+    assert.deepEqual(g.active(), ["A", "B", "C"], `${via}: the background window keeps its place`);
+  }
+});
+
+test("a refused key return sends no signal and preserves other agents' return signals; ended terminals' go", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
+  const f = fixture(); f.add("A").focused = true; f.add("B"); f.label("A", "settled", "500:0"); f.state["t3-inbox.unsettled"] = { B: 900, gone: 800 };
+  f.env.hc = async () => ({ code: 1, stderr: "offline" });
+  const tabs = f.loadTabs(); f.render(); await tabs.settle(f.cx);
+  assert.deepEqual(f.state["t3-inbox.unsettled"], { B: 900, gone: 800 });
+  f.env.hc = async () => ({ code: 0 });
+  await f.loadTabs().settle(f.cx);
+  assert.deepEqual(plain(f.state["t3-inbox.unsettled"]), { A: 1000, B: 900 });
+  await f.loadTabs().settle(f.cx);
+  assert.equal(f.state["t3-inbox.unsettled"].A, 1001, "two successes on the same clock tick are distinct signals");
+});
 
 test("a quick continuation keeps its Working place, showing its real state meanwhile", () => {
   const f = fixture(), a = f.add("A", "working", 100); f.add("B", "working", 200); f.mod.workOpen = true;
@@ -215,6 +446,20 @@ test("looking, seq and data order don't reshuffle; equal times go by address", (
   assert.deepEqual(f.order, ["A", "B"]);
   for (const k of f.terms) k.labels.settled = "500:0";
   f.render(1600); f.rows.reverse(); f.render(1700); assert.deepEqual(f.order, ["A", "B"]);
+});
+
+test("unpinning previews the same recent order the cards use, including equal times", () => {
+  for (const [id, time, gap, order] of [
+    ["B", 200, "C", ["A", "B", "C"]],
+    ["Z", 100, "end-active", ["A", "C", "Z"]],
+    ["P", 300, "A", ["P", "A", "C"]],
+  ]) {
+    const f = fixture(); f.add(id, "idle", time); f.add("C", "idle", 200); f.add("A", "idle", 200); f.pins = [id];
+    f.render(); f.mod.drag = { from: id, moved: true, y: 100, grab: 10, height: 60, target: { section: "active" } }; f.render();
+    assert.ok(find(f.tree, `gap-${gap}`).style.h[0] > 0, id);
+    f.event("t3-inbox-root", "on_mouse_up:left"); f.render();
+    assert.deepEqual(f.active(), order, id);
+  }
 });
 
 test("a short absence and a restart keep each agent's place", () => {
@@ -601,10 +846,10 @@ test("a row that leaves fades out where it was, then goes", () => {
   const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200); f.mod.listH = 600; f.render();
   f.rows.splice(0, 1); f.terms.splice(0, 1); f.render(1100);
   const ghost = () => { const walk = (n) => !n || typeof n !== "object" ? null : n.key?.startsWith("leaving-A-") ? n : n.items.map(walk).find(Boolean) ?? null; return walk(f.tree); };
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 10], "drawn as it was, where it was");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [1, 0], "drawn as it was, where it was");
   assert.equal(at(flyOf(f, "B")).top, 83, "B slides up from under it");
   f.render(1116);
-  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 50], "fading, 40px down: nothing above it stays");
+  assert.deepEqual([ghost().style.opacity[0], ghost().style.top[0]], [0, 40], "fading, 40px down: nothing above it stays");
   f.render(1300);
   assert.equal(ghost(), null);
 });
@@ -1423,7 +1668,7 @@ test("a run that ends under a snooze lifts the agent when it wakes: it came back
   assert.deepEqual(f.active(), ["A", "C", "B"]);
 });
 
-test("a pinned card offers Settle beside the clock, as T3's; settling drops the pin, and Undo brings it back in its place", () => {
+test("a pinned card offers Settle beside the clock, as T3's; settling drops the pin, and Undo brings it back in its place", async () => {
   const f = fixture(); f.add("P", "idle", 300); f.add("Q", "idle", 200); f.add("A", "idle", 100); f.pins = ["P", "Q"];
   f.render(); f.mod.hovered = "P"; f.render();
   assert.ok(find(f.tree, "settle-P").handlers.on_click);
@@ -1438,11 +1683,13 @@ test("a pinned card offers Settle beside the clock, as T3's; settling drops the 
   find(f.tree, "snooze-menu-P").handlers.on_open_change(false, { notify() {} }); f.render();
   assert.equal(anchor(), "top_left", "closing forgets the press");
   f.event("settle-P", "on_click"); f.flush();
+  await new Promise(setImmediate);
   assert.deepEqual(f.pins, ["Q"]);
   assert.deepEqual(f.labelled, ["label P settled=1000:0"]);
   f.label("P", "settled", "1000:0"); f.render(1100);
   f.mod.hovered = "Q"; f.render(1100);
   f.event("settle-Q", "on_click"); f.flush();
+  await new Promise(setImmediate);
   assert.deepEqual(f.pins, []);
   f.label("Q", "settled", "1100:0"); f.render(1200);
   assert.equal(f.mod.notice.count, 2);
@@ -1473,12 +1720,14 @@ test("Undo puts back the pin it took, in its place, and leaves one made since", 
 });
 
 
-test("the settle key and a drag to Settled take a pinned agent too; Undo restores its pin and its snooze", () => {
+test("the settle key and a drag to Settled take a pinned agent too; Undo restores its pin and its snooze", async () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200); f.pins = ["A"]; a.focused = true; f.render();
   f.settle(); f.flush();
+  await new Promise(setImmediate);
   assert.deepEqual([f.pins, f.calls.at(-1)[1].terminal], [[], "B"], "and the view moves on");
   f.label("A", "settled", "1000:0"); a.focused = false; f.render(1100);
   find(f.tree, "undo-notice-undo").handlers.on_click({}, f.cx); f.flush();
+  await new Promise(setImmediate);
   f.label("A", "settled", ""); f.render(1200);
   assert.deepEqual(f.pins, ["A"]);
   // Snoozed under its pin, dragged to Settled: no "Unpinned" notice in the way, and Undo gives back both.
@@ -1487,6 +1736,7 @@ test("the settle key and a drag to Settled take a pinned agent too; Undo restore
   f.mod.napOpen = true; f.mod.open = true; f.mod.listH = 600; f.render(1300);
   f.mod.drag = { from: "A", moved: true, y: 400, grab: 10, height: 30, target: { section: "settled" } }; f.render(1300);
   f.event("t3-inbox-root", "on_mouse_up:left"); f.flush();
+  await new Promise(setImmediate);
   assert.deepEqual(f.pins, []);
   assert.equal(f.mod.notice.action, "Settled");
   f.label("A", "settled", "1300:0"); f.label("A", "snoozed", ""); f.mod.dropped = 0; f.render(1400);
@@ -1497,13 +1747,14 @@ test("the settle key and a drag to Settled take a pinned agent too; Undo restore
   assert.deepEqual([f.labelled, f.napping()], [[], ["A"]], "a pin coming back doesn't wake it");
 });
 
-test("a sweep from a pinned card's Settle stays among the pins", () => {
+test("a sweep from a pinned card's Settle stays among the pins", async () => {
   const f = fixture(); f.add("P", "idle", 300); f.add("Q", "idle", 200); f.add("A", "idle", 100); f.pins = ["P", "Q"];
   f.render(); f.mod.hovered = "P"; f.render();
   f.event("settle-P", "on_mouse_down:left");
   f.event("t3-inbox-root", "on_mouse_move", { position: { x: 20, y: 300 } }); f.render();
   f.event("card-A", "on_mouse_move"); f.event("card-Q", "on_mouse_move"); f.render();
   f.event("t3-inbox-root", "on_mouse_up:left"); f.flush();
+  await new Promise(setImmediate);
   assert.deepEqual(f.pins, []);
   assert.deepEqual(f.labelled.map((l) => l.split("=")[0]), ["label P settled", "label Q settled"]);
 });

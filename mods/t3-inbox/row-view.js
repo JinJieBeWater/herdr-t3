@@ -3,7 +3,7 @@ import { v_flex, h_flex, Popup } from "gpui-base";
 import { settings } from "herdr";
 import { namer } from "./name.js";
 import { projectMark } from "./project.js";
-import { glow, tip, tipMark } from "./tip.js";
+import { glow, tip, tipMark, keyOf } from "./tip.js";
 import { MOTION } from "./motion.js";
 import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
 import { stop, within } from "./focus.js";
@@ -11,6 +11,8 @@ import { snoozeButton } from "./snooze.js";
 import { SLIM } from "./list-view.js";
 
 const icon = programIcon;
+// The settle key: the layout's tab bar holds it; a standalone Inbox, its own command.
+const settleKey = () => keyOf("t3-tabs.settle") ? "t3-tabs.settle" : "t3-inbox.settle";
 
 // As T3's sidebar times: no "ago", nothing past days.
 function ago(ms, now) {
@@ -150,7 +152,7 @@ export function inboxRowView(view, t, model, actions, drag) {
         }))
         .child(svg("mods/t3-inbox/icons/check.svg").size(14).flex_none().text_color(lit(id, t.muted)))
         .child("Settle")
-        .when(offer, (el) => stop(view, t, id, el, 6)), { action: "t3-tabs.settle", delay }))));
+        .when(offer, (el) => stop(view, t, id, el, 6)), { action: on ? settleKey() : undefined, delay }))));
     // T3's card row: 10 and 8 in, rounded-md, its lines 20, 20 and 16 tall, 4 and 2 apart: 78 with all three.
     const base = v_flex().id(`${ghost ? "ghost-" : ""}card-${a.address}`).px(10).py(8).flex_none().rounded(6)
       // A working row recedes until it's hovered or in view, as T3's.
@@ -180,7 +182,7 @@ export function inboxRowView(view, t, model, actions, drag) {
   // bare undo arrow, or for a snoozed one, which shows when it comes back, Wake's crossed-out alarm clock, as in T3.
   const slim = (a, ghost) => {
     const on = viewing(a), over = !dragging && !view.sweep?.moved && (view.hovered === a.address || within(view, [`slim-${a.address}`, `wake-${a.address}`, `unsettle-${a.address}`])), bright = on || over || ghost || swept(a);
-    const napping = hidden(a), undoId = `${napping ? "wake" : "unsettle"}-${a.address}`, undoLabel = napping ? "Wake agent" : "Unsettle";
+    const napping = hidden(a), undoId = `${napping ? "wake" : "unsettle"}-${a.address}`, undoLabel = napping ? "Wake agent" : "Un-settle";
     // As T3's settled rows: its project's mark, not its program's.
     const mark = avatar(a.space, a.space_name, 16);
     const undo = h_flex().id(undoId).h(24).px(6).flex_none().items_center().justify_center().rounded(6)
@@ -210,7 +212,7 @@ export function inboxRowView(view, t, model, actions, drag) {
         // T3's corner: the time fades out on hover as the undo arrow fades in over it.
         : h_flex().id(`slim-corner-${a.address}`).relative().h(24).min_w(32).flex_none().items_center().justify_end()
           .child(div().flex_none().text_size(12).text_color(t.dim).opacity(over ? 0 : 1).transition("opacity", MOTION).child(time))
-          .child(div().absolute().top(0).right(-4).child(tip(view, t, undoId, undoLabel, undo, { action: napping ? undefined : "t3-inbox.settle", delay }))))
+          .child(div().absolute().top(0).right(-4).child(tip(view, t, undoId, undoLabel, undo, { action: on && !napping ? settleKey() : undefined, delay }))))
       .when(!ghost, (el) => stop(view, t, `slim-${a.address}`, el));
   };
 

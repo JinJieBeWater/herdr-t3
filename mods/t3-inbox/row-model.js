@@ -7,6 +7,7 @@ const GRACE = 2000;
 const BUSY = new Set(["working", "blocked"]);
 // The last word when times tie, so the order doesn't follow the order the data came in.
 const byAddress = (x, y) => x.address.localeCompare(y.address);
+export const byRecent = (x, y) => y.since - x.since || byAddress(x, y);
 
 // Takes each agent's state as working, blocked or idle (done counts as idle: looking at it isn't news).
 // A run's place in Working is when it started, as T3's is the person's message: a pause for them, or a stop
@@ -16,7 +17,12 @@ const byAddress = (x, y) => x.address.localeCompare(y.address);
 export function trackInboxRows(previous, list, all, now) {
   const changes = { ...previous }, waits = [];
   let dirty = false;
-  for (const { address, s, turn, excluded, first, changed } of list) {
+  for (const { address, s, turn, excluded, first, changed, returned } of list) {
+    if (returned) {
+      changes[address] = { s, at: now, turn, start: null };
+      dirty = true;
+      continue;
+    }
     let was = changes[address];
     // The grace ran out: back with the person as of then, so it lands on top, and the run is over.
     if (was?.s === "idle" && was.start != null && (excluded || now - was.at >= GRACE)) {
@@ -93,26 +99,23 @@ export function inboxFields({ every, all, term, pending, changed, now, inView })
   const lingering = (a) => mark(a)?.s === "idle" && mark(a).start != null;
   // T3's Working shelf.
   const working = (a) => running(a) || lingering(a);
-  // Active by when each came back to the person; Working by when its run started.
-  const newest = (x, y) => since(y) - since(x) || byAddress(x, y);
   const begun = (a) => (lingering(a) ? mark(a).start || term.get(a.address)?.status_ms || 0 : since(a));
   // Working since: seen set going; before that, its own report, or for a parent waiting on sub-agents the
   // longest-working one's.
   const started = (a) => mark(a)?.at || (a.status === "working" ? term.get(a.address)?.status_ms
     : Math.min(Infinity, ...descendants(all, a.address).filter((k) => kidStatus(k, listed) === "working").map((k) => k.status_ms).filter(Boolean)));
 
-  return { viewing, settledAt, kids, busy, state, running, napUntil, hidden, woke, since, working, newest, begun, started };
+  return { viewing, settledAt, kids, busy, state, running, napUntil, hidden, woke, since, working, begun, started };
 }
 
 // Plain row facts in; ordered sections, visible pages and the next wake out. No storage, commands or timers.
 /** @returns {any} */
 export function inboxSections(every, { scope, pins, workOpen, napOpen, open, limit }) {
   const list = scope.length ? every.filter((x) => scope.includes(x.a.space)) : every;
-  const newest = (x, y) => y.since - x.since || byAddress(x, y);
   const pinned = pins.map((p) => list.find((x) => x.address === p)).filter((x) => x && !x.hidden);
   const rest = list.filter((x) => !pins.includes(x.address));
   // Active by when each came back to the person; Working by when its run started.
-  const out = rest.filter((x) => !x.settledAt && !x.hidden && !x.working).sort(newest);
+  const out = rest.filter((x) => !x.settledAt && !x.hidden && !x.working).sort(byRecent);
   const work = rest.filter((x) => !x.settledAt && !x.hidden && x.working).sort((x, y) => y.begun - x.begun || byAddress(x, y));
   // Soonest back first; pinned ones too: they wake back to their pin.
   const nap = list.filter((x) => x.hidden).sort((x, y) => x.napUntil - y.napUntil || byAddress(x, y));

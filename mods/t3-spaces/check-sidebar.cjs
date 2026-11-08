@@ -584,7 +584,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(f.calls.length, n, "the click only asks");
     assert.notEqual(find(inbox.render(run), "settled-clear").style.text_color, "#f4f4f6", "the dialog covers it and the pointer may not move: it doesn't stay lit");
     const { mod, kind, props } = f.overlays.pop();
-    assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 pane?", "t3-inbox.clear"], "published alone, the shipped dialog");
+    assert.deepEqual([mod, kind, props.title, props.command.name], ["confirm", "dialog", "Close 1 terminal?", "t3-inbox.clear"], "published alone, the shipped dialog");
     const homed = f.load("t3-inbox", { home: "t3-tabs.home" });
     homed.open = true;
     fire(find(homed.render(run), "settled-clear"), "on_click", {}, run);

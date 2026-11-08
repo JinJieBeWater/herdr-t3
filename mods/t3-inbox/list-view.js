@@ -10,7 +10,7 @@ import { FIRST, MORE } from "./row-model.js";
 // T3's slim rows and Show more (h-9) and its shelves' headers (h-8), logical px.
 export const SLIM = 36, SHELF = 32;
 // T3's list: 1px between its items (gap-px), a card's item adding 2 above and below (py-0.5); 8 in, and a card's 2 more at the top.
-export const STACK = 1, CARD_GAP = 5, LIST_TOP = 10;
+export const STACK = 1, CARD_GAP = 5, LIST_TOP = 0;
 
 export function inboxList(view, t, model, actions, drag, draw, cx) {
   const { list, every, sp, scope, kids, working, pinned, out, work, nap, put, busyRows, napRows, busy } = model;
@@ -131,7 +131,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
       cx.stop_propagation();
       view.hot = null; // The dialog covers it, before the pointer can report leaving it.
       const ask = {
-        title: `Close ${doomed.length} pane${doomed.length === 1 ? "" : "s"}?`,
+        title: `Close ${doomed.length} terminal${doomed.length === 1 ? "" : "s"}?`,
         detail: "This ends the terminals of your settled agents. The tab you're on stays.",
         command: { name: "t3-inbox.clear" },
       };

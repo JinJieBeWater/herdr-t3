@@ -3,7 +3,7 @@ import { focusAgent, focusPane } from "./zoom.js";
 import { detailsFor } from "./details.js";
 
 export function inboxActions(view, model) {
-  const { every, viewing, term, pins, napUntil, wake, state, settledAt, busy, pinned, out, busyRows, sp, ps, put } = model;
+  const { every, viewing, term, napUntil, wake, state, settledAt, busy, pinned, out, busyRows, sp, ps, put } = model;
   // A row moving away from under the pointer reports no leave.
   const away = (a, cx) => {
     if (view.hovered !== a.address) return;
@@ -45,16 +45,21 @@ export function inboxActions(view, model) {
     const panes = xs.filter((a) => a.mod), kept = xs.filter((a) => !a.mod), seen = kept.find(viewing);
     for (const a of xs) away(a, cx);
     const naps = new Map(kept.map((a) => [a, napUntil(a)]));
-    const before = [...pins], unpinned = pins.filter((p) => !kept.some((a) => a.address === p));
-    if (unpinned.length < before.length) setShared("agents.pins", unpinned);
+    const before = [...(shared("agents.pins") ?? [])];
+    const took = kept.map((a) => a.address);
+    if (before.some((p) => took.includes(p))) setShared("agents.pins", before.filter((p) => !took.includes(p)));
+    let undone = false;
     for (const a of kept) {
-      view.setLabel("settled", a.address, `${Date.now()}:${term.get(a.address)?.turn ?? 0}`, cx);
+      view.setLabel("settled", a.address, `${Date.now()}:${term.get(a.address)?.turn ?? 0}`, cx, () => {
+        if (!undone && before.includes(a.address)) repin(before, [a.address]);
+      });
       if (naps.get(a)) wake(a, cx);
     }
     // Undone, they're back where they were: no news, as T3 restores a thread, with its pin and a snooze that hasn't
     // run out.
     if (kept.length) view.remember("Settled", kept.length, (cx) => {
-      repin(before, kept.map((a) => a.address));
+      undone = true;
+      repin(before, took);
       for (const a of kept) {
         view.setLabel("settled", a.address, "", cx);
         if (naps.get(a) > Date.now()) view.setLabel("snoozed", a.address, String(naps.get(a)), cx);

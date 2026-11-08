@@ -6,9 +6,10 @@ import { dragGone, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { detailsAt, detailsFor } from "./details.js";
 import { MOTION } from "./motion.js";
 import { SLIM, CARD_GAP, LIST_TOP } from "./list-view.js";
+import { byRecent } from "./row-model.js";
 
 export function inboxDrag(view, t, model, actions) {
-  const { list, pins, pinned, put, out, busy, hidden, settledAt, working, newest, viewing, napUntil, wake, inView, busyRows, napRows } = model;
+  const { list, pins, pinned, put, out, busy, hidden, settledAt, working, since, viewing, napUntil, wake, inView, busyRows, napRows } = model;
   const { settle, unsettle, repin, go } = actions;
   const zoom = Number(settings()?.zoom) || 1;
   // Dragging, as T3's sidebar does it (Sidebar.drag.ts, Sidebar.pointer.ts). Press a row and move 6px to lift it;
@@ -44,7 +45,8 @@ export function inboxDrag(view, t, model, actions) {
     // Busy work can't be settled (new work brings it straight back); out of Pinned it joins the Working shelf.
     if (busy(lifted)) return to.section === "settled" ? null : { section: "active", gap: null };
     if (to.section === "settled") return { section: "settled", gap: !view.open ? null : others(put)[0]?.address ?? "head-settled" };
-    const rest = others(out), at = from === "settled" ? 0 : rest.filter((x) => newest(x, lifted) < 0).length;
+    const recent = (a) => ({ address: a.address, since: since(a) });
+    const rest = others(out), at = from === "settled" ? 0 : rest.filter((x) => byRecent(recent(x), recent(lifted)) < 0).length;
     return { section: "active", gap: !rest.length ? "head-active" : rest[at]?.address ?? "end-active" };
   })();
   const target = dragging ? d.target?.section ?? null : null;
