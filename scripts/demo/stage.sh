@@ -85,12 +85,19 @@ SWIFT
     [ -n "$win" ] && break; sleep 1
   done
   ws=$("$W" query displays --format json | jq -r --argjson x "$2" --argjson y "$3" '.result.payload.displays[] | select(.frame.x == $x and .frame.y == $y) | .activeWorkspace.rawName')
-  # The full-width command toggles, and the frame OmniWM reports starts as the window's own: read it once tiled.
-  # Already there, it answers no_change and fails.
-  "$W" window move-to-workspace "$win" "$ws" >/dev/null || true; sleep 3
-  w=$("$W" query windows --window "$win" --format json | jq '.result.payload.windows[0].frame.width')
-  [ "$w" -ge 1600 ] || { "$W" window focus "$win" >/dev/null; sleep 0.5; "$W" command toggle-container-full-primary-span >/dev/null; sleep 1; }
+  # The full-width command toggles, and the frame OmniWM reports lags: it starts as the window's own full width and only
+  # later shows the half it tiled. So toggle only on a short reading, and count it done on three full ones in a row, 6s.
+  # Already there, move-to-workspace answers no_change and fails.
+  "$W" window move-to-workspace "$win" "$ws" >/dev/null || true
+  full=0
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 2
+    w=$("$W" query windows --window "$win" --format json | jq '.result.payload.windows[0].frame.width')
+    if [ "$w" -ge 1600 ]; then full=$((full + 1)); [ $full -ge 3 ] && break
+    else full=0; "$W" window focus "$win" >/dev/null; sleep 0.5; "$W" command toggle-container-full-primary-span >/dev/null; fi
+  done
   [ -z "$back" ] || "$W" window focus "$back" >/dev/null
+  [ $full -ge 3 ] || { echo "the demo window is $w wide, not full width: widen it before a shot" >&2; exit 1; }
 }
 
 # The layout, plus the stagehand and t3-theme-export (for pi-herdr-theme) in 0px blocks; `layout review` adds the Review bar, as its README says.
