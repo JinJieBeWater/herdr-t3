@@ -49,7 +49,7 @@ const env = {
   View: class {}, div: element, svg: element, image: (src) => { images.push(src); return element(); }, h_flex: element, v_flex: element, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, keys: () => [],
   theme: () => ({}), props: () => props, panes: () => [pane, shell, review], shared: (k) => sharedValues[k] ?? null, home: () => "/home/me",
   terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
-  run: (name, args) => calls.push([name, args]), setShared: (k, v) => { sharedValues[k] = v; },
+  run: (name, args) => calls.push([name, args]), openOverlay: (o) => calls.push(["overlay", o]), setShared: (k, v) => { sharedValues[k] = v; },
   window: Object.assign(() => ({ platform: "macos", active: true }), { mouse_position: () => pointer, viewport_size: () => ({ width: 1000, height: 800 }) }),
 };
 const ticks = [];
@@ -78,15 +78,21 @@ header.hot = "ph-x-p2";
 find(header.render(), "ph-x-p2").handlers.click({}, cx);
 assert.equal(header.hot, null, "the dialog covers it and the pointer may not move, so its label goes with the click");
 assert.deepEqual(take(), [["t3-tabs.close-pane:p2", null]], "the tab bar asks first");
+find(header.render(), "pane-head-p2").handlers.right({}, cx);
+assert.deepEqual(take(), [["overlay", { mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "pane", target: { pane: "p2", terminal: "t2" } } }]], "right-click opens the terminal's menu");
 
 // Names: Pi session, else (agents only) a named tab, else a telling title, else the program.
-// The terminal's address leads, then its name.
-assert.equal(texts(header.render())[0], "t2");
-const named = () => texts(header.render())[1];
+// The agent's name, then its folder; no address, which the right-click menu copies.
+assert.deepEqual(texts(header.render()), ["Release", "~/project"]);
+const named = () => texts(header.render())[0];
 terms[0].labels["pi.session"] = "Fix login";
 assert.equal(named(), "Fix login");
 delete terms[0].labels["pi.session"];
 assert.equal(named(), "Release");
+// A name that is only the program's goes when its icon says it.
+tab.named = false; pane.program = { ...program, icon: "pi.svg", tint: true };
+assert.deepEqual(texts(header.render()), ["~/project"]);
+pane.program = program;
 tab.named = false; pane.title = "π - Review PR - project";
 assert.equal(named(), "Review PR");
 pane.title = "π - project";

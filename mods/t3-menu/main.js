@@ -3,8 +3,8 @@
 // ↑/↓, Home, End and typeahead move, Enter runs, Esc closes. An item is [label, command, args];
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
-// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose(), T3's measures and the list's moves
-// (shared/list.js, the one way every popup's list moves) differ from the shipped one.
+// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose(), T3's measures, the list's moves
+// (shared/list.js, the one way every popup's list moves) and a pane's Copy address differ from the shipped one.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -41,6 +41,8 @@ function items(p, git) {
         ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
         ["Split down", "pane.split", { direction: "down", pane: tg.pane }],
         ["Zoom", "pane.zoom", { pane: tg.pane }],
+        // To tell an agent which terminal: the address shows where a key would.
+        ...(term ? [["Copy address", "copy", { text: term.address }]] : []),
         ...(term
           ? [
               toProgram
@@ -81,6 +83,7 @@ function items(p, git) {
 }
 
 function menuIcon(command) {
+  if (command === "copy") return "mods/t3-menu/icons/copy.svg";
   const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
@@ -110,7 +113,7 @@ export default class Menu extends View {
       });
   }
 
-  choose(i) {
+  choose(i, cx) {
     const it = /** @type {any} */ (items(props(), this.git)[i]);
     if (!it) return;
     closeOverlay(props()?.overlay);
@@ -118,6 +121,7 @@ export default class Menu extends View {
     // The item keeps Herdr's command, for its icon, its divider and its key; only where it goes changes.
     else if (it[1] === "tab.close") run(`t3-tabs.close-tab:${it[2].id}`);
     else if (it[1] === "pane.close") run(`t3-tabs.close-pane:${it[2].pane}`);
+    else if (it[1] === "copy") cx.write_to_clipboard(it[2].text);
     else run(it[1], it[2]);
   }
 
@@ -133,7 +137,7 @@ export default class Menu extends View {
       .bg(t.popover)
       .text_size(14)
       .on_key_down((e, cx) => {
-        if (e.key === "enter") { if (this.at >= 0) this.choose(this.at); }
+        if (e.key === "enter") { if (this.at >= 0) this.choose(this.at, cx); }
         else if (e.key === "escape") closeOverlay(props().overlay);
         else {
           const to = menuJump(this, e, list.map((it) => it[0]), this.at);
@@ -157,11 +161,11 @@ export default class Menu extends View {
             .text_color(t.foreground)
             .when(i === this.at, (el) => el.bg(t.selected))
             .on_hover((on, cx) => { const to = on ? i : this.at === i ? -1 : this.at; if (to !== this.at) { this.at = to; cx.notify(); } })
-            .on_click(() => this.choose(i))
+            .on_click((_e, cx) => this.choose(i, cx))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
             .child(svg(menuIcon(it[1])).size(16).mx(-2).flex_none().text_color(t.muted))
             .child(div().flex_1().min_w(0).truncate().child(it[0]))
-            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(shortcut(it[1], it[2])))),
+            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[1] === "copy" ? it[2].text : shortcut(it[1], it[2])))),
         ),
       );
   }

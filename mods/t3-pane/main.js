@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, terminals, agents, props, run, theme, home } from "herdr";
+import { panes, terminals, agents, props, run, theme, home, openOverlay } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
@@ -79,8 +79,10 @@ export default class Pane extends View {
     const p = this.me();
     if (!p) return div();
     // Home's default page says nothing of itself: the brand bar's lit mark tells where this is.
-    const name = p.mod === "t3-home" ? "" : namer()(p);
+    const named = p.mod === "t3-home" ? "" : namer()(p);
     const pic = icon(programOf(p), 14, t.muted);
+    // A name that is only the program's says what its icon already does.
+    const name = !p.mod && pic && named === p.program?.name ? "" : named;
     // Its agent with the sub-agents it started (tree.js).
     const all = terminals();
     const kids = subAgents(agents(), all)(p.terminal);
@@ -97,16 +99,16 @@ export default class Pane extends View {
       // 4 + the frame's 2 is a tab's 6: with its 16px slot and 2 to the name, the icon and first word stand under the first tab's.
       .pl(4)
       .pr(2)
-      // The terminal and its name read as one label, 6 apart; the folder stands 12 off it.
       .gap(6)
       .items_center()
       .text_size(14)
       .on_hover((on, cx) => this.headHover(on, cx))
       .on_mouse_move((e) => { pointerMoved(e.position); this.box = e.bounds; })
       .on_click(() => run("pane.focus", { pane }))
+      // The terminal's own right-click menu (the layout's terminal_menu, at its 220×260), whose Copy address gives the address.
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "pane", target: { pane, terminal: p.terminal } } }); })
       .child(div().size(16).mr(-4).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
-      .when(Boolean(p.terminal) && name !== p.terminal, (el) => el.child(div().flex_none().text_color(t.dim).child(p.terminal)))
-      .child(div().min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).child(name))
+      .when(Boolean(name), (el) => el.child(div().min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).child(name)))
       .child(div().relative().flex_1().min_w(0).h_full().ml(6).flex().items_center()
         .child(div().flex_1().min_w(0).truncate().pr(12).text_color(t.dim).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.

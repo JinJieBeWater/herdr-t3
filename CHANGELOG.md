@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-09
+
+- A pane header leads with the agent's name. The terminal's address leaves the header for the pane's right-click menu, on the header or the terminal: `Copy address`, with the address beside it, copies it. A name that is only the program's, as `Pi` or `zsh`, no longer shows beside the program's icon. The address used to stand before the name.
+
 ## 2026-11-08
 
 - A new tab opens in the folder its space shows, its first terminal's, by `+`, `cmd-t`, a tab's menu and New alike. It used to open where the space was made, so a space whose agent had moved on to another folder showed one folder and opened tabs in another.
