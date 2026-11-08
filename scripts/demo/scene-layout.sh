@@ -4,10 +4,8 @@
 clear_stage
 # The Settled shelf open, so its rows show, and the Review bar in the layout.
 open_shelf() { for f in "$A"/data/t3-inbox/store-*.json; do jq '{open: "true"}' "$f" > "$f.new" && mv "$f.new" "$f"; done; layout review; }
-reopen open_shelf
 # As the other scenes may have left them.
 git -C "$code/herdr-t3" reset -q --hard; git -C "$code/herdr-t3-inbox" checkout -q main
-demo herdr-app do demo-stage.actions-last:test >/dev/null
 root=$code/pulls.review branch=feat/analyze-in-daemon page=/branch/feat/analyze-in-daemon
 git -C "$root" checkout -q "$branch"
 # Its daemon on a port of its own: yours may hold the default, and the pane finds this one by ~/.pulls.review/daemon.pid.
@@ -35,6 +33,11 @@ fake pi-stuff "Trim the skill catalog" pi done; settle "$t" 4
 fake herdr-t3-inbox "Review #12: the Working pill past a day" claude done
 # Its "needs you" toast is gone by the time pi is done.
 fake pi-stuff "Reproduce the Linux install bug" codex blocked
+# The Inbox keeps the shelf's state in a store it first writes when its rows change, so a new demo has one only now.
+for _ in $(seq 20); do ls "$A"/data/t3-inbox/store-*.json >/dev/null 2>&1 && break; sleep 1; done
+ls "$A"/data/t3-inbox/store-*.json >/dev/null 2>&1 || { echo "the Inbox wrote no store: the Settled shelf can't be opened" >&2; exit 1; }
+reopen open_shelf
+demo herdr-app do demo-stage.actions-last:test >/dev/null
 
 # Analyzed before the pane opens, so it starts on the analysis' first group (at most 10 minutes; a saved run is kept).
 port=$(jq -r .port "$H/.pulls.review/daemon.pid") session=$(jq -r .session "$H/.pulls.review/daemon.pid")

@@ -138,8 +138,10 @@ down() {
   sleep 1; rm -rf "$D"; echo "down: $D removed"
 }
 
-# What the scenes share. A clean slate: the demo's terminals end (and their spaces with them).
+# What the scenes share. A clean slate: every space closes, a mod pane's too (a review's outlives its terminals), then
+# the terminals no space shows end.
 clear_stage() {
+  for s in $(demo herdr-app ls | jq -r '.spaces[]?.id'); do demo herdr-app do space.close "$(jq -nc --arg s "$s" '{id: $s, confirmed: true}')" >/dev/null || true; done
   for t in $(demo hc ls --all --json | jq -r '.terminals[]?.address'); do demo hc kill "$t" >/dev/null 2>&1 || true; demo hc rm "$t" >/dev/null 2>&1 || true; done
   spaces=""
 }
