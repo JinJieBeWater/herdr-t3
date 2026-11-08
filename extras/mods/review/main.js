@@ -64,7 +64,8 @@ export default class ReviewPane extends View {
     cx.timer.every(1000, (cx) => { if (this.dirty && this.onScreen()) this.load(cx); });
     // Scrolling redraws only the list. What the rest shows of where it is - the aside's group, the files and groups in view,
     // as the app's scroll spy marks them - is checked here and redrawn when it moved.
-    cx.timer.every(150, (cx) => { const spied = this.spied(); if (spied !== this.lastSpied) { this.lastSpied = spied; cx.notify(); } });
+    // Off screen, what the list shows can't move: nothing to measure.
+    cx.timer.every(150, (cx) => { if (!this.onScreen()) return; const spied = this.spied(); if (spied !== this.lastSpied) { this.lastSpied = spied; cx.notify(); } });
   }
 
   remember() {

@@ -50,6 +50,9 @@ export function foldMenu(view, t) {
       .child(fold.label)));
 }
 
+// Marks are written one at a time: a press's write can't land after a later press's and undo it.
+let markWrites = Promise.resolve();
+
 // One file, or a folder's files at once. As the app's, marking folds the file and unmarking opens it again.
 export function setReviewed(view, files, reviewed, cx) {
   if (view.switching) return;
@@ -60,8 +63,10 @@ export function setReviewed(view, files, reviewed, cx) {
   }
   view.version++; view.marks++; view.marking++;
   const { root, page } = view;
+  const shas = files.map(file => file.sha), write = markWrites.then(() => review(root, "/api/review/reviewed", { page, shas, reviewed }));
+  markWrites = write.catch(() => {});
   cx.spawn(async (cx) => {
-    try { await review(root, "/api/review/reviewed", { page, shas: files.map(file => file.sha), reviewed }); }
+    try { await write; }
     // A toast: the read after this one, succeeding, would clear the pane's error at once.
     catch (e) { notify({ title: "pulls.review", body: e?.message ?? String(e), level: "error" }); }
     // Read back what the daemon keeps, the marks of a failed press included.

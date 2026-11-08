@@ -38,14 +38,22 @@ export function loadSettings(view, cx) {
 // Picking an agent or model makes the local agent the provider, as the app's Local agent settings do.
 function saveLlm(view, patch, cx) {
   // Whether an agent is set up changes the Analyze button.
-  saveShared(view, { ...view.shared, llm: { ...view.shared.llm, provider: "local-agent", ...patch } }, cx, true);
+  saveShared(view, { llm: { provider: "local-agent", ...patch } }, cx, true);
 }
 
-function saveShared(view, next, cx, reload = false) {
-  view.shared = next;
+// The daemon's PUT replaces all its settings, and every pane shares the one daemon: saves go one at a time, each
+// writing only its own fields over the settings as they are now, so one save can't undo another's.
+let saving = Promise.resolve();
+
+function saveShared(view, patch, cx, reload = false) {
+  const merged = (s) => ({ ...s, ...patch, ...patch.llm && { llm: { ...s?.llm, ...patch.llm } } });
+  view.shared = merged(view.shared);
   cx.notify();
+  const root = view.root;
+  const turn = saving.then(async () => request(root, "PUT", "/api/settings", merged(await request(root, "GET", "/api/settings"))));
+  saving = turn.catch(() => {});
   cx.spawn(async (cx) => {
-    try { await request(view.root, "PUT", "/api/settings", next); view.settingsError = null; }
+    try { await turn; view.settingsError = null; }
     catch (e) { view.settingsError = e?.message ?? String(e); }
     cx.notify();
     if (reload) view.load(cx);
@@ -77,7 +85,7 @@ export function submitModel(view, cx) {
 // The rows of the settings page shown, each with what picking it writes.
 export function pageRows(view) {
   const page = view.settingsPage, locale = view.locale(), { agent, model, rows } = view.models();
-  if (page === "language") return LOCALES.map(([code, name]) => ({ id: `locale-${code}`, name, on: code === locale, pick: (cx) => saveShared(view, { ...view.shared, locale: code }, cx) }));
+  if (page === "language") return LOCALES.map(([code, name]) => ({ id: `locale-${code}`, name, on: code === locale, pick: (cx) => saveShared(view, { locale: code }, cx) }));
   // One agent's model ids mean nothing to another: switching resets to its default.
   if (page === "agent") return (view.agents ?? []).map(a => ({ id: `agent-${a.name}`, name: a.label, detail: a.version, on: a.name === agent, pick: (cx) => saveLlm(view, { agent: a.name, agentModel: "" }, cx) }));
   return rows.map(m => ({ id: m.key ?? `model-${m.id}`, name: m.name, detail: m.detail, on: m.id === model, pick: (cx) => saveLlm(view, { agentModel: m.id }, cx) }));

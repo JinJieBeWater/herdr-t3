@@ -100,6 +100,9 @@ const store = new Map(), sharedStore = new Map();
 const pref = (key) => sharedStore.get("review.prefs")?.[key], setPref = (key, value) => sharedStore.set("review.prefs", { ...sharedStore.get("review.prefs"), [key]: value });
 let shownTab = "b", windowActive = true;
 const calls = [], bodies = [], routes = [], puts = [], browsed = [], notes = [];
+let daemonSettings = { locale: "zh-CN", llm: { provider: "local-agent", agent: "pi", agentModel: "my/model" } };
+// A save reads the daemon's settings, then writes them back.
+const put = async () => { await new Promise(setImmediate); return puts.at(-1); };
 // A text field's state: its value, and its submit and blur handlers.
 // Where the keyboard was last sent: the model field or the pane.
 let keyboard = null;
@@ -131,12 +134,12 @@ const env = {
     const wanted = [...body.rows ?? [], ...body.firstRows ? groupFiles(review.groups[0]) : []];
     return route !== "/api/review" ? {} : { ...review, files: review.files.map(({ hunks, ...f }) => wanted.includes(f.path) ? { ...f, hunks } : { ...f }) };
   },
-  // Two agents, one with a catalog; the settings pick pi with a model of its own.
+  // Two agents, one with a catalog; the settings pick pi with a model of its own. A PUT replaces them all, as the daemon's.
   request: async (_root, method, path, body) => {
-    if (method === "PUT") { puts.push(body); return body; }
+    if (method === "PUT") { puts.push(body); daemonSettings = body; return body; }
     return path === "/api/agents"
       ? [{ name: "claude", label: "Claude Code", version: "1", models: [{ id: "sonnet", name: "Sonnet" }] }, { name: "pi", label: "Pi", version: "2", models: [] }]
-      : { locale: "zh-CN", llm: { provider: "local-agent", agent: "pi", agentModel: "my/model" } };
+      : daemonSettings;
   },
   localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
 };
@@ -309,6 +312,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(notified, 0);
   pane.visible = { start: subAt + 1, end: subAt + 3 }; spy(spyCx); spy(spyCx);
   assert.equal(notified, 1);
+  // Off screen, it doesn't measure.
+  const spied = pane.spied; let measured = 0; pane.spied = () => { measured++; return spied.call(pane); };
+  shownTab = "other"; spy(spyCx); shownTab = "b";
+  assert.equal(measured, 0);
+  spy(spyCx);
+  assert.equal(measured, 1, "on screen again, it does");
+  delete pane.spied;
   pane.visible = null;
   const children = pane.review.groups[0].children;
   pane.review.groups[0].children = []; drawn.clear(); pane.render(cx);
@@ -390,8 +400,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(drawn.has("settings-agent") && !drawn.has("model-custom"));
   press("settings-agent");
   press("agent-claude");
-  assert.deepEqual(plain(puts.at(-1).llm), { provider: "local-agent", agent: "claude", agentModel: "" });
-  assert.equal(puts.at(-1).locale, "zh-CN");
+  assert.deepEqual(plain((await put()).llm), { provider: "local-agent", agent: "claude", agentModel: "" });
+  assert.equal((await put()).locale, "zh-CN");
   // A pick comes back to the main page.
   assert.ok(pane.settingsPage === null && drawn.has("settings-model"));
   press("settings-model");
@@ -401,13 +411,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   field.set_value("xyz"); drawn.clear(); pane.render(cx);
   assert.ok(!drawn.has("model-sonnet"));
   press("model-sonnet");
-  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  assert.equal((await put()).llm.agentModel, "sonnet");
   assert.equal(field.value(), "");
   assert.equal(pane.settingsPage, null);
   field.set_value("Sonnet"); field.events.submit({}, cx);
-  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  assert.equal((await put()).llm.agentModel, "sonnet");
   field.set_value(" opus-x "); field.events.submit({}, cx);
-  assert.equal(puts.at(-1).llm.agentModel, "opus-x");
+  assert.equal((await put()).llm.agentModel, "opus-x");
   assert.equal(field.value(), "");
   assert.equal(pane.settingsPage, null, "Enter's pick comes back too");
   keyboard = null; press("settings-model");
@@ -420,7 +430,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.pageAt, 1, "Default, Custom, sonnet: up wraps onto sonnet, then Custom");
   arrow("down");
   field.events.submit({}, cx);
-  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  assert.equal((await put()).llm.agentModel, "sonnet");
   assert.equal(pane.pageAt, -1);
   assert.equal(keyboard, "pane", "the field is gone: the keyboard comes back to the pane");
   press("settings-model");
@@ -428,15 +438,15 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.pageAt, -1);
   // Default by keys, in the field or with the keyboard off it.
   field.set_value(""); arrow("down"); field.events.submit({}, cx);
-  assert.equal(puts.at(-1).llm.agentModel, "");
+  assert.equal((await put()).llm.agentModel, "");
   press("settings-model"); arrow("down"); arrow("down"); pane.key({ key: "enter", keystroke: "enter" }, cx);
-  assert.deepEqual([puts.at(-1).llm.agentModel, pane.settingsPage], ["sonnet", null], "Enter off the field picks the same");
+  assert.deepEqual([(await put()).llm.agentModel, pane.settingsPage], ["sonnet", null], "Enter off the field picks the same");
   pane.key({ key: "enter", keystroke: "enter" }, cx);
   // A search leaves out the rows it doesn't name, so ↓ lands on the first match; the pointer lights the row it's on.
   press("settings-model"); field.set_value("son"); field.events.change({}, cx); drawn.clear(); pane.render(cx);
   assert.ok(!drawn.has("model-default"));
   arrow("down"); field.events.submit({}, cx);
-  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  assert.equal((await put()).llm.agentModel, "sonnet");
   press("settings-model"); handlers.get("model-sonnet.on_hover")(true, cx);
   assert.equal(pane.pageAt, 1);
   // Escape off the page takes its search and hands the keyboard back.
@@ -445,7 +455,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   field.set_value("");
   const saved = puts.length;
   field.events.submit({}, cx);
-  assert.equal(puts.length, saved, "an empty field saves nothing");
+  await put(); assert.equal(puts.length, saved, "an empty field saves nothing");
   {
     // Past the rows that show, ↑/↓ keep the highlight in view.
     const list = pane.models().catalog, had = list.length;
@@ -473,8 +483,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   press("settings-language");
   assert.ok(drawn.has("language-list") && drawn.has("locale-ja") && !drawn.has("settings-agent"));
   press("locale-ja");
-  assert.equal(puts.at(-1).locale, "ja");
-  assert.equal(puts.at(-1).llm.agentModel, "sonnet");
+  assert.equal((await put()).locale, "ja");
+  assert.equal((await put()).llm.agentModel, "sonnet");
   assert.ok(!drawn.has("locale-ja") && drawn.has("settings-agent"));
   pane.shared = { ...pane.shared, locale: undefined, defaultLocale: "fr" };
   assert.equal(pane.locale(), "fr");
@@ -490,12 +500,27 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     hit("home"); assert.equal(pane.pageAt, 0);
     handlers.get("locale-en.on_hover")(true, cx);
     pane.pageAt = -1; hit("f", "f"); hit("enter");
-    assert.deepEqual([puts.at(-1).locale, pane.settingsPage], ["fr", null]);
+    assert.deepEqual([(await put()).locale, pane.settingsPage], ["fr", null]);
     press("settings-agent"); hit("down"); hit("space");
-    assert.deepEqual([puts.at(-1).llm.agent, puts.at(-1).llm.agentModel, pane.settingsPage], [pane.agents[0].name, "", null]);
+    assert.deepEqual([(await put()).llm.agent, (await put()).llm.agentModel, pane.settingsPage], [pane.agents[0].name, "", null]);
     press("settings-language"); hit("enter");
     assert.equal(pane.settingsPage, "language", "nothing lit, Enter picks nothing");
     pane.key({ keystroke: "escape" }, cx);
+  }
+  {
+    // A save writes only its own field over the daemon's settings as they are now: a language another pane saved since
+    // this one read them stays when this one picks a model.
+    daemonSettings = { ...daemonSettings, locale: "en" };
+    press("settings-model"); press("model-sonnet"); await put();
+    assert.deepEqual([daemonSettings.locale, daemonSettings.llm.agentModel], ["en", "sonnet"]);
+    // Saves go one at a time: two in a row, landing in reverse order, keep both fields.
+    const request = mainScope.request, held = [];
+    mainScope.request = (root, method, path, body) => method === "PUT" ? new Promise(r => held.push(() => r(request(root, method, path, body)))) : request(root, method, path, body);
+    press("settings-language"); press("locale-ja");
+    press("settings-model"); press("model-default"); await put();
+    while (held.length) { held.pop()(); await put(); }
+    mainScope.request = request;
+    assert.deepEqual([daemonSettings.locale, daemonSettings.llm.agentModel], ["ja", ""]);
   }
   // A run starts only on a count's click: `analyze` in the request, Analyze automatically on, a page with no analysis.
   const ask = async (extra, page = pane.page) => {
@@ -944,6 +969,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   mainScope.review = (root, route, body) => route === "/api/review/reviewed" ? Promise.reject(new Error("mark failed")) : daemon(root, route, body);
   pane.setReviewed(target(), !target().reviewed, cx); await settle(); await settle();
   assert.deepEqual(plain(notes), [{ title: "pulls.review", body: "mark failed", level: "error" }]);
+  {
+    // Marked then unmarked at once, the marks landing in reverse order: the daemon keeps the last press, not the first.
+    const held = []; let kept;
+    mainScope.review = (root, route, body) => route === "/api/review/reviewed" ? new Promise(r => held.push(() => { kept = body.reviewed; r({}); })) : daemon(root, route, body);
+    pane.setReviewed(target(), true, cx); pane.setReviewed(target(), false, cx); await settle();
+    while (held.length) { held.pop()(); await settle(); }
+    assert.equal(kept, false);
+  }
   // A start the daemon refuses ends the wait and says why.
   mainScope.review = (root, route, body) => route === "/api/review/analyze" ? Promise.reject(new Error("no agent")) : daemon(root, route, body);
   pane.analyze(cx, false); await settle();
