@@ -30,6 +30,16 @@ for p in $(grep -rhoE --include='*.js' --exclude=gpui-kit.d.ts 'mods/(t3-[a-z-]+
   [ -f "$p" ] || [ -f "extras/$p" ] || { echo "FAIL no such icon: $p"; fail=1; }
 done
 
+# Herdr closes an open dialog or popup on a key bound to tab.close or pane.close; ours are bound to t3-tabs, so each mod that
+# opens as one needs its own `mod:` section, or cmd-w closes the tab behind it. `mod: MOD` is the file's own folder.
+for f in $(grep -rlE --include='*.js' --exclude=gpui-kit.d.ts 'openOverlay|mod\.open' mods extras/mods); do
+  own=$(basename "$(dirname "$f")")
+  for m in $(grep -hoE 'openOverlay\(\{ *mod: *("[a-z0-9-]+"|MOD)|mod\.open", *\{ *name: *"[a-z0-9-]+"|"mod\.open:[a-z0-9-]+"' "$f" \
+      | sed -E "s/.*MOD$/$own/; s/.*[\":]([a-z0-9-]+)\"?$/\1/" | sort -u); do
+    jq -e --arg s "mod:$m" '.[$s]["cmd-w"] == "overlay.close"' keys.json >/dev/null || { echo "FAIL keys.json has no mod:$m section closing it with cmd-w ($f opens it)"; fail=1; }
+  done
+done
+
 for f in $(find shared mods extras/mods -name 'check*.cjs'); do
   out=$(cd "$app" && node "$src/$f" 2>&1) || { echo "FAIL $f"; echo "$out" | tail -20; fail=1; }
 done

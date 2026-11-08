@@ -41,6 +41,7 @@ is '[.. | objects | select(.id? == "my-review")] | length' "$app/layouts/herdr-t
 is .global.a "$app/keys.json" b
 is '.["layout:herdr-t3"]["cmd-p"]' "$app/keys.json" mod.open:t3-picker
 is '.["layout:herdr-t3"]["cmd-x"]' "$app/keys.json" mine
+is '.["mod:t3-picker"]["cmd-w"]' "$app/keys.json" overlay.close
 case "$out" in *"replaced: cmd-p = old"*) ;; *) echo "FAIL check-update: no word of the replaced key"; exit 1 ;; esac
 case "$out" in *"kept, not in the repo: cmd-x = mine"*) ;; *) echo "FAIL check-update: no word of the kept key"; exit 1 ;; esac
 

@@ -41,12 +41,13 @@ jq --argjson old "$old" '[$old | .. | objects | .focus? | objects | .color][0] a
 mv "$layout.tmp" "$layout"
 cp "$src/layouts/herdr-t3.svg" "$app/layouts/"
 
-# The repo's keys win, since an old command in one would report as unknown; say which were replaced so a remap can go back. Keys of your own stay.
+# The repo's keys win, section by section (the layout's, and its popups' `mod:` ones), since an old command in one would report
+# as unknown; say which were replaced so a remap can go back. Keys of your own stay.
 [ -f "$keys" ] || echo '{}' > "$keys"
-jq -r --slurpfile new "$src/keys.json" '$new[0]["layout:herdr-t3"] as $n | (.["layout:herdr-t3"] // {}) | to_entries[]
+jq -r --slurpfile new "$src/keys.json" '. as $old | $new[0] | to_entries[] | .key as $s | .value as $n | ($old[$s] // {}) | to_entries[]
   | .key as $k | .value as $v
-  | if $n | has($k) | not then "kept, not in the repo: \($k) = \($v)"
-    elif $n[$k] != $v then "replaced: \($k) = \($v), now \($n[$k])"
+  | if $n | has($k) | not then "kept, not in the repo: \($k) = \($v) in \($s)"
+    elif $n[$k] != $v then "replaced: \($k) = \($v), now \($n[$k]) in \($s)"
     else empty end' "$keys"
-jq --slurpfile new "$src/keys.json" '.["layout:herdr-t3"] = ((.["layout:herdr-t3"] // {}) + $new[0]["layout:herdr-t3"])' "$keys" > "$keys.tmp"
+jq --slurpfile new "$src/keys.json" 'reduce ($new[0] | to_entries[]) as $e (.; .[$e.key] = ((.[$e.key] // {}) + $e.value))' "$keys" > "$keys.tmp"
 mv "$keys.tmp" "$keys"
