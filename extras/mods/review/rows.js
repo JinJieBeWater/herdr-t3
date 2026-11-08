@@ -13,7 +13,27 @@ export const RUN = 32;
 /** Where code starts in a row, past the line numbers and sign: notes and placeholders line up with it. */
 export const codeInset = (split) => split ? 52 : 92;
 
-const columns = (row) => Math.min(MAX_COLUMNS, row ? row.tokens.reduce((n, [text]) => n + [...text.replaceAll("\t", "    ")].reduce((w, c) => w + (c.charCodeAt(0) > 0x2e7f ? 2 : 1), 0), 0) : 0);
+// Wide (CJK and up) counts 2: a BMP character is 1 unit plus 1 here; an astral one, 2 units (surrogates aren't matched).
+const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g;
+const columns = (row) => Math.min(MAX_COLUMNS, row ? row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0) : 0);
+
+/**
+ * Cuts each row's tokens, in place, at MAX_COLUMNS characters (at least as many columns), as they arrive: a line of a log or
+ * minified file runs to megabytes, which Herdr's engine can't measure or draw before it interrupts the render.
+ */
+export function clipRows(rows) {
+  for (const row of rows) {
+    let left = MAX_COLUMNS;
+    const tokens = [];
+    for (const [text, color] of row.tokens) {
+      if (left <= 0) break;
+      tokens.push([text.length > left ? text.slice(0, left) : text, color]);
+      left -= text.length;
+    }
+    row.tokens = tokens;
+  }
+  return rows;
+}
 
 /**
  * How wide the code must be to show its longest line, gutters included: unified rows, one `side` ("left", "right")

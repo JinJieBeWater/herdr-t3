@@ -1,6 +1,6 @@
 import { exec, theme, watchFolder } from "herdr";
 import { review } from "./daemon.js";
-import { groupFiles } from "./rows.js";
+import { clipRows, groupFiles } from "./rows.js";
 import { pref } from "./controls.js";
 
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
@@ -125,6 +125,7 @@ export function applyReview(view, r) {
     view.seen.add(file.sha);
     if (file.noisy || file.reviewed) view.collapsed.add(file.path);
   }
+  for (const file of r.files) for (const hunk of file.hunks ?? []) clipRows(hunk.rows);
   const old = new Map(view.review?.files.map(file => [file.path, file]));
   for (const file of r.files) if (!file.hunks && old.get(file.path)?.sha === file.sha) file.hunks = old.get(file.path).hunks;
   // A read that says what the one shown does changes nothing: the list isn't rebuilt, and its files stay the ones marks change.

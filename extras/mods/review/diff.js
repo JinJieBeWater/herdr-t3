@@ -2,7 +2,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar, v_virtual_list, TextView } from "gpui-base";
 import { notify, theme } from "herdr";
 import { review } from "./daemon.js";
-import { codeInset, FILE, noteWidth, ROW } from "./rows.js";
+import { clipRows, codeInset, FILE, noteWidth, ROW } from "./rows.js";
 import { colors } from "./review-load.js";
 import { LU, MONO, zoom, isLight, checkMark, diffStats, popover } from "./controls.js";
 import { fileStatus } from "./files.js";
@@ -88,7 +88,7 @@ export function toggleFull(view, file, cx) {
   const { root, page } = view;
   cx.spawn(async (cx) => {
     let rows = null, error = null;
-    try { rows = (await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) })).rows; }
+    try { rows = clipRows((await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) })).rows); }
     catch (e) { error = e?.message ?? String(e); }
     // Another diff opened meanwhile: this file's rows are the old one's.
     if (root !== view.root || page !== view.page) return;
