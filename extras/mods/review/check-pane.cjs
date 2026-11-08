@@ -77,9 +77,9 @@ assert.deepEqual(soloItems.map(item => [item.kind, item.lines?.length ?? 0]), [[
 assert.equal(contentWidth([{ kind: "solo", lines: [{ tokens: [["a".repeat(100)]] }] }, ...sides], "solo"), Math.ceil(52 + 100 * 7.25 + 16));
 assert.equal(pageLabel("/branch/fix%2Fa", review), "fix/a vs origin/main");
 assert.equal(pageLabel("/worktree", review), "Uncommitted changes");
-// A range reads as what the Review bar calls it: to push, to pull, or a branch against what it's compared to.
-assert.equal(pageLabel("/compare/origin/fix...fix", review), "To push: fix");
-assert.equal(pageLabel("/compare/fix...origin/fix", review), "To pull: fix");
+// A range against its upstream reads as the commits flow, to push or to pull; else a branch against what it's compared to.
+assert.equal(pageLabel("/compare/origin/fix...fix", review), "fix → origin/fix");
+assert.equal(pageLabel("/compare/fix...origin/fix", review), "origin/fix → fix");
 assert.equal(pageLabel("/compare/origin/main...other", review), "other vs origin/main");
 
 // main.js: every state's render and every item kind, without a window.
@@ -209,6 +209,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     [{ state: "outdated", agent: true }, "Re-analyze"], [{ state: "running", agent: true, progress: { kind: "thinking", step: 1 } }, "Analyzing…"], [{ state: "current", agent: true, error: "boom" }, "Analysis failed"]];
   pane.analyzeError = null;
   for (const [analysis, text] of states) { pane.review.analysis = analysis; assert.equal(analyzeButton().text, text); }
+  // Running, the button has no spinner: the pane's header marks the review working.
+  pane.review.analysis = states[4][0]; assert.equal(analyzeButton().lead, undefined);
   assert.equal(pane.head().parts.length, 3);
   pane.review.analysis = { state: "outdated", agent: true }; assert.equal(analyzeButton().note, "(outdated)");
   pane.review.analysis = { state: "running", agent: true, progress: { kind: "thinking", step: 1 } };

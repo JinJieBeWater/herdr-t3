@@ -5,6 +5,11 @@ English · [中文](CHANGELOG.zh-CN.md)
 ## 2026-11-08
 
 - In a pane header, the terminal's address and the name sit 6px apart and read as one label. The folder stays 12px after the name. They used to be spaced alike, 12px each.
+- Review pane:
+  - Its title names a branch against its upstream as the commits flow: `main → origin/main` to push, `origin/main → main` to pull. It used to read `To push: main` and `To pull: main`.
+  - The Review bar's `↑` and `↓` counts name the same in their hover label: `Review main → origin/main`. It used to read `Review 2 commits to push`.
+  - `Analyzing…` has no spinner of its own. The pane header's spinner already shows the run.
+  - Its other spinners are in `working`, as everywhere else in the layout. They used to take the text color.
 - The top of the sidebar, as T3's:
   - Inbox's Search row and Lists' Spaces heading line up with the pane headers on the right. They used to sit 8px lower.
   - The first card sits 8px under Search. It used to sit 10px lower.

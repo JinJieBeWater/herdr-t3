@@ -5,6 +5,11 @@
 ## 2026-11-08
 
 - 窗格标题里，终端地址和名字隔 6px，读作一个标签；目录仍在名字后 12px。以前三段都隔 12px。
+- 评审窗格：
+  - 分支对上游的标题按提交流向写：要推送是 `main → origin/main`，要拉取是 `origin/main → main`。以前写作 `To push: main` 和 `To pull: main`。
+  - Review 栏 `↑`、`↓` 计数的悬停提示也这样写：`Review main → origin/main`。以前写作 `Review 2 commits to push`。
+  - `Analyzing…` 不再带自己的转圈，窗格标题的转圈已经表示正在分析。
+  - 其余转圈改用 `working` 色，和布局其他地方一致。以前跟着文字色。
 - 侧栏顶部照 T3：
   - Inbox 的 Search 行和 Lists 的 Spaces 标题行，和右边窗格的标题行对齐。以前低 8px。
   - 第一张卡片在 Search 下方 8px。以前要再低 10px。

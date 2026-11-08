@@ -113,12 +113,12 @@ const load = (props = {}, setup = record) => {
   fire(find(drawn, "review-open"), "on_hover", true, cx);
   assert.equal(countOf("review-open").style.text_color, theme.foreground, "hovered, the same color");
   fire(find(drawn, "review-open"), "on_hover", false, cx);
-  assert.equal(find(drawn, "review-ahead").style.accessibility_label, "Review 2 commits to push: on feat, not on origin/feat", "the label says what a count compares");
-  assert.equal(find(drawn, "review-behind").style.accessibility_label, "Review 1 commit to pull: on origin/feat as of your last fetch, not on feat");
+  assert.equal(find(drawn, "review-ahead").style.accessibility_label, "Review feat → origin/feat: 2 commits to push, on feat, not on origin/feat", "the label says what a count compares");
+  assert.equal(find(drawn, "review-behind").style.accessibility_label, "Review origin/feat → feat: 1 commit to pull, on origin/feat as of your last fetch, not on feat");
   assert.equal(walk(drawn).filter(n => "tooltip" in n.style).length, 0, "the shell's tooltip isn't Herdr T3's");
   fire(find(drawn, "review-ahead"), "on_hover", true, cx);
   fire(find(drawn, "tip-over-review-ahead"), "on_hover", true, cx);
-  assert.deepEqual(strings(find(bar.render(), "tip-review-ahead").style.content), ["Review 2 commits to push"], "the label names what it does; what it compares stays in the accessibility label");
+  assert.deepEqual(strings(find(bar.render(), "tip-review-ahead").style.content), ["Review feat → origin/feat"], "the label names what it opens, as the pane's title; what it compares stays in the accessibility label");
   fire(find(drawn, "review-ahead"), "on_hover", false, cx);
   Object.assign(shown, { pane: "p9", cwd: "/other" });
   assert.equal(find(bar.render(), "pulls-review"), null, "another location never shows this one's counts, even before its own read");

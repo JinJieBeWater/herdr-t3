@@ -313,7 +313,7 @@ export default class ReviewPane extends View {
       .child((!this.review
         // As the app's FeedbackLoading.
         ? div().flex_1().py(48).when(!this.error, el => el.child(h_flex().gap(8).items_center().justify_center().text_color(t.dim).role("status")
-          .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().spin(900)).child("Loading the review…")))
+          .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().text_color(t.working).spin(900)).child("Loading the review…")))
         // The divider drags; Herdr keeps the width under the group's id (renamed when the default changes, to take it).
         // As the app's group sidebar: w-64, at least 192, at most 40% of the page.
         : sidebar ? h_resizable("review-sidebar-width").flex_1().min_h(0)

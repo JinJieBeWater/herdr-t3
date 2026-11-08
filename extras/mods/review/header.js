@@ -26,7 +26,7 @@ export function statusPanel(view, t) {
   return popover(view, t, "review-status-panel").w(320).p(16).gap(8).text_size(12)
     .child(div().font_medium().text_size(14).child("AI analysis"))
     .when(running, el => el.child(h_flex().gap(8).items_center().opacity(0.4)
-      .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().spin(900))
+      .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().text_color(t.working).spin(900))
       .child(div().min_w(0).child(progressText(view.review.analysis.progress)))))
     .when(Boolean(error), el => el.child(div().text_color(t.ansi1).child(error)))
     .when(!running, el => el.child(h_flex().justify_end()
@@ -44,12 +44,13 @@ export function head(view) {
     const a = r.analysis, { error } = analysisStatus(view);
     const compact = view.width < COMPACT;
     // As the app's DiffAnalyzeButton, the analysis's state is the button's: running or failed, it opens the status; without
+    // a spinner of its own while running, as the pane's header marks the review working;
     // an agent, the settings. An analysis of an older version (the app has none) says so after its Re-analyze.
     const analyze = !a.agent ? { text: "Set up agent", lead: `${LU}/key-round.svg`, primary: true, run: (cx) => view.togglePopup("settings", cx) }
-      : view.analyzing() ? { text: "Analyzing…", lead: "mods/workspace-chrome/spinner.svg", spin: true, run: (cx) => view.togglePopup("status", cx) }
+      : view.analyzing() ? { text: "Analyzing…", run: (cx) => view.togglePopup("status", cx) }
       : error ? { text: "Analysis failed", lead: `${LU}/circle-alert.svg`, color: "ansi1", run: (cx) => view.togglePopup("status", cx) }
       : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${LU}/sparkles.svg`, primary: a.state === "none", note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => view.analyze(cx, a.state === "current") };
-    buttons.push({ id: "analyze", ...analyze, ...compact && { text: null, icon: analyze.lead, label: analyze.text } });
+    buttons.push({ id: "analyze", ...analyze, ...compact && { text: null, icon: analyze.lead ?? `${LU}/sparkles.svg`, label: analyze.text } });
     buttons.push({ id: "fold-menu", icon: `${LU}/chevrons-up-down.svg`, label: "Expand or collapse files", active: view.popup === "fold", run: (cx) => view.togglePopup("fold", cx) });
   }
   // The view (unified or split, files as a tree or a list) is set in the settings, with the analysis.
@@ -71,6 +72,6 @@ export function header(view, t, head) {
     .child(div().flex_1())
     .child(h_flex().flex_none().gap(4).items_center()
       .children(head.buttons.map(b => b.text
-        ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], primary: b.primary, spin: b.spin, note: b.note })
-        : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], spin: b.spin, disabled: b.disabled, active: b.active }))));
+        ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], primary: b.primary, note: b.note })
+        : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active }))));
 }

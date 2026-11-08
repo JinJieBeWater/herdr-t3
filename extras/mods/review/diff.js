@@ -224,7 +224,7 @@ function diffItem(view, t, item) {
         .when(f.isBinary, el => el.child(div().flex_none().text_size(11).text_color(t.dim).child("binary")))
         .child(fileStatus(f.status))
         .child(h_flex().flex_none().gap(4)
-          .child(slot().when(canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/review/icons/file-text.svg").size(12).text_color(full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
+          .child(slot().when(canFull(f), el => el.child(svg(loading ? "mods/workspace-chrome/spinner.svg" : "mods/review/icons/file-text.svg").size(12).text_color(loading ? t.working : full ? t.accent : t.dim).when(loading, s => s.spin(900)))))
           .child(slot().child(svg(`mods/review/icons/chevron-${open ? "down" : "right"}.svg`).size(16).text_color(t.dim))));
     }
     case "group":
@@ -254,7 +254,7 @@ function diffItem(view, t, item) {
     }
     case "empty":
       return div().w_full().h(item.size).pl(codeInset(view.splitShown())).pr(12).gap(8).flex().items_center().text_color(t.dim)
-        .when(Boolean(item.loading), el => el.child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().spin(900))).child(item.text);
+        .when(Boolean(item.loading), el => el.child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().text_color(t.working).spin(900))).child(item.text);
     default:
       return v_flex().w_full().h(item.size).children(item.lines.map(line => diffLine(view, t, item.kind, line)));
   }
