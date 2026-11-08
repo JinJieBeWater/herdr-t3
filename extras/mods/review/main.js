@@ -170,11 +170,12 @@ export default class ReviewPane extends View {
   items() {
     const split = this.splitShown(), group = this.group(), id = `${this.version}:${this.groupKey}:${split}:${Math.round(this.view / 40)}`;
     if (id !== this.itemsId) {
+      // Kept only once all of it is built: a throw part way would leave the list and its lookups out of step, never rebuilt.
+      const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view }) : [];
+      const widths = split ? ["left", "right", "solo"].map(side => contentWidth(list, side)) : [0, 0, contentWidth(list)];
+      const files = new Map(list.map(item => [item.key, item.file?.path ?? item.key.split(":")[1]]));
       // The range last drawn was another list's: until this one draws, scrollToTop mustn't go by it.
-      this.itemsId = id; this.visible = null;
-      this.itemList = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view }) : [];
-      this.sideWidth = split ? ["left", "right", "solo"].map(side => contentWidth(this.itemList, side)) : [0, 0, contentWidth(this.itemList)];
-      this.itemFile = new Map(this.itemList.map(item => [item.key, item.file?.path ?? item.key.split(":")[1]]));
+      this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.itemFile = files;
     }
     return this.itemList;
   }
