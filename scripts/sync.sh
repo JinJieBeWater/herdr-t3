@@ -12,12 +12,12 @@ gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 share() { f=$1; shift; for d; do cp "$src/shared/$f.js" "$src/$d/"; done; }
 share name mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
 share tree mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
-share project mods/t3-inbox mods/t3-agents mods/t3-picker mods/t3-spaces mods/t3-new-menu mods/t3-tabs mods/t3-menu
+share project mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-picker mods/t3-spaces mods/t3-new-menu mods/t3-tabs mods/t3-menu
 share tip mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home mods/t3-new-menu extras/mods/pulls-review extras/mods/review
-share details mods/t3-inbox mods/t3-agents mods/t3-tabs extras/mods/pulls-review
+share details mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-tabs extras/mods/pulls-review
 share motion mods/t3-inbox mods/t3-agents mods/t3-spaces
 share focus mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home mods/t3-new-menu mods/t3-picker extras/mods/pulls-review
-share list mods/t3-inbox mods/t3-agents mods/t3-actions mods/t3-menu mods/t3-new-menu mods/t3-picker extras/mods/pulls-review extras/mods/review
+share list mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-actions mods/t3-menu mods/t3-new-menu mods/t3-picker extras/mods/pulls-review extras/mods/review
 share zoom mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-picker extras/mods/pulls-review
 share sidebar mods/t3-chrome mods/t3-home mods/t3-tabs mods/t3-spaces mods/t3-agents mods/t3-inbox
 

@@ -4,7 +4,7 @@ import { h_flex, Popup } from "gpui-base";
 import { spaces, run, hc, notify, setShared, openOverlay } from "herdr";
 import { namer } from "./name.js";
 import { focusAgent } from "./zoom.js";
-import { kidStatus } from "./tree.js";
+import { agentKids, kidStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { glow, hoverKept, tip, tipMark } from "./tip.js";
 import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
@@ -32,11 +32,11 @@ function duration(ms) {
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-// Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
+// Live sub-agents of `addr`, depth first, each with the tree lines in front of it. A shell between isn't one (tree.js).
 function agentTree(all, addr, lead = [], seen = new Set()) {
   if (seen.has(addr)) return [];
   seen.add(addr);
-  const kids = all.filter((k) => k.parent === addr && k.state === "live" && !seen.has(k.address));
+  const kids = agentKids(all, addr, seen);
   return kids.flatMap((k, i) => {
     const last = i === kids.length - 1;
     return [

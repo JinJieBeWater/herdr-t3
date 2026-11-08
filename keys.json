@@ -95,6 +95,12 @@
     "cmd-shift-w": "overlay.close",
     "ctrl-alt-x": "overlay.close"
   },
+  "mod:t3-pane": {
+    "cmd-w": "overlay.close",
+    "ctrl-alt-shift-x": "overlay.close",
+    "cmd-shift-w": "overlay.close",
+    "ctrl-alt-x": "overlay.close"
+  },
   "mod:pulls-review": {
     "cmd-w": "overlay.close",
     "ctrl-alt-shift-x": "overlay.close",
