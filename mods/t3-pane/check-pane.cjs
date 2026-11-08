@@ -42,13 +42,14 @@ let sharedValues = {};
 const shell = { pane: "p3", terminal: "t3", tab: "b", title: "me@mac: ~/project", cwd: "/home/me/project", program: { name: "zsh", key: "shell", shell: true }, status: null };
 let terms = [{ address: "t2", labels: {} }, { address: "t3", labels: {} }];
 let tab = { id: "b", name: "Release", named: true };
+let agentList = [];
 let sidebar = { id: "root", children: [{ id: "sidebar-lists", active: "lists" }] };
 let props = { pane: "p2" };
 let pointer = { x: 50, y: 10 };
 const env = {
   View: class {}, div: element, svg: element, image: (src) => { images.push(src); return element(); }, h_flex: element, v_flex: element, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, keys: () => [],
   theme: () => ({}), props: () => props, panes: () => [pane, shell, review], shared: (k) => sharedValues[k] ?? null, home: () => "/home/me",
-  terminals: () => terms, agents: () => [], spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
+  terminals: () => terms, agents: () => agentList, spaces: () => [{ tabs: [tab] }], layout: () => sidebar,
   run: (name, args) => calls.push([name, args]), openOverlay: (o) => calls.push(["overlay", o]), setShared: (k, v) => { sharedValues[k] = v; },
   window: Object.assign(() => ({ platform: "macos", active: true }), { mouse_position: () => pointer, viewport_size: () => ({ width: 1000, height: 800 }) }),
 };
@@ -89,6 +90,16 @@ terms[0].labels["pi.session"] = "Fix login";
 assert.equal(named(), "Fix login");
 delete terms[0].labels["pi.session"];
 assert.equal(named(), "Release");
+// Two agents in the named tab would read alike under its name: each goes by its own.
+pane.title = "✳ Review PR";
+agentList = [{ address: "t2", tab: "b" }, { address: "t5", tab: "b" }];
+assert.equal(named(), "Review PR");
+// A sub-agent beside its parent leaves the name to it.
+terms[0].state = "live"; terms.push({ address: "t5", parent: "t2", state: "live", labels: {} });
+assert.equal(named(), "Release");
+terms.at(-1).parent = null; terms[0].parent = "t5";
+assert.equal(named(), "Review PR", "a sub-agent doesn't take its tab's name");
+delete terms[0].parent; terms.pop(); agentList = []; pane.title = "pi";
 // A name that is only the program's goes when its icon says it.
 tab.named = false; pane.program = { ...program, icon: "pi.svg", tint: true };
 assert.deepEqual(texts(header.render()), ["~/project"]);

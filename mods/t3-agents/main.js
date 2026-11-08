@@ -4,7 +4,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, spaces, focused, theme, layout, shared, setShared, setAgentOrder, settings, openOverlay, closeOverlay, props, nextCommand } from "herdr";
-import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
+import { descendants, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { glow, tip } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 import { menuJump } from "./list.js";
@@ -170,18 +170,24 @@ export default class Agents extends View {
     const shown = f?.pane && !f.terminal && !list.some((a) => a.tab === f.tab && a.address === f.agent) ? null : f?.agent;
     const ps = panes();
     const now = Date.now();
+    // A kept sub-agent (one with a pane) is in agents() too: under its parent it gets no row of its own, unless pinned, as Herdr's list (#539).
+    const nested = new Set(list.flatMap((a) => descendants(all, a.address).map((k) => k.address)));
+    const pins = this.pins, top = new Set(list.filter((a) => pins.includes(a.address) || !nested.has(a.address)).map((a) => a.address));
     // A sub-agent folded away from view lights its nearest listed ancestor, as T3's resolveSidebarRowThreadId does.
     const ancestor = (() => {
       const byAddress = new Map(all.map((k) => [k.address, k])), seen = new Set();
       let k = byAddress.get(shown);
-      while (k && !this.listed.has(k.address) && !seen.has(k.address)) { seen.add(k.address); k = byAddress.get(k.parent); }
-      return k && this.listed.has(k.address) ? k.address : null;
+      while (k && !top.has(k.address) && !seen.has(k.address)) { seen.add(k.address); k = byAddress.get(k.parent); }
+      return k && top.has(k.address) ? k.address : null;
     })();
     const viewing = (a) => a.focused || (a.address === ancestor && this.isFolded(a.address));
     this.track(list, now);
     this.hold(list);
+    const every = list;
+    list = list.filter((a) => top.has(a.address));
     const byPriority = sort.id === "priority";
-    const under = subAgents(list, all);
+    // A kept sub-agent's word is still agents()' for its parent's tree.
+    const under = subAgents(every, all);
     const kidsOf = new Map(list.map((a) => [a.address, under(a.address)]));
     // As shown: its own word with its sub-agents'. Sorted, a viewed done agent keeps Done.
     const own = (a) => ownStatus(a.status, a.address, all);

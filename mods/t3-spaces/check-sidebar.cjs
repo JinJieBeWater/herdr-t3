@@ -176,6 +176,14 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(elbow.left + 1.5 / 2, agent.style.px + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
   assert.equal(elbow.left + elbow.w + 4, child.style.pl + (16 - 14) / 2, "the turn stops 4px before the child icon");
   f.terminals().pop();
+  // A kept sub-agent (one with a pane) is in agents() too: it shows once, under its parent, unless pinned.
+  f.agents().push({ ...f.agents()[0], address: "child", focused: false });
+  const kept = ag.render(cx);
+  assert.ok(find(kept, "sub-child") && !find(kept, "ag-child"), "a kept sub-agent shows once, under its parent");
+  f.state["agents.pins"] = ["child"];
+  assert.ok(find(ag.render(cx), "ag-child"), "pinned, it has a row of its own");
+  delete f.state["agents.pins"];
+  f.agents().pop();
   assert.equal(space.items[0].style.gap, 10);
   assert.equal(space.style.h, 32, "a space's row is T3's project row");
   assert.equal(find(st, "spaces-heading").style.pr, find(at, "agents-heading").style.pr, "header actions share a right edge");
@@ -300,7 +308,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   kid.status = "error";
   assert.equal(find(ag.render(cx), "details-sub-child")?.style.content, undefined, "its row is back, with the pointer long gone: no card");
   fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
-  // A sub-agent with a pane has two rows: hovering one isn't hovering the other, and the next one reporting first keeps the hover and the card.
+  // A pinned sub-agent with a pane has two rows: hovering one isn't hovering the other, and the next one reporting first keeps the hover and the card.
+  f.state["agents.pins"] = ["child"];
   f.agents().push({ address: "child", pane: "pn", space: "s1", space_name: "project 1", tab: "b1", title: "child task", seq: 9, program: f.agents()[0].program, focused: false, status: "working" });
   fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
   settle();
@@ -318,6 +327,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(both, "ag-child"), "on_hover", false, cx);
   settle();
   f.agents().pop();
+  delete f.state["agents.pins"];
   ag.render(cx);
   settle();
   const beforePin = f.calls.length;
