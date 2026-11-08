@@ -46,6 +46,10 @@ daemon analyze >/dev/null; sleep 3
 for _ in $(seq 300); do daemon status | jq -e '.running | not' >/dev/null && break; sleep 2; done
 
 first_turn "$pi"; focus "$pi"
-demo herdr-app do pane.split "$(jq -nc --arg r "$root" --arg p "$page" --argjson n "$(date +%s)000" '{direction: "right", mod: "review", props: {root: $r, page: $p, n: $n}}')" >/dev/null
+r=$(demo herdr-app do pane.split "$(jq -nc --arg r "$root" --arg p "$page" --argjson n "$(date +%s)000" '{direction: "right", mod: "review", props: {root: $r, page: $p, n: $n}}')")
+# The review wider than pi's half, so its analysis has room. A split's panes are its tab's layout nodes.
+size() { demo herdr-app do layout.resize "$(jq -nc --arg p "$1" --argjson w "$2" '{id: $p, weight: $w}')" >/dev/null; }
+size "$(echo "$r" | jq -r .pane)" 0.6
+size "$(demo herdr-app ls | jq -r --arg t "$pi" '.spaces[].tabs[].terminals[]? | select(.terminal == $t) | .pane')" 0.4
 sleep 3; focus "$pi"; sleep 5
 shoot_active "$D/layout.png"
