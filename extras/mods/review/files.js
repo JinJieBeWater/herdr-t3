@@ -1,7 +1,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { fileRows } from "./rows.js";
-import { LU, CAT, MONO, HOVER, ACTIVE, FADED, pref, isLight, checkMark, diffStats } from "./controls.js";
+import { LU, CAT, MONO, FADED, hover, pref, isLight, checkMark, diffStats } from "./controls.js";
 import { groupStats, categoryIcon, criticalMark, donut } from "./groups.js";
 
 // As the app's FileStatus: a letter in its status's color (success, error, warning, blue at 500).
@@ -44,7 +44,8 @@ export function aside(view, t) {
 }
 
 // As T3's ChangedFilesTree, 8 in and 14 a level: a folder's box, icon and name; a file's box, its icon and path in the code
-// font (the folder dimmed, listed), test and critical marks, counts and status; a file in view on the active tone.
+// font (the folder dimmed, listed), test and critical marks, counts and status; a file in view on `selected`, a test on a green
+// tint. Rows next to each other on the same tone read as one block, rounded only at its ends.
 function fileTree(view, t, g) {
   const byPath = new Map(view.review.files.map(f => [f.path, f])), inView = view.visibleFiles(), light = isLight(t.background);
   const checkbox = (id, state, label, toggle) => checkMark(t, state).id(id).role("check_box").accessibility_label(label)
@@ -58,7 +59,9 @@ function fileTree(view, t, g) {
       .when(parts.length > 0, el => el.child(div().min_w(0).flex_shrink(100).truncate().when(struck, el => el.line_through()).when(pref("fileList") === "list", el => el.opacity(0.4)).child(`${parts.join("/")}/`)))
       .child(div().min_w(0).flex_shrink_1().truncate().when(struck, el => el.line_through()).child(name));
   };
-  return fileRows(g.files, g.missing, pref("fileList")).map(row => {
+  const rows = fileRows(g.files, g.missing, pref("fileList"));
+  const tone = (row) => row?.type !== "file" ? null : inView.has(row.path) ? t.selected : byPath.get(row.path)?.test ? t.ansi2 + "14" : null;
+  return rows.map((row, i) => {
     const base = h_flex().h(28).flex_none().pl(8 + row.depth * 14).pr(8).gap(8).items_center().rounded(6).text_size(12);
     if (row.type === "folder") {
       const files = row.paths.map(path => byPath.get(path)).filter(Boolean), done = files.filter(f => f.reviewed).length;
@@ -77,11 +80,11 @@ function fileTree(view, t, g) {
     if (!f) return null;
     const state = f.changed ? "changed" : f.reviewed ? "all" : "none";
     const critical = [g, ...g.children].some(x => (x.notes[f.path] ?? []).some(note => note.critical));
+    const bg = tone(row);
     return base.id(`tree-f-${row.path}`)
-      .when(inView.has(row.path), el => el.bg(ACTIVE))
-      .when(!inView.has(row.path) && f.test, el => el.bg(t.ansi2 + "14"))
+      .when(Boolean(bg), el => el.bg(bg).rounded(0).when(tone(rows[i - 1]) !== bg, el => el.rounded_t(6)).when(tone(rows[i + 1]) !== bg, el => el.rounded_b(6)))
       // A file's row shows it: the app gives it no hover, but every other thing to press here has one.
-      .when(!inView.has(row.path), el => el.hover(s => s.bg(HOVER)))
+      .when(!inView.has(row.path), el => el.hover(s => s.bg(hover(t))))
       .on_click((_e, cx) => view.select(row.path, cx))
       .child(checkbox(`tree-check-${row.path}`, state, f.reviewed ? `${row.path}: reviewed` : `${row.path}: not reviewed`, (cx) => view.setReviewed(f, !f.reviewed, cx)))
       .child(path(row, false))

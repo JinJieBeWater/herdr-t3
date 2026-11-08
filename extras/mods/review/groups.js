@@ -2,7 +2,7 @@ import { div, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { groupFiles } from "./rows.js";
 import { hoverKept } from "./tip.js";
-import { LU, HOVER, ACTIVE, FADED, zoom, isLight, caretButton, diffStats } from "./controls.js";
+import { LU, FADED, zoom, hover, isLight, caretButton, diffStats } from "./controls.js";
 
 // The app's category icons (Lucide here, for one icon set across the layout; the app's are Phosphor duotone, in its own shapes) and hues (Tailwind's 300 on dark, 800 on light), by category.
 const CATEGORY = {
@@ -38,7 +38,7 @@ export function groupSidebar(view, t) {
     // As T3's SidebarMenuButton at lg; a subgroup in by what its SidebarMenuSub comes to, 24 to the text.
     return hoverable(view, h_flex().id(key).h(48).flex_none().items_center().pr(10).gap(8).rounded(8), key)
       .when(depth > 0, el => el.ml(14))
-      .when(active, el => el.bg(ACTIVE)).when(!active, el => el.hover(s => s.bg(HOVER)))
+      .when(active, el => el.bg(t.selected)).when(!active, el => el.hover(s => s.bg(hover(t))))
       .child(v_flex().id(`side-gb-${depth}-${g.key}`).flex_1().min_w(0).h_full().justify_center().items_start().pl(10).text_size(14).font_medium()
         .opacity(active ? 1 : FADED).hover(s => s.opacity(1))
         .role("button").accessibility_label(g.label).on_click((_e, cx) => pick(cx))
@@ -51,7 +51,7 @@ export function groupSidebar(view, t) {
           .child(div().opacity(0.4).child(`・${stats.count} ${stats.count === 1 ? "file" : "files"}`))))
       .when(stats.progress !== 0, el => el.child(donut(t, stats.progress)))
       // As the app's: only a group with subgroups has a caret, and it shows or hides them.
-      .when(depth === 0 && g.children.length > 0, el => el.child(caretButton(`side-fold-${g.key}`)
+      .when(depth === 0 && g.children.length > 0, el => el.child(caretButton(t, `side-fold-${g.key}`)
         .role("button").accessibility_label(open(g, depth) ? "Hide subgroups" : "Show subgroups")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => { cx.stop_propagation(); const k = id(g, depth); view.folded.has(k) ? view.folded.delete(k) : view.folded.add(k); cx.notify(); })
@@ -122,7 +122,7 @@ function groupTab(view, t, id, g, { active = false, expanded = false, toggle, pi
   return hoverable(view, v_flex().id(id), id).flex_none().rounded_t(6).border_t(1).border_l(1).border_r(1).border_color(t.border).bg(t.background)
     .when(active, el => el.relative().top(-1).shadow_sm())
     .child(h_flex().id(`${id}-button`).px(8).py(2).gap(8).items_center().text_size(14).font_medium().text_color(t.foreground)
-      .opacity(active ? 1 : FADED).hover(s => s.opacity(1).bg(ACTIVE))
+      .opacity(active ? 1 : FADED).hover(s => s.opacity(1).bg(hover(t)))
       .role("tab").accessibility_label(g.label).on_click((_e, cx) => pick(cx))
       .child(v_flex().items_start()
         .child(h_flex().gap(8).items_center()
@@ -135,7 +135,7 @@ function groupTab(view, t, id, g, { active = false, expanded = false, toggle, pi
           .when(subgroups > 0, el => el.child(div().text_color(t.dim).child(`・${subgroups} ${subgroups === 1 ? "subgroup" : "subgroups"}`)))))
       .when(stats.progress !== 0, el => el.child(donut(t, stats.progress)))
       // Not the app's `mr--1`: a negative margin here has Herdr's layout squeeze the whole tab under its neighbour.
-      .when(subgroups > 0 && Boolean(toggle), el => el.child(caretButton(`${id}-caret`)
+      .when(subgroups > 0 && Boolean(toggle), el => el.child(caretButton(t, `${id}-caret`)
         .role("button").accessibility_label(expanded ? "Hide subgroups" : "Show subgroups")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); toggle(cx); })
         .child(svg(`${LU}/chevron-${expanded ? "up" : "down"}.svg`).size(14)))))

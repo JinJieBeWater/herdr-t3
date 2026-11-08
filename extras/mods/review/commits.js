@@ -2,7 +2,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { setShared } from "herdr";
 import { scrollList } from "./list.js";
-import { PANE, LU, HOVER, ACTIVE, COMPACT, MODEL_ROW, iconButton, pickMark, searchField, popover } from "./controls.js";
+import { PANE, LU, COMPACT, hover, MODEL_ROW, iconButton, pickMark, searchField, popover } from "./controls.js";
 
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
 const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
@@ -52,7 +52,7 @@ export function commitSwitch(view, t) {
   return h_flex().id("review-commit-switch").min_w(0).flex_shrink_1().overflow_hidden().gap(2).items_center()
     .child(go("commit-older", "mods/review/icons/chevron-left.svg", "Older commit", at > 0 ? list[at - 1] : null))
     .child(h_flex().id("commit-pick").h(24).min_w(0).flex_shrink_1().px(8).gap(4).items_center().rounded(8).text_size(12).font_medium().text_color(t.foreground)
-      .when(view.popup === "commits", el => el.bg(ACTIVE)).hover(s => s.bg(HOVER))
+      .when(view.popup === "commits", el => el.bg(t.selected)).hover(s => s.bg(hover(t)))
       .role("button").accessibility_label(`Pick another commit of this review, ${place} shown`)
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); view.togglePopup("commits", cx); })
       .child(div().id("commit-place").min_w(0).truncate().child(place))
@@ -66,7 +66,7 @@ export function commitMenu(view, t) {
   const row = (r, i) => {
     const c = r.commit, prefix = c ? PREFIX.exec(c.subject)?.[0] ?? "" : "", on = r.page === view.page;
     return h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(4)
-      .when(i === view.commitAt, el => el.bg(HOVER)).on_hover((over, cx) => { if (over && view.commitAt !== i) { view.commitAt = i; cx.notify(); } })
+      .when(i === view.commitAt, el => el.bg(t.selected)).on_hover((over, cx) => { if (over && view.commitAt !== i) { view.commitAt = i; cx.notify(); } })
       .role("button").accessibility_label(r.label + (on ? ", shown" : "")).on_click((_e, cx) => showPage(view, r.page, cx))
       .child(pickMark(t, on))
       .when(!c, el => el.child(div().flex_1().child("All changes")))

@@ -3,9 +3,7 @@ import { h_flex, Switch } from "gpui-base";
 import { exec, window as appWindow } from "herdr";
 import { request } from "./daemon.js";
 import { scrollList } from "./list.js";
-import { PANE, HOVER, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, isLight, pickMark, searchField, popover } from "./controls.js";
-
-const sunken = (t) => isLight(t.background) ? "#0000000a" : "#ffffff0f", raised = (t) => isLight(t.background) ? "#ffffffa6" : "#00000099";
+import { PANE, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, pickMark, searchField, popover } from "./controls.js";
 
 // Models the settings list before the search must narrow them.
 const LISTED = 200;
@@ -121,13 +119,13 @@ export function settingsPanel(view, t) {
   // As T3's ComboboxStatus, its 12 in the panel's 4 and 8.
   const note = (text, color = t.dim) => div().p(8).flex_none().text_size(12).font_medium().text_color(color).child(text);
   const choice = (r, i) => h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(4)
-    .when(i === view.pageAt, el => el.bg(HOVER)).on_hover((on, cx) => { if (on && view.pageAt !== i) { view.pageAt = i; cx.notify(); } })
+    .when(i === view.pageAt, el => el.bg(t.selected)).on_hover((on, cx) => { if (on && view.pageAt !== i) { view.pageAt = i; cx.notify(); } })
     .role("radio_button").accessibility_label(r.name).on_click((_e, cx) => { settingsBack(view, cx); r.pick(cx); })
     .child(pickMark(t, r.on))
     .child(div().flex_1().min_w(0).truncate().child(r.name))
     .when(Boolean(r.detail), el => el.child(div().flex_none().text_size(12).text_color(t.dim).child(r.detail)));
   // A setting that opens its page, as T3's MenuSubTrigger: its name, its value and a chevron.
-  const nav = (id, text, value) => h_flex().id(`settings-${id}`).h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(HOVER))
+  const nav = (id, text, value) => h_flex().id(`settings-${id}`).h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(t.selected))
     .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => openPage(view, id, cx))
     .child(div().flex_none().child(text))
     .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
@@ -155,7 +153,7 @@ export function settingsPanel(view, t) {
     Switch.new("auto-analyze").checked(autoAnalyze).accessibility_label("Analyze automatically")
       .on_change((on, cx) => { setPref("autoAnalyze", on); cx.notify(); })
       // As T3's MenuCheckboxItem, its switch variant.
-      .child(h_flex().h(28).pl(8).pr(6).gap(16).items_center().rounded(4).hover(s => s.bg(HOVER))
+      .child(h_flex().h(28).pl(8).pr(6).gap(16).items_center().rounded(4).hover(s => s.bg(t.selected))
         .child(div().flex_1().child("Analyze automatically"))
         .child(div().w(22).h(14).p(1).flex_none().flex().rounded_full().bg(autoAnalyze ? t.accent : t.input)
           .when(autoAnalyze, el => el.justify_end())
@@ -176,7 +174,7 @@ export function settingsPanel(view, t) {
       .child(link("credit-fork", "fork", "https://github.com/JinJieBeWater/pulls.review")).child("by")
       .child(link("credit-jinjie", "@JinJieBeWater", "https://github.com/JinJieBeWater")),
   ] : [
-    h_flex().id("settings-back").h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(HOVER))
+    h_flex().id("settings-back").h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(t.selected))
       .role("button").accessibility_label("Back").on_click((_e, cx) => settingsBack(view, cx))
       .child(svg("mods/review/icons/chevron-left.svg").size(16).mx(-2).flex_none().text_color(t.dim))
       .child(div().font_medium().child({ language: "Language", agent: "Agent", model: "Model" }[page])),
@@ -203,10 +201,10 @@ function choiceRow(t, name, options, pick) {
   // A menu row's 4 either side of the 28 track.
   return h_flex().h(36).px(8).gap(8).flex_none().items_center()
     .child(div().flex_1().child(name))
-    // As T3's segmented ToggleGroup: a sunken track, the picked option raised; the others brighten on hover.
-    .child(h_flex().flex_none().p(2).gap(2).rounded(8).bg(sunken(t))
+    // As Custom snooze's segmented group (T3's ToggleGroup): an `input` track, the picked option `selected`; the others brighten on hover.
+    .child(h_flex().flex_none().p(2).gap(2).rounded(8).bg(t.input)
       .children(options.map(([id, text, on, faded]) => div().id(id).h(24).px(10).flex().items_center().rounded(6).text_size(12).font_medium()
-        .text_color(on ? t.foreground : t.dim).when(on, el => el.bg(raised(t)).shadow_sm()).when(!on, el => el.hover(s => s.text_color(t.foreground)))
+        .text_color(on ? t.foreground : t.dim).when(on, el => el.bg(t.selected)).when(!on, el => el.hover(s => s.text_color(t.foreground)))
         .when(Boolean(faded), el => el.opacity(0.5))
         .role("radio_button").accessibility_label(`${name}: ${text}`)
         .on_click((_e, cx) => pick(id, cx))

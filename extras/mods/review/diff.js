@@ -4,7 +4,7 @@ import { notify, theme } from "herdr";
 import { review } from "./daemon.js";
 import { codeInset, FILE, noteWidth, ROW } from "./rows.js";
 import { colors } from "./review-load.js";
-import { LU, MONO, HOVER, zoom, isLight, checkMark, diffStats, popover } from "./controls.js";
+import { LU, MONO, zoom, isLight, checkMark, diffStats, popover } from "./controls.js";
 import { fileStatus } from "./files.js";
 
 // How long a sideways scroll's bars stay after it stops (ms).
@@ -44,7 +44,7 @@ export function foldAll(view, { collapse, applies }, cx) {
 export function foldMenu(view, t) {
   return popover(view, t, "review-fold-menu").min_w(160).p(4)
     .children(FOLDS.map((fold, i) => h_flex().id(`fold-${fold.id}`).h(28).px(8).gap(8).items_center().rounded(4)
-      .when(i === view.foldAt, el => el.bg(HOVER)).on_hover((on, cx) => { if (on && view.foldAt !== i) { view.foldAt = i; cx.notify(); } })
+      .when(i === view.foldAt, el => el.bg(t.selected)).on_hover((on, cx) => { if (on && view.foldAt !== i) { view.foldAt = i; cx.notify(); } })
       .role("button").accessibility_label(fold.label).on_click((_e, cx) => foldAll(view, fold, cx))
       .child(svg(`${LU}/${fold.icon}.svg`).size(16).mx(-2).flex_none().text_color(t.dim))
       .child(fold.label)));
