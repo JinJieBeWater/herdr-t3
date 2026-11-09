@@ -202,6 +202,20 @@ assert.equal(vm.runInContext('grey("#ff0000")', mainScope), "#363636");
 // A run's progress names the files it reads, not their paths.
 assert.equal(vm.runInContext('progressText({ kind: "reading", paths: [".git/x/agent/1/a.ts", "b.ts", "c"] })', mainScope), "Reading 3 files: a.ts, …");
 assert.equal(vm.runInContext('progressText({ kind: "thinking", step: 2 })', mainScope), "Thinking… (step 2)");
+{
+  // A line of more colored runs than an element budget still draws every character: past it, the rest is one plain run.
+  const said = [], plainDiv = mainScope.div;
+  const recorder = () => { const el = new Proxy(function () {}, { get: (_t, key) => key === "child" ? (v) => { if (typeof v === "string") said.push(v); return el; } : key === "when" ? (c, f) => (c && f(el), el) : () => el }); return el; };
+  mainScope.div = recorder;
+  const dense = [...Array.from({ length: 450 }, (_, i) => [String(i % 10), i % 2 ? "#ff0000" : "#00ff00"]), ["END", "#ff0000"]];
+  vm.runInContext("drawCode", mainScope)({ foreground: "#eeeeee", dim: "#888888", canvas: "#000000" }, { kind: " ", old: 1, new: 1, tokens: dense }, [1]);
+  mainScope.div = plainDiv;
+  const code = said.slice(2);
+  assert.equal(code.join(""), dense.map(([text]) => text).join(""));
+  assert.ok(code.length <= vm.runInContext("SPANS", mainScope), `${code.length} code elements`);
+  // Next runs of one color are one element; a run's trailing spaces lead the next.
+  assert.deepEqual(plain(vm.runInContext("spans", mainScope)([["a", "#f00"], ["b ", "#f00"], ["c", "#f00"], [" ", "#0f0"], ["d", "#0f0"]])), [["ab c", "#f00"], [" d", "#0f0"]]);
+}
 // The 150ms timer is the scroll spy; the others, by period, each pane's in the order they started. A test runs them by hand.
 let spy; const every = {};
 const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (_ms, f) => timers.push(f) } };

@@ -18,15 +18,21 @@ export const FOLDS = [
   { id: "collapse-tests", label: "Collapse test files", icon: "flask-conical", collapse: true, applies: f => f.test },
 ];
 
+// The most colored elements a line draws: each is a div, and a view of lines dense with them can outrun a render.
+// shortcut: 400 is a guess under the 50 ms a render gets; calibrate on a dense line in Herdr.
+const SPANS = 400;
+
 // Spaces that end an element are drawn into a following ligature (` =>` shows as `)⇒`): each run's
-// trailing spaces lead the next run instead, where they hold their width.
+// trailing spaces lead the next run instead, where they hold their width. Next runs of one color are one element, and
+// past SPANS the rest of the line is one in the plain color: every character still shows.
 function spans(tokens) {
   const out = [];
   let carry = "";
   for (const [text, color] of tokens) {
-    const t = carry + text.replaceAll("\t", "    "), body = t.trimEnd();
+    const t = carry + text.replaceAll("\t", "    "), body = t.trimEnd(), last = out.at(-1), c = out.length < SPANS - 1 ? color : undefined;
     carry = t.slice(body.length);
-    if (body) out.push([body, color]);
+    if (!body) continue;
+    if (last && last[1] === c) last[0] += body; else out.push([body, c]);
   }
   return out;
 }
@@ -203,7 +209,7 @@ function drawCode(t, row, numbers, shift = 0) {
     .child(div().w(12).flex_none().text_color(row.kind === "+" ? t.ansi2 : row.kind === "-" ? t.ansi1 : t.dim).child(row.kind === " " ? "" : row.kind))
     .child(h_flex().flex_1().min_w(0).overflow_hidden().whitespace_nowrap()
       .child(h_flex().flex_none().relative().left(-shift)
-        .children(spans(row.tokens.slice(0, 400)).map(([text, color]) => div().flex_none().text_color(color ?? t.foreground).child(text)))));
+        .children(spans(row.tokens).map(([text, color]) => div().flex_none().text_color(color ?? t.foreground).child(text)))));
 }
 
 function diffItem(view, t, item) {
