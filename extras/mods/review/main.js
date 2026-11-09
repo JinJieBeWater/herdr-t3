@@ -173,7 +173,7 @@ export default class ReviewPane extends View {
       // Kept only once all of it is built: a throw part way would leave the list and its lookups out of step, never rebuilt.
       const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view }) : [];
       const widths = split ? ["left", "right", "solo"].map(side => contentWidth(list, side)) : [0, 0, contentWidth(list)];
-      const files = new Map(list.map(item => [item.key, item.file?.path ?? item.key.split(":")[1]]));
+      const files = new Map(list.map(item => [item.key, item.path]));
       // The range last drawn was another list's: until this one draws, scrollToTop mustn't go by it.
       this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.itemFile = files;
     }
@@ -385,7 +385,7 @@ export default class ReviewPane extends View {
   // The file whose rows open the view once its header has scrolled past the top: that header sticks there, as the app's.
   stickyFile() {
     const item = (this.itemList ?? [])[this.visible?.start ?? 0];
-    return item && item.kind !== "file" && item.kind !== "group" ? this.review.files.find(f => f.path === this.itemFile.get(item.key)) ?? null : null;
+    return item && item.kind !== "file" && item.kind !== "group" ? this.fileAt(item.path) ?? null : null;
   }
 
   hbars(t) { return hbars(this, t); }

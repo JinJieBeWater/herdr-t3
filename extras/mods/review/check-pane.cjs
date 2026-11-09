@@ -1287,5 +1287,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     p.load(cx); await wait();
     assert.deepEqual([tops(), files()], [0, 50], "the same list read again stays where it is");
   }
+  {
+    // A path with ":" in it: its code lines in view still name it, for the stuck header and the files in view.
+    const { p } = await paneOf();
+    p.apply({ ...p.review, files: [file("a:b.ts")], groups: [{ key: "g", label: "G", files: ["a:b.ts"], children: [], notes: {}, missing: [] }] });
+    const at = p.items().findIndex(i => i.kind === "row");
+    p.visible = { start: at, end: at + 1 };
+    assert.deepEqual([[...p.visibleFiles()], p.stickyFile()?.path], [["a:b.ts"], "a:b.ts"]);
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();

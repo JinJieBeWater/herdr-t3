@@ -198,10 +198,12 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
       }
     }
   };
-  for (const path of group.files) fileItems(path);
+  // Each of a file's items names it: a path may hold ":", which its key can't be split at.
+  const addFile = (path) => { const from = items.length; fileItems(path); for (let i = from; i < items.length; i++) items[i].path = path; };
+  for (const path of group.files) addFile(path);
   for (const child of group.children) {
     push({ key: `g:${child.key}`, kind: "group", group: child }, GROUP);
-    for (const path of child.files) fileItems(path);
+    for (const path of child.files) addFile(path);
   }
   return items;
 }
