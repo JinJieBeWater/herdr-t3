@@ -2,7 +2,7 @@
 // installed app or the browser) or the official CLI.
 
 import { spaces, panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
-import { argPage, git, reviewLocation, spaceReview } from "./bar.js";
+import { argPage, changedFiles, git, reviewLocation, spaceReview } from "./bar.js";
 import { focusPane } from "./zoom.js";
 
 // `open` in this folder's config.json, which the person creates; none means "herdr" (see mods/README.md):
@@ -102,7 +102,8 @@ export async function launch(input) {
       if (top.code !== 0) return fail("Not a git repository.");
       root = top.stdout.trim();
     }
-    const args = input.args ?? ((await git(root, ["status", "--porcelain"])).stdout.trim() ? ["--worktree"] : []);
+    const status = input.args ? "" : (await git(root, ["status", "--porcelain"])).stdout;
+    const args = input.args ?? (await changedFiles(root, status.split("\n").filter(Boolean).length) ? ["--worktree"] : []);
     const mode = await readMode();
     if (mode === "official") return await official(root, args, input.page);
     // The pane starts the analysis itself, and only with its Analyze automatically setting on, as the app never does unasked.

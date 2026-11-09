@@ -513,12 +513,30 @@ const load = (props = {}, setup = record) => {
   // mode, a review pane split off the focused one.
   calls.length = 0;
   const { mod: launcher, scope: opener } = load({ overlay: "o1" }, (scope) => {
-    scope.exec = async (_command, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : { code: 0, stdout: args.includes("status") ? " M a.js\n" : "" };
+    // No sh: status's count, as on Windows.
+    scope.exec = async (command, args) => command === "sh" ? { code: 1, stdout: "" } : args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : { code: 0, stdout: args.includes("status") ? " M a.js\n" : "" };
   });
   await new Promise(setImmediate);
   assert.deepEqual(calls.map(([name, args]) => [name, args.mod, args.pane, args.props?.root, args.props?.page]), [["pane.split", "review", "p1", "/repo", "/worktree"]]);
   assert.deepEqual(closed.at(-1), "o1");
   assert.equal(find(launcher.render(), "review-fit"), null, "nothing to see while it works");
+  // A file staged then edited back is no change to review, as the bar counts it: the shortcut opens the branch's commit.
+  const netRepo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "pulls-review-net-")));
+  try {
+    const sh = (cmd) => assert.equal(spawnSync("sh", ["-c", cmd], { cwd: netRepo }).status, 0, cmd);
+    sh("git init -q -b main && echo base > a.txt && git add a.txt && git -c user.name=a -c user.email=a@b commit -qm init"
+      + " && git checkout -qb feat && echo b > b.txt && git add b.txt && git -c user.name=a -c user.email=a@b commit -qm b"
+      + " && echo staged > a.txt && git add a.txt && echo base > a.txt");
+    calls.length = 0;
+    const { scope: shortcut } = load({}, null);
+    shortcut.panes = () => [{ pane: "p1", tab: "b", cwd: netRepo }];
+    shortcut.exec = async (command, args, { cwd }) => { const r = spawnSync(command, args, { cwd, encoding: "utf8" }); return { code: r.status, stdout: r.stdout }; };
+    await shortcut.launch({});
+    assert.deepEqual(calls.map(([name, args]) => [name, args.props?.page]), [["pane.split", "/branch/feat"]], "staged then edited back: the branch, not an empty worktree");
+    sh("echo edited > a.txt"); calls.length = 0;
+    await shortcut.launch({});
+    assert.deepEqual(calls.map(([name, args]) => [name, args.props?.page]), [["pane.split", "/worktree"]], "a real change: the worktree");
+  } finally { fs.rmSync(netRepo, { recursive: true, force: true }); }
   // From the bar, what it already knows: no git, no overlay to close.
   calls.length = 0;
   const shutBefore = closed.length;

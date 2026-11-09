@@ -49,6 +49,14 @@ export const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "cor
 // new files marked intent-to-add in a throwaway copy of the index so a moved file pairs up as one rename.
 const NET = `d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && { cp "$(git rev-parse --git-path index)" "$d/i" 2>/dev/null; export GIT_INDEX_FILE="$d/i"; } && `
   + "git --no-optional-locks -c core.fsmonitor=false add -N -- . && git --no-optional-locks -c core.fsmonitor=false diff -M --name-only -z HEAD --";
+// Status counts a file staged then edited back, which the pane shows no diff for, and a moved file as two: `lines`, status's
+// count, stands only where the net read can't run.
+export async function changedFiles(root, lines) {
+  if (!lines) return 0;
+  const net = await exec("sh", ["-c", NET], { cwd: root }).catch(() => null);
+  // shortcut: no sh (Windows) or no commit yet falls back to status's count; follow the daemon's empty-tree base if that matters.
+  return net?.code === 0 ? net.stdout.split("\0").filter(Boolean).length : lines;
+}
 
 // A commit's age as the Inbox's settled rows read (t3-inbox's ago), but "now" for "just now": the column is narrow.
 function ago(ms, now) {
@@ -141,12 +149,7 @@ async function readReview(cwd) {
     else if (line.startsWith("# branch.ab ")) { ab = true; [review.ahead, review.behind] = line.slice(12).split(" ").map(n => Math.abs(parseInt(n, 10)) || 0); }
     else if (line && !line.startsWith("#")) lines++;
   }
-  // Status counts a file staged then edited back, which the pane shows no diff for, and a moved file as two.
-  if (lines) {
-    const net = await exec("sh", ["-c", NET], { cwd: root }).catch(() => null);
-    // shortcut: no sh (Windows) or no commit yet falls back to status's count; follow the daemon's empty-tree base if that matters.
-    review.changed = net?.code === 0 ? net.stdout.split("\0").filter(Boolean).length : lines;
-  }
+  review.changed = await changedFiles(root, lines);
   // git leaves out branch.ab when the upstream is set but gone, as after a merged PR's branch is deleted.
   review.gone = Boolean(review.upstream) && !ab;
   // The default branch as the CLI resolves it (resolveDefaultBranch): origin/HEAD, else main or master.
