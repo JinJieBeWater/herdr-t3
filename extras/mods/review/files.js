@@ -64,7 +64,7 @@ function fileTree(view, t, g) {
   // Made again only for another group, read or layout.
   const layout = pref("fileList");
   if (view.treeOf?.g !== g || view.treeOf.layout !== layout) {
-    // Another group's files start at their top.
+    // Another group's files, or another list's (applyReview drops the tree), start at their top.
     if (view.treeOf?.g.key !== g.key) view.scrollTop = { ...view.scrollTop, "review-files": 0 };
     view.treeOf = { g, layout, rows: fileRows(g.files, g.missing, layout) };
   }

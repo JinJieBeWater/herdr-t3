@@ -1264,5 +1264,28 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     before(); await wait();
     assert.deepEqual([saved.locale, p.shared.locale], ["ja", "ja"]);
   }
+  {
+    // A new list starts at its top, the diff and the aside's files: another worktree, a read after a failed one, an analysis's groups.
+    const { p, scope } = await paneOf();
+    const tops = () => calls.filter(([name, at]) => name === "scroll" && at === 0).length;
+    // The aside one row tall, so its few rows scroll.
+    const scrolledDown = () => { calls.length = 0; p.scrollTop = { "review-files": 50 }; };
+    const files = () => { p.width = 1200; p.listHeight = { "review-files": 28 }; p.render(cx); return p.scrollTop["review-files"]; };
+    files(); scrolledDown();
+    p.root = "/other"; p.watching = null; p.forget(); p.load(cx); await wait();
+    assert.deepEqual([tops(), files()], [1, 0], "another worktree");
+    scrolledDown();
+    scope.review = () => Promise.reject(new Error("down"));
+    p.open("/commit/c1", cx); await wait();
+    scope.review = daemon; p.load(cx); await wait();
+    assert.deepEqual([tops(), files()], [1, 0], "Retry after a failed switch");
+    scrolledDown();
+    scope.review = async (root, route, body) => ({ ...await daemon(root, route, body), groups: [{ ...review.groups[0], key: "ai-1" }] });
+    p.load(cx); await wait();
+    assert.deepEqual([tops(), files()], [1, 0], "an analysis's groups");
+    scrolledDown();
+    p.load(cx); await wait();
+    assert.deepEqual([tops(), files()], [0, 50], "the same list read again stays where it is");
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();

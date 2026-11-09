@@ -144,10 +144,10 @@ export function applyReview(view, r) {
   if (r.analysis.state === "running") view.startingUntil = 0;
   // The diff's commits, for stepping through them while one is shown on its own (its page lists only itself).
   if (view.page === view.base) view.baseCommits = r.commits;
-  if (!r.groups.some(g => g.key === view.groupKey)) view.groupKey = r.groups[0]?.key ?? null;
+  // Another list - another page or worktree, a read after a failed one, an analysis's groups - starts at its top: the
+  // scroll handle keeps the old list's place. forget() leaves no group, so every one of them comes through here.
+  if (!r.groups.some(g => g.key === view.groupKey)) { view.groupKey = r.groups[0]?.key ?? null; view.scroll.scroll_to_item(0); view.treeOf = null; }
   view.version++;
-  // The old page's list was kept on screen, scrolled: the new one starts at its top.
-  if (switched) view.scroll.scroll_to_item(0);
 }
 
 // One commit's page lists only itself: the diff's commits come from its base, read without rows after each read, so a new
