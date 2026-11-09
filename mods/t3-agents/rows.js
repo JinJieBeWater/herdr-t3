@@ -1,5 +1,5 @@
 // The agents list's rows and group headers, including their leaving ghosts.
-import { div, image, svg } from "gpui-kit";
+import { div, svg } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
 import { spaces, run, hc, notify, setShared, openOverlay } from "herdr";
 import { namer } from "./name.js";
@@ -7,7 +7,8 @@ import { focusAgent } from "./zoom.js";
 import { agentKids, kidStatus } from "./tree.js";
 import { projectMark } from "./project.js";
 import { glow, hoverKept, tip, tipMark } from "./tip.js";
-import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
+import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
+import { programIcon } from "./program.js";
 import { stop, within } from "./focus.js";
 import { MOTION, foldArrow } from "./motion.js";
 
@@ -16,12 +17,6 @@ const ROW = 36, HEAD = 32, HEAD_GAP = 8;
 export const STACK = 1;
 export const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 export const SECTION = { 4: "Needs you", 3: "Done", 2: "Working", 1: "Idle" };
-
-// The agent's icon from the app's program table: a one-color glyph or a picture.
-function icon(p, size, color) {
-  if (!p?.icon) return null;
-  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
-}
 
 // How long it's been in its state, as the shipped agents list says it.
 function duration(ms) {
@@ -50,7 +45,7 @@ function agentTree(all, addr, lead = [], seen = new Set()) {
 function agentSubRow(view, t, s, shown, card, ghost) {
   const k = s.t;
   const st = kidStatus(k, view.listed);
-  const pic = icon(k.program, 14, t.foreground);
+  const pic = programIcon(k.program, 14, t.foreground);
   const on = k.address === shown;
   const name = k.name || k.template || k.program?.name || k.address;
   const rowId = `sub-${k.address}`;
@@ -179,7 +174,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
   };
 
   const row = (a, subs = [], ghost) => {
-    const pic = icon(a.program, 16, t.foreground);
+    const pic = programIcon(a.program, 16, t.foreground);
     const more = detail.get(a.address);
     // An agent on another machine (`vps/t7`) says which.
     const machine = a.address.includes("/") ? a.address.split("/")[0] : null;

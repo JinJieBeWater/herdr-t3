@@ -11,6 +11,7 @@ gen="--exclude gpui-kit.d.ts --exclude jsconfig.json"
 # shared/ holds one source for what several mods use; a mod can't import outside its folder, so each gets a copy.
 share() { f=$1; shift; for d; do cp "$src/shared/$f.js" "$src/$d/"; done; }
 share name mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
+share program mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
 share tree mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-picker
 share project mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-picker mods/t3-spaces mods/t3-new-menu mods/t3-tabs mods/t3-menu
 share tip mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home mods/t3-new-menu extras/mods/pulls-review extras/mods/review

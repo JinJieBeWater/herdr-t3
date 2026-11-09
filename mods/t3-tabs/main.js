@@ -1,10 +1,11 @@
-import { View, div, svg, image } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
 import { spaces, panes, agents, terminals, run, openOverlay, focused, hc, notify, theme, window, layout, settings, props, shared, setShared, nextCommand } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { notNews, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { tip, glow } from "./tip.js";
 import { detailsFor, detailsAt, detailsWatch } from "./details.js";
+import { programIcon } from "./program.js";
 import { focusAgent } from "./zoom.js";
 import { stopsInit, stopsEnd, stop, focusRoot, within } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
@@ -292,8 +293,7 @@ export default class Tabs extends View {
       // As T3's panel tabs: 24px, 12px words. Unlike T3's, the icon stays: it tells tabs apart, so hovering puts × over the status mark instead.
       const tabId = `tab-${c.id}`, closeId = `close-${c.id}`;
       const over = this.overTab === c.id || within(this, [tabId, closeId]);
-      const glyph = !program?.icon ? svg("mods/t3-tabs/icons/terminal.svg").size(12).text_color(t.muted)
-        : program.tint ? svg(program.icon).size(12).text_color(t.muted) : image(program.icon).size(12);
+      const glyph = programIcon(program, 12, t.muted) ?? svg("mods/t3-tabs/icons/terminal.svg").size(12).text_color(t.muted);
       // Its whole name, in a hover label's quiet style: the project, branch and program are already in the sidebar and the pane's header.
       // A Popup hanging from a 1px anchor at the tab's bottom, with an Inbox row's timing; the label's words start where the tab's name does
       // (the tab's 6px padding, 16px icon slot and 2px gap, less the label's 1px border and 8px padding). Up from the hover on: a Popup must

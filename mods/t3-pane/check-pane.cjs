@@ -70,7 +70,7 @@ function load(...files) {
   const mod = new context.Mod(); mod.init({}, cx); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const parts = ["name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "details.js", "main.js"].map((f) => path.join(__dirname, f));
+const parts = ["name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "main.js"].map((f) => path.join(__dirname, f));
 const header = load(...parts);
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);

@@ -46,6 +46,10 @@
 | 侧栏图标 | `SidebarThreadHeader.tsx`、`SidebarProjectFolderHeader.tsx`、`ui/collapsible-section-header.tsx`、`SidebarThreadRow.tsx` | 图标跟着按钮框走：28 的按钮图标 16，24 的小按钮（`icon-xs`）图标 14；收纳区和文件夹的折叠箭头、行内控件和标记 12 |
 | 面板标签 | 终端和预览面板的标签组件 | 见源码 |
 
+## 程序标志
+
+程序标志直接使用 Herdr 官方资源，各组件沿用 T3 的图标槽尺寸，由 `shared/program.js` 的 `programIcon` 统一绘制。素材的画布、内部留白、宽高比与配色由 Herdr 维护，布局随官方资源更新。mod 提供的自定义图标也按其原画布绘制。
+
 ## 有意不同
 
 用户决定保留，不要改回 T3（见 [ADR 0002](../adr/0002-lists-and-inbox-share-rules.md) 和 [ADR 0004](../adr/0004-putting-away-lands-on-home.md)）：

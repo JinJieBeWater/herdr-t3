@@ -56,7 +56,7 @@ const context = vm.createContext({
   shared: (k) => shared[k], setShared: (k, v) => { shared[k] = v; },
   namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
 });
-const src = ["tree.js", "list.js", "zoom.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["tree.js", "list.js", "zoom.js", "focus.js", "program.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const keys = (m) => find(m.render(), "picker-rows")?.items.map((n) => n.key) ?? [];

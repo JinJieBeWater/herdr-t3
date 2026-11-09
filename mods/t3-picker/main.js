@@ -2,13 +2,14 @@
 // alike, named and marked as its pane header is, so lazygit beside an agent is found as itself. From the shipped
 // picker (mod.clone). First a Back row to the pane the last jump from here left, so ⌘P, Enter goes back and forth.
 // ↑/↓ and Enter to go, ctrl+d to close a pane (asking first while a program runs), Esc to leave.
-import { View, div, svg, image } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { theme, spaces, panes, agents, terminals, focused, run, closeOverlay, props, window, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { focusPane } from "./zoom.js";
 import { notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
+import { programIcon } from "./program.js";
 import { step, scrollList } from "./list.js";
 import { stopsInit, stop, focusRoot } from "./focus.js";
 
@@ -16,10 +17,6 @@ import { stopsInit, stop, focusRoot } from "./focus.js";
 const ROW = 48;
 // The list's share of T3's 420 once its border, search, top and bottom insets and footer are in; the popup hugs its content.
 const LIST_MAX = 420 - 2 - 48 - 8 - 8 - 41;
-
-const icon = (t, p) => !p?.icon ? svg("mods/t3-picker/icons/terminal.svg").size(12).flex_none().text_color(t.muted)
-  : p.tint ? svg(p.icon).size(12).flex_none().text_color(t.muted) : image(p.icon).size(12).flex_none();
-
 
 export default class Picker extends View {
   init(_props, cx) {
@@ -82,7 +79,7 @@ export default class Picker extends View {
       .child(v_flex().flex_1().min_w(0)
         .child(div().truncate().text_color(t.foreground).when(Boolean(item.here), (d) => d.font_medium()).child(item.label))
         .child(h_flex().min_w(0).gap(4).items_center().text_size(12).line_height("16px").text_color(t.dim)
-          .child(icon(t, item.program))
+          .child(programIcon(item.program, 12, t.muted) ?? svg("mods/t3-picker/icons/terminal.svg").size(12).flex_none().text_color(t.muted))
           .child(div().flex_none().text_color(t.muted).child(item.program?.name ?? "Terminal"))
           .child(div().flex_none().child("·"))
           // As T3 marks a remote thread: a server icon, then the name.

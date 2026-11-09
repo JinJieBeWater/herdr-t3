@@ -1,13 +1,7 @@
 // A thing's details as T3's thread card, with its timing: for Inbox rows and tabs. scripts/sync.sh copies this to the mods that use it.
-import { div, image, svg } from "gpui-kit";
+import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
-
-// The program's icon from the app's table: a one-color glyph or a picture.
-export function programIcon(p, size, color) {
-  if (!p?.icon) return null;
-  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
-}
 
 // As T3's tooltip group: while a card is up, or was under 400ms ago, the next opens at once.
 export const detailsLive = (view) => Boolean(view.details) || Date.now() - (view.detailsClosed ?? 0) < 400;

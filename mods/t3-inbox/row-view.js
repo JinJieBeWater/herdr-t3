@@ -5,12 +5,12 @@ import { namer } from "./name.js";
 import { projectMark } from "./project.js";
 import { glow, tip, tipMark, keyOf } from "./tip.js";
 import { MOTION } from "./motion.js";
-import { programIcon, detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { detailsLive, detailsFor, detailsLine, detailsCard } from "./details.js";
+import { programIcon } from "./program.js";
 import { stop, within } from "./focus.js";
 import { snoozeButton } from "./snooze.js";
 import { SLIM } from "./list-view.js";
 
-const icon = programIcon;
 // The settle key: the layout's tab bar holds it; a standalone Inbox, its own command.
 const settleKey = () => keyOf("t3-tabs.settle") ? "t3-tabs.settle" : "t3-inbox.settle";
 
@@ -59,7 +59,7 @@ export function inboxRowView(view, t, model, actions, drag) {
   // A control lit in the row speaks for itself instead, as T3's group lets one tooltip up at a time: the card fades, up clear until the pointer goes.
   // The whole corner holds it, so the gap between two controls doesn't flash it.
   const details = (a) => {
-    const machine = machineOf(a), branch = branchOf(a), pic = icon(a.program, 12, t.muted);
+    const machine = machineOf(a), branch = branchOf(a), pic = programIcon(a.program, 12, t.muted);
     const up = view.details === a.address || view.detailsOut === a.address;
     return Popup.new(`details-${a.address}`, div()).absolute().top(-1).right(-1).size(1)
       .when(up && !view.napMenu && !dragging && !view.sweep?.moved, (pop) => pop.content(detailsCard(view, t, a.address, title(a), [
@@ -76,7 +76,7 @@ export function inboxRowView(view, t, model, actions, drag) {
     const machine = machineOf(a), branch = branchOf(a);
     // As T3's sidebar, a card says nothing of its sub-agents: its state takes theirs in (tree.js).
     const meta = branch ?? "";
-    const pic = icon(a.program, 14, t.muted);
+    const pic = programIcon(a.program, 14, t.muted);
     // Snooze is offered for anything not needing the person, working too, as T3's. A failed turn counts as needing them
     // here, and a mod pane has no terminal to hold the label.
     const canNap = !ghost && !a.mod && st !== "blocked", menu = canNap && view.napMenu === a.address;

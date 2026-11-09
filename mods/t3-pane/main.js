@@ -5,13 +5,14 @@
 // this pane. Props from the app: { pane, terminal }. Click: focus the pane.
 // Its sub-agents: a count in the header that opens their list, this mod again as a popup with { kids: terminal }.
 
-import { View, div, svg, image } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
 import { panes, terminals, agents, spaces, props, run, theme, home, openOverlay, closeOverlay, settings, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { agentKids, kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
-import { programIcon, detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
+import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
+import { programIcon } from "./program.js";
 import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, within, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
@@ -20,11 +21,6 @@ import { menuJump, scrollList } from "./list.js";
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
 const WORD = { working: "Working", blocked: "Needs you", idle: "Idle" };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-
-function icon(p, size, color) {
-  if (!p?.icon) return null;
-  return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
-}
 
 // Everything an agent started, a step in for each level, as the agents list nests them, each with its own status:
 // as T3's rows, one waiting on a stuck one under it is still at work, and that one says it's stuck.
@@ -51,7 +47,7 @@ function kidIcon(t, k, st) {
   const dot = st === "working" ? t.working : st === "blocked" ? t.blocked : t.muted + "73";
   // As the menus' icons, it hangs 2 into the padding and the gap.
   return div().relative().size(16).mx(-2).flex_none().flex().items_center().justify_center()
-    .child(icon(k.program, 16, t.muted) ?? svg("mods/workspace-chrome/terminal.svg").size(16).flex_none().text_color(t.muted))
+    .child(programIcon(k.program, 16, t.muted) ?? svg("mods/workspace-chrome/terminal.svg").size(16).flex_none().text_color(t.muted))
     .child(div().absolute().right(-4).bottom(-4).size(8).rounded_full().border(2).border_color(t.popover).bg(dot));
 }
 
@@ -240,7 +236,7 @@ export default class Pane extends View {
     if (!p) return div();
     // Home's default page says nothing of itself: the brand bar's lit mark tells where this is.
     const named = p.mod === "t3-home" ? "" : namer()(p);
-    const pic = icon(programOf(p), 14, t.muted);
+    const pic = programIcon(programOf(p), 14, t.muted);
     // A name that is only the program's says what its icon already does.
     const name = !p.mod && pic && named === p.program?.name ? "" : named;
     // Its agent with the sub-agents it started (tree.js).
