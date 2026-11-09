@@ -405,6 +405,17 @@ const load = (props = {}, setup = record) => {
   for (let i = 0; i < 2; i++) fire(wheeled, "on_scroll_wheel", { delta: { x: 0, y: 28 * zoom } }, cx);
   assert.deepEqual([branchRow(0)?.style.top, branchRow(4)], [0, null], "the wheel scrolls back up");
   assert.equal(branchRow(3).style.bg, theme.selected, "and the highlight comes along, to the last row in view");
+  // Only the rows drawn are built: 200 commits, four in view, build a few dozen elements, not one per commit.
+  const long = load({ ...menuProps, commits: Array.from({ length: 200 }, (_, i) => ({ sha: `s${i}`, subject: `fix: c${i}`, time: Date.now() })),
+    // Read once into a set: a scan per row per render grows with every commit not pushed.
+    unpushed: Object.assign(["s0"], { includes() { throw new Error("the unpushed set scanned in render"); } }) });
+  fire(find(long.mod.render(), "review-commit-list"), "on_size_change", { width: 500, height: 4 * 28 * zoom }, cx);
+  let built = 0;
+  for (const make of ["div", "h_flex", "v_flex", "svg"]) { const real = long.scope[make]; long.scope[make] = (...args) => (built++, real(...args)); }
+  const longMenu = long.mod.render();
+  assert.deepEqual([Boolean(find(longMenu, "review-commit-s3")), find(longMenu, "review-commit-s4")], [true, null]);
+  assert.ok(built < 100, `${built} elements for four rows`);
+  assert.deepEqual(strings(find(longMenu, "review-commit-s0")).slice(-2, -1), ["↑"], "not pushed");
   // The logo toggles: a press outside the popup closes it, before or just after the press reaches the bar; its click leaves it closed.
   const menus = () => overlays.length, logoButton = () => find(bar.render(), "review-pick");
   const pressLogo = () => fire(logoButton(), "on_mouse_down:left", { position: { x: 900, y: 20 } }, cx);

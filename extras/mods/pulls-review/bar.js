@@ -215,6 +215,8 @@ function reviewMatches(view) {
 export function initReviewMenu(view) {
   view.search = InputState.new({ placeholder: props().branches.length ? "Search commits and branches" : "Search commits" });
   view.at = 0;
+  // All the shas not pushed, which can far outnumber the menu's rows: looked up per row on every render.
+  view.unpushed = new Set(props().unpushed ?? []);
   view.tab = props().commits.length ? "commits" : "branches";
   view.search.on("change", (_e, cx) => {
     // A search that empties the page shown and not the other turns to the other.
@@ -243,7 +245,7 @@ function setTab(view, tab, cx) {
 
 // The logo's menu, this mod opened as an overlay with props.menu (main.js).
 export function reviewMenu(view) {
-  const t = theme(), { base, branch, height, upstream, unpushed = [] } = props(), { commits, branches } = reviewMatches(view);
+  const t = theme(), { base, branch, height, upstream } = props(), { commits, branches } = reviewMatches(view);
   const now = Date.now(), picks = menuPicks(view), lit = picks[view.at]?.id;
   // The card follows the highlight, by pointer or key: a commit's opens, anything else's closes it.
   const highlight = (at, cx) => {
@@ -269,9 +271,10 @@ export function reviewMenu(view) {
     })
     .on_mouse_move((e) => detailsAt(view, id, e))
     .role("button").accessibility_label(name).on_click(action).children(cells);
-  // Rows keep their handlers, as a virtual list's can't: a hovered commit opens its card. The wheel takes the highlight along, and a card moves off.
-  const list = (id, items) => scrollList(view, id, { count: items.length, row: MENU_ROW, at: items.findIndex(x => x.id === lit), draw: (i) => items[i].el, wheeled: (keep, cx) => {
-    if (keep >= 0) view.at = picks.findIndex(p => p.id === items[keep].id);
+  // Rows keep their handlers, as a virtual list's can't: a hovered commit opens its card. Only the rows in view are built.
+  // The list shown is the picks, row for row. The wheel takes the highlight along, and a card moves off.
+  const list = (id, count, draw) => scrollList(view, id, { count, row: MENU_ROW, at: view.at, draw, wheeled: (keep, cx) => {
+    if (keep >= 0) view.at = keep;
     view.hovered = null;
     detailsFor(view, null, cx);
   } }).flex_1().min_h(0);
@@ -295,9 +298,9 @@ export function reviewMenu(view) {
         .child(segment("commits", "Commits", commits.length)).child(segment("branches", "Branches", branches.length)))
       .child(div().flex_1()).child(div().min_w(0).truncate().text_size(12).text_color(t.dim).child(scope))))
     .when(!tabs, el => el.child(title(tab === "branches" ? `Branches vs ${base}` : branch === "(detached)" ? "Commits" : `Commits on ${branch}`)))
-    .when(tab === "branches", el => el.child(list("review-branches", branches.map(b => {
-      const id = `review-branch-${b.name}`;
-      return { id, el: row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
+    .when(tab === "branches", el => el.child(list("review-branches", branches.length, (i) => {
+      const b = branches[i], id = `review-branch-${b.name}`;
+      return row(id, `Review branch ${b.name}` + (b.count === undefined ? "" : `, ${b.count} ahead of ${base}`), (_e, cx) => openPick(branchArgs(b), cx), [
         svg("mods/pulls-review/icons/git-branch.svg").size(16).mx(-2).flex_none().text_color(t.dim),
         h_flex().flex_1().min_w(0).gap(8)
           .child(div().flex_none().max_w(160).truncate().child(b.name))
@@ -305,19 +308,18 @@ export function reviewMenu(view) {
         h_flex().flex_none().ml(4).gap(8).items_center().text_size(12).text_color(t.dim)
           .when(b.count !== undefined, el => el.child(`${b.count} ahead`))
           .child(b.time ? ago(b.time, now) : ""),
-        branchCard(view, t, id, b, base, now)]) };
-    }))))
-    .when(tab === "commits", el => el.child(list("review-commit-list", commits.map(c => {
-        const id = `review-commit-${c.sha}`, prefix = PREFIX.exec(c.subject)?.[0] ?? "", out = unpushed.includes(c.sha);
-        const r = row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : ""), (_e, cx) => openPick([c.sha], cx), [
+        branchCard(view, t, id, b, base, now)]);
+    })))
+    .when(tab === "commits", el => el.child(list("review-commit-list", commits.length, (i) => {
+        const c = commits[i], id = `review-commit-${c.sha}`, prefix = PREFIX.exec(c.subject)?.[0] ?? "", out = view.unpushed.has(c.sha);
+        return row(id, `Review commit ${c.subject}` + (out ? ", not pushed" : ""), (_e, cx) => openPick([c.sha], cx), [
           h_flex().flex_1().min_w(0).gap(4).when(Boolean(prefix), el => el.child(div().flex_none().text_color(t.dim).child(prefix.trim())))
             .child(div().flex_1().min_w(0).truncate().child(c.subject.slice(prefix.length))),
           h_flex().flex_none().ml(4).gap(8).items_center().text_size(12).text_color(t.dim)
             .when(out, el => el.child(div().text_color(t.ansi2).child("↑")))
             .child(c.time ? ago(c.time, now) : ""),
           commitCard(view, t, id, c, upstream, out, now)]);
-        return { id, el: r };
-      }))))
+      })))
     .when(!picks.length, el => el.child(div().p(8).text_center().text_color(t.dim).child("No matches")));
 }
 
