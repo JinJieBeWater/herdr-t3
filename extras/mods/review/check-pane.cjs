@@ -57,6 +57,11 @@ assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: tr
 const lines = (n) => Array.from({ length: n }, (_, i) => row("+", undefined, i + 1));
 const one = (n, notes = {}) => buildItems({ ...review, files: [file("x.ts", { hunks: [{ header: "@@", rows: lines(n) }] })] }, { key: "x", files: ["x.ts"], notes, children: [] }, opts);
 assert.deepEqual(kinds(one(70, { "x.ts": [{ text: "here", critical: false, anchor: { side: "additions", line: 40 } }] })), ["f", "h", "r32", "r8", "n(here)", "r30"]);
+// A line's notes come by its side and number, in the file's order: a split pair holds both sides', a context line only the additions'.
+const at = (side, line, text) => ({ text, critical: false, anchor: { side, line } });
+const both = { key: "g", files: ["a.ts"], children: [], notes: { "a.ts": [at("additions", 2, "new 2"), at("deletions", 2, "old 2"), at("deletions", 1, "old 1"), at("additions", 2, "new 2 again")] } };
+assert.deepEqual(kinds(buildItems(review, both, { ...opts, split: true })), ["f", "h", "r2", "n(new 2)", "n(old 2)", "n(new 2 again)"]);
+assert.deepEqual(kinds(buildItems(review, both, opts)), ["f", "h", "r2", "n(old 2)", "r1", "n(new 2)", "n(new 2 again)"]);
 const big = plain(one(20000));
 assert.ok(big.length < 1000 && big.filter(item => item.lines).every(item => item.size === item.lines.length * 20));
 assert.equal(big.reduce((n, item) => n + (item.lines?.length ?? 0), 0), 20000);

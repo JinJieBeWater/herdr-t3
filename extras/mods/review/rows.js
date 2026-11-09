@@ -180,6 +180,12 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
     // Split, an added or removed file has one side only: it takes the whole width rather than half.
     const solo = split && (file.status === "added" || file.status === "removed");
     const kind = !split ? "row" : solo ? "solo" : "pair";
+    // The anchored notes by the line they're on: each row looks up its own, not every note of the file.
+    const anchored = new Map();
+    for (const [i, note] of notes.entries()) {
+      const at = note.anchor && `${note.anchor.side}:${note.anchor.line}`;
+      if (at) anchored.set(at, [...anchored.get(at) ?? [], i]);
+    }
     for (const [h, hunk] of hunks.entries()) {
       if (hunk.header) push({ key: `h:${path}:${h}`, kind: "hunk", text: hunk.header }, HUNK);
       const lines = split && !solo ? pairRows(hunk.rows) : hunk.rows;
@@ -187,13 +193,13 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
       for (const [r, line] of lines.entries()) {
         if (!run || run.lines.length === RUN) { run = { key: `r:${path}:${h}:${r}`, kind, lines: [] }; items.push(run); }
         run.lines.push(line); run.size = run.lines.length * ROW;
+        if (!anchored.size) continue;
         const rows = kind === "pair" ? [line.left, line.right].filter(Boolean) : [line];
-        for (const [i, note] of notes.entries()) {
-          const at = note.anchor;
-          if (at && rows.some(row => at.side === "additions" ? row.kind !== "-" && row.new === at.line : row.kind === "-" && row.old === at.line)) {
-            push({ key: `n:${path}:${i}`, kind: "note", note, anchored: true }, noteHeight(note.text, width, true));
-            run = null;
-          }
+        // A removed line holds the deletions side's notes, any other the additions'; a pair's two sides, in the file's order.
+        const here = [...new Set(rows.flatMap(row => anchored.get(row.kind === "-" ? `deletions:${row.old}` : `additions:${row.new}`) ?? []))];
+        for (const i of here.sort((a, b) => a - b)) {
+          push({ key: `n:${path}:${i}`, kind: "note", note: notes[i], anchored: true }, noteHeight(notes[i].text, width, true));
+          run = null;
         }
       }
     }
