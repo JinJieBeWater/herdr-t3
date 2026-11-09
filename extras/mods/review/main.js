@@ -51,7 +51,7 @@ export default class ReviewPane extends View {
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
     this.startingUntil = 0; this.loading = null; this.loadId = 0;
     this.marks = 0; this.marking = 0;
-    this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.asked = new Set(); this.folded = new Set();
+    this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
     this.barsOn = false; this.barsRun = 0;
@@ -75,7 +75,7 @@ export default class ReviewPane extends View {
   open(page, cx) {
     if (page === this.page) return;
     // The old page stays on screen, dimmed and inert, until the new one's read replaces it: apply() then resets what belonged to it.
-    this.page = page; this.switching = Boolean(this.review); this.error = null; this.analyzeError = null; this.startingUntil = 0; this.asked.clear(); this.headerHidden = false;
+    this.page = page; this.switching = Boolean(this.review); this.error = null; this.analyzeError = null; this.startingUntil = 0; this.headerHidden = false;
     this.wasRunning = false; this.news = null;
     this.remember(); this.version++;
     this.load(cx);
@@ -244,7 +244,7 @@ export default class ReviewPane extends View {
 
   rowsWanted() {
     const g = this.switching ? null : this.group();
-    return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles(), this.asked) : [];
+    return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles()) : [];
   }
 
   // The file cut short whose end the list shows or nears, as many items on as a batch looks files ahead: its next page is due.
@@ -296,13 +296,13 @@ export default class ReviewPane extends View {
       this.colorsKey = JSON.stringify(colors(t));
       if (this.review) {
         for (const file of this.review.files) delete file.hunks;
-        this.asked.clear(); this.version++;
+        this.version++;
         this.load(cx);
       }
     }
-    // Files in view or just after have no rows (just opened, scrolled to, or changed since): ask for them, once per version;
+    // Files in view or just after have no rows (just opened, scrolled to, or changed since): ask for them, one read at a time;
     // or a file cut short nears its end: its next page. Not after a failed read (Retry and the slow timer read again) nor
-    // while a mark lands (its own read follows): a read then would fail or be dropped, give its files back, and ask again at once.
+    // while a mark lands (its own read follows): a read then would fail or be dropped, and ask again at once.
     if ((this.rowsWanted().length || this.pageWanted()) && !this.loading && !this.error && !this.marking) this.loadRows(cx);
     const wide = this.width >= WIDE, sidebar = this.sidebarShown(), group = this.group();
     // A group newly shown, however it came to be, opens its subgroups; its tab's caret folds them.

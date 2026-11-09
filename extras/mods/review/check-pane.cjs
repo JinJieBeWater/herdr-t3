@@ -94,15 +94,16 @@ clipRows(huge);
 assert.deepEqual(plain(huge[0].tokens.map(([text, color]) => [text.length, color])), [[1, "#fff"], [999, "#0f0"]]);
 assert.equal(contentWidth([{ kind: "row", lines: huge }]), contentWidth([long("a".repeat(1000))]));
 // A big group's rows run past the 8 MB a read carries: a read asks for the files in view and the 10 after them that have
-// none and weren't asked for, while they fit in 3000 changed lines, the first one always.
+// none, while they fit in 3000 changed lines, the first one always.
 const many = Array.from({ length: 40 }, (_, i) => ({ path: `f${i}`, sha: `s${i}`, additions: 500, deletions: 0 }));
 const fileAt = (p) => many.find(f => f.path === p), paths = many.map(f => f.path);
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(), new Set())), ["f0", "f1", "f2", "f3", "f4", "f5"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set())), ["f0", "f1", "f2", "f3", "f4", "f5"]);
 many[0].hunks = []; many[1].hunks = [];
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f20", "f21"]), new Set(["s22"]))), ["f20", "f21", "f23", "f24", "f25", "f26"]);
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f38"]), new Set())), ["f38", "f39"]);
+many[22].hunks = [];
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f20", "f21"]))), ["f20", "f21", "f23", "f24", "f25", "f26"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f38"]))), ["f38", "f39"]);
 many[30].additions = 9000;
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f30"]), new Set())), ["f30"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f30"]))), ["f30"]);
 // Split, an added file isn't paired: its rows are "solo", the whole width, measured on their own.
 const added = { ...review, files: [file("n.ts", { status: "added", hunks: [{ header: null, rows: [row("+", undefined, 1), row("+", undefined, 2)] }] })] };
 const soloItems = plain(buildItems(added, { key: "n", files: ["n.ts"], notes: {}, children: [] }, { ...opts, split: true }));
@@ -1183,12 +1184,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     return { p, scope };
   };
   {
-    // A rows read that fails gives its files back: Retry asks for them again, and they leave "Loading…".
+    // After a rows read that fails, Retry asks for its files again, and they leave "Loading…".
     const { p, scope } = await paneOf();
     delete p.fileAt("a.ts").hunks; p.version++;
     scope.review = () => Promise.reject(new Error("for now"));
     p.load(cx); await wait();
-    assert.ok(p.error === "for now" && !p.asked.has("a.ts"));
+    assert.equal(p.error, "for now");
     const asks = [];
     scope.review = (root, route, body) => { if (route === "/api/review") asks.push(body.rows); return daemon(root, route, body); };
     p.render(cx); await wait();
@@ -1197,14 +1198,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.deepEqual(plain(asks), [["a.ts"]]);
     assert.ok(!p.error && p.fileAt("a.ts").hunks && !p.items().some(i => i.loading));
     // So does one dropped because a reviewed mark landed meanwhile: the mark's own read asks for them.
-    delete p.fileAt("a.ts").hunks; p.asked.clear(); p.version++; asks.length = 0;
+    delete p.fileAt("a.ts").hunks; p.version++; asks.length = 0;
     let answer, mark;
     scope.review = (root, route, body) => route === "/api/review" ? (asks.push(body.rows), new Promise(r => { answer = () => r(daemon(root, route, body)); }))
       : route === "/api/review/reviewed" ? new Promise(r => { mark = r; }) : daemon(root, route, body);
     p.load(cx);
     p.setReviewed(p.fileAt("c.ts"), true, cx);
     answer(); await wait(); p.render(cx); await wait();
-    assert.ok(!p.asked.has("a.ts") && asks.length === 1, "dropped, and no read until the mark lands");
+    assert.equal(asks.length, 1, "dropped, and no read until the mark lands");
     scope.review = (root, route, body) => { if (route === "/api/review") asks.push(body.rows); return daemon(root, route, body); };
     mark({}); await wait();
     assert.deepEqual(plain(asks.at(-1)), ["a.ts"]);
@@ -1318,7 +1319,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     // A file asked for that comes back without rows, past what one read carries, is asked for again by the next read.
     const { p, scope } = await paneOf();
     for (const f of [p.fileAt("a.ts"), p.fileAt("c.ts")]) delete f.hunks;
-    p.asked.clear(); p.version++;
+    p.version++;
     const asks = [];
     scope.review = async (root, route, body) => {
       if (route !== "/api/review" && route !== "/api/review/rows") return daemon(root, route, body);
@@ -1331,6 +1332,33 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     p.load(cx); await wait(); p.render(cx); await wait();
     assert.deepEqual(plain(asks), [["/api/review", ["a.ts", "c.ts"]], ["/api/review/rows", ["c.ts"]]]);
     assert.ok(p.fileAt("a.ts").hunks && p.fileAt("c.ts").hunks);
+  }
+  {
+    // Two paths can hold one blob (a copied file): rows read for one leave the other to the next batch, not loading for good.
+    const twin = { ...review, files: [file("a.ts", { sha: "same" }), file("c.ts", { sha: "same" })], groups: [{ ...review.groups[0], files: ["a.ts", "c.ts"], notes: {}, children: [] }] };
+    const bare = ({ hunks, ...f }) => f;
+    const { p } = await paneOf({ review: async (_root, route, body) => {
+      // The first file asked for only, as past what one read carries.
+      if (route === "/api/review/rows") return { files: twin.files.filter(f => f.path === body.files[0]).map(({ path, sha, hunks }) => structuredClone({ path, sha, hunks })) };
+      return route === "/api/review" ? { ...structuredClone(twin), files: twin.files.map(bare) } : {};
+    } });
+    for (let i = 0; i < 3; i++) { p.render(cx); await wait(); }
+    assert.ok(p.fileAt("a.ts").hunks && p.fileAt("c.ts").hunks, "both paths read");
+  }
+  {
+    // A read that outlives the timeout: Retry asks for its rows again, rather than leave them to an answer that's dropped.
+    const { p, scope } = await paneOf();
+    delete p.fileAt("a.ts").hunks; p.version++;
+    const held = [];
+    scope.review = (root, route, body) => route === "/api/review" ? new Promise(r => held.push([body, () => r(daemon(root, route, body))])) : daemon(root, route, body);
+    timers.length = 0;
+    p.load(cx); tick();
+    assert.ok(p.error && !p.loading);
+    p.load(cx);
+    assert.deepEqual(plain(held.map(([body]) => body.rows)), [["a.ts"], ["a.ts"]]);
+    held[1][1](); await wait();
+    assert.ok(!p.error && p.fileAt("a.ts").hunks);
+    held[0][1](); await wait();
   }
   // The list draws only a window of its items, from `top`, as a scrolled v_virtual_list does.
   let top = 0;

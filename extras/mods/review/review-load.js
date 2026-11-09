@@ -74,10 +74,6 @@ export function loadReview(view, cx, poll = false) {
   view.dirty = false;
   // Rows only for the files in view or just after that have none: apply() keeps the rest, and each asked-for file is highlighted anew.
   const rows = poll || !group ? [] : view.rowsWanted();
-  // Asked until this read's answer is applied: one that fails or is dropped gives them back, for the next read to ask again.
-  const mine = (view.review?.files ?? []).filter(file => rows.includes(file.path) && !view.asked.has(file.sha)).map(file => file.sha);
-  for (const sha of mine) view.asked.add(sha);
-  let applied = false;
   const key = JSON.stringify(colors(t));
   cx.spawn(async (cx) => {
     try {
@@ -87,7 +83,7 @@ export function loadReview(view, cx, poll = false) {
       if (JSON.stringify(colors(theme())) !== key) { view.again = true; return; }
       // Read before a reviewed mark landed, it would undo the mark on screen: the mark's own read follows.
       if (view.marking || marks !== view.marks) return;
-      view.apply(r); applied = true;
+      view.apply(r);
       view.error = null; view.stale = false;
       watchReview(view, cx);
       // A rows read changes no commit, and the base's whole read can outweigh it.
@@ -107,11 +103,8 @@ export function loadReview(view, cx, poll = false) {
         else if (view.review?.analysis.state === "running") view.review.analysis = { ...view.review.analysis, state: "none", error: view.error };
       }
     }
-    finally {
-      // Applied, a file can still come back without rows: past the bytes one read carries, it's left for the next.
-      for (const sha of mine) if (!applied || !view.review?.files.some(f => f.sha === sha && f.hunks)) view.asked.delete(sha);
-      endRead(view, cx, id);
-    }
+    // A file can come back without rows, past the bytes one read carries: it's left for the next.
+    finally { endRead(view, cx, id); }
   });
 }
 
@@ -125,8 +118,7 @@ export function loadRows(view, cx) {
   if (!rows.length && !more) return;
   if (view.stale || view.loading) return view.load(cx);
   const { root, page, review: shown } = view, t = theme(), key = JSON.stringify(colors(t)), id = startRead(view, cx);
-  const whole = more && view.full.get(more), mine = shown.files.filter(file => rows.includes(file.path) && !view.asked.has(file.sha)).map(file => file.sha);
-  for (const sha of mine) view.asked.add(sha);
+  const whole = more && view.full.get(more);
   cx.spawn(async (cx) => {
     try {
       const r = whole
@@ -158,10 +150,7 @@ export function loadRows(view, cx) {
     } catch (e) {
       // A batch a daemon without the route (an older one) or a failed read didn't bring: the whole page brings it, or says why.
       if (id === view.loadId) { if (more) view.error = e?.message ?? String(e); else view.stale = view.again = true; }
-    } finally {
-      for (const sha of mine) if (!view.review?.files.some(f => f.sha === sha && f.hunks)) view.asked.delete(sha);
-      endRead(view, cx, id);
-    }
+    } finally { endRead(view, cx, id); }
   });
 }
 
