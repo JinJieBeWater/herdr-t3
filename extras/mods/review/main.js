@@ -207,10 +207,11 @@ export default class ReviewPane extends View {
    * Brings an item's top to the list's top, exactly. The list scrolls only to the near edge: an item above the view lands at
    * the top, one below at the bottom. So below, first bottom-align the first item a view's height past it, which puts this
    * one just over the top; once that frame is drawn, scroll to this one, now above the view, so its top lands at the top.
+   * Rows arriving in between rebuild the list: the item is found again by its key, and brought up afresh.
    */
   scrollToTop(index, cx) {
     const sizes = [...this.items().map(item => item.size), this.trailing()], start = this.visible?.start ?? 0;
-    const token = this.settling = {};
+    const token = this.settling = {}, key = this.itemList[index]?.key, built = this.itemsId;
     if (index <= start) return this.scroll.scroll_to_item(index);
     let last = index, height = sizes[index];
     // A pixel's margin, so a rounded height still carries it past the top.
@@ -220,6 +221,9 @@ export default class ReviewPane extends View {
     let tries = 0;
     const settle = (cx) => {
       if (this.settling !== token) return;
+      const at = this.items().findIndex(item => item.key === key);
+      if (at < 0) return;
+      if (this.itemsId !== built) return this.scrollToTop(at, cx);
       if (this.frames > drawn) { this.scroll.scroll_to_item(index); cx.notify(); }
       else if (++tries < 30) cx.timer.after(8, settle);
     };

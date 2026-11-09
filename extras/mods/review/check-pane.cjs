@@ -1219,5 +1219,20 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.equal(tree()[0], "tree-f-f500.ts");
     setPref("fileList", "tree");
   }
+  {
+    // A file picked while rows arrive for the files before it: its header still lands at the top, not another's.
+    const files = Array.from({ length: 20 }, (_, i) => ({ ...file(`f${i}.ts`, { additions: 100, deletions: 0 }), hunks: undefined }));
+    const many = { ...review, files, groups: [{ key: "g", label: "G", files: files.map(f => f.path), missing: [], notes: {}, children: [] }] };
+    const { p, scope } = await paneOf({ review: async () => structuredClone(many) });
+    const held = [];
+    scope.review = (_root, _route, body) => new Promise(r => held.push(() => r({ ...structuredClone(many),
+      files: many.files.map(f => body.rows.includes(f.path) ? { ...f, hunks: [{ header: "@@", rows: lines(100) }] } : f) })));
+    p.load(cx); timers.length = 0; calls.length = 0;
+    p.select("f15.ts", cx);
+    held[0](); await wait();
+    for (let i = 0; i < 3; i++) { p.frames++; tick(); }
+    const scrolled = calls.filter(([name]) => name === "scroll").at(-1)[1];
+    assert.equal(p.items()[scrolled].key, "f:f15.ts");
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
