@@ -1,7 +1,7 @@
 // Where a review opens, and opening it: `open` in this folder's config.json picks the fork's daemon (in a Herdr pane, the
 // installed app or the browser) or the official CLI.
 
-import { panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
+import { spaces, panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
 import { argPage, git, reviewLocation, spaceReview } from "./bar.js";
 import { focusPane } from "./zoom.js";
 
@@ -68,7 +68,9 @@ async function official(root, args, page) {
 
 // One review pane per space: an open one, in any of its tabs, is focused and told the new page. With none, per the pane's
 // "Open in" setting, a tab of its own or a split off the focused pane. `analyze` reaches the pane either way.
-function herdr(root, page, analyze) {
+function herdr(root, page, analyze, space) {
+  // The space changed while this read: its review would land in the new space's pane.
+  if (activeSpace() !== space) return;
   if (page === "/") throw new Error("Nothing to review on the default branch: pick a diff in the Review bar.");
   const open = spaceReview(), wanted = { root, page, n: Date.now(), analyze: Boolean(analyze) };
   if (open) {
@@ -85,8 +87,10 @@ function herdr(root, page, analyze) {
 // Opens a review: `{ root, args, page, analyze }` from the Review bar for one diff (analyzed by AI in the fork), its menu's
 // `overlay` closed when done; else the focused pane's worktree: its uncommitted changes when there are any, else what
 // pulls.review opens by default.
+const activeSpace = () => spaces().find(s => s.active)?.id;
+
 export async function launch(input) {
-  const fail = (body) => notify({ title: "pulls.review", body, level: "error" });
+  const fail = (body) => notify({ title: "pulls.review", body, level: "error" }), space = activeSpace();
   try {
     let { root } = input;
     if (!root) {
@@ -102,7 +106,7 @@ export async function launch(input) {
     const mode = await readMode();
     if (mode === "official") return await official(root, args, input.page);
     // The pane starts the analysis itself, and only with its Analyze automatically setting on, as the app never does unasked.
-    if (mode === "herdr") return herdr(root, input.page ?? await pageFor(root, args), input.analyze);
+    if (mode === "herdr") return herdr(root, input.page ?? await pageFor(root, args), input.analyze, space);
     // `--analyze` starts the AI analysis, or follows the one running; the official CLI has no such flag.
     const r = await cli("jin.review", ["-d", ...(mode === "pwa" ? ["--pwa"] : []), ...(input.analyze ? ["--analyze"] : []), ...args], { cwd: root });
     if (r.code !== 0) fail((r.stderr || r.stdout).trim() || `exit ${r.code}`);

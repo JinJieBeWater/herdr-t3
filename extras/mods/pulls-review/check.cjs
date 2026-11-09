@@ -395,6 +395,16 @@ const load = (props = {}, setup = record) => {
   pressLogo(); fire(logoButton(), "on_click", {}, run); fire(logoButton(), "on_click", {}, run); await reading;
   assert.equal(menus(), menusBefore + 2);
   delete state["pulls-review.menuClosed"];
+  // Focus moving to another repository while git reads: no menu of this one over it.
+  const readPicks = scope.readPicks;
+  let release;
+  scope.readPicks = (picked) => new Promise(done => { release = () => done(readPicks(picked)); });
+  fire(logoButton(), "on_click", {}, run);
+  Object.assign(shown, { pane: "p9", cwd: "/other" });
+  release(); await reading;
+  assert.equal(menus(), menusBefore + 2, "a stale read opens nothing");
+  Object.assign(shown, { pane: "p1", cwd: undefined });
+  scope.readPicks = readPicks;
   // Enter takes the top row, or the first a search leaves.
   let enter, query = "";
   const placeholders = [];
@@ -512,6 +522,15 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(newSplit.map(([name, args]) => [name, args.direction, args.pane, args.props.analyze]), [["pane.split", "right", "p1", true]], "the default is a split");
   assert.equal((await opens({}))[0][1].props.analyze, false);
   assert.equal(state.review, undefined, "a new pane has no request to read");
+  // Switching space while it reads: the review stays out of the new space's pane.
+  let config;
+  opener.readTextFile = () => new Promise(done => { config = done; });
+  opener.panes = panesWith("r"); calls.length = 0;
+  const late = opener.launch({ root: "/repo", args: [], page: "/branch/feat" });
+  opener.spaces = () => twoTabs().map(s => ({ ...s, active: !s.active })); opener.panes = panesWith("x");
+  config('{ "open": "herdr" }'); await late;
+  assert.deepEqual([plain(calls), state.review], [[], undefined], "started in one space, nothing done in another");
+  opener.readTextFile = env.readTextFile; opener.spaces = twoTabs;
 
   // A review pane starts only when shown and shared outlives the app, so a run's word from before a restart would spin on
   // in its tab and its Inbox row. The bar, always shown, drops it; only the bar: an overlay opens with every menu.

@@ -380,9 +380,11 @@ export function reviewBar(view, t, stopPress) {
     view.pressAt = null;
     if (closing || view.readingPicks) return;
     view.readingPicks = true;
+    const from = JSON.stringify(reviewLocation());
     cx.spawn(async () => { try {
       const { commits, branches, unpushed } = await readPicks(r);
-      if (!commits.length && !branches.length) return;
+      // Focus moved on while git read: this repo's menu would hang over another's.
+      if (JSON.stringify(reviewLocation()) !== from || !commits.length && !branches.length) return;
       // Tall enough for the longer page, so turning pages doesn't resize it; one page alone has a title instead of the switch.
       const tabs = branches.length > 0 && commits.length > 0;
       const height = Math.min(368, menuChrome(tabs) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * MENU_ROW);
