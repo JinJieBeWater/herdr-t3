@@ -62,6 +62,40 @@ const at = (side, line, text) => ({ text, critical: false, anchor: { side, line 
 const both = { key: "g", files: ["a.ts"], children: [], notes: { "a.ts": [at("additions", 2, "new 2"), at("deletions", 2, "old 2"), at("deletions", 1, "old 1"), at("additions", 2, "new 2 again")] } };
 assert.deepEqual(kinds(buildItems(review, both, { ...opts, split: true })), ["f", "h", "r2", "n(new 2)", "n(old 2)", "n(new 2 again)"]);
 assert.deepEqual(kinds(buildItems(review, both, opts)), ["f", "h", "r2", "n(old 2)", "r1", "n(new 2)", "n(new 2 again)"]);
+{
+  // A batch's rows, a page more, a fold, a whole file or a note rebuild only that file's items: kept from the last build in
+  // `parts`, the others are the same objects. A group of a thousand files was rebuilt whole on every one.
+  const files = [file("a.ts"), file("c.ts")], r = { ...review, files }, g = { key: "g", files: ["a.ts", "c.ts"], notes: {}, children: [] };
+  const o = { ...opts, collapsed: new Set(), full: new Map(), parts: new Map() }, body = (list, path) => list.filter(i => i.path === path && i.kind !== "file");
+  const kept = (before, after, path) => body(before, path).length > 0 && body(before, path).every((item, i) => item === body(after, path)[i]);
+  const steps = [
+    ["rows", "c.ts", () => { files[1].hunks = structuredClone(files[1].hunks); }],
+    ["a page", "c.ts", () => { files[1].hunks.push({ rows: [row("+", undefined, 3)] }); }],
+    ["a page of the last hunk", "c.ts", () => { const h = files[1].hunks.at(-1); h.rows = h.rows.concat([row("+", undefined, 4)]); }],
+    ["cut short", "c.ts", () => { files[1].clipped = true; }],
+    ["a note", "a.ts", () => { g.notes = { "a.ts": [{ text: "new", critical: false }] }; }],
+    ["a whole file", "a.ts", () => { o.full.set("a.ts", { rows: [row(" ", 1, 1)] }); }],
+    ["a fold", "c.ts", () => { o.collapsed.add("c.ts"); }],
+  ];
+  let last = buildItems(r, g, o), unfolded = last;
+  for (const [what, path, change] of steps) {
+    change();
+    const next = buildItems(r, g, o), other = path === "a.ts" ? "c.ts" : "a.ts";
+    assert.ok(kept(last, next, other), `${what}: the other file kept`);
+    assert.ok(!kept(last, next, path), `${what}: its file rebuilt`);
+    assert.deepEqual(plain(next), plain(buildItems(r, g, { ...o, parts: new Map() })), `${what}: as built afresh`);
+    if (!o.collapsed.size) unfolded = next;
+    last = next;
+  }
+  // Opened again, a folded file's items are the ones it had.
+  o.collapsed.delete("c.ts");
+  last = buildItems(r, g, o);
+  assert.ok(kept(unfolded, last, "c.ts"), "opened again, kept");
+  // A read that brings the same rows in new file objects keeps them, with the header on the new file.
+  r.files = files.map(f => ({ ...f }));
+  const reread = buildItems(r, g, o);
+  assert.ok(kept(last, reread, "c.ts") && reread.find(i => i.key === "f:c.ts").file === r.files[1]);
+}
 const big = plain(one(20000));
 assert.ok(big.length < 1000 && big.filter(item => item.lines).every(item => item.size === item.lines.length * 20));
 assert.equal(big.reduce((n, item) => n + (item.lines?.length ?? 0), 0), 20000);
@@ -1396,6 +1430,24 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     held.at(-1)(); await wait();
     assert.equal(color(), "#222222");
     scope.theme = light;
+  }
+  {
+    // How far code scrolls sideways, kept per file, is what measuring the whole list gives: a fold takes its long line away.
+    const { p } = await paneOf();
+    p.view = 1000;
+    p.fileAt("c.ts").hunks = [{ header: "@@", rows: [{ kind: "+", new: 1, tokens: [["x".repeat(500)]] }] }];
+    const whole = () => pref("split") ? ["left", "right", "solo"].map(side => contentWidth(p.items(), side)) : [0, 0, contentWidth(p.items())];
+    const split = pref("split");
+    for (const mode of [false, true]) {
+      setPref("split", mode);
+      p.collapsed.delete("c.ts"); p.version++; p.items();
+      const open = plain(p.sideWidth);
+      assert.deepEqual(open, plain(whole()));
+      p.collapsed.add("c.ts"); p.version++; p.items();
+      assert.deepEqual(plain(p.sideWidth), plain(whole()));
+      assert.ok(Math.max(...p.sideWidth) < Math.max(...open), "folded, narrower");
+    }
+    setPref("split", split);
   }
   {
     // A folded file's rows aren't read until it's opened: folding a big file is how to keep it off the pane's back.

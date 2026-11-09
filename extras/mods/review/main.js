@@ -51,7 +51,7 @@ export default class ReviewPane extends View {
     this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
     this.startingUntil = 0; this.loading = null; this.loadId = 0;
     this.marks = 0; this.marking = 0;
-    this.collapsed = new Set(); this.full = new Map(); this.seen = new Set(); this.folded = new Set();
+    this.collapsed = new Set(); this.full = new Map(); this.parts = new Map(); this.seen = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
     this.barsOn = false; this.barsRun = 0;
@@ -82,7 +82,7 @@ export default class ReviewPane extends View {
   }
 
   // No review shown, or none yet: what belonged to the last one goes with it.
-  forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.shift = [0, 0, 0]; }
+  forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.parts.clear(); this.shift = [0, 0, 0]; }
 
   // The window active and this pane's tab the one shown.
   onScreen() { return appWindow()?.active !== false && spaces().some(s => s.active && s.tabs.some(c => c.id === this.tab && c.active)); }
@@ -168,19 +168,34 @@ export default class ReviewPane extends View {
 
   headerPress(file, x, cx) { return headerPress(this, file, x, cx); }
 
-  // Rebuilt only when something it shows changed: render runs on every live change in Herdr.
+  // Rebuilt only when something it shows changed: render runs on every live change in Herdr. Of the files, only those whose
+  // items changed are built again (`parts`); the rest of a group of thousands is joined as it was.
   items() {
     const split = this.splitShown(), group = this.group(), id = `${this.version}:${this.groupKey}:${split}:${Math.round(this.view / 40)}`;
     if (id !== this.itemsId) {
       // Kept only once all of it is built: a throw part way would leave the list and its lookups out of step, never rebuilt.
-      const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view }) : [];
-      const widths = split ? ["left", "right", "solo"].map(side => contentWidth(list, side)) : [0, 0, contentWidth(list)];
-      const files = new Map(list.map(item => [item.key, item.path]));
+      const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view, parts: this.parts }) : [];
+      // In one pass: the heights v_virtual_list takes (the trailing blank's last), the height from the last header on, and
+      // how wide the code runs, from each open file's widths, measured once per build of its items.
+      const measure = (items) => split ? ["left", "right", "solo"].map(side => contentWidth(items, side)) : [0, 0, contentWidth(items)];
+      const sizes = [], widths = measure([]);
+      let tail = 0;
+      for (const item of list) {
+        sizes.push(item.size);
+        if (item.kind === "file" || item.kind === "group") tail = 0;
+        tail += item.size;
+        const part = item.kind === "file" && !this.collapsed.has(item.path) && this.parts.get(item.path);
+        if (part) (part.widths ??= measure(part.items)).forEach((w, i) => { widths[i] = Math.max(widths[i], w); });
+      }
+      sizes.push(0);
       // The range last drawn was another list's: until this one draws, scrollToTop mustn't go by it.
-      this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.itemFile = files;
+      this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.sizes = sizes; this.tail = tail;
     }
     return this.itemList;
   }
+
+  // The list's heights as v_virtual_list takes them, the blank after the items last.
+  listSizes() { const trailing = this.trailing(); this.sizes[this.sizes.length - 1] = trailing; return this.sizes; }
 
   // How far code can scroll sideways: a split side (0 left, 1 right), or the full-width rows (2: unified ones, or a split
   // view's added and removed files), as far as its longest line runs past its width.
@@ -198,12 +213,7 @@ export default class ReviewPane extends View {
   }
 
   // The blank after the list, so its last header can still reach the top: a view's height less what follows that header.
-  trailing() {
-    const items = this.items(), total = items.reduce((n, item) => n + item.size, 0);
-    let top = 0, last = 0;
-    for (const item of items) { if (item.kind === "file" || item.kind === "group") last = top; top += item.size; }
-    return Math.max(0, Math.ceil(this.diffHeight - (total - last)));
-  }
+  trailing() { this.items(); return Math.max(0, Math.ceil(this.diffHeight - this.tail)); }
 
   /**
    * Brings an item's top to the list's top, exactly. The list scrolls only to the near edge: an item above the view lands at
@@ -212,7 +222,7 @@ export default class ReviewPane extends View {
    * Rows arriving in between rebuild the list: the item is found again by its key, and brought up afresh.
    */
   scrollToTop(index, cx) {
-    const sizes = [...this.items().map(item => item.size), this.trailing()], start = this.visible?.start ?? 0;
+    const sizes = this.listSizes(), start = this.visible?.start ?? 0;
     const token = this.settling = {}, key = this.itemList[index]?.key, built = this.itemsId;
     if (index <= start) return this.scroll.scroll_to_item(index);
     let last = index, height = sizes[index];
@@ -386,7 +396,7 @@ export default class ReviewPane extends View {
   // The files whose rows the list last drew, as the app marks the files in view.
   visibleFiles() {
     const { start = 0, end = 0 } = this.visible ?? {};
-    return new Set((this.itemList ?? []).slice(start, end).filter(item => item.kind !== "group").map(item => this.itemFile.get(item.key)));
+    return new Set((this.itemList ?? []).slice(start, end).filter(item => item.kind !== "group").map(item => item.path));
   }
 
   spied() { return this.review ? JSON.stringify([this.asideGroup()?.key, [...this.visibleFiles()], [...this.visibleGroups()], this.atTop(), this.stickyFile()?.path, this.pageWanted()]) : ""; }

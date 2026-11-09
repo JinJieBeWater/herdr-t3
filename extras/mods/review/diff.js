@@ -40,7 +40,7 @@ function spans(tokens) {
 // The file at the view's top (or its group's header) is brought back there, as folding the bodies above it would carry the view elsewhere.
 export function foldAll(view, { collapse, applies }, cx) {
   const top = (view.itemList ?? [])[view.visible?.start ?? 0];
-  const anchor = top && (top.kind === "group" ? top.key : `f:${view.itemFile.get(top.key)}`);
+  const anchor = top && (top.kind === "group" ? top.key : `f:${top.path}`);
   for (const f of view.review.files) if (applies(f)) collapse ? view.collapsed.add(f.path) : view.collapsed.delete(f.path);
   view.version++; view.closePopup(cx);
   const index = anchor ? view.items().findIndex(item => item.key === anchor) : -1;
@@ -151,7 +151,7 @@ export function diffView(view, t) {
       // A row reports only its key: where the press landed says which part of a file's header it was for.
       .on_mouse_down("left", (event) => { view.pressX = (event.local_position?.x ?? 0) / zoom(); view.pressY = (event.local_position?.y ?? 0) / zoom(); })
       // A blank after the items (trailing) lets the last header reach the top.
-      .child(v_virtual_list("review-diff", items.length + 1, [...items.map(item => item.size), view.trailing()], (i) => items[i]?.key ?? "end",
+      .child(v_virtual_list("review-diff", items.length + 1, view.listSizes(), (i) => items[i]?.key ?? "end",
         // The range drawn is the only word on where the list is scrolled, and its frames on when a scroll has landed.
         (range) => {
           view.visible = range; view.frames++;
@@ -161,7 +161,7 @@ export function diffView(view, t) {
         .on_item_click((key, cx) => {
           // A press on the stuck header lands on the row under it too: the header has it.
           if (view.stuck && view.pressY < FILE) return;
-          const file = view.review.files.find(f => f.path === view.itemFile.get(key));
+          const path = view.itemList.find(item => item.key === key)?.path, file = view.review.files.find(f => f.path === path);
           if (!file) return;
           if (key.startsWith("f:")) view.headerPress(file, view.pressX ?? 0, cx);
           view.select(file.path, cx, { scroll: false });
