@@ -1363,6 +1363,27 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     held[0][1](); await wait();
   }
   {
+    // A theme change recolors a whole file too: one shown is read again in the new colors, one read in the old is dropped.
+    const { p, scope } = await paneOf(), light = scope.theme, held = [];
+    scope.review = (root, route, body) => route === "/api/review/file"
+      ? new Promise(r => held.push(() => r({ rows: [{ kind: " ", old: 1, new: 1, tokens: [["x", body.colors.foreground]] }] })))
+      : daemon(root, route, body);
+    const color = () => p.full.get("a.ts")?.rows[0].tokens[0][1];
+    p.toggleFull(p.fileAt("a.ts"), cx); held[0](); await wait();
+    assert.equal(color(), "#eeeeee");
+    scope.theme = () => ({ ...light(), foreground: "#111111" }); p.render(cx); await wait();
+    held.at(-1)(); await wait();
+    assert.equal(color(), "#111111", "shown, read again");
+    p.toggleFull(p.fileAt("a.ts"), cx); p.toggleFull(p.fileAt("a.ts"), cx);
+    const before = held.at(-1);
+    scope.theme = () => ({ ...light(), foreground: "#222222" }); p.render(cx); await wait();
+    before(); await wait();
+    assert.notEqual(color(), "#111111", "in flight, dropped");
+    held.at(-1)(); await wait();
+    assert.equal(color(), "#222222");
+    scope.theme = light;
+  }
+  {
     // A folded file's rows aren't read until it's opened: folding a big file is how to keep it off the pane's back.
     const { p } = await paneOf();
     delete p.fileAt("a.ts").hunks; p.collapsed.add("a.ts"); p.version++;

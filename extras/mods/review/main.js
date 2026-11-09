@@ -296,6 +296,10 @@ export default class ReviewPane extends View {
       this.colorsKey = JSON.stringify(colors(t));
       if (this.review) {
         for (const file of this.review.files) delete file.hunks;
+        // A whole file shown has them too: it's read again, still shown.
+        const whole = [...this.full.keys()];
+        this.full.clear();
+        for (const path of whole) { const file = this.fileAt(path); if (file) this.toggleFull(file, cx); }
         this.version++;
         this.load(cx);
       }

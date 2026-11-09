@@ -85,14 +85,14 @@ export function toggleFull(view, file, cx) {
   if (view.full.has(file.path) && !view.full.get(file.path)) return;
   if (view.full.has(file.path)) { view.full.delete(file.path); view.version++; cx.notify(); return; }
   view.full.set(file.path, null);
-  const { root, page } = view;
+  const { root, page } = view, key = JSON.stringify(colors(theme()));
   cx.spawn(async (cx) => {
     // The answer as it comes, `{ rows, truncated }`: past the bytes a read carries, the rows stop short of the file's end.
     let whole = null, error = null;
     try { const r = await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) }); clipRows(r.rows); whole = r; }
     catch (e) { error = e?.message ?? String(e); }
-    // Another diff opened meanwhile, or this file changed (which dropped the ask): these rows are the old one's.
-    if (root !== view.root || page !== view.page || view.full.get(file.path) !== null || view.fileAt(file.path)?.sha !== file.sha) return;
+    // Another diff opened meanwhile, this file changed (which dropped the ask), or the theme did (which asked again): these rows are the old one's.
+    if (root !== view.root || page !== view.page || view.full.get(file.path) !== null || view.fileAt(file.path)?.sha !== file.sha || JSON.stringify(colors(theme())) !== key) return;
     if (whole) { view.full.set(file.path, whole); view.collapsed.delete(file.path); } else { view.full.delete(file.path); view.error = error; }
     view.version++;
     cx.notify();
