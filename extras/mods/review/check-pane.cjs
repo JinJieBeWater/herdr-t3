@@ -73,13 +73,15 @@ const tree = plain(fileRows(["packages/cli/src/a.ts", "packages/cli/src/daemon/b
 assert.deepEqual(tree.map(r => `${"  ".repeat(r.depth)}${r.type}:${r.name}`), ["folder:packages/cli/src", "  file:a.ts", "  folder:daemon", "    file:b.ts", "file:README.md", "folder:gone", "  missing:c.ts"]);
 assert.deepEqual(tree[0].paths, ["packages/cli/src/a.ts", "packages/cli/src/daemon/b.ts"]);
 assert.deepEqual(plain(fileRows(["x/a.ts"], [], "list")), [{ key: "file:x/a.ts", depth: 0, type: "file", name: "x/a.ts", path: "x/a.ts" }]);
-// The code widens to its longest line (CJK counts double), unified rows or one split side, and stops at MAX_COLUMNS.
+// The code widens to its longest line (CJK counts double), unified rows or one split side.
 const long = (text) => ({ kind: "row", lines: [{ kind: "+", tokens: [[text]] }] });
 assert.equal(contentWidth([long("a".repeat(100))]), Math.ceil(92 + 100 * 7.25 + 16));
 assert.equal(contentWidth([long("测".repeat(50))]), contentWidth([long("a".repeat(100))]));
 const sides = [{ kind: "pair", lines: [{ left: { tokens: [["a".repeat(10)]] }, right: { tokens: [["a".repeat(100)]] } }, { left: { tokens: [["a"]] } }] }];
 assert.deepEqual([contentWidth(sides, "left"), contentWidth(sides, "right"), contentWidth(sides)], [Math.ceil(52 + 10 * 7.25 + 16), Math.ceil(52 + 100 * 7.25 + 16), 108]);
-assert.equal(contentWidth([long("a".repeat(5000))]), contentWidth([long("a".repeat(1000))]));
+// As wide as a cut line draws: its 1000 characters run to 2000 columns of CJK, or 4000 of tabs.
+assert.equal(contentWidth([{ kind: "row", lines: clipRows([{ kind: "+", tokens: [["测".repeat(5000)]] }]) }]), Math.ceil(92 + 2000 * 7.25 + 16));
+assert.equal(contentWidth([{ kind: "row", lines: clipRows([{ kind: "+", tokens: [["\t".repeat(5000)]] }]) }]), Math.ceil(92 + 4000 * 7.25 + 16));
 // A row is measured once: the list is rebuilt, and measured again, on every batch of rows that arrives.
 {
   let reads = 0;

@@ -3,7 +3,7 @@
 
 // Heights on one scale: 20 a code line, 24 a hunk, 28 a group, 32 a file.
 export const ROW = 20, HUNK = 24, GROUP = 28, FILE = 32, NOTE_LINE = 18;
-// One column of 12px JetBrains Mono; past MAX_COLUMNS a line is cut, not scrolled to.
+// One column of 12px JetBrains Mono; past MAX_COLUMNS characters a line is cut, not scrolled to.
 export const CHAR = 7.25, MAX_COLUMNS = 1000;
 // Code lines go to the list in runs of up to this many, one item each: Herdr's v_virtual_list takes at most 10000 items,
 // which a group of a few thousand changed lines passes when each line is one.
@@ -15,8 +15,9 @@ export const codeInset = (split) => split ? 52 : 92;
 
 // Wide (CJK and up) counts 2: a BMP character is 1 unit plus 1 here; an astral one, 2 units (surrogates aren't matched).
 const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g;
-// Kept on the row: a row's tokens don't change once clipped, and the list is rebuilt, and measured, on every batch of rows.
-const columns = (row) => row ? row.columns ??= Math.min(MAX_COLUMNS, row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0)) : 0;
+// As drawn, so past a clipped line's wide characters and tabs it still scrolls to its end. Kept on the row: its tokens don't
+// change once clipped.
+const columns = (row) => row ? row.columns ??= row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0) : 0;
 
 // A group's rows run past the 8 MB one read carries: a read asks for at most ROW_BUDGET changed lines, from the files in view
 // and the LOOKAHEAD after them, so the rest come as the list reaches them. As the daemon's FIRST_ROWS for an open.
