@@ -22,15 +22,15 @@ const columns = (row) => row ? row.columns ??= Math.min(MAX_COLUMNS, row.tokens.
 // and the LOOKAHEAD after them, so the rest come as the list reaches them. As the daemon's FIRST_ROWS for an open.
 export const ROW_BUDGET = 3000, LOOKAHEAD = 10;
 
-/** The paths of a read's rows: in view or just after, without rows, while they fit (the first always). */
-export function rowsToAsk(paths, fileAt, inView) {
+/** The paths of a read's rows: in view or just after, without rows and not folded, while they fit (the first always). */
+export function rowsToAsk(paths, fileAt, inView, collapsed) {
   let first = -1, last = -1;
   paths.forEach((path, i) => { if (inView.has(path)) { if (first < 0) first = i; last = i; } });
   const out = [];
   let lines = 0;
   for (const path of paths.slice(Math.max(first, 0), Math.max(last, 0) + LOOKAHEAD + 1)) {
     const f = fileAt(path);
-    if (!f || f.hunks) continue;
+    if (!f || f.hunks || collapsed.has(path)) continue;
     const size = f.additions + f.deletions;
     if (out.length && lines + size > ROW_BUDGET) break;
     out.push(path); lines += size;

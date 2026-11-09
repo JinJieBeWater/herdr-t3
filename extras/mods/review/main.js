@@ -244,7 +244,7 @@ export default class ReviewPane extends View {
 
   rowsWanted() {
     const g = this.switching ? null : this.group();
-    return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles()) : [];
+    return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles(), this.collapsed) : [];
   }
 
   // The file cut short whose end the list shows or nears, as many items on as a batch looks files ahead: its next page is due.

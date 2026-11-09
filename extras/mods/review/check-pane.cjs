@@ -94,16 +94,16 @@ clipRows(huge);
 assert.deepEqual(plain(huge[0].tokens.map(([text, color]) => [text.length, color])), [[1, "#fff"], [999, "#0f0"]]);
 assert.equal(contentWidth([{ kind: "row", lines: huge }]), contentWidth([long("a".repeat(1000))]));
 // A big group's rows run past the 8 MB a read carries: a read asks for the files in view and the 10 after them that have
-// none, while they fit in 3000 changed lines, the first one always.
+// none and aren't folded, while they fit in 3000 changed lines, the first one always.
 const many = Array.from({ length: 40 }, (_, i) => ({ path: `f${i}`, sha: `s${i}`, additions: 500, deletions: 0 }));
 const fileAt = (p) => many.find(f => f.path === p), paths = many.map(f => f.path);
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set())), ["f0", "f1", "f2", "f3", "f4", "f5"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(), new Set())), ["f0", "f1", "f2", "f3", "f4", "f5"]);
 many[0].hunks = []; many[1].hunks = [];
 many[22].hunks = [];
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f20", "f21"]))), ["f20", "f21", "f23", "f24", "f25", "f26"]);
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f38"]))), ["f38", "f39"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f20", "f21"]), new Set(["f24"]))), ["f20", "f21", "f23", "f25", "f26", "f27"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f38"]), new Set())), ["f38", "f39"]);
 many[30].additions = 9000;
-assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f30"]))), ["f30"]);
+assert.deepEqual(plain(rowsToAsk(paths, fileAt, new Set(["f30"]), new Set())), ["f30"]);
 // Split, an added file isn't paired: its rows are "solo", the whole width, measured on their own.
 const added = { ...review, files: [file("n.ts", { status: "added", hunks: [{ header: null, rows: [row("+", undefined, 1), row("+", undefined, 2)] }] })] };
 const soloItems = plain(buildItems(added, { key: "n", files: ["n.ts"], notes: {}, children: [] }, { ...opts, split: true }));
@@ -956,7 +956,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   await settle(); await settle(); // The folder mark above, and the read after it.
   const shownFiles = groupFiles(pane.group()), first = shownFiles[0], target = () => pane.review.files.find(f => f.path === first);
   for (const f of pane.review.files) if (shownFiles.includes(f.path)) f.hunks ??= [];
-  delete target().hunks;
+  delete target().hunks; pane.collapsed.delete(first);
   pane.load(cx); await settle();
   assert.deepEqual(plain(bodies.at(-1).rows), [first]);
   // A read that says what the one shown does changes nothing: the list isn't rebuilt, and its files stay the ones marks change.
@@ -1359,6 +1359,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     held[1][1](); await wait();
     assert.ok(!p.error && p.fileAt("a.ts").hunks);
     held[0][1](); await wait();
+  }
+  {
+    // A folded file's rows aren't read until it's opened: folding a big file is how to keep it off the pane's back.
+    const { p } = await paneOf();
+    delete p.fileAt("a.ts").hunks; p.collapsed.add("a.ts"); p.version++;
+    assert.deepEqual(plain(p.rowsWanted()), []);
+    p.collapsed.delete("a.ts"); p.version++;
+    assert.deepEqual(plain(p.rowsWanted()), ["a.ts"]);
   }
   // The list draws only a window of its items, from `top`, as a scrolled v_virtual_list does.
   let top = 0;
