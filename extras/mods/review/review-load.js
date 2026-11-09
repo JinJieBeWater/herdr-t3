@@ -22,19 +22,20 @@ async function touchesDiff(root, paths) {
   return r?.code !== 0 || r.stdout.trim().split("\n").length < files.length;
 }
 
+// Each watch its own: one left waiting on a root the pane went away from and came back to must end, not run beside the new one.
 function watchReview(view, cx) {
   const root = view.root;
-  if (view.watching === root) return;
-  view.watching = root;
+  if (view.watching?.root === root) return;
+  const me = view.watching = { root };
   cx.spawn(async (cx) => {
     try {
-      while (view.watching === root) {
+      while (view.watching === me) {
         const paths = await watchFolder(root);
-        if (view.watching === root && await touchesDiff(root, paths)) view.refresh(cx);
+        if (view.watching === me && await touchesDiff(root, paths)) view.refresh(cx);
         // At most one change read a second: what changes meanwhile comes in the next batch.
         await new Promise(resolve => cx.timer.after(1000, resolve));
       }
-    } catch { view.watching = null; }
+    } catch { if (view.watching === me) view.watching = null; }
   });
 }
 

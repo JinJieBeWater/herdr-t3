@@ -1234,5 +1234,19 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     const scrolled = calls.filter(([name]) => name === "scroll").at(-1)[1];
     assert.equal(p.items()[scrolled].key, "f:f15.ts");
   }
+  {
+    // Away to another worktree and back before the first's watch returns: one watch goes on there, not two.
+    const watched = [];
+    const { p } = await paneOf({ watchFolder: (root) => new Promise((resolve, reject) => watched.push({ root, resolve, reject })) });
+    const to = async (root) => { p.root = root; p.watching = null; p.forget(); p.load(cx); await wait(); };
+    await to("/other"); await to("/repo");
+    timers.length = 0;
+    for (const w of watched.filter(w => w.root === "/repo")) w.resolve(["/repo/.git/refs/heads/fix"]);
+    await wait(); tick(); await wait();
+    assert.equal(watched.filter(w => w.root === "/repo").length, 3, "the first, the second, and the second's next");
+    // And the other worktree's watch failing late leaves this one's be.
+    watched.find(w => w.root === "/other").reject(new Error("late")); await wait();
+    assert.equal(p.watching?.root, "/repo");
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
