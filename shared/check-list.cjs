@@ -90,10 +90,12 @@ const shown = (list) => list.items.map((n) => [n.key, n.style.top]);
   assert.deepEqual(shown(list(6)).at(-1), [6, 50], "the pointer gone, the lit row comes into view");
 }
 
-// Not known, it's measured, in zoomed pixels: every row until then, none scrolled.
+// Not known, it's measured, in zoomed pixels: a tall screen's rows until then, none scrolled. A review's file tree runs to a
+// thousand rows, and drawing them all ran its render past Herdr's limit; interrupted, it was never measured, and drew them all again.
 {
   const v = {}, list = () => scrollList(v, "l", { count: 20, row: 10, at: 9, draw, wheeled() {} });
   assert.equal(list().items.length, 20);
+  assert.equal(scrollList({}, "l", { count: 1000, row: 10, draw }).items.length, 200);
   list().handlers.on_size_change({ height: 40 * zoom }, cx);
   assert.deepEqual(shown(list()).map((r) => r[0]), [6, 7, 8, 9]);
 }

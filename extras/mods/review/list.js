@@ -29,8 +29,10 @@ export function menuJump(view, e, labels, at) {
 
 // A list that keeps the highlight in view: a scroll area can't be told to scroll, and a virtual list's rows can't hold handlers.
 // Every row is `row` px apart and only those in view are drawn. `at`: the highlighted row, or -1 if it's not in this list.
-// `height`: the list's, when the caller knows it; else the caller sizes the list and it's measured, every row drawn until then.
+// `height`: the list's, when the caller knows it; else the caller sizes the list and it's measured, a tall screen's rows drawn
+// until then: a render that draws a thousand rows runs past Herdr's limit, and one interrupted is never measured.
 // `wheeled(keep, cx)`: the wheel moved the list; put the highlight on row `keep` (-1: it's not in this list), or the next frame scrolls back to it.
+const UNMEASURED = 2000;
 /** @param {any} view @param {string} id @param {{ count: number, row: number, at?: number, height?: number, draw: any, wheeled?: any }} options */
 export function scrollList(view, id, { count, row, at = -1, height, draw, wheeled }) {
   const seen = height ?? view.listHeight?.[id], max = seen === undefined ? 0 : Math.max(0, count * row - seen);
@@ -39,7 +41,7 @@ export function scrollList(view, id, { count, row, at = -1, height, draw, wheele
   const pointed = view.pointerY?.[id] === undefined ? -1 : Math.floor((view.pointerY[id] + top) / row);
   if (at >= 0 && at < count && at !== pointed && seen !== undefined) top = Math.max(0, Math.min(top, at * row, max), (at + 1) * row - seen);
   view.scrollTop = { ...view.scrollTop, [id]: top };
-  const first = seen === undefined ? 0 : Math.floor(top / row), end = seen === undefined ? count : Math.min(count, Math.ceil((top + seen) / row));
+  const first = seen === undefined ? 0 : Math.floor(top / row), end = Math.min(count, Math.ceil((top + (seen ?? UNMEASURED)) / row));
   const rows = [];
   for (let i = first; i < end; i++) rows.push(draw(i).absolute().left(0).right(0).top(i * row - top));
   return div().id(id).relative().overflow_hidden()
