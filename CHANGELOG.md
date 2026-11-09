@@ -4,6 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-09
 
+- Inbox: with Working folded, its header sits as far from Snoozed's as Snoozed's from Settled's. It used to sit 5px further.
+
 - Lists: Agents rows no longer show a remote machine icon between the title and controls. Hover a row to see the machine's name in its details.
 
 - Program icons follow Herdr's official artwork throughout the layout, preserving each component's icon size and the artwork's original whitespace and colors.

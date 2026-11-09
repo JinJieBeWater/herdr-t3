@@ -115,7 +115,8 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
         view.workOpen = !view.workOpen;
         localStorage.setItem("working-open", String(view.workOpen));
       }).on_mouse_move((_e, cx) => aim(null, cx))))
-      .child(v_flex().py(2).gap(CARD_GAP).children(busyRows.map((a) => fly(a.address, "work", card(a))))));
+      // Folded, no wrapper: its py(2) and the gap before it would open Working's header 5px further from Snoozed's.
+      .when(busyRows.length > 0, (el) => el.child(v_flex().py(2).gap(CARD_GAP).children(busyRows.map((a) => fly(a.address, "work", card(a)))))));
   // T3's Snoozed shelf, between Working and Settled. Nothing lands on it, so its header takes no drop.
   const napShelf = v_flex().id("snoozed").gap(STACK).flex_none()
     .child(fly("m:snoozed", "marker", shelf("snoozed-header", "Snoozed", nap.length, view.napOpen, () => {
