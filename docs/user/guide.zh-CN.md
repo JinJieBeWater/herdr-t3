@@ -6,7 +6,7 @@
 
 ## 功能
 
-- **两种侧栏，一键切换**（`cmd-shift-b`）：Inbox 按注意力组织，Lists 按项目组织，切换方式相同。Settle、Snooze 藏起工作中的 agent、关闭当前 agent 后回到 Home，都只属于 Inbox；在 Lists 里关闭它会回到你之前看的标签。标签栏也不同。
+- **两种侧栏，一键切换**（`cmd-shift-b`）：Inbox 按注意力组织，Lists 按项目组织，`cmd-]` 和 `cmd-[` 在两边都能逐个走。Settle、Snooze 藏起工作中的 agent、关闭当前 agent 后回到 Home，都只属于 Inbox；在 Lists 里关闭它会回到你之前看的标签。标签栏也不同。
   - Spaces：只在不寻常时显示仓库、分支和领先/落后；worktree 折叠在所属仓库下，checkout 开没开都一样；机器多于一台时按机器分组。
   - Agents：按 space 或按优先级分组，可置顶，子 agent 缩进在父级下。
   - Inbox：T3 式 Settle。需要你的 agent 以卡片留在上方；结束的由你手动 Settle 进底部的安静列表，有新工作时自动回来。工作中的 agent 折叠进 Working 收纳区。Snooze 把任何不需要你的 agent 藏到你选的时间。

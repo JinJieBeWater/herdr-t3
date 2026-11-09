@@ -6,7 +6,7 @@ Each part in more detail than the [README](../../README.md).
 
 ## Features
 
-- **Two sidebars, one key apart** (`cmd-shift-b`): Inbox organizes by attention and Lists by project, walked the same way. Settle, Snooze hiding a working agent, and landing on Home when the agent in view is closed are Inbox's; in Lists, closing it goes back to the tab you were on before. The tab bar differs too.
+- **Two sidebars, one key apart** (`cmd-shift-b`): Inbox organizes by attention and Lists by project; `cmd-]` and `cmd-[` walk either one. Settle, Snooze hiding a working agent, and landing on Home when the agent in view is closed are Inbox's; in Lists, closing it goes back to the tab you were on before. The tab bar differs too.
   - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their repo, checkout open or not; grouped by machine once there's more than one.
   - Agents: grouped by space or by priority, pins, sub-agents nested under their parent.
   - Inbox: T3-style Settle. Agents that need you stay up top as cards; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf. Snooze hides any agent that doesn't need you until a time you pick.

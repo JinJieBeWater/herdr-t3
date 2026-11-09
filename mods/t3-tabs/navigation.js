@@ -270,16 +270,35 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     const listed = new Map(every.map(a => [a.address, a.status]));
     const state = (a) => treeStatus(ownStatus(a.status, a.address, terms), descendants(terms, a.address).map(k => kidStatus(k, listed)));
     states = new Map(every.map(a => [a.address, state(a)]));
+    const viewed = inViewAgent(terms, every);
     for (const a of every) {
       const k = terms.find(k => k.address === a.address);
       if (!k?.labels?.snoozed || now - (waking.get(a.address) ?? -Infinity) < 10000) continue;
       const failed = k.status === "error" || descendants(terms, a.address).some(d => d.status === "error");
-      const turned = active && a.focused && states.get(a.address) === "working" && ["idle", "done"].includes(was.get(a.address));
+      const turned = active && a.address === viewed && states.get(a.address) === "working" && ["idle", "done"].includes(was.get(a.address));
       if (!failed && !turned) continue;
       // Once per 10s: the label takes a moment to come back, and a refused write mustn't retry, and tell, on every frame.
       waking.set(a.address, now);
       writeLabel(a.address, "snoozed", "");
     }
+  }
+
+  // The agent in view, as the Inbox's row in view (t3-inbox/row-model.js inboxInView): the focused one; else a sub-agent with
+  // no row of its own (a block, a peek) stands for its nearest agent; a mod pane for the agent beside it, unless it has a card.
+  function inViewAgent(terms, every) {
+    const own = every.find(a => a.focused);
+    if (own) return own.address;
+    const f = focused(), byAddress = new Map(terms.map(k => [k.address, k])), listed = (k) => every.some(a => a.address === k.address);
+    if (f?.pane && !f.terminal) {
+      const p = panes().find(p => p.pane === f.pane);
+      if (p?.mod && programOf(p)?.inbox) return null;
+      const here = every.filter(a => a.tab === f.tab);
+      return (here.find(a => a.address === f.agent) ?? here[0])?.address ?? null;
+    }
+    const seen = new Set();
+    let k = byAddress.get(f?.pane ? f.terminal : f?.agent ?? f?.terminal);
+    while (k && !listed(k) && !seen.has(k.address)) { seen.add(k.address); k = byAddress.get(k.parent); }
+    return k && listed(k) ? k.address : null;
   }
 
   // With the Inbox showing, cards lead to the agents, so the bar holds what's around the work in view: the agent, its

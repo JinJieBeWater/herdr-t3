@@ -598,6 +598,14 @@ async function check() {
     assert.equal(said(), 0, "work out of view isn't the person's: it stays snoozed");
     kb.status = "error"; quiet.frame();
     assert.equal(said(), 1, "a failure ends it");
+
+    // A peek at its sub-agent is it in view, as in the Inbox: the work given there ends the parent's snooze.
+    const h = fixture(), [p] = h.agents(), [kp] = h.terminals(), peek = h.navigation();
+    p.status = "idle"; p.focused = false; kp.labels = { snoozed: String(Date.now() + 3600000) };
+    const kid = { address: "kid", parent: "t0", state: "live", status: "idle", program: p.program };
+    h.terminals().push(kid); Object.assign(h.shown, { agent: "kid", pane: undefined, terminal: undefined });
+    peek.frame(); kid.status = "working"; peek.frame();
+    assert.deepEqual(h.labelled.filter(l => l[2].startsWith("snoozed=")).map(l => l.join(" ")), ["label t0 snoozed="], "peeked at: the snooze ends");
   }
   console.log("ok: navigation Home, close order, history, visible tabs, zoom, unread repayment and retries.");
 }

@@ -1003,6 +1003,11 @@ test("an agent brought into view that the space filter hides widens it, as T3's 
   assert.ok(f.active().includes("B"));
   f.mod.pick({ id: "s1" }, false, f.cx); f.render(1200);
   assert.deepEqual([...f.mod.scope], ["s1"], "picked while B is in view, the filter holds");
+  // Moving about in Lists isn't bringing a card into view: the Inbox's filter stays.
+  f.mode = "lists"; b.focused = false; a.focused = true; f.render(1300);
+  a.focused = false; b.focused = true; f.render(1400);
+  assert.deepEqual([[...f.mod.scope], f.data.get("scope")], [["s1"], "[\"s1\"]"], "Lists leave the filter alone");
+  f.mode = "inbox";
   // A fresh inbox (a reload) leaves the filter as it was, as T3's mount doesn't widen.
   const g = fixture(), c = g.add("C", "idle"); c.space = "s2"; c.focused = true; g.mod.scope = ["s1"]; g.render();
   assert.deepEqual([...g.mod.scope], ["s1"]);
