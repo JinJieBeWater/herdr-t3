@@ -4,6 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-09
 
+- Inbox and Agents: remote machine marks no longer open a separate tooltip. Hover the card or row to see the machine's name in its details.
+
 - Review bar: a commit or branch picked from the logo's menu loads in the Review pane. It used to wait 30 seconds and fail with a timeout, while a count's click worked.
 - Review: fixes and speed-ups from a second review of its code. Some need jin.review 0.3.4-fork.8.
   - Files with the same content, such as several identical `tsconfig.json`, each load their diff. All but the first could stay on `Loading…`. Retry after a read timed out asks for the missing diffs again.

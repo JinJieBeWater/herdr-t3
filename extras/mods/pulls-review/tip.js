@@ -134,7 +134,7 @@ export function hoverKept(view, key, id, el) {
   }).on_mouse_move((e) => { pointerMoved(e.position); if (view[key] === id) view.keptBox = e.bounds; });
 }
 
-// A mark with no words of its own (a status, a machine) says what it is on hover too, lit only to show its label.
+// A mark with no words of its own says what it is on hover, unless the row's details already do.
 export function tipMark(view, t, id, label, mark, options) {
   if (!label) return mark;
   const lit = div().id(id).flex_none().on_hover(glow(view, id)).child(mark);

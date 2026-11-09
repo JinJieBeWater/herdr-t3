@@ -765,6 +765,26 @@ test("a card's marks sit on its third line when it has one, else on the title's"
   assert.ok(find(lineOf(f.tree, "m1/B"), "machine-m1/B"), "no third line: the title's line carries it");
 });
 
+test("remote marks leave the whole row's machine details visible, without their own tooltip", () => {
+  for (const mode of ["inbox", "agents"]) {
+    const f = fixture(); f.add("m1/A", "blocked");
+    const render = mode === "inbox" ? () => f.render() : f.loadAgents();
+    const rowId = `${mode === "inbox" ? "card" : "ag"}-m1/A`;
+    find(render(), rowId).handlers.on_hover(true, f.cx);
+    f.render(f.now + 150); f.render(f.now + 34);
+    let tree = render();
+    const mark = find(tree, "machine-m1/A");
+    assert.ok(mark, `${mode}: the remote mark stays`);
+    mark.handlers.on_hover?.(true, f.cx);
+    find(tree, "tip-over-machine-m1/A")?.handlers.on_hover(true, f.cx);
+    tree = render();
+    const details = find(tree, "details-card-m1/A");
+    assert.ok(texts(details).includes("m1"), `${mode}: the row's details name the machine`);
+    assert.deepEqual(details.style.opacity, [1], `${mode}: hovering the mark keeps those details visible`);
+    assert.equal(find(tree, "tip-machine-m1/A"), null, `${mode}: no duplicate machine tooltip`);
+  }
+});
+
 test("a space's monogram is its first glyph, in T3's color for the same name", () => {
   const f = fixture(), run = (code) => vm.runInContext(code, f.context);
   // T3's own cases (apps/mobile/src/lib/projectIcon.test.ts), its colors as Tailwind's 400.

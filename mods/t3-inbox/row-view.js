@@ -86,12 +86,8 @@ export function inboxRowView(view, t, model, actions, drag) {
     // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, in color only so nothing reflows.
     const leads = on || ghost || st === "blocked" || st === "done" || woke(a);
     const marks = machine || pic ? h_flex().gap(4).flex_none().items_center()
-      // Another machine's agent, as in T3: a server mark before its program, the machine named on hover.
-      .when(Boolean(machine), (el) => {
-        const server = div().when(!ghost, (m) => m.id(`machine-${a.address}`).on_hover(glow(view, `machine-${a.address}`)).accessibility_label(`On ${machine}`))
-          .flex_none().child(svg("mods/t3-inbox/icons/server.svg").size(14).text_color(t.dim));
-        return el.child(ghost ? server : tip(view, t, `machine-${a.address}`, machine, server, { delay }));
-      })
+      .when(Boolean(machine), (el) => el.child(div().when(!ghost, (m) => m.id(`machine-${a.address}`).accessibility_label(`On ${machine}`))
+        .flex_none().child(svg("mods/t3-inbox/icons/server.svg").size(14).text_color(t.dim))))
       .when(Boolean(pic), (el) => el.child(div().flex_none().opacity(0.6).child(pic))) : null;
     // Hovered, the corner offers Settle, but only for what's finished: a working or stuck tree stays in sight.
     const offer = over && !busy(a);

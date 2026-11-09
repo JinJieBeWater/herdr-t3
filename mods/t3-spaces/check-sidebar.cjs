@@ -504,7 +504,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // A card from another machine says so as T3's does: a server mark before its program, the machine named on hover.
   const f = fixture(256), root = f.load("t3-inbox").render(cx);
   const card = find(root, "card-vps/t2"), mark = find(card, "machine-vps/t2");
-  assert.ok(strings(find(root, "tip-machine-vps/t2")).includes("vps") === false && find(root, "tip-machine-vps/t2"), "its card waits for the hover");
+  assert.equal(find(root, "tip-machine-vps/t2"), null, "the row's details name the machine, with no separate tooltip");
   assert.ok(walk(mark).some(n => n.source === "mods/t3-inbox/icons/server.svg"));
   assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
@@ -1820,7 +1820,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(card("vps/t2").style.opacity, 1, "unfaded");
     assert.deepEqual(strings(card("vps/t2")).slice(1), ["P", "project 2", "vps", "main", "Pi"], "another machine's names it");
     const labelDelay = (id) => { fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", true, cx); const { ms } = cx.timers.at(-1); fire(find(inbox.render(cx), `tip-over-${id}`), "on_hover", false, cx); return ms; };
-    assert.equal(labelDelay("machine-vps/t2"), 0, "a control's label in the row opens at once too");
+    assert.equal(labelDelay("settle-t0"), 0, "a control's label in the row opens at once too");
     hover("t0", false);
     assert.ok(card("vps/t2"), "the late leave of the row before doesn't close it");
     hover("vps/t2", false);
@@ -1830,7 +1830,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(anchor("vps/t2"), null, "then it's gone");
     hover("t0", true);
     assert.equal(card("t0").style.opacity, 1, "within 400ms the next still opens at once");
-    inbox.hot = "machine-t0";
+    inbox.hot = "settle-t0";
     assert.deepEqual([card("t0").style.opacity, card("t0").style.left], [0, -4], "a lit control's own label speaks instead: the card fades back toward the row");
     inbox.hot = null;
     assert.equal(card("t0").style.opacity, 1, "and it's back with the pointer on the row");
@@ -1840,7 +1840,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(card("t0"), undefined);
     hover("t0", false);
     inbox.detailsClosed = Date.now() - 400;
-    assert.equal(labelDelay("machine-vps/t2"), 150, "past 400ms a label waits again");
+    assert.equal(labelDelay("settle-t0"), 150, "past 400ms a label waits again");
     hover("t0", true);
     assert.equal(card("t0"), undefined, "and so does the card");
     pass(150);

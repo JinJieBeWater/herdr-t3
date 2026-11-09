@@ -222,7 +222,6 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
     const fromKid = st !== "idle" && st !== own(a);
     const when = view.since(a);
     const lead = h_flex().size(16).flex_none().items_center().justify_center().when(Boolean(pic), el => el.child(pic));
-    const server = svg("mods/t3-agents/icons/server.svg").size(14).flex_none().text_color(t.dim);
     const time = div().flex_none().text_size(12).text_color(t.dim).opacity(offer ? 0 : 1).transition("opacity", MOTION).when(Boolean(when), el => el.child(duration(now - when)));
     const base = h_flex()
       .relative()
@@ -243,8 +242,8 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       .child(h_flex().flex_1().min_w(0).gap(10).items_center()
         .child(div().min_w(0).truncate().when(on || st === "blocked" || st === "done", (el) => el.font_medium()).text_color(leads ? t.foreground : t.muted).child(name))
         .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
-      // As Inbox's cards and T3's: a server mark, the machine named on hover.
-      .when(Boolean(machine), el => el.child(ghost ? server : tipMark(view, t, `machine-${a.address}`, machine, server)))
+      .when(Boolean(machine), el => el.child(svg("mods/t3-agents/icons/server.svg").size(14).flex_none().text_color(t.dim)
+        .when(!ghost, m => m.id(`machine-${a.address}`).accessibility_label(`On ${machine}`))))
       .child(h_flex().when(!ghost, el => el.id(`controls-${a.address}`)).flex_none().items_center().gap(4)
         .when(subs.length > 0, el => el.child(fold(a, subs, ghost)))
         // The time and the pin share one slot, T3's corner, so hovering moves nothing else.
