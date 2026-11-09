@@ -23,7 +23,7 @@ const load = (file, env) => {
 // Values made in another realm compare unequal to this one's: compare them as JSON.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const rows = load("rows.js", {});
-const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk })", rows);
+const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD })", rows);
 
 const row = (kind, old, next) => ({ kind, old, new: next, tokens: [[`${kind}${old ?? ""}:${next ?? ""}`]] });
 // A run of deletions faces the additions after it; context faces itself.
@@ -158,12 +158,14 @@ const env = {
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
   run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
-  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk,
-  // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going.
+  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, groupFiles, buildItems, pageLabel, contentWidth, fileRows, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD,
+  // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going. A later batch's
+  // rows come on their own.
   review: async (_root, route, body) => {
     routes.push(route);
     if (route === "/api/review") bodies.push(body);
     if (route === "/api/review/status") return { running: false };
+    if (route === "/api/review/rows") return { files: review.files.filter(f => body.files.includes(f.path)).map(({ path, sha, hunks }) => ({ path, sha, hunks })) };
     const wanted = [...body.rows ?? [], ...body.firstRows ? groupFiles(review.groups[0]) : []];
     return route !== "/api/review" ? {} : { ...review, files: review.files.map(({ hunks, ...f }) => wanted.includes(f.path) ? { ...f, hunks } : { ...f }) };
   },
@@ -1114,9 +1116,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   delete fresh.rowsWanted;
   // A daemon too old for `firstRows` ignores it: drawing the first group asks for its rows, once.
   const oldReads = [];
-  const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, _route, body) => {
-    oldReads.push(body.rows);
-    return { ...review, files: review.files.map(({ hunks, ...f }) => body.rows.includes(f.path) ? { ...f, hunks } : { ...f }) };
+  const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, route, body) => {
+    const asked = body.rows ?? body.files;
+    oldReads.push(asked);
+    const files = review.files.map(({ hunks, ...f }) => asked.includes(f.path) ? { ...f, hunks } : { ...f });
+    return route === "/api/review/rows" ? { files: files.filter(f => f.hunks) } : { ...review, files };
   } }).Mod)();
   older.init({}, cx); await wait(); older.render(cx); await wait(); older.render(cx); await wait();
   assert.deepEqual(plain(oldReads), [[], ["a.ts", "b.png", "c.ts"]]);
@@ -1317,15 +1321,108 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     p.asked.clear(); p.version++;
     const asks = [];
     scope.review = async (root, route, body) => {
-      if (route !== "/api/review") return daemon(root, route, body);
-      asks.push(body.rows);
+      if (route !== "/api/review" && route !== "/api/review/rows") return daemon(root, route, body);
+      const asked = body.rows ?? body.files;
+      asks.push([route, asked]);
       const r = await daemon(root, route, body);
       // The first file asked for only.
-      return { ...r, files: r.files.map(({ hunks, ...f }) => f.path === body.rows[0] ? { ...f, hunks } : f) };
+      return { ...r, files: r.files.flatMap(({ hunks, ...f }) => f.path === asked[0] ? [{ ...f, hunks }] : route === "/api/review" ? [f] : []) };
     };
     p.load(cx); await wait(); p.render(cx); await wait();
-    assert.deepEqual(plain(asks), [["a.ts", "c.ts"], ["c.ts"]]);
+    assert.deepEqual(plain(asks), [["/api/review", ["a.ts", "c.ts"]], ["/api/review/rows", ["c.ts"]]]);
     assert.ok(p.fileAt("a.ts").hunks && p.fileAt("c.ts").hunks);
+  }
+  // The list draws only a window of its items, from `top`, as a scrolled v_virtual_list does.
+  let top = 0;
+  const windowed = { v_virtual_list: (_id, count, _sizes, _key, render) => { render({ start: top, end: Math.min(count, top + 40) }).forEach(Boolean); return element(); } };
+  {
+    // Scrolling a big group, a batch's rows come on their own, not inside the page's every file and group again. The old
+    // read's cost is replayed beside each: the same rows inside the whole page, as the daemon answered them before.
+    const files = Array.from({ length: 1554 }, (_, i) => ({ ...file(`apps/web/src/features/module-${Math.floor(i / 20)}/component-${i}.tsx`, { additions: 40, deletions: 0 }), hunks: undefined }));
+    const hunks = () => [{ header: "@@ -0,0 +1,40 @@", rows: Array.from({ length: 40 }, (_, k) => ({ kind: "+", new: k + 1, tokens: [["const ", "#ff00ff"], [`value${k}`], [" = ", "#888888"], [`"${k}"`, "#00ff00"]] })) }];
+    const group = (key, list) => ({ key, label: key, category: "core", critical: false, missing: [], notes: {}, children: [], files: list.map(f => f.path) });
+    const page = { ...review, files, groups: [group("code", files.slice(0, 1164)), group("docs", files.slice(1164))] };
+    const whole = (rows) => ({ ...page, files: files.map(f => rows.includes(f.path) ? { ...f, hunks: hunks() } : f) });
+    const before = [], after = [], reads = [];
+    const { p } = await paneOf({ ...windowed, review: async (_root, route, body) => {
+      reads.push(route);
+      if (route === "/api/review") return structuredClone(whole([...body.rows, ...body.firstRows ? page.groups[0].files.slice(0, 75) : []]));
+      if (route !== "/api/review/rows") return {};
+      const now = { files: body.files.map(path => ({ path, sha: path, hunks: hunks() })) };
+      before.push(JSON.stringify(whole(body.files)).length); after.push(JSON.stringify(now).length);
+      return now;
+    } });
+    top = 0;
+    for (let n = 0; n < 500 && p.items().some(i => i.loading); n++) { top = p.items().findIndex(i => i.loading); p.render(cx); await wait(); }
+    assert.ok(page.groups[0].files.every(path => p.fileAt(path).hunks), "the whole group read");
+    assert.deepEqual(reads.filter(r => r === "/api/review").length, 1, "only the open reads the page");
+    const kb = (list) => Math.round(list.reduce((a, b) => a + b, 0) / list.length / 1024), mb = (list) => (list.reduce((a, b) => a + b, 0) / 1e6).toFixed(1);
+    console.log(`big group, ${after.length} batches: before ${kb(before)} KB a batch (${mb(before)} MB in all), after ${kb(after)} KB (${mb(after)} MB)`);
+    assert.ok(Math.max(...after) * 3 < Math.min(...before), "a batch carries its rows, not the page");
+    top = 0;
+  }
+  {
+    // A file cut short, past what one read carries, is read to its end as the list nears it: page by page, each from the
+    // row the last stopped top, a page's first hunk going on from the last. A daemon whose diff moved on reads the page again.
+    const total = 170000, size = 50000;
+    const slice = (from) => {
+      const rows = Array.from({ length: Math.min(size, total - from) }, (_, k) => ({ kind: "+", new: from + k + 1, tokens: [["1"]] }));
+      return { hunks: [from ? { rows } : { header: "@@ -0,0 +1,170000 @@", rows }], ...from + rows.length < total ? { clipped: true } : {} };
+    };
+    const big = { ...file("big.js", { status: "added", additions: total, deletions: 0 }), hunks: undefined };
+    const page = { ...review, files: [big], groups: [{ key: "g", label: "G", category: "core", critical: false, missing: [], notes: {}, children: [], files: ["big.js"] }] };
+    const froms = [], wholes = [];
+    let stale = 1, empty = false;
+    const { p } = await paneOf({ ...windowed, review: async (_root, route, body) => {
+      if (route === "/api/review") return { ...structuredClone(page), files: [{ ...big, ...body.firstRows || body.rows.includes("big.js") ? slice(0) : {} }] };
+      if (route === "/api/review/rows") {
+        if (body.from && stale-- > 0) return { stale: true };
+        froms.push(body.from);
+        return { files: [{ path: "big.js", sha: "big.js", ...empty ? { hunks: [], clipped: true } : slice(body.from) }] };
+      }
+      if (route === "/api/review/file") {
+        const from = body.from ?? 0;
+        wholes.push(from);
+        const rows = Array.from({ length: Math.min(size, total - from) }, (_, k) => ({ kind: " ", old: from + k + 1, new: from + k + 1, tokens: [["1"]] }));
+        return { rows, ...from + rows.length < total ? { truncated: true } : {} };
+      }
+      return {};
+    } });
+    const cutRow = () => p.items().find(i => i.key === "e:big.js:cut");
+    assert.ok(cutRow().loading && cutRow().text === "Loading…", "more to come");
+    // Far from its end, no page is asked for.
+    top = 0; p.render(cx); await wait();
+    assert.deepEqual(froms, []);
+    const scroll = async () => { for (let n = 0; n < 20 && cutRow()?.more; n++) { top = p.items().indexOf(cutRow()); p.render(cx); await wait(); } };
+    await scroll();
+    assert.deepEqual(froms, [50000, 100000, 150000], "after the page read again, from where each stopped");
+    const shown = p.fileAt("big.js").hunks;
+    assert.ok(shown.length === 1 && shown[0].rows.every((r, i) => r.new === i + 1) && shown[0].rows.length === total, "end to end, in order");
+    assert.ok(!cutRow() && !p.fileAt("big.js").clipped);
+    // The whole file, cut short too, pages the same way.
+    p.toggleFull(p.fileAt("big.js"), cx); await wait();
+    await scroll();
+    assert.deepEqual(wholes, [0, 50000, 100000, 150000]);
+    assert.ok(p.full.get("big.js").rows.every((r, i) => r.new === i + 1) && p.full.get("big.js").rows.length === total && !cutRow());
+    // A page that brings nothing can't be got: the rest stays out, said so, and isn't asked for again.
+    p.toggleFull(p.fileAt("big.js"), cx);
+    Object.assign(p.fileAt("big.js"), slice(0)); p.version++; empty = true; froms.length = 0;
+    await scroll();
+    assert.deepEqual([froms.length, cutRow().text, cutRow().loading], [1, "The rest of this file is too large to show", false]);
+    top = 0;
+  }
+  {
+    // A daemon without the rows route, older than the pane: a batch comes with the whole page instead, no error shown.
+    const routes = [];
+    const { p } = await paneOf({ review: async (root, route, body) => {
+      routes.push(route);
+      if (route === "/api/review/rows") throw new Error("jin.review answered 404");
+      return daemon(root, route, body);
+    } });
+    delete p.fileAt("a.ts").hunks; p.version++; routes.length = 0;
+    p.render(cx); await wait();
+    assert.deepEqual(routes, ["/api/review/rows", "/api/review"]);
+    assert.ok(p.fileAt("a.ts").hunks && !p.error && !p.stale);
   }
   {
     // A range with no changes says so, not that a group it doesn't have is empty.

@@ -6,9 +6,9 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, InputState } from "gpui-base";
 import { focused, panes, props, setShared, shared, spaces, theme, window as appWindow } from "herdr";
-import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk } from "./rows.js";
+import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, LOOKAHEAD } from "./rows.js";
 import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
-import { colors, loadReview, pollReview, applyReview, analyzeReview } from "./review-load.js";
+import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
 import { loadSettings, models, submitModel, pageRows, locale, settingsPanel } from "./settings.js";
 import { diffCommits, showPage, commitRows, commitMenu } from "./commits.js";
 import { groupSidebar, groupHeader, groupTabs } from "./groups.js";
@@ -90,6 +90,8 @@ export default class ReviewPane extends View {
   refresh(cx) { if (this.onScreen()) this.load(cx); else this.dirty = true; }
 
   load(cx, poll = false) { return loadReview(this, cx, poll); }
+
+  loadRows(cx) { return loadRows(this, cx); }
 
   poll(cx) { return pollReview(this, cx); }
 
@@ -245,6 +247,12 @@ export default class ReviewPane extends View {
     return g ? rowsToAsk(groupFiles(g), path => this.fileAt(path), this.visibleFiles(), this.asked) : [];
   }
 
+  // The file cut short whose end the list shows or nears, as many items on as a batch looks files ahead: its next page is due.
+  pageWanted() {
+    const { start = 0, end = 0 } = this.visible ?? {};
+    return this.switching ? null : (this.itemList ?? []).slice(start, end + LOOKAHEAD).find(item => item.more)?.path ?? null;
+  }
+
   // A file by its path, from a map made once per read: a branch's files run to thousands, and a render looks up a group's every one.
   fileAt(path) {
     if (this.pathsOf !== this.review) { this.pathsOf = this.review; this.paths = new Map(this.review?.files.map(file => [file.path, file])); }
@@ -292,10 +300,10 @@ export default class ReviewPane extends View {
         this.load(cx);
       }
     }
-    // Files in view or just after have no rows (just opened, scrolled to, or changed since): ask for them, once per version.
-    // Not after a failed read (Retry and the slow timer read again) nor while a mark lands (its own read follows): a read
-    // then would fail or be dropped, give its files back, and ask again at once.
-    if (this.rowsWanted().length && !this.loading && !this.error && !this.marking) this.load(cx);
+    // Files in view or just after have no rows (just opened, scrolled to, or changed since): ask for them, once per version;
+    // or a file cut short nears its end: its next page. Not after a failed read (Retry and the slow timer read again) nor
+    // while a mark lands (its own read follows): a read then would fail or be dropped, give its files back, and ask again at once.
+    if ((this.rowsWanted().length || this.pageWanted()) && !this.loading && !this.error && !this.marking) this.loadRows(cx);
     const wide = this.width >= WIDE, sidebar = this.sidebarShown(), group = this.group();
     // A group newly shown, however it came to be, opens its subgroups; its tab's caret folds them.
     if (this.groupKey !== this.expandedFor) { this.expandedFor = this.groupKey; this.expandedTab = this.groupKey; }
@@ -377,7 +385,7 @@ export default class ReviewPane extends View {
     return new Set((this.itemList ?? []).slice(start, end).filter(item => item.kind !== "group").map(item => this.itemFile.get(item.key)));
   }
 
-  spied() { return this.review ? JSON.stringify([this.asideGroup()?.key, [...this.visibleFiles()], [...this.visibleGroups()], this.atTop(), this.stickyFile()?.path]) : ""; }
+  spied() { return this.review ? JSON.stringify([this.asideGroup()?.key, [...this.visibleFiles()], [...this.visibleGroups()], this.atTop(), this.stickyFile()?.path, this.pageWanted()]) : ""; }
 
   // Whether the list is at its first item: the group's header shows only then.
   atTop() { return (this.visible?.start ?? 0) === 0; }

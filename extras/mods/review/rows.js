@@ -203,8 +203,9 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
         }
       }
     }
-    // Past the bytes one read carries, the daemon sends the rows only so far.
-    if (whole ? whole.truncated : file.clipped) push({ key: `e:${path}:cut`, kind: "empty", text: "The rest of this file is too large to show" }, ROW);
+    // Past the bytes one read carries, the daemon sends the rows only so far: the next page comes as this row nears the view.
+    const stuck = (whole ?? file).stuck;
+    if (whole ? whole.truncated : file.clipped) push({ key: `e:${path}:cut`, kind: "empty", text: stuck ? "The rest of this file is too large to show" : "Loading…", loading: !stuck, more: !stuck }, ROW);
   };
   // Each of a file's items names it: a path may hold ":", which its key can't be split at.
   const addFile = (path) => { const from = items.length; fileItems(path); for (let i = from; i < items.length; i++) items[i].path = path; };
