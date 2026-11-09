@@ -10,7 +10,7 @@ import { launch } from "./open.js";
 import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { glow, tip } from "./tip.js";
 import { step, scrollList } from "./list.js";
-import { stop } from "./focus.js";
+import { stop, pressed, justClosed } from "./focus.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -389,14 +389,13 @@ export function reviewBar(view, t, stopPress) {
     r.ahead > 0 && ["review-ahead", String(r.ahead), null, "arrow-up", `Review ${r.branch} → ${r.upstream}: ${n(r.ahead, "commit")} to push, on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`], "↑"],
     r.behind > 0 && ["review-behind", String(r.behind), null, "arrow-down", `Review ${r.upstream} → ${r.branch}: ${n(r.behind, "commit")} to pull, on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`], "↓"],
   ].filter(Boolean);
-  const pressed = (e, cx) => { view.reviewPress = e.position; view.pressAt = Date.now(); stopPress(e, cx); };
+  const press = (e, cx) => { view.reviewPress = e.position; pressed(view); stopPress(e, cx); };
   const openMenu = (_e, cx) => {
     view.hot = null; cx.notify();
-    // The button toggles: the press that brought this click closed the menu, so the click leaves it closed. 50 ms, for
-    // a close reported just before the press. No press (assistive tech clicks without one), nothing to tell.
-    const closing = view.pressAt != null && (shared(MENU_CLOSED) ?? 0) >= view.pressAt - 50;
-    view.pressAt = null;
-    if (closing || view.readingPicks) return;
+    // Under this click's press, if it came with one; read now, as a press while git reads is another click's.
+    const at = view.pressAt == null ? undefined : underBar(view.reviewPress);
+    // The button toggles: the press that brought this click closed the menu, so the click leaves it closed.
+    if (justClosed(view, MENU_CLOSED) || view.readingPicks) return;
     view.readingPicks = true;
     const from = JSON.stringify(reviewLocation());
     cx.spawn(async () => { try {
@@ -406,7 +405,7 @@ export function reviewBar(view, t, stopPress) {
       // Tall enough for the longer page, so turning pages doesn't resize it; one page alone has a title instead of the switch.
       const tabs = branches.length > 0 && commits.length > 0;
       const height = Math.min(368, menuChrome(tabs) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * MENU_ROW);
-      openOverlay({ mod: MOD, kind: "popup", at: underBar(view.reviewPress), width: 368, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
+      openOverlay({ mod: MOD, kind: "popup", at, width: 368, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
     } finally { view.readingPicks = false; } });
   };
   // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
@@ -416,7 +415,7 @@ export function reviewBar(view, t, stopPress) {
     // Stays with no counts: on a clean default branch it's the only way in.
     .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", h_flex().id("review-pick").h(22).w(segments.length ? 23 : 22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label("Change what to review")
-      .on_mouse_down("left", pressed).on_click(openMenu)
+      .on_mouse_down("left", press).on_click(openMenu)
       // As T3's icon-xs, 24 with the outline's sides. image, not svg: svg would draw the logo in one tint.
       .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()), 7), { below: true }));
 }

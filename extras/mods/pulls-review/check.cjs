@@ -502,7 +502,7 @@ const load = (props = {}, setup = record) => {
   assert.equal(launched.length, opened, "no match: Enter opens nothing");
   await click({ ...r, branch: "main", unmerged: 0 });
   assert.equal(ranges.at(-1), "HEAD", "on the default branch: its recent commits");
-  delete bar.reviewPress;
+  // Right after a press's: the last press isn't this click's.
   fire(find(bar.render(), "review-pick"), "on_click", {}, run);
   await reading;
   assert.equal(overlays.at(-1).at, undefined, "a click with no press opens at the pointer");
