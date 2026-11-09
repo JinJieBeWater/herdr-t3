@@ -765,8 +765,8 @@ test("a card's marks sit on its third line when it has one, else on the title's"
   assert.ok(find(lineOf(f.tree, "m1/B"), "machine-m1/B"), "no third line: the title's line carries it");
 });
 
-test("remote marks leave the whole row's machine details visible, without their own tooltip", () => {
-  for (const mode of ["inbox", "agents"]) {
+test("remote machine names stay in hover details; only Inbox cards carry a mark", () => {
+  for (const mode of lists ? ["inbox", "agents"] : ["inbox"]) {
     const f = fixture(); f.add("m1/A", "blocked");
     const render = mode === "inbox" ? () => f.render() : f.loadAgents();
     const rowId = `${mode === "inbox" ? "card" : "ag"}-m1/A`;
@@ -774,13 +774,15 @@ test("remote marks leave the whole row's machine details visible, without their 
     f.render(f.now + 150); f.render(f.now + 34);
     let tree = render();
     const mark = find(tree, "machine-m1/A");
-    assert.ok(mark, `${mode}: the remote mark stays`);
-    mark.handlers.on_hover?.(true, f.cx);
-    find(tree, "tip-over-machine-m1/A")?.handlers.on_hover(true, f.cx);
+    if (mode === "inbox") {
+      assert.ok(mark, "Inbox keeps its remote mark");
+      mark.handlers.on_hover?.(true, f.cx);
+      find(tree, "tip-over-machine-m1/A")?.handlers.on_hover(true, f.cx);
+    } else assert.equal(mark, null, "Lists' single-line rows have no machine mark");
     tree = render();
     const details = find(tree, "details-card-m1/A");
     assert.ok(texts(details).includes("m1"), `${mode}: the row's details name the machine`);
-    assert.deepEqual(details.style.opacity, [1], `${mode}: hovering the mark keeps those details visible`);
+    assert.deepEqual(details.style.opacity, [1], `${mode}: the row's details stay visible`);
     assert.equal(find(tree, "tip-machine-m1/A"), null, `${mode}: no duplicate machine tooltip`);
   }
 });

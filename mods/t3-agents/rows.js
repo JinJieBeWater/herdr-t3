@@ -176,8 +176,6 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
   const row = (a, subs = [], ghost) => {
     const pic = programIcon(a.program, 16, t.foreground);
     const more = detail.get(a.address);
-    // An agent on another machine (`vps/t7`) says which.
-    const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
     const st = shownStatus(a), on = viewing(a);
     const isPinned = view.pins.includes(a.address);
     const pinId = `pin-${a.address}`, rowId = `ag-${a.address}`;
@@ -237,8 +235,6 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       .child(h_flex().flex_1().min_w(0).gap(10).items_center()
         .child(div().min_w(0).truncate().when(on || st === "blocked" || st === "done", (el) => el.font_medium()).text_color(leads ? t.foreground : t.muted).child(name))
         .when(Boolean(where), el => el.child(div().flex_1().flex_shrink(1000).min_w(0).truncate().text_size(12).text_color(t.dim).child(where))))
-      .when(Boolean(machine), el => el.child(svg("mods/t3-agents/icons/server.svg").size(14).flex_none().text_color(t.dim)
-        .when(!ghost, m => m.id(`machine-${a.address}`).accessibility_label(`On ${machine}`))))
       .child(h_flex().when(!ghost, el => el.id(`controls-${a.address}`)).flex_none().items_center().gap(4)
         .when(subs.length > 0, el => el.child(fold(a, subs, ghost)))
         // The time and the pin share one slot, T3's corner, so hovering moves nothing else.

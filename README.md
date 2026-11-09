@@ -22,7 +22,7 @@ I'd worked this way in T3 Code: what's running stays out of sight, what needs me
 - **Go to** (`cmd-p`): jump to any pane, agent or program, by its name.
 - **Actions**: T3 Code's run button for your own commands, in a new tab or a split.
 - **Slim tabs and framed panes**, in T3 Code's look.
-- **Other machines**: their spaces grouped by machine, their cards marked.
+- **Other machines**: their spaces grouped by machine, their Inbox cards marked. In Lists, hover an Agents row to see its machine's name.
 - **Review** (optional): what's left to review in the worktree, in a pane beside the agent.
 
 Each in detail: [the guide](docs/user/guide.md).
