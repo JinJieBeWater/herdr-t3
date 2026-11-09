@@ -55,7 +55,8 @@ export default class ReviewPane extends View {
     this.handle = cx.focus_handle();
     this.scroll = VirtualListScrollHandle.new();
     this.barsOn = false; this.barsRun = 0;
-    this.load(cx);
+    // A menu can create this pane: start I/O in the pane's own callback so closing the menu can't cancel its answer.
+    cx.timer.after(0, (cx) => this.load(cx));
     // While a run goes the pane follows it; otherwise the folder watch and a slow timer catch new diffs.
     cx.timer.every(1500, (cx) => { if (this.analyzing()) this.poll(cx); });
     // Unseen, the slow timer and the watch only note a read is due; it follows within a second of the pane being seen again.

@@ -252,10 +252,27 @@ assert.equal(vm.runInContext('progressText({ kind: "thinking", step: 2 })', main
 }
 // The 150ms timer is the scroll spy; the others, by period, each pane's in the order they started. A test runs them by hand.
 let spy; const every = {};
-const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (_ms, f) => timers.push(f) } };
+const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (ms, f) => ms === 0 ? queueMicrotask(() => f(cx)) : timers.push(f) } };
 // Timers wait until a test runs them.
 const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
 (async () => {
+  {
+    // A menu creates the pane before closing itself. I/O started in that init belongs to the menu and loses its answer;
+    // the pane's callbacks run in its own context after the menu closes.
+    let inMenu = true;
+    const pending = [], own = new Map();
+    const ownCx = { ...cx, spawn: f => f(ownCx), timer: { every() {}, after: (ms, f) => pending.push([ms, f]) } };
+    const scope = load("main.js", { ...env,
+      localStorage: { getItem: k => own.get(k) ?? null, setItem: (k, v) => own.set(k, v) },
+      review: () => inMenu ? new Promise(() => {}) : Promise.resolve(structuredClone(review)),
+    });
+    const opened = new scope.Mod();
+    opened.init({}, ownCx);
+    inMenu = false;
+    for (const [ms, f] of pending.splice(0)) if (ms === 0) f(ownCx);
+    await new Promise(setImmediate);
+    assert.ok(opened.review && !opened.loading && !opened.error, "closing the menu must leave its new review loaded");
+  }
   pane.init({}, cx);
   // Later panes bind the same stand-in.
   const commitEvents = { ...commitField.events };

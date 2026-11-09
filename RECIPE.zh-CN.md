@@ -78,6 +78,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时
 - macOS 无标题栏时，侧栏隐藏或很窄，标签栏要给窗口按钮留位置（`layout().traffic_lights`）。
 - 窄窗口：`bar-measure`（`t3-tabs`，`part: "measure"`）放在 `work-bottom-inset` 里，工作列宽度小于 1024 逻辑像素（比 T3 的 768 大，因为这里控件要和标签共用一行）时把 `shared("bar.compact")` 设为 true，动作控件和 Review 栏随之去掉文字。放在这里测，是因为这条的宽度不受标签栏影响；测标签区的话，控件一收起标签区就变宽，又会展开。
 - 动作通过 `sh -c` 运行：拿不到你 shell 的别名和函数（需要的话在命令里写 `zsh -ic '…'`），纯 Windows 也没有 `sh`。
+- 从 Review 栏 logo 菜单选的评审和点计数打开的一样照常加载：评审窗格在自己的 0ms 计时器上开始第一次读取（`init` 里的 `cx.timer.after(0, …)`）。窗格是在菜单关闭的同时建出来的，这时直接在 `init` 里发起的读取不会返回，30 秒后超时。
 - `t3-actions` 和标签栏末尾（`t3-tabs`，`part: "end"`）自己调整所在块的宽度：`run("layout.resize", { id: props().block, px })`，宽度取 `on_size_change` 的值除以 `settings().zoom`（它报的是乘过缩放的像素）。`tabs-row` 要保持不可拖动，否则拖动会和它们抢宽度。布局引用了没安装的 mod 时，`herdr-app status` 会报 `no mod folder`：把包括 `t3-actions` 在内的所有 `mods/t3-*` 复制过去。
 - 标签条让当前标签保持可见，移动量最小，和 T3 的 `scrollIntoView({ inline: "nearest" })` 一样。Herdr 的滚动容器不能由脚本移动，所以 `tab-scroll` 负责裁剪，`tab-strip` 用 `.ml()` 偏移；标签的完整宽度来自一份高度为 0 的名字副本，用 `on_size_change` 量出。只在当前标签或可用宽度变化时才移动，所以横向滑开的标签不会被拉回；滚轮仍然用来切换标签。
 - 每个 mod 旁边的 `check*.cjs` 用假的 `herdr` 加载它。`scripts/check.sh` 在已安装的 home 里运行全部检查（有些要在那里找自带图标），并对每个 mod 跑 `herdr-app check`、比对共享模块的副本。每个 mod 还做类型检查（`tsc --noEmit`），选项写在 `check.sh` 里，不读 mod 的 `jsconfig.json`：这个文件被 git 忽略，`herdr-app check` 写的默认版本会让这些 mod 报错。

@@ -6,7 +6,7 @@
 
 ## pulls.review
 
-`extras/mods/pulls-review` 和 `extras/mods/review`：Review 栏和评审窗格，配合[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)（CLI 叫 `jin.review`）使用。Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下打开那份评审，每个 space 一个：窗格设置里的 `Open in` 决定是 agent 旁边的窗格还是独立标签。窗格自己的顶栏负责在这份 diff 的 commit 之间切换。Analyze automatically 只对点计数生效。它也单独发布为 [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review)：按[它的 README](https://github.com/JinJieBeWater/herdr-pulls-review/blob/main/README.zh-CN.md) 安装（`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`，或者把两个目录复制进 `~/.config/herdr-app/mods/`），然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面。`scripts/update.sh` 更新布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态。
+`extras/mods/pulls-review` 和 `extras/mods/review`：Review 栏和评审窗格，配合[我的 pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)（CLI 叫 `jin.review`）使用。Review 栏统计当前焦点所在工作树有什么可评审的（当前分支上默认分支没有的提交、未提交的文件、要推送和要拉取的提交），点一下打开那份评审，每个 space 一个：窗格设置里的 `Open in` 决定是 agent 旁边的窗格还是独立标签。窗格自己的顶栏负责在这份 diff 的 commit 之间切换。点 logo 可以在菜单里改选当前分支的某个提交或另一个分支，打开方式相同。Analyze automatically 只对点计数生效。它也单独发布为 [herdr-pulls-review](https://github.com/JinJieBeWater/herdr-pulls-review)：按[它的 README](https://github.com/JinJieBeWater/herdr-pulls-review/blob/main/README.zh-CN.md) 安装（`herdr.dev/mods/JinJieBeWater/herdr-pulls-review`，或者把两个目录复制进 `~/.config/herdr-app/mods/`），然后让你的 Herdr agent 把它的块放进这个布局的 `tabs-row` 这一行、紧跟在 `tabs` 后面。`scripts/update.sh` 更新布局时会保留这个块。评审窗格所在的标签和窗格标题栏用这个布局的标记显示分析状态。
 
 ## 给 Pi 用的主题导出
 
