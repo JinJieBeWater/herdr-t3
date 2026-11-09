@@ -4,5 +4,7 @@
 
 ## Consequences
 
+- 只在侧栏选中 Inbox 时生效（见 [0002](0002-inbox-rules-stay-in-inbox.md)）。Lists 里没有 Settle；关闭当前 agent 的标签时，回到这个 space 上一次看的标签。
+
 - Review 是唯一例外：回到打开它之前的地方，因为看完 diff 通常要回去跟 agent 说话（见 [0007](0007-review-belongs-to-the-space.md)）。
 - 单独发布的 `herdr-t3-inbox` 不传 `home` prop，保持跳到下一张的行为。

@@ -1,16 +1,19 @@
-import { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home } from "herdr";
+import { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, window } from "herdr";
 import { namer, programOf } from "./name.js";
-import { descendants } from "./tree.js";
+import { descendants, kidStatus, ownStatus, treeStatus } from "./tree.js";
 import { focusAgent, focusPane } from "./zoom.js";
 import { sidebarParts } from "./sidebar.js";
 import { newTab } from "./project.js";
 
 // One instance per Tabs view; the Herdr operations also admit the check's fake core.
-export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), namer, programOf, focusAgent, focusPane }) {
-  const { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, namer, programOf, focusAgent, focusPane } = core;
-  const trail = {}, owed = new Map();
+export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), window: () => window(), namer, programOf, focusAgent, focusPane }) {
+  const { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, window, namer, programOf, focusAgent, focusPane } = core;
+  const trail = {}, owed = new Map(), waking = new Map();
+  let states = new Map();
   let renaming = false, going, inView, wasHome, unread, focusWas, zoomOff, asking;
   const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
+  // The Inbox's ways with attention hold unless Lists is the mode (docs/adr/0002).
+  const listsShown = () => sidebarParts(layout()).stack?.active === "lists";
   const nameOf = (c, lead, name) => c.named ? c.name : lead ? name(lead) : "Terminal";
 
   // Home: one place to land, a space of its own on this computer, known by its id so whatever someone arranges there is theirs.
@@ -150,8 +153,9 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     const space = spaces().find(s => s.active);
     // Out of view, closing it moves nothing.
     if (atHome() || !space?.tabs.find(c => c.id === id)?.active) return;
-    // The space's last tab too: its space goes with it, and Herdr would show another space's tab.
-    if (agents().some(a => a.tab === id)) return goHome(cx);
+    // With the Inbox, the agent in view lands on Home (docs/adr/0004), the space's last tab too: Herdr would show another
+    // space's tab. In Lists it goes back as any tab does.
+    if (!listsShown() && agents().some(a => a.tab === id)) return goHome(cx);
     // A space's last tab takes the space, and Herdr may still ask.
     if (space.tabs.length === 1) return;
     goBack(space.id, id);
@@ -194,8 +198,9 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     // already picked the neighbour, and it may have been shown.
     const terms = terminals(), every = agents();
     if (was && !alive(was.tab) && !home) {
-      // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
-      if (was.agent) toHome();
+      // With the Inbox, the agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
+      // In Lists, as any tab, unless no space is left to show.
+      if (was.agent && (!listsShown() || !space)) toHome();
       else if (space?.id === was.space) goBack(was.space, was.tab);
       // Herdr marked what it showed as seen in the same step it picked it (window active), before any mod hears of it. An agent
       // unread a frame ago that only the pick showed is owed its done back, the way Herdr's Mark unread writes it.
@@ -206,6 +211,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     }
     zoomFollows(every);
     payBack(tab, home, terms, every);
+    endSnoozes(terms, every);
     // What's unread now, for the next frame's close: its turn, and a snooze it woke from (seeing it clears that too).
     unread = new Map(every.filter(a => a.status === "done").map(a => {
       const k = terms.find(k => k.address === a.address);
@@ -254,6 +260,25 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
         o.snoozeTold = true;
       }
       if ((o.seen && !o.snoozed) || Date.now() > o.until) owed.delete(addr);
+    }
+  }
+
+  // A snooze ends on a failure in its tree or a new turn given in view, as the Inbox ends it; here too, in either sidebar,
+  // as the Inbox copy may not have started (docs/adr/0003). Seeing it once it has woken stays the Inbox's: Woke is its mark.
+  function endSnoozes(terms, every) {
+    const was = states, active = window()?.active, now = Date.now();
+    const listed = new Map(every.map(a => [a.address, a.status]));
+    const state = (a) => treeStatus(ownStatus(a.status, a.address, terms), descendants(terms, a.address).map(k => kidStatus(k, listed)));
+    states = new Map(every.map(a => [a.address, state(a)]));
+    for (const a of every) {
+      const k = terms.find(k => k.address === a.address);
+      if (!k?.labels?.snoozed || now - (waking.get(a.address) ?? -Infinity) < 10000) continue;
+      const failed = k.status === "error" || descendants(terms, a.address).some(d => d.status === "error");
+      const turned = active && a.focused && states.get(a.address) === "working" && ["idle", "done"].includes(was.get(a.address));
+      if (!failed && !turned) continue;
+      // Once per 10s: the label takes a moment to come back, and a refused write mustn't retry, and tell, on every frame.
+      waking.set(a.address, now);
+      writeLabel(a.address, "snoozed", "");
     }
   }
 

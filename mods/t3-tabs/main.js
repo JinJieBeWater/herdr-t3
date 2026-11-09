@@ -14,14 +14,15 @@ import { newTab } from "./project.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 
-// What the hidden sidebar's toggle counts. An agent settled there isn't news while it
-// stays settled. A snoozed one, until it wakes, isn't news either, working or done; while it or what's under it needs the
-// person it shows there, so it counts here too.
-function awake(st, under) {
+// What the hidden sidebar's toggle counts, as the selected sidebar shows it. In the Inbox an agent settled there isn't news
+// while it stays settled, and a snoozed one, until it wakes, isn't news either, working or done; while it or what's under it
+// needs the person it shows there, so it counts here too. In Lists either only loses its done dot.
+function awake(st, under, inbox) {
   const now = Date.now(), byAddress = new Map(terminals().map((k) => [k.address, k]));
   return agents().filter((a) => {
-    const k = byAddress.get(a.address);
-    return st(a) === "blocked" || (!stillSettled(k, a.status, under(a.address)) && !(Number(k?.labels?.snoozed) > now));
+    const k = byAddress.get(a.address), s = st(a);
+    if (!inbox) return !(s === "done" && notNews(k, a.status, under(a.address)));
+    return s === "blocked" || (!stillSettled(k, a.status, under(a.address)) && !(Number(k?.labels?.snoozed) > now));
   });
 }
 
@@ -92,7 +93,8 @@ export default class Tabs extends View {
   }
 
   async settle(cx) {
-    if (this.navigation.atHome) return;
+    // Settle is the Inbox's: Lists has no Settled to put it in (docs/adr/0002).
+    if (this.navigation.atHome || sidebarParts(layout()).stack?.active === "lists") return;
     const f = { ...focused() }, ps = panes(), p = ps.find(p => p.pane === f.pane), every = agents(), all = terminals();
     if (p?.mod && programOf(p)?.inbox) {
       if (!["working", "blocked"].includes(modStatus(p))) await this.navigation.handle(`close-pane-now:${p.pane}`, cx);
@@ -387,7 +389,7 @@ export default class Tabs extends View {
         if (Math.abs(e.delta.x) > Math.abs(e.delta.y)) { this.strip -= e.delta.x / settings().zoom; cx.notify(); }
         else if (Math.abs(e.delta.y) >= 1) this.navigation.handle(e.delta.y > 0 ? "tab-prev" : "tab-next", cx);
       })
-      .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stopPress, awake(st, under), st)))
+      .when(Boolean(sidebar?.hidden), el => el.child(this.sidebarToggle(t, stopPress, awake(st, under, inbox), st)))
       .when(Boolean(notice), el => el.child(notice))
       .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().overflow_hidden()
         .on_size_change((size, cx) => { this.room = size.width / settings().zoom; cx.notify(); })

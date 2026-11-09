@@ -2062,7 +2062,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     delete f.slots.sidebar.hidden;
     assert.deepEqual(await press("settle"), []);
     f.slots.lists.active = "lists";
-    assert.deepEqual(await press("settle"), [], "Lists use the same busy check");
+    assert.deepEqual(await press("settle"), [], "Lists have no Settle");
     assert.deepEqual(await press("sidebar"), [["layout.select", { stack: "sidebar-lists", child: "inbox" }]]);
   }
   {
@@ -2261,7 +2261,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken(), [["tab.select", { id: "rev" }]], "the tab dragged over gone: no drop on it");
     f.agents().pop();
 
-    // Closing the agent in view lands on Home, however it went; nothing else does.
+    // With the Inbox, closing the agent in view lands on Home, however it went; nothing else does.
     const close = (id) => { const i = tabs.findIndex(c => c.id === id); tabs.splice(i, 1); const a = list.findIndex(x => x.tab === id); if (a >= 0) { f.agents().splice(f.agents().findIndex(x => x.tab === id), 1); f.terminals().splice(f.terminals().findIndex(x => x.tab === id), 1); list.splice(a, 1); } };
     pick("mine", "A"); view.render(cx); taken();
     close("other"); view.render(cx);
@@ -2274,7 +2274,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     view.render(cx);
     assert.deepEqual(taken(), [], "once");
     inbox(false); pick("kid", "K"); view.render(cx); close("kid"); pick("prog"); view.render(cx);
-    assert.deepEqual(taken(), [["t3-tabs.home", {}]], "Lists close to Home too");
+    assert.deepEqual(taken(), [["tab.select", { id: "prog" }]], "in Lists, back to the tab last shown: Home is the Inbox's");
   }
 
   // Both sidebar modes restore the last shown tab and repay an unread neighbour after an external tab close.
@@ -2294,7 +2294,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     tabs.shift(); f.agents().splice(f.agents().indexOf(a), 1);
     n.status = "idle"; n.labels["herdr.seen"] = "1";
     tabs.forEach(c => { c.active = c.id === "next"; }); view.render(cx);
-    assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]]);
+    // Inbox lands on Home; Lists goes back as any tab does, and with nowhere else shown in this space, Herdr's pick stands.
+    assert.deepEqual(plain(f.calls.splice(0)), mode === "inbox" ? [["t3-tabs.home", {}]] : []);
     assert.deepEqual(f.labelled, [], "nothing while the neighbour is on screen");
     tabs.forEach(c => { c.active = c.id === "prog"; }); view.render(cx);
     assert.deepEqual(f.labelled.map(a => a.join(" ")), ["label N herdr.seen=0"], mode + ": the unread turn comes back");
@@ -2322,7 +2323,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(plain(f.state["t3-agents.rows"].order), ["t0", "vps/t2"]);
   }
 
-  // Settle needs no Inbox copy. The same key works in every mode/visibility combination, with the same Undo.
+  // Settle needs no Inbox copy: the key works with the Inbox shown or hidden, with the same Undo. In Lists it does nothing.
   for (const mode of ["lists", "inbox"]) for (const hidden of [false, true]) {
     const f = fixture(256), a = f.agents()[0], k = f.terminals()[0];
     f.slots.lists = { id: "sidebar-lists", active: mode }; f.slots.sidebar.hidden = hidden;
@@ -2334,6 +2335,10 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.answerHc(args => { if (args[0] === "label") { const i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
     const tabs = f.load("t3-tabs"), firstTimer = cx.timers.length;
     await tabs.settle(cx);
+    if (mode === "lists") {
+      assert.deepEqual([f.labelled, f.calls, k.labels.settled], [[], [], undefined], `hidden=${hidden}: Lists has no Settle`);
+      continue;
+    }
     assert.match(k.labels.settled, /^\d+:2$/);
     assert.deepEqual([k.labels.snoozed, f.state["agents.pins"]], ["", ["head", "tail"]]);
     assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]], `${mode}, hidden=${hidden}: Settle goes Home`);
@@ -2419,7 +2424,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(f.calls, [], "finishing a slow Settle cannot pull someone away from where they've gone");
   }
 
-  // Status is idle without moving the Lists row; snoozed working trees do not count on the toggle.
+  // Settled or snoozed, a Lists row only loses its done dot without moving; snoozed work still spins and counts on the toggle.
   {
     const f = fixture(256), a = f.agents()[0], k = f.terminals()[0]; f.terminals().splice(2);
     f.slots.lists = { id: "sidebar-lists", active: "lists" }; f.slots.sidebar.hidden = true;
@@ -2433,17 +2438,20 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(walk(find(tabs.render(cx), "tab-b0")).some(n => n.style.bg === f.theme().done), false);
     assert.equal(find(tabs.render(cx), "agents-done"), null);
     delete k.labels.settled; k.labels.snoozed = String(Date.now() + 60000); a.status = "working";
-    assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Idle");
-    assert.equal(find(tabs.render(cx), "agents-working"), null);
-    k.labels.snoozed = String(Date.now() - 1); ag.render(cx);
-    assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Working");
-    assert.ok(find(tabs.render(cx), "agents-working"), "woken work counts again");
+    assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Working", "hiding work is the Inbox's");
+    assert.ok(find(tabs.render(cx), "agents-working"), "in Lists, snoozed work counts");
+    a.status = "done";
+    assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Idle", "a snoozed done loses its dot");
+    assert.equal(find(tabs.render(cx), "agents-done"), null);
+    f.slots.lists.active = "inbox"; a.status = "working";
+    assert.equal(find(tabs.render(cx), "agents-working"), null, "with the Inbox, snoozed work leaves the toggle");
+    f.slots.lists.active = "lists";
     a.status = "done"; k.status = "error"; k.labels = { settled: "1:1", snoozed: String(Date.now() + 60000) };
     assert.ok(find(tabs.render(cx), "agents-blocked"), "a failure overrides both quiet labels");
     assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, "Needs you");
   }
 
-  // Review is the sole Settle exception: its tab goes back, a split stays with its agent. Both modes and × share it.
+  // Review is the sole Settle exception: its tab goes back, a split stays with its agent. × does the same in both modes.
   for (const mode of ["lists", "inbox"]) for (const split of [false, true]) {
     const f = fixture(256), tabs = f.spaces()[0].tabs, reviewTab = split ? "b0" : "review";
     f.slots.lists = { id: "sidebar-lists", active: mode };
@@ -2458,7 +2466,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     tabs.forEach(c => { c.active = c.id === reviewTab; });
     Object.assign(f.shown, { tab: reviewTab, pane: "pr" }); view.render(cx); f.calls.length = 0;
     const want = split ? [["agent.focus", { terminal: "t0" }], ["pane.close", { pane: "pr" }]] : [["tab.select", { id: "b0" }], ["pane.close", { pane: "pr" }]];
-    await view.settle(cx); assert.deepEqual(plain(f.calls.splice(0)), want);
+    await view.settle(cx); assert.deepEqual(plain(f.calls.splice(0)), mode === "lists" ? [] : want, "Settle is the Inbox's");
     assert.equal(f.labelled.length, 0); assert.equal(f.state["t3-inbox.notice"], undefined);
     await view.navigation.handle("close-pane-now:pr", cx); assert.deepEqual(plain(f.calls.splice(0)), want, "× returns the same way");
     f.state["review.status"][reviewTab] = "working";

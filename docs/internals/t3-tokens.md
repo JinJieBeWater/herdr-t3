@@ -52,7 +52,7 @@
 
 ## 有意不同
 
-用户决定保留，不要改回 T3（见 [ADR 0002](../adr/0002-lists-and-inbox-share-rules.md) 和 [ADR 0004](../adr/0004-putting-away-lands-on-home.md)）：
+用户决定保留，不要改回 T3（见 [ADR 0002](../adr/0002-inbox-rules-stay-in-inbox.md) 和 [ADR 0004](../adr/0004-putting-away-lands-on-home.md)）：
 
 - 标签关闭按钮在标签末尾，名字很短的标签最小 96px。
 - Settle 后回 Home，Review 回打开它之前的地方。

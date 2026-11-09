@@ -18,7 +18,7 @@ Single-context repo:
 ├── GLOSSARY.md
 ├── docs/adr/
 │   ├── 0001-trade-off-order.md
-│   └── 0002-lists-and-inbox-share-rules.md
+│   └── 0002-inbox-rules-stay-in-inbox.md
 └── mods/
 ```
 

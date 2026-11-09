@@ -201,7 +201,9 @@ export default class Inbox extends View {
     const inView = inboxInView(every, all, f);
     // As T3's route reveal: an agent brought into view from elsewhere (a key, the picker, its pane) that the space
     // filter hides widens the filter to every space, kept. Not on the first draw, and a filter you pick isn't undone.
-    if (this.inView !== undefined && inView && inView !== this.inView && this.scope.length) {
+    // Only while the Inbox is the mode (or docked alone): moving about in Lists isn't bringing a card into view.
+    const { stack } = sidebarParts(layout());
+    if ((!stack || stack.active === "inbox") && this.inView !== undefined && inView && inView !== this.inView && this.scope.length) {
       const a = every.find((x) => x.address === inView);
       if (a && !this.scope.includes(a.space)) { this.scope = []; localStorage.setItem("scope", "[]"); this.limit = FIRST; }
     }

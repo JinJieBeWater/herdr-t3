@@ -191,8 +191,11 @@ export default class Agents extends View {
     const kidsOf = new Map(list.map((a) => [a.address, under(a.address)]));
     // As shown: its own word with its sub-agents'. Sorted, a viewed done agent keeps Done.
     const own = (a) => ownStatus(a.status, a.address, all);
-    const shownStatus = (a) => notNews(all.find(k => k.address === a.address), own(a), kidsOf.get(a.address))
-      && treeStatus(own(a), kidsOf.get(a.address)) !== "blocked" ? "idle" : treeStatus(own(a), kidsOf.get(a.address));
+    // Settled or snoozed only drops the done dot, as tabs and pane headers do: hiding work is the Inbox's (docs/adr/0002).
+    const shownStatus = (a) => {
+      const s = treeStatus(own(a), kidsOf.get(a.address));
+      return s === "done" && notNews(all.find(k => k.address === a.address), own(a), kidsOf.get(a.address)) ? "idle" : s;
+    };
     const urgency = new Map(list.map((a) => [a.address, RANK[treeStatus(ownStatus(this.word(a), a.address, all), kidsOf.get(a.address))] ?? 0]));
     const rankOf = (a) => urgency.get(a.address);
     if (byPriority) list = [...list].sort((x, y) => rankOf(y) - rankOf(x) || this.since(y) - this.since(x) || y.seq - x.seq);

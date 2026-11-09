@@ -4,6 +4,13 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-09
 
+- Lists no longer follows Inbox's ways with attention:
+  - `cmd-shift-s` does nothing in Lists. Settle belongs to Inbox, which has a Settled shelf to put agents on.
+  - Closing the agent you're on in Lists, its whole tab or its last pane, goes back to the tab you were on before in that space, as closing any other tab does. It used to go to Home.
+  - A snoozed agent's row spins while it works, as its tab does. It used to read idle. With the sidebar hidden in Lists, its toggle counts it as working too.
+  - Moving to an agent of another space in Lists keeps Inbox's space filter. It used to clear it.
+- Snooze: a failed turn, or new work you give the agent in view, ends its snooze even if Inbox hasn't shown since Herdr started. It used to stay snoozed, its done dot hidden until the snooze ran out.
+
 - Inbox: with Working folded, its header sits as far from Snoozed's as Snoozed's from Settled's. It used to sit 5px further.
 
 - Lists: Agents rows no longer show a remote machine icon between the title and controls. Hover a row to see the machine's name in its details.

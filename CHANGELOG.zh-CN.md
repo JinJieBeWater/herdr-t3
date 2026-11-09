@@ -4,6 +4,13 @@
 
 ## 2026-11-09
 
+- Lists 不再沿用 Inbox 处理注意力的规则：
+  - `cmd-shift-s` 在 Lists 里不起作用。Settle 只属于 Inbox，那里才有放它的 Settled 收纳区。
+  - 在 Lists 里关掉当前查看的 agent（整个标签或它的最后一个窗格），和关掉其他标签一样，回到这个 space 里之前看的标签。以前会回到 Home。
+  - Snooze 中的 agent 工作时，那一行和它的标签一样转圈。以前显示为 idle。在 Lists 下隐藏侧栏时，开关的计数也把它算作工作中。
+  - 在 Lists 里切到另一个 space 的 agent，Inbox 的空间筛选保持不变。以前会被清空。
+- Snooze：这一轮失败，或你在查看时给了新工作，即使这次启动 Herdr 后还没显示过 Inbox，也会结束 Snooze。以前它会一直处于 Snooze，done 圆点要到时间到了才出现。
+
 - Inbox：Working 折叠时，它的标题与 Snoozed 的间距和 Snoozed 与 Settled 的一致。以前多出 5px。
 
 - Lists：Agents 行不再在标题和控件之间显示远程机器图标；悬停整行，在详情里看机器名。

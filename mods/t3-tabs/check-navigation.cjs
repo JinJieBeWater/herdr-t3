@@ -30,7 +30,7 @@ function fixture() {
   const core = {
     spaces: () => spaces, agents: () => agents, terminals: () => terminals, panes: () => panes, machines: () => machines,
     focused: () => shown, shared: key => state[key], setShared: (key, value) => { state[key] = value; },
-    layout: () => ({ children: Object.values(slots) }), home: () => "/home/test",
+    layout: () => ({ children: Object.values(slots) }), home: () => "/home/test", window: () => ({ active: true }),
     run: (name, args) => calls.push([name, plain(args ?? {})]),
     hc: args => { labelled.push([...args]); return Promise.resolve(hcAnswer(args)); },
     notify: n => notifications.push(n),
@@ -553,6 +553,51 @@ async function check() {
     assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]]);
     pick("prog");
     assert.deepEqual(plain(view.frame().tabs.map(c => c.id)), ["was", "prog"], "the agent last looked at is still the one the bar holds");
+  }
+
+  // In Lists, the agent in view closed goes back where the person was, as any tab: landing on Home is the Inbox's.
+  for (const external of [true, false]) {
+    const f = fixture(), program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs;
+    tabs.splice(0, tabs.length, ...["was", "mine", "next"].map(id => ({ id, name: id, named: true, active: false })));
+    const list = [["W", "was"], ["A", "mine"], ["N", "next"]].map(([address, tab]) => ({ address, pane: `p-${tab}`, tab, space: "s0", space_name: "project 0", title: tab, status: "idle", program, state: "live", focused: false }));
+    f.agents().splice(0, f.agents().length, ...list);
+    f.terminals().splice(0, f.terminals().length, ...list);
+    f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "lists" };
+    f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, active: false, tabs: [{ id: "hp", name: "Home" }] });
+    const view = f.navigation();
+    const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; view.frame(); };
+    pick("was", "W"); pick("mine", "A"); f.calls.length = 0;
+    if (external) {
+      tabs.splice(tabs.findIndex(c => c.id === "mine"), 1); f.agents().splice(f.agents().findIndex(a => a.address === "A"), 1);
+      pick("next", "N");
+      assert.deepEqual(plain(f.calls.splice(0)), [["tab.select", { id: "was" }]], "Lists: a program ending goes back, not Home");
+    } else {
+      await view.handle("close-tab-now:mine", f.cx);
+      assert.deepEqual(plain(f.calls.splice(0)), [["tab.select", { id: "was" }], ["tab.close", { id: "mine", confirmed: true }]], "Lists: back first, then the close");
+    }
+  }
+
+  // A snooze ends on a failure in its tree or a new turn given in view, in either sidebar, though the Inbox copy hasn't started.
+  {
+    const f = fixture(), [a] = f.agents(), [k] = f.terminals(), view = f.navigation();
+    const snoozes = () => f.labelled.filter(l => l[2].startsWith("snoozed=")).map(l => l.join(" "));
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "lists" };
+    Object.assign(a, { status: "idle" }); k.labels = { snoozed: String(Date.now() + 3600000) };
+    view.frame();
+    a.status = "working"; view.frame();
+    assert.deepEqual(snoozes(), ["label t0 snoozed="], "put to work in view: the snooze ends");
+    view.frame();
+    assert.equal(snoozes().length, 1, "once while the label comes back");
+
+    const g = fixture(), [b] = g.agents(), [kb] = g.terminals(), quiet = g.navigation();
+    const said = () => g.labelled.filter(l => l[2].startsWith("snoozed=")).length;
+    b.status = "idle"; b.focused = false; kb.labels = { snoozed: String(Date.now() + 3600000) };
+    quiet.frame(); b.status = "working"; quiet.frame();
+    assert.equal(said(), 0, "work out of view isn't the person's: it stays snoozed");
+    kb.status = "error"; quiet.frame();
+    assert.equal(said(), 1, "a failure ends it");
   }
   console.log("ok: navigation Home, close order, history, visible tabs, zoom, unread repayment and retries.");
 }
