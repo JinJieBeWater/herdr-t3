@@ -106,8 +106,11 @@ export function watchReview(view, cx) {
           cx.spawn(async () => {
             try {
               while (view.reviews.get(view.reviewKey)?.root === root) {
-                const paths = await watchFolder(root);
-                if (await touchesDiff(root, paths)) for (const [k, at] of view.reviewAt) view.reviewAt.set(k, Math.min(at, Date.now() - 9000));
+                const paths = await watchFolder(root), soon = Date.now() - 9000;
+                // Only this repo's locations: another's late event leaves them be. Already due, nothing to ask git.
+                const mine = [...view.reviewAt].filter(([k, at]) => view.reviews.get(k)?.root === root && at > soon);
+                // Out of focus, no check-ignore per batch: the read on coming back settles it.
+                if (mine.length && (!window()?.active || await touchesDiff(root, paths))) for (const [k, at] of mine) view.reviewAt.set(k, Math.min(at, Date.now() - 9000));
               }
             }
             catch {} // The next read watches it again.

@@ -226,6 +226,19 @@ const load = (props = {}, setup = record) => {
     assert.equal(view.reviewAt.get(key), readAt, "an ignored change");
     change(under("src/a.js")); await new Promise(setImmediate);
     assert.ok(Date.now() - view.reviewAt.get(key) >= 9000 && view.reviewAt.get(key) <= readAt, "a change: the 10 s rule reads a second after the last read");
+    // Already due, a batch asks git nothing; out of focus, nor does one that isn't: the read on coming back settles it.
+    const realExec = watcher.exec, asked = [];
+    watcher.exec = async (command, args, options) => { asked.push(args); return realExec(command, args, options); };
+    change(under("src/b.js")); await new Promise(setImmediate);
+    view.reviewAt.set(key, Date.now()); watcher.window = () => ({ active: false });
+    change(under("node_modules/x")); await new Promise(setImmediate);
+    assert.deepEqual([asked.length, Date.now() - view.reviewAt.get(key) >= 9000], [0, true], "no check-ignore, and a read once back");
+    watcher.window = env.window;
+    // Another repository's late event leaves this one's last read be.
+    view.reviews.set("other", { root: "/other" }); view.reviewAt.set("other", Date.now()); view.reviewAt.set(key, Date.now());
+    change(under("src/a.js")); await new Promise(setImmediate);
+    assert.ok(Date.now() - view.reviewAt.get("other") < 9000 && Date.now() - view.reviewAt.get(key) >= 9000);
+    watcher.exec = realExec;
     // Herdr T3's Home draws no bar: nothing reads its folder, which may be a whole home directory's repository.
     view.reviewAt.clear(); state["t3-home.space"] = "s";
     tick(wcx); await new Promise(setImmediate);
