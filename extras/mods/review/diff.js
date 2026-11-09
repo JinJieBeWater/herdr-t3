@@ -76,8 +76,8 @@ export function setReviewed(view, files, reviewed, cx) {
   cx.notify();
 }
 
-// A removed or binary file has no new side to show whole.
-function canFull(file) { return file.status !== "removed" && !file.isBinary; }
+// A removed or binary file has no new side to show whole; one too large for its diff is larger whole.
+function canFull(file) { return file.status !== "removed" && !file.isBinary && !file.truncated; }
 
 export function toggleFull(view, file, cx) {
   if (view.switching || !canFull(file)) return;
@@ -90,8 +90,8 @@ export function toggleFull(view, file, cx) {
     let rows = null, error = null;
     try { rows = clipRows((await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) })).rows); }
     catch (e) { error = e?.message ?? String(e); }
-    // Another diff opened meanwhile: this file's rows are the old one's.
-    if (root !== view.root || page !== view.page) return;
+    // Another diff opened meanwhile, or this file changed (which dropped the ask): these rows are the old one's.
+    if (root !== view.root || page !== view.page || view.full.get(file.path) !== null || view.fileAt(file.path)?.sha !== file.sha) return;
     if (rows) { view.full.set(file.path, rows); view.collapsed.delete(file.path); } else { view.full.delete(file.path); view.error = error; }
     view.version++;
     cx.notify();

@@ -1182,5 +1182,21 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.deepEqual(plain(asks.at(-1)), ["a.ts"]);
     assert.ok(p.fileAt("a.ts").hunks);
   }
+  {
+    // A whole file asked for before the file changed doesn't come back over the new version's diff.
+    const { p, scope } = await paneOf();
+    let whole;
+    scope.review = (root, route, body) => route === "/api/review/file" ? new Promise(r => { whole = r; }) : daemon(root, route, body);
+    p.toggleFull(p.fileAt("a.ts"), cx);
+    const next = { ...p.review, files: p.review.files.map(f => f.path === "a.ts" ? { ...f, sha: "a.ts-v2", hunks: [{ header: "@@", rows: [{ kind: "+", new: 1, tokens: [["NEW"]] }] }] } : f) };
+    p.apply(next);
+    whole({ rows: [{ kind: "+", new: 1, tokens: [["OLD"]] }] }); await wait();
+    const shown = p.items().flatMap(i => i.lines ?? []).flatMap(r => r.tokens.map(([text]) => text));
+    assert.ok(shown.includes("NEW") && !shown.includes("OLD") && !p.full.has("a.ts"));
+    // A file too large for its diff has no whole file to ask for: larger still, it would pass what a read carries.
+    Object.assign(p.fileAt("a.ts"), { truncated: true, hunks: [] });
+    p.toggleFull(p.fileAt("a.ts"), cx); p.headerPress(p.fileAt("a.ts"), p.view - 40, cx);
+    assert.ok(!p.full.has("a.ts"));
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
