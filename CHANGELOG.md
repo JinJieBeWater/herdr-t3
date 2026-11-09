@@ -4,7 +4,57 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-09
 
+- Review: fixes and speed-ups from a second review of its code. Some need jin.review 0.3.4-fork.8.
+  - Files with the same content, such as several identical `tsconfig.json`, each load their diff. All but the first could stay on `Loading…`. Retry after a read timed out asks for the missing diffs again.
+  - A line dense with syntax colors shows to its end. Past 400 colored pieces the rest used to be dropped without a sign; it now keeps the foreground color.
+  - A long line of Chinese or tabs scrolls sideways to its end. Its last part used to stay out of reach.
+  - A file shown whole takes a new theme's colors.
+  - A folded file's diff loads when you open it, not while you scroll past.
+  - In a big group, a batch of diffs arriving, folding a file or ticking it reviewed redraws only the files it touched: in a group of 1,164 files, 2 ms where it took 39.
+  - A diff or whole file is read in pages of at most 3,000 lines and 10,000 colored pieces, as well as 4 MB, so a file of short lines or dense colors loads in parts instead of stalling the pane. (fork.8)
+  - A symlink shown whole shows the link, as Git stores it, not the file it points to. (fork.8)
+  - A review just opened and analyzed is no longer dropped by the cache making room at the same moment. (fork.8)
+  - Polling a running analysis starts one Git process fewer each time. (fork.8)
+- Review bar: the review shortcut opens the uncommitted changes only when the bar counts some. A file staged and then changed back used to open an empty review instead of the branch.
+- Review bar: a click on a count always reaches the open Review pane. With the clock set back, or right after switching commits in the pane, the pane could ignore it.
+- Review bar: the logo's menu builds only the rows in view, and a click on the logo without a press (from the keyboard or an accessibility tool) opens the menu at the logo, not where the last press was.
+- Review pane: a review whose group lists hundreds of files, such as a long branch's push, opens. It used to stop with `interrupted` nearly every time: before the file list beside the diffs knew its height it drew every row, and an interrupted view never learned it. Menus and lists that measure themselves now draw a screen's worth of rows until then.
+- Pane headers: an agent with sub-agents shows how many (`3 agents ⌄`), or how many need you, in the blocked color. A click lists them all in a menu drawn as the layout's others (the sort and right-click menus): counts on top, each with its status as a dot on its icon and how long it's been working or what it waits on, nested ones indented. The open list follows sub-agents as they start and end, and closes once none are left. Picking one peeks it; hovering one shows the same details card as its row in Lists. Inbox had no way to reach a sub-agent before; Lists keeps its rows.
+- Go to: a pane's `+n` counts only its sub-agents. It used to count the shells an agent ran commands in too.
+- Lists: a shell an agent ran a command in (`hc run --bg`) is no longer listed or counted as its sub-agent. An agent that shell started still is, a level under the agent.
+- Review pane: a big diff opens, with thousands of files or with very long lines such as a log or a minified file (each line shows its first 1000 characters). A big group's diffs load as you scroll to them. It used to stop with `interrupted`, or say the response exceeded the 8388608 byte limit. Needs jin.review 0.3.4-fork.6.
+- Review pane: after switching to a big group, it could stay stuck on `cannot read property 'get' of undefined`, showing the last view that worked. It now draws the group again on the next change.
+- Review pane: fixes for big reviews and for switching while it reads.
+  - A file whose diff failed to load, or arrived while you ticked a file reviewed, loads again on Retry or once the mark is saved. It used to stay on `Loading…` until you opened another page.
+  - A file shown whole just before it changed shows its new version. The old text used to come back under the new file's header.
+  - A file too large to show has no whole-file button. It used to ask for more than a read can carry.
+  - A diff or whole file too big for one read loads the rest as you scroll to its end, so a minified file of 85,000 lines reads to its last line. `The rest of this file is too large to show` is left only where the next part can't be loaded. A file that didn't fit in a read loads with the next one rather than stay on `Loading…`.
+  - Scrolling through a big group, each batch of diffs reads only those diffs, not the whole review again. In a branch of 1,554 files a batch is a third the size and loads about seven times faster: 283 KB in 48 ms, from 834 KB in 335 ms.
+  - The file list beside the diffs draws only the rows on screen, and each line's width is measured once, so a group of a thousand files scrolls and loads its diffs without stalling.
+  - A file clicked while the diffs before it load lands at the top. It used to land on another file.
+  - Moving the pane to another worktree and back leaves one watch on the first, not one more per visit, each reading the review again on every change.
+  - A language or model picked in Settings stays picked when the settings read on opening arrives late, and the model search keeps what you type while the agents load. Both used to go back.
+  - Another worktree, a read retried after a failure, or a finished analysis opens its list at the top. It used to keep the old list's scroll position.
+  - A file whose path holds `:` keeps its sticky header, and counts as in view.
+  - A range with no changes says `No changes in this range`, not `No files in this group`.
+- Review bar: the logo's menu opens with Git's `log.showSignature` on. It used to fail. It also marks every commit not yet pushed with `↑`: with more than 200 commits to push, some used to read `On origin/…`.
+- Review bar: switch space while a review is still opening and the new space's review stays as it was; move to another repository while the logo's menu is still loading and it doesn't open. The first review used to replace the new space's, and the old repository's menu opened over the new one.
+- Review bar: with the window in the background, files changing no longer start Git, and the counts catch up within a second of coming back. A change in a repository you left no longer makes the bar read the one in view again.
+- Review bar: the uncommitted count is the files the review lists. A file staged and then changed back no longer counts, and a moved file counts once. A click on `1 uncommitted` could open an empty review.
+- Review pane: its controls take the layout's theme colors, as the sidebar and menus do.
+  - Hovering lights a faint tint of the text color, as Home does; what's open, picked or in view is `selected`, and so is a menu's highlighted row. They used to be the same translucent grey in every theme.
+  - Re-run and Analyze with AI are filled in `solid`, as the dialogs' main buttons. They used to be `accent` with white text.
+  - The settings' Unified/Split and other choices sit on an `input` track, the picked one `selected`, as Custom snooze's. They used to be a grey track with a raised pill.
+  - The files in view read as one block, rounded only at its ends, and so do test files next to each other. Each row used to be a block of its own.
+  - An unticked box has an `input` border, as T3's, so it shows on a highlighted row. It used to vanish there in some themes.
+- `cmd-w` and `cmd-shift-w` with a dialog or popup open close it, as in Herdr's own layout: Go to, New, the menus, Settings, the command palette, the Actions editor and the rest. They used to close the tab behind it, or ask to. Run `scripts/update.sh` to get the keys.
+- Closing the agent's pane in a split, with other panes still in its tab, stays in that tab, on the pane Herdr picks. This holds when the agent's program ends by itself too.
+- Two agents in one named tab each go by their own name, in the sidebar, the tabs and the pane headers. They used to both read the tab's name. A sub-agent beside its parent no longer takes the tab's name either.
+- In Lists, a sub-agent with a pane of its own shows once, under its parent. It used to show twice: there and as a row of its own. Pinned, it still has its own row.
+- Right-clicking a terminal that isn't in a tab, such as one in a window, no longer offers Split, Zoom or Close pane, which can't work there.
+- The Inbox on its own: Clear's dialog is as big as its text, as Herdr 0.1.14's dialogs are. It used to be a fixed 400×170.
 - A pane header leads with the agent's name. The terminal's address leaves the header for the pane's right-click menu, on the header or the terminal: `Copy address`, with the address beside it, copies it. A name that is only the program's, as `Pi` or `zsh`, no longer shows beside the program's icon. The address used to stand before the name.
+- An Inbox card no longer says `1 sub-agent working`, as T3's sidebar says nothing of sub-agents: the card's status already takes theirs in. The branch on its third line is cut in the middle, so its start and end both show.
 
 ## 2026-11-08
 
