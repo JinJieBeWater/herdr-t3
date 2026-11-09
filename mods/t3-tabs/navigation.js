@@ -131,7 +131,6 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     // Home's last pane gives way to the default page, which is how Home is reset.
     if (homeTabs.includes(tab) && ps.filter(p => homeTabs.includes(p.tab)).length === 1) run("pane.split", { direction: "right", pane, mod: "t3-home" });
     if (ps.filter(p => p.tab === tab).length === 1) await leave(tab, cx);
-    else if (!atHome() && focused()?.pane === pane && agents().some(a => a.address === p?.terminal)) await goHome(cx);
     else if (focused()?.pane === pane && p?.mod && programOf(p)?.inbox) {
       const mine = agents().filter(a => a.tab === tab), back = mine.find(a => a.address === focused()?.agent) ?? mine[0];
       if (back) focusAgent(back.address);
@@ -193,8 +192,8 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     wasHome = home;
     // For the closes this mod doesn't make, which leave() can't go ahead of: the tab's menu, the program ending. Herdr has
     // already picked the neighbour, and it may have been shown.
-    const terms = terminals(), every = agents(), ps = panes();
-    if (was && (!alive(was.tab) || (was.pane && !ps.some(p => p.pane === was.pane))) && !home) {
+    const terms = terminals(), every = agents();
+    if (was && !alive(was.tab) && !home) {
       // The agent in view lands on Home, as settling it does: what to look at next stays the person's to say.
       if (was.agent) toHome();
       else if (space?.id === was.space) goBack(was.space, was.tab);
@@ -215,9 +214,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     if (going && (tab?.id === going.tab || Date.now() > going.until)) going = null;
     // Until a close's target shows, what shows is Herdr's pick, not somewhere the person went.
     if (space && tab && !home && !going) trail[space.id] = [tab.id, ...(trail[space.id] ?? []).filter(id => id !== tab.id && alive(id))];
-    const pane = focused()?.pane;
-    inView = tab && !home ? { tab: tab.id, space: space.id, agent: every.some(a => a.tab === tab.id),
-      pane: every.some(a => a.pane === pane) ? pane : null } : null;
+    inView = tab && !home ? { tab: tab.id, space: space.id, agent: every.some(a => a.tab === tab.id) } : null;
   }
 
   // For what focuses a pane without zoom.js going first, Herdr's own: a toast, hc, the palette, its keys. Its focus moved and the

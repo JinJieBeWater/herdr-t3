@@ -48,6 +48,35 @@ function fixture() {
 }
 
 async function check() {
+  // Closing one split keeps the surviving panes in view, both through T3 and when a program ends itself.
+  for (const external of [false, true]) {
+    for (const kind of ["shell", "agent", "mod"]) {
+      const f = fixture(), view = f.navigation(), tabs = f.spaces()[0].tabs;
+      tabs[0].active = true;
+      tabs.push({ id: "previous", active: false });
+      f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, tabs: [] });
+      f.panes().push({ pane: "sibling", tab: "b0", ...(kind === "mod" ? { mod: "review" } : { terminal: "sibling-terminal" }) });
+      if (kind === "agent") {
+        const sibling = { ...f.agents()[0], address: "sibling-terminal", pane: "sibling", focused: false, status: "done" };
+        f.agents().push(sibling); f.terminals().push({ ...sibling, turn: 1, labels: { "herdr.seen": "0" } });
+      }
+      tabs[0].active = false; tabs[1].active = true; view.frame();
+      tabs[0].active = true; tabs[1].active = false;
+      Object.assign(f.shown, { tab: "b0", pane: "p0", agent: "t0" });
+      view.frame(); f.calls.length = 0;
+      if (!external) {
+        await view.handle("close-pane-now:p0", f.cx);
+        assert.deepEqual(plain(f.calls.splice(0)), [["pane.close", { pane: "p0" }]], "a split closes without selecting Home");
+      }
+      f.panes().splice(f.panes().findIndex(p => p.pane === "p0"), 1);
+      f.agents().splice(0, 1);
+      Object.assign(f.shown, { pane: "sibling", agent: kind === "agent" ? "sibling-terminal" : null });
+      view.frame();
+      assert.deepEqual(f.calls, [], "the next frame keeps the surviving split in view");
+      assert.deepEqual(f.labelled, [], "a surviving split was intentionally left in view");
+    }
+  }
+
   // Review's tab returns to the preceding tab; its split returns focus to the agent in that tab.
   for (const split of [false, true]) {
     const f = fixture(), view = f.navigation(), tabs = f.spaces()[0].tabs;

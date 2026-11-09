@@ -2465,7 +2465,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     await view.settle(cx); assert.deepEqual(f.calls, [], "analysis in progress cannot be settled");
   }
 
-  // An agent pane closing is still a close of the agent in view, even when its tab survives.
+  // Closing an agent split leaves the surviving pane in view, in either sidebar mode.
   for (const mode of ["lists", "inbox"]) {
     const f = fixture(256), tab = f.spaces()[0].tabs[0]; tab.active = true;
     f.slots.lists = { id: "sidebar-lists", active: mode };
@@ -2476,13 +2476,13 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [] });
     const view = f.load("t3-tabs"); view.render(cx); f.calls.length = 0;
     await view.navigation.handle("close-pane-now:p0", cx);
-    assert.deepEqual(plain(f.calls.splice(0)), [["space.select", { id: "h" }], ["pane.close", { pane: "p0" }]], "Home before the agent pane closes");
+    assert.deepEqual(plain(f.calls.splice(0)), [["pane.close", { pane: "p0" }]], "the surviving pane stays in view");
     f.panes().splice(f.panes().findIndex(p => p.pane === "p0"), 1); f.agents().splice(0, 1);
     neighbour.status = "idle"; k.labels["herdr.seen"] = "1";
     Object.assign(f.shown, { pane: "pn", terminal: "N", agent: "N" }); view.render(cx);
-    assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]], "a program ending takes the same path");
+    assert.deepEqual(plain(f.calls.splice(0)), [], "a program ending also keeps the surviving pane in view");
     f.spaces()[0].active = false; f.spaces().at(-1).active = true; view.render(cx);
-    assert.ok(f.labelled.some(a => a.join(" ") === "label N herdr.seen=0"), "the neighbour's unread turn returns after leaving");
+    assert.deepEqual(f.labelled, [], "the surviving pane was left in view, so its turn stays seen");
   }
 
   for (const mode of ["lists", "inbox"]) {
