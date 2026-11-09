@@ -75,6 +75,7 @@ const load = (props = {}, setup = record) => {
   scope.exec = async (_command, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" }
     : args.includes("symbolic-ref") ? { code: 1, stdout: "" }
     : args.includes("rev-list") ? (refs[args.at(-1)] ? { code: 0, stdout: refs[args.at(-1)] } : { code: 128, stdout: "" })
+    : _command === "sh" ? { code: 1, stdout: "" } // No net diff to read: status's count, as without sh. A real repo's is below.
     : (assert.ok(args.includes("--untracked-files=all"), "a new folder counts its files, as the page it opens"), { code: 0, stdout: status });
   const review = await scope.readReview("/repo/src");
   const show = r => bar.reviews.set(JSON.stringify(scope.reviewLocation()), r);
@@ -239,6 +240,17 @@ const load = (props = {}, setup = record) => {
     change(under("src/a.js")); await new Promise(setImmediate);
     assert.ok(Date.now() - view.reviewAt.get("other") < 9000 && Date.now() - view.reviewAt.get(key) >= 9000);
     watcher.exec = realExec;
+    // The uncommitted count is what the pane shows: a file staged then edited back is no diff, a moved file one rename.
+    const repo = path.join(tmp, "count"), sh = (cmd) => assert.equal(spawnSync("sh", ["-c", cmd], { cwd: repo }).status, 0, cmd);
+    fs.mkdirSync(repo);
+    sh("git init -q && echo base > a.txt && git add a.txt && git -c user.name=a -c user.email=a@b commit -qm init");
+    sh("echo staged > a.txt && git add a.txt && echo base > a.txt");
+    assert.equal((await watcher.readReview(repo)).changed, 0, "staged, then edited back");
+    sh("git reset -q --hard && mv a.txt renamed.txt");
+    assert.equal((await watcher.readReview(repo)).changed, 1, "moved");
+    sh("echo new > n.txt");
+    assert.equal((await watcher.readReview(repo)).changed, 2, "and a new file");
+    assert.equal(fs.readFileSync(path.join(repo, ".git/index")).includes("n.txt"), false, "the person's index untouched");
     // Herdr T3's Home draws no bar: nothing reads its folder, which may be a whole home directory's repository.
     view.reviewAt.clear(); state["t3-home.space"] = "s";
     tick(wcx); await new Promise(setImmediate);

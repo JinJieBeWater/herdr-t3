@@ -45,6 +45,10 @@ export function spaceReview() {
 
 // Reads write nothing under .git, so the folder watch doesn't wake on them.
 export const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
+// The files the pane lists for the working tree, as the daemon's worktreeDiff reads them: HEAD to the working tree, net,
+// new files marked intent-to-add in a throwaway copy of the index so a moved file pairs up as one rename.
+const NET = `d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && { cp "$(git rev-parse --git-path index)" "$d/i" 2>/dev/null; export GIT_INDEX_FILE="$d/i"; } && `
+  + "git --no-optional-locks -c core.fsmonitor=false add -N -- . && git --no-optional-locks -c core.fsmonitor=false diff -M --name-only -z HEAD --";
 
 // A commit's age as the Inbox's settled rows read (t3-inbox's ago), but "now" for "just now": the column is narrow.
 function ago(ms, now) {
@@ -130,12 +134,18 @@ async function readReview(cwd) {
   const root = top.stdout.trim(), status = await git(root, ["status", "--porcelain=v2", "--branch", "--untracked-files=all"]);
   if (status.code !== 0) return null;
   const review = { root, branch: null, upstream: null, base: null, baseRef: null, changed: 0, ahead: 0, behind: 0, unmerged: 0, newer: 0, gone: false };
-  let ab = false;
+  let ab = false, lines = 0;
   for (const line of status.stdout.split("\n")) {
     if (line.startsWith("# branch.head ")) review.branch = line.slice(14);
     else if (line.startsWith("# branch.upstream ")) review.upstream = line.slice(18);
     else if (line.startsWith("# branch.ab ")) { ab = true; [review.ahead, review.behind] = line.slice(12).split(" ").map(n => Math.abs(parseInt(n, 10)) || 0); }
-    else if (line && !line.startsWith("#")) review.changed++; // One line per file, staged or not, renames included.
+    else if (line && !line.startsWith("#")) lines++;
+  }
+  // Status counts a file staged then edited back, which the pane shows no diff for, and a moved file as two.
+  if (lines) {
+    const net = await exec("sh", ["-c", NET], { cwd: root }).catch(() => null);
+    // shortcut: no sh (Windows) or no commit yet falls back to status's count; follow the daemon's empty-tree base if that matters.
+    review.changed = net?.code === 0 ? net.stdout.split("\0").filter(Boolean).length : lines;
   }
   // git leaves out branch.ab when the upstream is set but gone, as after a merged PR's branch is deleted.
   review.gone = Boolean(review.upstream) && !ab;
