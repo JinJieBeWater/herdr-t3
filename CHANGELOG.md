@@ -4,6 +4,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-09
 
+- Settings → Look: Herdr T3's layout card shows what the layout is for. One card that needs you is lit, the rest sit folded in Working. The old picture was the whole window shrunk until it read as noise.
+
 - Lists no longer follows Inbox's ways with attention:
   - `cmd-shift-s` does nothing in Lists. Settle belongs to Inbox, which has a Settled shelf to put agents on.
   - Closing the agent you're on in Lists, its whole tab or its last pane, goes back to the tab you were on before in that space, as closing any other tab does. It used to go to Home.
