@@ -161,8 +161,10 @@ async function readReview(cwd) {
 // `unpushed`: the shas not on the upstream, for the menu's ↑.
 async function readPicks(r) {
   const [read, ahead] = await Promise.all([
-    git(r.root, ["log", "-200", "--format=%H%x1f%s%x1f%ct%x1f%an", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]),
-    r.upstream && !r.gone ? git(r.root, ["rev-list", "--max-count=200", `${r.upstream}..HEAD`]) : { code: 0, stdout: "" },
+    // log.showSignature would add lines of its own.
+    git(r.root, ["log", "-200", "--no-show-signature", "--format=%H%x1f%s%x1f%ct%x1f%an", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]),
+    // All of them: a menu commit can be past the first 200 to push, and one missing here reads as pushed.
+    r.upstream && !r.gone ? git(r.root, ["rev-list", `${r.upstream}..HEAD`]) : { code: 0, stdout: "" },
   ]);
   const commits = read.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, time, author] = line.split("\x1f"); return { sha, subject, time: Number(time) * 1000, author }; });
   const unpushed = ahead.code === 0 ? ahead.stdout.split("\n").filter(Boolean) : [];

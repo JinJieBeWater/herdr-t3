@@ -240,6 +240,8 @@ const load = (props = {}, setup = record) => {
   let oldGit = false;
   const exec = scope.exec = async (_command, args) => {
     gits.push(args.find(a => a === "log" || a === "for-each-ref") ?? args.join(" "));
+    if (args.includes("log")) assert.ok(args.includes("--no-show-signature"), "log.showSignature would add lines that aren't commits");
+    if (args.includes("rev-list")) assert.ok(!args.some(a => a.startsWith("--max-count")), "the unpushed set whole, or a commit past it reads as pushed");
     if (args.includes("log")) { ranges.push(args.at(-1)); return { code: 0, stdout: `abcdef123456\x1ffix: a\x1f${Math.floor(Date.now() / 1000) - 7260}\x1fAvery\n` }; }
     if (args.includes("rev-list")) return { code: 0, stdout: "abcdef123456\n" };
     // Each branch: name, last subject, its time, author, upstream, its track, worktree, then (Git 2.41) ahead and behind.
