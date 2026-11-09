@@ -15,7 +15,8 @@ export const codeInset = (split) => split ? 52 : 92;
 
 // Wide (CJK and up) counts 2: a BMP character is 1 unit plus 1 here; an astral one, 2 units (surrogates aren't matched).
 const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g;
-const columns = (row) => Math.min(MAX_COLUMNS, row ? row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0) : 0);
+// Kept on the row: a row's tokens don't change once clipped, and the list is rebuilt, and measured, on every batch of rows.
+const columns = (row) => row ? row.columns ??= Math.min(MAX_COLUMNS, row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0)) : 0;
 
 // A group's rows run past the 8 MB one read carries: a read asks for at most ROW_BUDGET changed lines, from the files in view
 // and the LOOKAHEAD after them, so the rest come as the list reaches them. As the daemon's FIRST_ROWS for an open.

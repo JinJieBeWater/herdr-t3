@@ -1,6 +1,7 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { fileRows } from "./rows.js";
+import { scrollList } from "./list.js";
 import { LU, CAT, MONO, FADED, hover, pref, isLight, checkMark, diffStats } from "./controls.js";
 import { groupStats, categoryIcon, criticalMark, donut } from "./groups.js";
 
@@ -40,14 +41,15 @@ export function aside(view, t) {
           .child(donut(t, stats.progress))))
       .when(Boolean(g.summary), el => el.child(div().pb(8).pl(8).border_b(1).border_color(t.border).opacity(FADED)
         .child(TextView.markdown(`aside-summary-${g.key}`, g.summary).selectable(true).scrollable(false).text_size(12))))))
-    .child(v_flex().id("review-files").flex_1().min_h(0).overflow_y_scrollbar().children(fileTree(view, t, g)));
+    .child(fileTree(view, t, g).flex_1().min_h(0));
 }
 
 // As T3's ChangedFilesTree, 8 in and 14 a level: a folder's box, icon and name; a file's box, its icon and path in the code
 // font (the folder dimmed, listed), test and critical marks, counts and status; a file in view on `selected`, a test on a green
 // tint. Rows next to each other on the same tone read as one block, rounded only at its ends.
+// Only the rows in view are drawn: a group runs to a thousand files, and every render would build them all.
 function fileTree(view, t, g) {
-  const byPath = new Map(view.review.files.map(f => [f.path, f])), inView = view.visibleFiles(), light = isLight(t.background);
+  const inView = view.visibleFiles(), light = isLight(t.background);
   const checkbox = (id, state, label, toggle) => checkMark(t, state).id(id).role("check_box").accessibility_label(label)
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); toggle(cx); });
   // As the app's DisplayFilePath: its icon faded, the folder dimmed only listed. Herdr can't truncate mixed colors as one
@@ -59,12 +61,19 @@ function fileTree(view, t, g) {
       .when(parts.length > 0, el => el.child(div().min_w(0).flex_shrink(100).truncate().when(struck, el => el.line_through()).when(pref("fileList") === "list", el => el.opacity(0.4)).child(`${parts.join("/")}/`)))
       .child(div().min_w(0).flex_shrink_1().truncate().when(struck, el => el.line_through()).child(name));
   };
-  const rows = fileRows(g.files, g.missing, pref("fileList"));
-  const tone = (row) => row?.type !== "file" ? null : inView.has(row.path) ? t.selected : byPath.get(row.path)?.test ? t.ansi2 + "14" : null;
-  return rows.map((row, i) => {
-    const base = h_flex().h(28).flex_none().pl(8 + row.depth * 14).pr(8).gap(8).items_center().rounded(6).text_size(12);
+  // Made again only for another group, read or layout.
+  const layout = pref("fileList");
+  if (view.treeOf?.g !== g || view.treeOf.layout !== layout) {
+    // Another group's files start at their top.
+    if (view.treeOf?.g.key !== g.key) view.scrollTop = { ...view.scrollTop, "review-files": 0 };
+    view.treeOf = { g, layout, rows: fileRows(g.files, g.missing, layout) };
+  }
+  const rows = view.treeOf.rows;
+  const tone = (row) => row?.type !== "file" ? null : inView.has(row.path) ? t.selected : view.fileAt(row.path)?.test ? t.ansi2 + "14" : null;
+  const draw = (i) => {
+    const row = rows[i], base = h_flex().h(28).flex_none().pl(8 + row.depth * 14).pr(8).gap(8).items_center().rounded(6).text_size(12);
     if (row.type === "folder") {
-      const files = row.paths.map(path => byPath.get(path)).filter(Boolean), done = files.filter(f => f.reviewed).length;
+      const files = row.paths.map(path => view.fileAt(path)).filter(Boolean), done = files.filter(f => f.reviewed).length;
       const state = !done ? "none" : done === files.length ? "all" : "some";
       return base.id(`tree-d-${row.key}`)
         .child(checkbox(`tree-dcheck-${row.key}`, state, `${row.name}: ${done} of ${files.length} reviewed`, (cx) => view.setReviewed(files, state !== "all", cx)))
@@ -76,8 +85,8 @@ function fileTree(view, t, g) {
         .child(div().w(16).flex_none())
         .child(path(row, true))
         .child(div().flex_none().text_size(10).child("removed"));
-    const f = byPath.get(row.path);
-    if (!f) return null;
+    const f = view.fileAt(row.path);
+    if (!f) return base.id(`tree-f-${row.path}`);
     const state = f.changed ? "changed" : f.reviewed ? "all" : "none";
     const critical = [g, ...g.children].some(x => (x.notes[f.path] ?? []).some(note => note.critical));
     const bg = tone(row);
@@ -92,7 +101,8 @@ function fileTree(view, t, g) {
       .when(critical, el => el.child(criticalMark(t, 14)))
       .child(div().flex_none().text_size(10).child(diffStats(t, f.additions, f.deletions)))
       .child(fileStatus(f.status));
-  }).filter(Boolean);
+  };
+  return scrollList(view, "review-files", { count: rows.length, row: 28, draw, wheeled: () => {} });
 }
 
 // As the app's FileStatus: the letter in its status's color, on a tenth of it. Measured as T3's sm Badge.

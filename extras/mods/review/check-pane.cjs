@@ -70,6 +70,14 @@ assert.equal(contentWidth([long("测".repeat(50))]), contentWidth([long("a".repe
 const sides = [{ kind: "pair", lines: [{ left: { tokens: [["a".repeat(10)]] }, right: { tokens: [["a".repeat(100)]] } }, { left: { tokens: [["a"]] } }] }];
 assert.deepEqual([contentWidth(sides, "left"), contentWidth(sides, "right"), contentWidth(sides)], [Math.ceil(52 + 10 * 7.25 + 16), Math.ceil(52 + 100 * 7.25 + 16), 108]);
 assert.equal(contentWidth([long("a".repeat(5000))]), contentWidth([long("a".repeat(1000))]));
+// A row is measured once: the list is rebuilt, and measured again, on every batch of rows that arrives.
+{
+  let reads = 0;
+  const measured = { kind: "+", get tokens() { reads++; return [["a".repeat(10)]]; } };
+  const list = [{ kind: "row", lines: [measured] }];
+  contentWidth(list); contentWidth(list);
+  assert.equal(reads, 1);
+}
 // A log or minified line runs to megabytes, which Herdr's engine can't measure in time: rows are cut at 1000 columns on arrival.
 const huge = [{ kind: "+", new: 1, tokens: [["{", "#fff"], ["x".repeat(100000), "#0f0"], ["}", "#fff"]] }];
 clipRows(huge);
@@ -876,8 +884,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.trailing(), 0);
   // A folder in the aside's tree doesn't fold, as the app's: its box marks its files.
   pane.width = 1200; setPref("fileList", "tree");
-  pane.review.files.push(file("x/y/z.ts"));
-  pane.review.groups[0].files.push("x/y/z.ts");
+  // As a read brings it: a new review, not the old one changed.
+  pane.review = { ...pane.review, files: [...pane.review.files, file("x/y/z.ts")],
+    groups: [{ ...pane.review.groups[0], files: [...pane.review.groups[0].files, "x/y/z.ts"] }, ...pane.review.groups.slice(1)] };
   pane.select("a.ts", cx); pane.version++; pane.visible = null; drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("tree-d-folder:x/y/") && drawn.has("tree-f-x/y/z.ts") && !handlers.has("tree-d-folder:x/y/.on_click"));
   press("tree-dcheck-folder:x/y/");
@@ -1197,6 +1206,18 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     Object.assign(p.fileAt("a.ts"), { truncated: true, hunks: [] });
     p.toggleFull(p.fileAt("a.ts"), cx); p.headerPress(p.fileAt("a.ts"), p.view - 40, cx);
     assert.ok(!p.full.has("a.ts"));
+  }
+  {
+    // A group of a thousand files draws only the aside's rows in view, and the rest as the tree scrolls.
+    const files = Array.from({ length: 1000 }, (_, i) => file(`f${i}.ts`));
+    const big = { ...review, files, groups: [{ key: "g", label: "G", files: files.map(f => f.path), missing: [], notes: {}, children: [] }] };
+    const { p } = await paneOf({ review: async () => structuredClone(big) });
+    setPref("fileList", "list"); p.width = 1200; p.listHeight = { "review-files": 280 };
+    const tree = () => { drawn.clear(); p.render(cx); return [...drawn].filter(id => id.startsWith("tree-f-")); };
+    assert.deepEqual(tree(), Array.from({ length: 10 }, (_, i) => `tree-f-f${i}.ts`));
+    handlers.get("review-files.on_scroll_wheel")({ delta: { y: -28 * 500 } }, cx);
+    assert.equal(tree()[0], "tree-f-f500.ts");
+    setPref("fileList", "tree");
   }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
