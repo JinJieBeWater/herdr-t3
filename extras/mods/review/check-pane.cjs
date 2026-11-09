@@ -1295,5 +1295,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     p.visible = { start: at, end: at + 1 };
     assert.deepEqual([[...p.visibleFiles()], p.stickyFile()?.path], [["a:b.ts"], "a:b.ts"]);
   }
+  {
+    // A range with no changes says so, not that a group it doesn't have is empty.
+    const { p } = await paneOf();
+    p.apply({ ...p.review, files: [], groups: [] });
+    drawn.clear(); p.render(cx);
+    assert.equal(texts.get("review-empty"), "No changes in this range");
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();

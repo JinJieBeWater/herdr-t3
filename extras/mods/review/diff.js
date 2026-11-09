@@ -172,8 +172,9 @@ export function diffView(view, t) {
         .child(diffItem(view, t, { key: `f:${sticky.path}`, kind: "file", file: sticky, size: FILE }))))
       .child(Scrollbar.vertical("review-diff").absolute().inset_0())
       .children(view.hbars(t))
-      // As T3's DiffPanel with nothing to show.
-      .when(!items.length, el => el.child(div().absolute().inset_0().px(20).flex().items_center().justify_center().text_center().text_color(t.dim).child("No files in this group"))));
+      // As T3's DiffPanel with nothing to show: a diff with no files has no group either.
+      .when(!items.length, el => el.child(div().id("review-empty").absolute().inset_0().px(20).flex().items_center().justify_center().text_center().text_color(t.dim)
+        .child(view.review?.files.length ? "No files in this group" : "No changes in this range"))));
 }
 
 // Code scrolls sideways by the wheel alone: while it does, as T3's ScrollArea, a 6px bar says where it is, for each
