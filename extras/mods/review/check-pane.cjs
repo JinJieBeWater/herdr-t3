@@ -129,6 +129,14 @@ const huge = [{ kind: "+", new: 1, tokens: [["{", "#fff"], ["x".repeat(100000), 
 clipRows(huge);
 assert.deepEqual(plain(huge[0].tokens.map(([text, color]) => [text.length, color])), [[1, "#fff"], [999, "#0f0"]]);
 assert.equal(contentWidth([{ kind: "row", lines: huge }]), contentWidth([long("a".repeat(1000))]));
+// A newer daemon cuts rows itself and says how many columns each takes: clipRows leaves those as they come.
+const measured = [{ kind: "+", new: 1, columns: 3, tokens: [["x".repeat(2000)]] }];
+clipRows(measured);
+assert.equal(measured[0].tokens[0][0].length, 2000);
+assert.equal(contentWidth([{ kind: "row", lines: measured }]), contentWidth([long("abc")]));
+// The columns a daemon's row says are the ones the pane would count: tabs as 4, CJK as 2, an astral character as 2.
+for (const [tokens, want] of [[[["abc"]], 3], [[["\tx"]], 5], [[["中文"]], 4], [[["😀"]], 2], [[["a"], ["\t"], ["中"]], 7], [[["a".repeat(1000)]], 1000]])
+  assert.equal(contentWidth([{ kind: "row", lines: [{ kind: "+", tokens }] }]), contentWidth([{ kind: "row", lines: [{ kind: "+", tokens: [], columns: want }] }]));
 // A big group's rows run past the 8 MB a read carries: a read asks for the files in view and the 10 after them that have
 // none and aren't folded, while they fit in 3000 changed lines, the first one always.
 const many = Array.from({ length: 40 }, (_, i) => ({ path: `f${i}`, sha: `s${i}`, additions: 500, deletions: 0 }));
@@ -1166,11 +1174,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // commit reaches it.
   const reopened = new Map([["tab", "b"], ["root", "/repo"], ["page", "/commit/c2"], ["base", "/branch/fix"], ["handled", "99"]]);
   const baseReads = [], baseCommits = [...review.commits];
-  const fresh = new (load("main.js", { ...env, localStorage: { getItem: (k) => reopened.get(k) ?? null, setItem: (k, v) => reopened.set(k, v) },
+  const freshScope = load("main.js", { ...env, localStorage: { getItem: (k) => reopened.get(k) ?? null, setItem: (k, v) => reopened.set(k, v) },
     review: async (_root, _route, body) => {
       if (body.page === "/branch/fix") baseReads.push(body.rows);
       return { ...review, files: [], commits: body.page === "/branch/fix" ? baseCommits : [review.commits[1]] };
-    } }).Mod)();
+    } }), fresh = new freshScope.Mod();
   fresh.init({}, cx); await wait(); fresh.render(cx); await wait(); fresh.load(cx); await wait(); fresh.render(cx);
   assert.equal(fresh.diffCommits().length, 2);
   assert.deepEqual(plain(baseReads), [[], []], "without rows");
@@ -1182,6 +1190,14 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   fresh.load(cx); await wait();
   assert.deepEqual(plain(baseReads), [], "no base read after a rows read");
   delete fresh.rowsWanted;
+  // Stepping to another commit of the same diff keeps its commits: the base isn't read again. A refresh still reads it.
+  const request = sharedStore.get("review");
+  freshScope.showPage(fresh, "/commit/c1", cx); fresh.render(cx); await wait();
+  sharedStore.set("review", request);
+  assert.equal(fresh.page, "/commit/c1");
+  assert.deepEqual(plain(baseReads), [], "no base read on switching commit");
+  fresh.load(cx); await wait();
+  assert.deepEqual(plain(baseReads), [[]], "a refresh reads the base");
   // A daemon too old for `firstRows` ignores it: drawing the first group asks for its rows, once.
   const oldReads = [];
   const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, route, body) => {
@@ -1214,8 +1230,16 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   };
   assert.equal(await changed(["/repo/.git/objects/ab/cd", "/repo/.git/index"]), 0);
   assert.deepEqual(checked, [], "Git's own files are judged without asking it");
+  // Only the worktree's page shows the worktree: on any other a file's change can't touch the diff, and Git isn't asked.
+  assert.equal(await changed(["/repo/a.ts"]), 0);
+  watcher.page = watcher.base = "/compare/a...b";
+  assert.equal(await changed(["/repo/a.ts"]), 0);
+  assert.deepEqual(checked, [], "files off the worktree's page are judged without asking Git");
+  assert.equal(await changed(["/repo/.git/refs/heads/fix"]), 1);
+  watcher.page = watcher.base = "/worktree";
   assert.equal(await changed(["/repo/node_modules/x"]), 0);
   assert.equal(await changed(["/repo/node_modules/x", "/repo/a.ts"]), 1);
+  assert.equal(await changed(["/repo/a.ts"]), 1);
   assert.equal(await changed(["/repo/.git/refs/heads/fix"]), 1);
   // Switching page keeps the old one on screen, dimmed and inert, until the new one's read replaces it, which starts at
   // its top. Meanwhile the read asks for the new page's first group, and the title and header don't read the old review.

@@ -13,9 +13,11 @@ export function colors(t) {
 }
 
 // Worth a read? Of Git's own files only HEAD and refs, and nothing Git ignores: macOS reports those too.
+// Off the worktree's page no file is: the daemon reads the worktree only for that page.
 // `git check-ignore` exits 0 when some are ignored, listing them, 1 when none are, 128 when it can't judge.
-async function touchesDiff(root, paths) {
+async function touchesDiff(root, paths, page) {
   if (paths.some(p => /\/\.git\/(HEAD|refs\/)/.test(p))) return true;
+  if (page !== "/worktree") return false;
   const files = paths.filter(p => !/\/\.git(\/|$)/.test(p));
   if (!files.length) return false;
   const r = await exec("git", ["--no-optional-locks", "check-ignore", "--", ...files], { cwd: root }).catch(() => null);
@@ -31,7 +33,7 @@ function watchReview(view, cx) {
     try {
       while (view.watching === me) {
         const paths = await watchFolder(root);
-        if (view.watching === me && await touchesDiff(root, paths)) view.refresh(cx);
+        if (view.watching === me && await touchesDiff(root, paths, view.page)) view.refresh(cx);
         // At most one change read a second: what changes meanwhile comes in the next batch.
         await new Promise(resolve => cx.timer.after(1000, resolve));
       }
@@ -70,7 +72,7 @@ export function loadReview(view, cx, poll = false) {
   if (!view.root || !view.page) return;
   if (view.loading?.root === view.root && view.loading.page === view.page) { view.again = true; return; }
   // Switching, the group shown is the old page's: the new page's first group comes with the read instead.
-  const { root, page } = view, t = theme(), group = view.switching ? null : view.group(), marks = view.marks, id = startRead(view, cx);
+  const { root, page } = view, switched = view.switching, t = theme(), group = switched ? null : view.group(), marks = view.marks, id = startRead(view, cx);
   view.dirty = false;
   // Rows only for the files in view or just after that have none: apply() keeps the rest, and each asked-for file is highlighted anew.
   const rows = poll || !group ? [] : view.rowsWanted();
@@ -86,8 +88,9 @@ export function loadReview(view, cx, poll = false) {
       view.apply(r);
       view.error = null; view.stale = false;
       watchReview(view, cx);
-      // A rows read changes no commit, and the base's whole read can outweigh it.
-      if (!rows.length) loadBaseCommits(view, cx);
+      // A rows read changes no commit, and the base's whole read can outweigh it. Nor does stepping to another page of the
+      // same diff: a new base clears its commits (main.js), and a refresh still reads them.
+      if (!rows.length && !(switched && view.baseCommits)) loadBaseCommits(view, cx);
       // Only a count's click starts a run, on a page with no analysis. An outdated one waits for Re-analyze: every commit
       // on the branch would otherwise start another. The setting is off by default: the app never starts a paid, slow AI run by itself.
       if (view.analyzeFor === page) {

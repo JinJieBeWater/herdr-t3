@@ -41,10 +41,12 @@ export function rowsToAsk(paths, fileAt, inView, collapsed) {
 
 /**
  * Cuts each row's tokens, in place, at MAX_COLUMNS characters (at least as many columns), as they arrive: a line of a log or
- * minified file runs to megabytes, which Herdr's engine can't measure or draw before it interrupts the render.
+ * minified file runs to megabytes, which Herdr's engine can't measure or draw before it interrupts the render. A row that
+ * comes with its `columns` was cut and measured by the daemon, by the same rule as columns() here.
  */
 export function clipRows(rows) {
   for (const row of rows) {
+    if (typeof row.columns === "number") continue;
     let left = MAX_COLUMNS;
     const tokens = [];
     for (const [text, color] of row.tokens) {

@@ -20,6 +20,10 @@ English · [中文](CHANGELOG.zh-CN.md)
 - Inbox: remote machine marks no longer open a separate tooltip. Hover the card to see the machine's name in its details.
 
 - Review bar: a commit or branch picked from the logo's menu loads in the Review pane. It used to wait 30 seconds and fail with a timeout, while a count's click worked.
+- Review pane: fewer reads and less work while you review.
+  - On a branch, commit or push/pull page, editing files in the worktree no longer reads the review again: only a commit, a checkout or a moved branch does. The uncommitted changes' page still follows every file you save.
+  - Stepping between commits of the same diff no longer reads the whole diff once more for its commit list. Each refresh still does, so a new commit reaches the list.
+  - A jin.review that cuts long lines and measures them itself spares the pane doing it again for each batch of diffs.
 - Review: fixes and speed-ups from a second review of its code. Some need jin.review 0.3.4-fork.8.
   - Files with the same content, such as several identical `tsconfig.json`, each load their diff. All but the first could stay on `Loading…`. Retry after a read timed out asks for the missing diffs again.
   - A line dense with syntax colors shows to its end. Past 400 colored pieces the rest used to be dropped without a sign; it now keeps the foreground color.
