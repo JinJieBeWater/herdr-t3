@@ -21,15 +21,20 @@ function openUrl(url) {
 }
 
 // The settings panel reads the daemon's agents and shared settings each time it opens: the browser may have changed them.
+// Each lands on its own: the agents take seconds after the daemon starts, settings shown meanwhile can be picked. Only the
+// latest read's settings count, and none read before a save: they'd put back what the save changed.
 export function loadSettings(view, cx) {
-  const root = view.root;
+  const root = view.root, read = view.settingsRead = {};
+  view.settingsError = null;
+  const failed = (e) => { view.settingsError = e?.message ?? String(e); cx.notify(); };
+  cx.spawn(async (cx) => {
+    try { view.agents = await request(root, "GET", "/api/agents"); cx.notify(); } catch (e) { failed(e); }
+  });
   cx.spawn(async (cx) => {
     try {
-      const [agents, shared] = await Promise.all([request(root, "GET", "/api/agents"), request(root, "GET", "/api/settings")]);
-      view.agents = agents; view.shared = shared; view.settingsError = null;
-      view.modelInput.set_value("");
-    } catch (e) { view.settingsError = e?.message ?? String(e); }
-    cx.notify();
+      const shared = await request(root, "GET", "/api/settings");
+      if (view.settingsRead === read) { view.shared = shared; cx.notify(); }
+    } catch (e) { failed(e); }
   });
 }
 
@@ -45,7 +50,7 @@ let saving = Promise.resolve();
 
 function saveShared(view, patch, cx, reload = false) {
   const merged = (s) => ({ ...s, ...patch, ...patch.llm && { llm: { ...s?.llm, ...patch.llm } } });
-  view.shared = merged(view.shared);
+  view.shared = merged(view.shared); view.settingsRead = null;
   cx.notify();
   const root = view.root;
   const turn = saving.then(async () => request(root, "PUT", "/api/settings", merged(await request(root, "GET", "/api/settings"))));

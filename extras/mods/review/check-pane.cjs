@@ -1248,5 +1248,21 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     watched.find(w => w.root === "/other").reject(new Error("late")); await wait();
     assert.equal(p.watching?.root, "/repo");
   }
+  {
+    // A language picked while the panel's read of the settings is out stays picked once that read, from before, lands.
+    let saved = { locale: "en", llm: { provider: "local-agent", agent: "pi" } }, before;
+    const { p } = await paneOf({ request: async (_root, method, route, body) => {
+      if (route === "/api/agents") return [{ name: "pi", label: "Pi", models: [] }];
+      if (method === "PUT") return (saved = structuredClone(body));
+      if (!before) return new Promise(r => { before = () => r({ locale: "en", llm: { provider: "local-agent", agent: "pi" } }); });
+      return structuredClone(saved);
+    } });
+    p.shared = structuredClone(saved);
+    p.togglePopup("settings", cx); await wait();
+    p.settingsPage = "language";
+    p.pageRows().find(r => r.id === "locale-ja").pick(cx); await wait();
+    before(); await wait();
+    assert.deepEqual([saved.locale, p.shared.locale], ["ja", "ja"]);
+  }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
 })();
