@@ -46,7 +46,12 @@ assert.deepEqual(kinds(buildItems(review, review.groups[0], opts)), ["f", "n(who
 assert.deepEqual(plain(groupFiles(review.groups[0])), ["a.ts", "b.png", "c.ts"]);
 // Collapsed files show only their header; a whole file replaces the hunks; split pairs the rows.
 assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, collapsed: new Set(["a.ts", "c.ts"]) })), ["f", "f", "e", "g", "f"]);
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", [row(" ", 1, 1), row("+", undefined, 2)]]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", { rows: [row(" ", 1, 1), row("+", undefined, 2)] }]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+// Rows that stop short of the file's end, past the bytes a read carries, say so after them: a whole file or a diff.
+const cut = (items) => plain(items).filter(i => i.key.endsWith(":cut")).map(i => i.key);
+assert.deepEqual(cut(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", { rows: [row("+", undefined, 1)], truncated: true }]]) })), ["e:a.ts:cut"]);
+assert.deepEqual(cut(buildItems({ ...review, files: review.files.map(f => f.path === "c.ts" ? { ...f, clipped: true } : f) }, review.groups[0], opts)), ["e:c.ts:cut"]);
+assert.deepEqual(cut(buildItems(review, review.groups[0], opts)), []);
 assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: true, collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "h", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
 // Code lines go in runs of up to 32, a line's note ending one: a few thousand changed lines stay far under v_virtual_list's 10000 items.
 const lines = (n) => Array.from({ length: n }, (_, i) => row("+", undefined, i + 1));
@@ -1097,6 +1102,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   baseCommits.push({ sha: "c3", subject: "three" });
   fresh.load(cx); await wait(); fresh.render(cx);
   assert.equal(fresh.diffCommits().length, 3);
+  // A read of rows as the list scrolls changes no commit: the base isn't read again.
+  baseReads.length = 0; fresh.rowsWanted = () => ["a.ts"];
+  fresh.load(cx); await wait();
+  assert.deepEqual(plain(baseReads), [], "no base read after a rows read");
+  delete fresh.rowsWanted;
   // A daemon too old for `firstRows` ignores it: drawing the first group asks for its rows, once.
   const oldReads = [];
   const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, _route, body) => {
@@ -1294,6 +1304,23 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     const at = p.items().findIndex(i => i.kind === "row");
     p.visible = { start: at, end: at + 1 };
     assert.deepEqual([[...p.visibleFiles()], p.stickyFile()?.path], [["a:b.ts"], "a:b.ts"]);
+  }
+  {
+    // A file asked for that comes back without rows, past what one read carries, is asked for again by the next read.
+    const { p, scope } = await paneOf();
+    for (const f of [p.fileAt("a.ts"), p.fileAt("c.ts")]) delete f.hunks;
+    p.asked.clear(); p.version++;
+    const asks = [];
+    scope.review = async (root, route, body) => {
+      if (route !== "/api/review") return daemon(root, route, body);
+      asks.push(body.rows);
+      const r = await daemon(root, route, body);
+      // The first file asked for only.
+      return { ...r, files: r.files.map(({ hunks, ...f }) => f.path === body.rows[0] ? { ...f, hunks } : f) };
+    };
+    p.load(cx); await wait(); p.render(cx); await wait();
+    assert.deepEqual(plain(asks), [["a.ts", "c.ts"], ["c.ts"]]);
+    assert.ok(p.fileAt("a.ts").hunks && p.fileAt("c.ts").hunks);
   }
   {
     // A range with no changes says so, not that a group it doesn't have is empty.

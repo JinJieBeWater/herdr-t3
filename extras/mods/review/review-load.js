@@ -75,7 +75,8 @@ export function loadReview(view, cx, poll = false) {
       view.apply(r); applied = true;
       view.error = null;
       watchReview(view, cx);
-      loadBaseCommits(view, cx);
+      // A rows read changes no commit, and the base's whole read can outweigh it.
+      if (!rows.length) loadBaseCommits(view, cx);
       // Only a count's click starts a run, on a page with no analysis. An outdated one waits for Re-analyze: every commit
       // on the branch would otherwise start another. The setting is off by default: the app never starts a paid, slow AI run by itself.
       if (view.analyzeFor === page) {
@@ -92,7 +93,8 @@ export function loadReview(view, cx, poll = false) {
       }
     }
     finally {
-      if (!applied) for (const sha of mine) view.asked.delete(sha);
+      // Applied, a file can still come back without rows: past the bytes one read carries, it's left for the next.
+      for (const sha of mine) if (!applied || !view.review?.files.some(f => f.sha === sha && f.hunks)) view.asked.delete(sha);
       if (id === view.loadId) {
         view.loading = null;
         view.report();
@@ -150,7 +152,7 @@ export function applyReview(view, r) {
   view.version++;
 }
 
-// One commit's page lists only itself: the diff's commits come from its base, read without rows after each read, so a new
+// One commit's page lists only itself: the diff's commits come from its base, read without rows after each read of none, so a new
 // commit reaches the header's list. A failed read leaves the list as it was.
 function loadBaseCommits(view, cx) {
   const { root, base } = view;

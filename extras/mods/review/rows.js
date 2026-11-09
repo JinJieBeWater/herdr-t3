@@ -152,7 +152,7 @@ export const groupFiles = (group) => [...group.files, ...group.children.flatMap(
 
 /**
  * The list for one group: a header per child group, a header per file, and, unless the file
- * is collapsed, its notes and rows, in runs of up to RUN broken by a line's note. `full` holds a file's whole-file rows once loaded.
+ * is collapsed, its notes and rows, in runs of up to RUN broken by a line's note. `full` holds a file's whole-file answer (`{ rows, truncated }`) once loaded.
  * Returns the items with their heights, as `v_virtual_list` takes them.
  */
 export function buildItems(review, group, { collapsed, full, split, width }) {
@@ -168,7 +168,7 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
     // The file's own notes, and notes on lines no hunk shows, sit under its header as the app shows them; a rule ends them.
     const own = notes.filter(note => !note.anchor);
     for (const [i, note] of own.entries()) push({ key: `n:${path}:f${i}`, kind: "note", note, last: i === own.length - 1 }, noteHeight(note.text, width, false));
-    const hunks = full.get(path) ? [{ header: null, rows: full.get(path) }] : file.hunks;
+    const whole = full.get(path), hunks = whole ? [{ header: null, rows: whole.rows }] : file.hunks;
     if (!hunks) {
       push({ key: `e:${path}`, kind: "empty", text: "Loading…", loading: true }, ROW);
       return;
@@ -197,6 +197,8 @@ export function buildItems(review, group, { collapsed, full, split, width }) {
         }
       }
     }
+    // Past the bytes one read carries, the daemon sends the rows only so far.
+    if (whole ? whole.truncated : file.clipped) push({ key: `e:${path}:cut`, kind: "empty", text: "The rest of this file is too large to show" }, ROW);
   };
   // Each of a file's items names it: a path may hold ":", which its key can't be split at.
   const addFile = (path) => { const from = items.length; fileItems(path); for (let i = from; i < items.length; i++) items[i].path = path; };

@@ -87,12 +87,13 @@ export function toggleFull(view, file, cx) {
   view.full.set(file.path, null);
   const { root, page } = view;
   cx.spawn(async (cx) => {
-    let rows = null, error = null;
-    try { rows = clipRows((await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) })).rows); }
+    // The answer as it comes, `{ rows, truncated }`: past the bytes a read carries, the rows stop short of the file's end.
+    let whole = null, error = null;
+    try { const r = await review(root, "/api/review/file", { page, file: file.path, colors: colors(theme()) }); clipRows(r.rows); whole = r; }
     catch (e) { error = e?.message ?? String(e); }
     // Another diff opened meanwhile, or this file changed (which dropped the ask): these rows are the old one's.
     if (root !== view.root || page !== view.page || view.full.get(file.path) !== null || view.fileAt(file.path)?.sha !== file.sha) return;
-    if (rows) { view.full.set(file.path, rows); view.collapsed.delete(file.path); } else { view.full.delete(file.path); view.error = error; }
+    if (whole) { view.full.set(file.path, whole); view.collapsed.delete(file.path); } else { view.full.delete(file.path); view.error = error; }
     view.version++;
     cx.notify();
   });
