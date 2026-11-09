@@ -72,12 +72,15 @@ function herdr(root, page, analyze, space) {
   // The space changed while this read: its review would land in the new space's pane.
   if (activeSpace() !== space) return;
   if (page === "/") throw new Error("Nothing to review on the default branch: pick a diff in the Review bar.");
-  const open = spaceReview(), wanted = { root, page, n: Date.now(), analyze: Boolean(analyze) };
+  // The pane takes only a number past the last it handled: past the last sent, as its own switch's, though the clock go back.
+  const n = Math.max(Date.now(), (shared(PANE)?.n ?? 0) + 1), open = spaceReview(), wanted = { root, page, n, analyze: Boolean(analyze) };
   if (open) {
     setShared(PANE, { tab: open.tab, ...wanted });
     focusPane(open.pane);
     return;
   }
+  // A new pane starts from its props' number: kept here, for no pane to take.
+  setShared(PANE, { tab: null, n });
   if (shared(`${PANE}.prefs`)?.openIn === "tab") return run("tab.new", { mod: PANE, props: wanted });
   // With an agent block focused there is no focused pane: split the agent's own.
   const f = focused(), from = f?.pane ?? panes().find(p => p.terminal === f?.agent)?.pane;

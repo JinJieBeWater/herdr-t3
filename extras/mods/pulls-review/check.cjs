@@ -563,8 +563,26 @@ const load = (props = {}, setup = record) => {
   delete state["review.prefs"];
   const newSplit = await opens({ analyze: true });
   assert.deepEqual(newSplit.map(([name, args]) => [name, args.direction, args.pane, args.props.analyze]), [["pane.split", "right", "p1", true]], "the default is a split");
-  assert.equal((await opens({}))[0][1].props.analyze, false);
-  assert.equal(state.review, undefined, "a new pane has no request to read");
+  const made = (await opens({}))[0][1].props;
+  assert.equal(made.analyze, false);
+  assert.deepEqual(plain(state.review), { tab: null, n: made.n }, "a new pane has no request to read; the record keeps its number");
+  // The pane takes only a number past the last it handled, and its own switch sends the last one + 1: each request's is
+  // past the last sent, whatever the clock says.
+  opener.panes = panesWith("r");
+  const OpenerDate = vm.runInContext("Date", opener), clock = OpenerDate.now;
+  OpenerDate.now = () => 100000;
+  state.review = { tab: "r", root: "/repo", page: "/commit/previous", base: "/branch/feat", n: 101000 };
+  await opener.launch({ root: "/repo", args: [], page: "/branch/feat" });
+  assert.ok(state.review.n > 101000, "the clock set back");
+  const first = state.review.n;
+  await opener.launch({ root: "/repo", args: [], page: "/branch/feat" });
+  assert.ok(state.review.n > first, "two in the same millisecond");
+  opener.panes = panesWith("x"); OpenerDate.now = () => 200000;
+  const fresh = (await opens({}))[0][1].props.n;
+  opener.panes = panesWith("r"); OpenerDate.now = () => 100000;
+  await opener.launch({ root: "/repo", args: [], page: "/branch/feat" });
+  assert.ok(state.review.n > fresh, "past a new pane's, whose props start it");
+  OpenerDate.now = clock; delete state.review;
   // Switching space while it reads: the review stays out of the new space's pane.
   let config;
   opener.readTextFile = () => new Promise(done => { config = done; });
