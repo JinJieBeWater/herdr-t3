@@ -465,9 +465,11 @@ export default class Tabs extends View {
     };
     const root = layout(), { rail: sidebar } = sidebarParts(root);
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
-    const lightsPadding = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights
-      ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.hidden ? 0 : sidebar?.size?.px ?? 0))
-      : 8;
+    // Hidden, the sidebar's toggle stands where the brand bar's Herdr mark was: its 16px icon, 6 into the button, centred
+    // on that 20px logo, which the brand bar puts 82 in past the window buttons (16 + 66 here) and 14 in elsewhere.
+    const lights = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights;
+    const lightsPadding = sidebar?.hidden ? (lights ? (root.traffic_lights[0] + 66) / settings().zoom - 4 : 10)
+      : lights ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.size?.px ?? 0)) : 8;
     const notice = sidebar?.hidden && this.undoNotice(t);
     return focusRoot(this, h_flex().size_full().min_w(0).pl(lightsPadding).pr(4).gap(4).items_center().bg(t.chrome)
       .when(this.over !== null, el => el.track_focus(this.dragKeys).on_key_down((e, cx) => {

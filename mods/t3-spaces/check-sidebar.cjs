@@ -1421,6 +1421,15 @@ for (const width of [208, 240, 256, 320, 480]) {
   const bare = tabs.render(cx);
   assert.deepEqual(bare.items.slice(0, 2).map(n => n.key), ["tip-sidebar-toggle", "tab-area"], "hidden, the toggle sits first, after the window buttons");
   const toggle = find(bare, "sidebar-toggle");
+  {
+    // Hidden and shown, the control past the window buttons sits in one place: the toggle's 16px icon centred on Herdr's 20px mark.
+    const brand = f.load("t3-chrome");
+    for (const zoom of [1, 1.25]) {
+      f.ui.settings = { zoom }; Object.assign(f.ui.window, { titlebar: "none" }); Object.assign(f.ui.root, { titlebar: "none", traffic_lights: [16, 12] });
+      assert.equal(tabs.render(cx).style.pl + 6 + 8, brand.render(cx).style.pl + 6 + 10, `at ${zoom * 100}%`);
+    }
+    delete f.ui.settings; delete f.ui.window.titlebar; delete f.ui.root.titlebar; delete f.ui.root.traffic_lights;
+  }
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
   assert.equal(toggle.style.accessibility_label, "Show sidebar, 2 needing you");

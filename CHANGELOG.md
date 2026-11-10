@@ -9,6 +9,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 - The wheel over the tab bar now only scrolls the tabs, up and down as sideways, instead of switching to the next or previous tab; click a tab to go to it.
 - The server icon in the sidebar footer is gone. Add a machine from Herdr's Settings.
 - In a narrow sidebar, Herdr's name at the top left goes and its mark stays, instead of showing `Her…`.
+- Hiding the sidebar, its toggle now stands where Herdr's mark was, instead of a few pixels to the right.
 
 ## 2026-11-10
 
