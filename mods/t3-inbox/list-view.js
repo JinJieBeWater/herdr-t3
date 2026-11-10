@@ -135,6 +135,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
       const ask = {
         title: `Close ${doomed.length} terminal${doomed.length === 1 ? "" : "s"}?`,
         detail: "This ends the terminals of your settled agents. The tab you're on stays.",
+        yes: "Close",
         command: { name: "t3-inbox.clear" },
       };
       // The layout's T3 dialog is t3-actions'; published alone (no `home` prop) this mod has only the shipped one.

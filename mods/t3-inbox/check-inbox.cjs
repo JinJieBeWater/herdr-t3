@@ -294,7 +294,7 @@ test("Clear confirms terminals, as closing a tab does", () => {
   f.render();
   const opened = []; f.context.openOverlay = (o) => opened.push(o);
   f.event("settled-clear", "on_click");
-  assert.equal(opened[0].props.title, "Close 2 terminals?");
+  assert.deepEqual([opened[0].props.title, opened[0].props.yes], ["Close 2 terminals?", "Close"]);
 });
 
 test("a shared Undo request seen while drawing runs just after the draw, not with the 1s poll", () => {

@@ -183,6 +183,7 @@ function editorView(view) {
             actions: "confirm",
             title: `Delete ${view.action.name}?`,
             detail: "This removes the action and can't be undone.",
+            yes: "Delete",
             command: { name: `${MOD}.delete-action:${view.action.id}` },
           } });
         }))))
@@ -191,17 +192,13 @@ function editorView(view) {
       .child(button("action-save", "Save", true, () => saveEditor(view)))));
 }
 
-// T3's alert dialog, for what the shipped confirm mod would ask: props { title, detail, command: { name, args } }. Enter confirms, Esc cancels.
+// T3's alert dialog, for what the shipped confirm mod would ask: props { title, detail, yes, command: { name, args } }. Enter confirms, Esc cancels.
+// Drawn as this layout's editor is: a bare footer, and the going-ahead button the editor's Delete, its word saying what it does (`yes`).
 function initConfirm(view, cx) {
   view.ask = cx.focus_handle();
   view.ask.focus();
   stopsInit(view, cx, "modal");
 }
-
-// T3 writes white on its red, but a theme's red may be too pale for that (Catppuccin Mocha's, 2.3:1): whichever of white and the theme's background reads better.
-const luminance = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
-const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
-const onRed = (t) => (contrast(t.ansi1, "#ffffff") >= contrast(t.ansi1, t.background) ? "#ffffff" : t.background);
 
 function confirmView(view) {
   const t = theme(), p = props() ?? {}, done = () => closeOverlay(p.overlay);
@@ -217,9 +214,9 @@ function confirmView(view) {
     .child(v_flex().p(24).gap(8).min_h(0)
       .child(dialogTitle(t, p.title ?? "Are you sure?"))
       .child(div().id("confirm-detail").max_h(384).overflow_y_scrollbar().text_color(t.muted).child(p.detail ?? "")))
-    .child(h_flex().mt_auto().px(24).py(16).gap(8).items_center().justify_end().rounded_b(15).border_t(1).border_color(t.border).bg(t.foreground + "06")
+    .child(h_flex().id("confirm-footer").mt_auto().px(24).pb(24).gap(8).items_center().justify_end()
       .child(dialogButton(view, t, "confirm-no", "Cancel", h_flex().border_color(t.input).bg(t.raised).text_color(t.foreground).on_click(done)))
-      .child(dialogButton(view, t, "confirm-yes", "Confirm", h_flex().border_color(t.ansi1).bg(t.ansi1).text_color(onRed(t)).on_click(yes)))));
+      .child(dialogButton(view, t, "confirm-yes", p.yes ?? "Confirm", h_flex().border_color(t.input).bg(t.raised).text_color(t.ansi1).on_click(yes)))));
 }
 
 export default class Actions extends View {

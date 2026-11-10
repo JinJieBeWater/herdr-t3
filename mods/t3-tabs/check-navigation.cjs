@@ -348,7 +348,7 @@ async function check() {
     f.calls.length = 0;
     await say("close-tab");
     let asked = f.overlays.pop();
-    assert.deepEqual([asked.mod, asked.frame, asked.props.actions, asked.props.title], ["t3-actions", "none", "confirm", "Close 2 terminals?"], "as T3's: what ends, counted");
+    assert.deepEqual([asked.mod, asked.frame, asked.props.actions, asked.props.title, asked.props.yes], ["t3-actions", "none", "confirm", "Close 2 terminals?", "Close"], "as T3's: what ends, counted; the button says it");
     assert.match(asked.props.detail, /^This stops their running processes and clears their histories: ".+", ".+"\.$/);
     assert.doesNotMatch(asked.props.detail, /space closes/);
     assert.deepEqual(plain(asked.props.command), { name: "t3-tabs.close-tab-now:a" });

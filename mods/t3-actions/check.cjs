@@ -206,7 +206,7 @@ delete state["bar.compact"];
   assert.equal(jobs.length, heard, "an overlay's copy doesn't listen");
   fire(find(edit.render(), "action-delete"), "on_click", {}, cx);
   const { mod, props } = overlays.pop();
-  assert.deepEqual([mod, props.actions, props.title], ["t3-actions", "confirm", "Delete Dev?"]);
+  assert.deepEqual([mod, props.actions, props.title, props.yes], ["t3-actions", "confirm", "Delete Dev?", "Delete"]);
   assert.equal(state["t3-actions"].list.length, 2, "the click only asks");
   const dot = props.command.name.indexOf(".");
   assert.equal(props.command.name.slice(0, dot), "t3-actions");
@@ -221,11 +221,13 @@ delete state["bar.compact"];
     let ran = calls.length;
     fire(find(ask().render(), "confirm-no"), "on_click", {}, cx);
     assert.equal(calls.length, ran, "Cancel runs nothing");
-    for (const [ansi1, background, ink, why] of [["#cd3131", "#000000", "#ffffff", "T3's white on T3's red"], ["#f38ba8", "#1e1e2e", "#1e1e2e", "a pale red takes the background"], ["#aa0000", "#000000", "#ffffff", "a dark red on black takes white"]]) {
-      Object.assign(theme, { ansi1, background });
-      assert.equal(find(ask().render(), "confirm-yes").style.text_color, ink, why);
-    }
-    delete theme.ansi1; delete theme.background;
+    // As the editor's Delete: the theme's red on the raised fill, no block of color; it says what it does. A bare footer, as the editor's.
+    Object.assign(theme, { ansi1: "#f38ba8", raised: "#313244" });
+    const yesButton = find(ask({ yes: "Close" }).render(), "confirm-yes");
+    assert.deepEqual([yesButton.style.text_color, yesButton.style.bg, yesButton.items.at(-1)], ["#f38ba8", "#313244", "Close"]);
+    assert.equal(find(ask().render(), "confirm-yes").items.at(-1), "Confirm", "with no word given, Confirm");
+    assert.equal(find(ask().render(), "confirm-footer").style.border_t, undefined, "no rule over the buttons");
+    delete theme.ansi1; delete theme.raised;
     fire(find(ask().render(), "confirm-yes"), "on_click", {}, cx);
     assert.deepEqual(calls.at(-1), ["x.y", { a: 1 }]);
     ran = calls.length;
