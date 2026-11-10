@@ -8,7 +8,7 @@ mkdir -p "$code" "$remotes"
 
 # Recent history only: enough for a log and release notes.
 for r in herdr-t3 herdr-t3-inbox herdling pulls.review pi-stuff; do
-  git clone -q --bare --depth 60 "https://github.com/JinJieBeWater/$r.git" "$remotes/$r.git"
+  git clone -q --bare --depth 150 "https://github.com/JinJieBeWater/$r.git" "$remotes/$r.git"
   git clone -q "file://$remotes/$r.git" "$code/$r"
 done
 
@@ -27,7 +27,7 @@ git commit -q -am "fix(t3-inbox): a run over a day reads 2d 3h, not 51h 12m"
 git checkout -q main
 
 # pulls.review: a real stretch of its history as a pull request, the default branch moved back to before it.
-# shortcut: named by hash within --depth 60, so this stops working once the repo moves on far enough; deepen the clone then.
+# shortcut: named by hash within --depth 150, so this stops working once the repo moves on far enough; deepen the clone then.
 cd "$code/pulls.review"
 git branch feat/analyze-in-daemon 14601e2
 git reset -q --hard 6bf6251
