@@ -10,8 +10,10 @@ export default class Stage extends View {
       for (;;) {
         const [name, arg] = (await nextCommand()).split(":");
         const n = shared("t3-actions")?.list.length ?? 0;
+        // t3-actions menuHeight: padding 8, Games label 28, three rows, the rule and Add action (157), plus a rule when the list has rows.
+        const rest = 157 + (n ? 9 : 0);
         if (name === "actions-menu") openOverlay({ mod: "t3-actions", kind: "popup", at: { x: Number(arg) - 8, y: 36 * (Number(settings().zoom) || 1) },
-          width: 280, height: Math.min(420, 45 + n * 28), props: { actions: "menu" } });
+          width: 280, height: Math.min(420, rest + n * 28), props: { actions: "menu" } });
         if (name === "actions-last") setShared("t3-actions", { ...shared("t3-actions"), last: arg });
       }
     });

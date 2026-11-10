@@ -20,7 +20,7 @@
 - **Home**：收起正在看的 agent 后，回到一个安静的页面，不会自动跳到下一张卡片。下一步看什么由你决定。
 - **同一个名字，同一套标记**：卡片、列表、标签和窗格标题用同样的方式给终端取名、标状态。
 - **跳转**（`cmd-p`）：按名字跳到任何窗格，agent 和普通程序都行。
-- **动作**：类似 T3 Code 的运行按钮，运行你自己的命令，在新标签或分屏里。
+- **动作**：类似 T3 Code 的运行按钮，运行你自己的命令，在新标签或分屏里。菜单里的 Games 一组可以打开 Bastet（俄罗斯方块）、Nudoku（数独）或 Moon Buggy。这三个是可选程序：macOS 上 `brew install bastet nudoku moon-buggy`，Debian 和 Ubuntu 上 `sudo apt install bastet nudoku moon-buggy`。
 - **窄标签、带框窗格**，照 T3 Code 的外观。
 - **其他机器**：它们的 space 按机器分组，Inbox 卡片带机器标记；Lists 中悬停 Agents 行查看机器名。
 - **Review**（可选）：在 agent 旁边的窗格里看当前 worktree 待评审的内容。
@@ -71,6 +71,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - `t3-tabs`：关闭终端前运行 `hc get`，看里面有没有程序在跑。用 `cmd-shift-s` Settle 或取回 agent 时运行 `hc label`；Herdr 显示了你没选的标签、清掉了未读的 done（`herdr.seen`）或 Woke 标记（`snoozed`）时，也用它还回去；这一轮失败或查看时有新工作结束 Snooze 时，运行 `hc label <agent> snoozed=`。
 - `t3-agents`：置顶一个 Snooze 中的 agent、结束它的 Snooze 时，运行 `hc label <agent> snoozed=`。
 - `t3-chrome`：macOS 上缩放变化时，改写已安装的 `layouts/herdr-t3.json` 里的窗口按钮位置，让按钮留在品牌栏的中线上。
+- 动作里打开游戏时：`bastet`、`nudoku` 或 `moon-buggy`。可选，布局不附带。安装命令见[功能](#功能)。
 - `t3-spaces`、`t3-agents`、`t3-inbox`、`t3-new-menu`、`t3-picker`：为每个 space 的图标，在 space 所在的位置（它的机器上）运行 `git rev-parse --show-toplevel`、`sh` 文件检测和 `base64`；找到的图标复制到 `cache/t3-icons/`。
 
 不发网络请求。

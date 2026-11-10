@@ -2,6 +2,10 @@
 
 [English](CHANGELOG.md) · 中文
 
+## 2026-11-10
+
+- 动作：菜单里多了一组 Games，分别是 Bastet（俄罗斯方块）、Nudoku（数独）和 Moon Buggy，点一个就在新标签里打开。运行后 `▶` 仍停在原来的动作上，这一行也没有齿轮。你还没有任何自己的动作时，Add action 旁边的 `▾` 打开同一个菜单。这三个程序是可选的。没安装时，标签留在一个 shell 上，并写明怎么装：macOS 用 `brew install bastet`，Debian 和 Ubuntu 用 `sudo apt install bastet`，`nudoku` 和 `moon-buggy` 同样。
+
 ## 2026-11-09
 
 - 设置 → Look：Herdr T3 的布局卡片直接表达这个布局的用意：只有一张需要你处理的卡片亮着，其余都折叠在 Working 里。旧图是把整个窗口缩小，缩到只剩噪点。

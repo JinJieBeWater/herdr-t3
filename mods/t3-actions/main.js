@@ -20,8 +20,22 @@ const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foregr
 // { list: [{ id, name, command, icon, place, cwd }], last: id }
 const state = () => shared(KEY) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
-// The menu: a popup's height is only a maximum, so its list sets its own. REST: its padding, rule and Add action.
-const MENU_MAX = 420, MENU_REST = 45;
+// Optional terminal games. Not saved: no gear, and running one leaves ▶ on the action it was on.
+// `exec` the binary so quitting it doesn't fall through to the hint. Missing, the tab stays on a shell under the hint:
+// a process that exits closes its pane, so the hint has to be something that keeps running.
+const gameCommand = (bin) => `command -v ${bin} >/dev/null 2>&1 && exec ${bin}
+printf '%s\\n' '${bin} is not installed.' 'macOS: brew install ${bin}' 'Debian/Ubuntu: sudo apt install ${bin}'
+exec "\${SHELL:-sh}"`;
+const GAMES = [
+  { id: "bastet", name: "Bastet", command: gameCommand("bastet") },
+  { id: "nudoku", name: "Nudoku", command: gameCommand("nudoku") },
+  { id: "moon-buggy", name: "Moon Buggy", command: gameCommand("moon-buggy") },
+];
+// The menu: a popup's height is only a maximum, so its list sets its own.
+// Below the list: padding 8, the Games label, one row each, the rule and Add action. A rule above Games only when the list has rows.
+const MENU_MAX = 420, GAMES_REST = 8 + 28 + GAMES.length * 28 + 9 + 28;
+const menuRest = (n) => GAMES_REST + (n ? 9 : 0);
+const menuHeight = (n) => Math.min(MENU_MAX, menuRest(n) + n * 28);
 const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", frame: "none", width: 512, props: { actions: "edit", id } });
 
 // A menu hangs 4px under the bar's 24px control, centered in its 40 (T3's MenuPopup sideOffset), under the click, not on the pointer; the app keeps it in the window.
@@ -38,37 +52,50 @@ function runAction(a) {
   run("terminal.open", { argv: ["sh", "-c", a.command], name: a.name, place: a.place ?? "tab", ...(folder ? { folder } : {}) });
 }
 
+// A new tab, named after the game. No folder: it isn't a project command.
+function runGame(g) {
+  run("terminal.open", { argv: ["sh", "-c", g.command], name: g.name, place: "tab" });
+}
+
 // The answer from Delete's confirm dialog.
 function deleteAction(id) {
   const s = state();
   setShared(KEY, { ...s, list: s.list.filter(x => x.id !== id) });
 }
 
-// The bar's control: "▶ Dev | ▾", or "Add action" before there is one. Outlined, not filled: a fill would read as an active tab.
+// ▾ opens the menu under the press. With no saved actions it still does: Games live there.
+function menuButton(view, t, stopPress) {
+  return tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).w(23).flex().items_center().justify_center().rounded_r(8).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
+    .role("button").accessibility_label("Actions").on_click((_e, cx) => {
+      view.hot = null; // The menu covers it, before the pointer can report leaving it.
+      if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: menuHeight(state().list.length), props: { actions: "menu" } });
+      cx.notify();
+    })
+    .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
+    .child(svg("mods/t3-actions/icons/chevron-down.svg").size(16)), 8), { below: true });
+}
+
+// The bar's control: "▶ Dev | ▾", or "Add action | ▾" before there is one. Outlined, not filled: a fill would read as an active tab.
 function control(view, t, stopPress) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the icon alone, the name left to the hover label. Unset, the full control.
-  const s = state(), main = primary(s), compact = shared("bar.compact");
+  const main = primary(state()), compact = shared("bar.compact");
   // T3's xs outline button: its svg hangs 2px into each side, its label sits 4 on, and with the icon alone it's 24 square.
   const ends = (el, wide) => wide ? el.pl(5).pr(7).gap(4) : el.justify_center();
   const box = (id) => h_flex().id(id).h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stopPress);
-  if (!main) return tip(view, t, "action-add", "Add action", stop(view, t, "action-add", ends(box("action-add"), !compact).when(Boolean(compact), el => el.w(24)).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
-    // The dialog covers it, before the pointer can report leaving it.
-    .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
-    .child(svg("mods/t3-actions/icons/plus.svg").size(14)).when(!compact, el => el.child("Add action")), 8), { below: true });
+  if (!main) return box("actions").text_color(t.dim)
+    .child(tip(view, t, "action-add", "Add action", stop(view, t, "action-add", ends(h_flex().id("action-add").h(22).items_center().rounded_l(8), !compact).when(Boolean(compact), el => el.w(23)).text_color(lit(view, "action-add")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-add"))
+      // The dialog covers it, before the pointer can report leaving it.
+      .role("button").accessibility_label("Add action").on_click((_e, cx) => { view.hot = null; editor(null); cx.notify(); })
+      .child(svg("mods/t3-actions/icons/plus.svg").size(14)).when(!compact, el => el.child("Add action")), 8), { below: true }))
+    .child(div().w(1).h(22).flex_none().bg(t.border))
+    .child(menuButton(view, t, stopPress));
   return box("actions").text_color(t.dim)
     // 22, the outline's inside: a hover card's wrapper has no height for h_full to fill.
     .child(tip(view, t, "action-run", `Run ${main.name}`, stop(view, t, "action-run", ends(h_flex().id("action-run").h(22).items_center().rounded_l(8), !compact).when(Boolean(compact), el => el.w(23)).text_color(lit(view, "action-run")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-run"))
       .role("button").accessibility_label(`Run ${main.name}`).on_click(() => runAction(main))
       .child(icon(main.icon).size(14)).when(!compact, el => el.child(div().max_w(140).truncate().child(main.name))), 8), { below: true }))
     .child(div().w(1).h(22).flex_none().bg(t.border))
-    .child(tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).w(23).flex().items_center().justify_center().rounded_r(8).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
-      .role("button").accessibility_label("Actions").on_click((_e, cx) => {
-        view.hot = null; // The menu covers it, before the pointer can report leaving it.
-        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(MENU_MAX, MENU_REST + s.list.length * 28), props: { actions: "menu" } });
-        cx.notify();
-      })
-      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
-      .child(svg("mods/t3-actions/icons/chevron-down.svg").size(16)), 8), { below: true }));
+    .child(menuButton(view, t, stopPress));
 }
 
 // The menu takes the keyboard, as the shipped menu does. As T3's, nothing is lit until a key or the pointer gets there.
@@ -81,14 +108,15 @@ function initMenu(view, cx) {
 
 function menu(view) {
   const t = theme(), { list } = state(), done = () => closeOverlay(props().overlay);
-  const picks = [...list.map(a => () => runAction(a)), () => editor(null)];
-  const labels = [...list.map(a => a.name), "Add action"];
+  const picks = [...list.map(a => () => runAction(a)), ...GAMES.map(g => () => runGame(g)), () => editor(null)];
+  const labels = [...list.map(a => a.name), ...GAMES.map(g => g.name), "Add action"];
   const row = (id, at, i, label) => h_flex().id(id).h(28).px(8).gap(8).rounded(4).items_center().flex_none()
     .text_color(t.foreground).when(view.at === at, el => el.bg(t.selected))
     .role("button").accessibility_label(label)
     .on_hover((on, cx) => { const to = on ? at : view.at === at ? -1 : view.at; if (to !== view.at) { view.at = to; cx.notify(); } })
     .on_click(() => { done(); picks[at](); })
     .child(i).child(div().flex_1().min_w(0).truncate().child(label));
+  const rule = () => div().h(1).mx(8).my(4).flex_none().bg(t.border);
   return focusRoot(view, v_flex().id("actions-menu").size_full().min_h(0).p(4).bg(t.popover).text_size(14)
     .track_focus(view.keys).on_key_down((e, cx) => {
       // On a row's Edit, Enter is Edit's.
@@ -102,14 +130,17 @@ function menu(view) {
       cx.stop_propagation();
       cx.notify();
     })
-    // Add action stays outside the list, always in view: with it lit, nothing here is.
-    .child(scrollList(view, "actions-list", { count: list.length, row: 28, height: Math.min(list.length * 28, MENU_MAX - MENU_REST), at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).mx(-2).text_color(t.muted), a.name)
+    // Saved actions scroll. Games and Add action stay outside the list, always in view: with one of them lit, nothing here is.
+    .child(scrollList(view, "actions-list", { count: list.length, row: 28, height: Math.min(list.length * 28, MENU_MAX - menuRest(list.length)), at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).mx(-2).text_color(t.muted), a.name)
         .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(view, `edit-${a.id}`))
           .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
           .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
           .child(svg("mods/t3-actions/icons/settings.svg").size(14)), 8), { below: true })); } }))
-    .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
-    .child(row("action-new", list.length, svg("mods/t3-actions/icons/plus.svg").size(16).mx(-2).text_color(t.muted), "Add action")));
+    .when(list.length > 0, el => el.child(rule()))
+    .child(h_flex().id("games-label").h(28).px(8).flex_none().items_center().text_size(12).font_medium().text_color(t.muted).child("Games"))
+    .children(GAMES.map((g, i) => row(`game-${g.id}`, list.length + i, icon("play").size(16).mx(-2).text_color(t.muted), g.name)))
+    .child(rule())
+    .child(row("action-new", list.length + GAMES.length, svg("mods/t3-actions/icons/plus.svg").size(16).mx(-2).text_color(t.muted), "Add action")));
 }
 
 // The editor dialog: this copy's own inputs, made once in init.

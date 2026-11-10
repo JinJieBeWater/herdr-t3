@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-10
+
+- Actions: the menu has a Games group, Bastet (Tetris), Nudoku and Moon Buggy, each in a new tab. Running one leaves `▶` on the action it was already on, and the row has no gear. With no actions of your own, `▾` beside Add action opens the same menu. The three programs are optional. If one is missing, the tab stays on a shell and prints how to install it: `brew install bastet` on macOS, `sudo apt install bastet` on Debian and Ubuntu, and the same for `nudoku` and `moon-buggy`.
+
 ## 2026-11-09
 
 - Settings → Look: Herdr T3's layout card shows what the layout is for. One card that needs you is lit, the rest sit folded in Working. The old picture was the whole window shrunk until it read as noise.

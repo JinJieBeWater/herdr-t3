@@ -69,10 +69,11 @@ assert.ok(find(load({ block: "actions" }).render(), "actions-fit"));
 env.spaces = () => [{ active: true, folder: "/space" }];
 delete state["t3-home.space"];
 
-// None yet: "Add action", outlined, brightening with its icon on hover; it opens the editor.
+// None yet: "Add action | ▾", outlined, brightening with its icon on hover; Add action opens the editor. ▾ is there: Games live in the menu.
 const bar = load({ block: "actions" });
-assert.ok(find(bar.render(), "action-add").style.border, "outlined, as a control on its own in any bar");
+assert.ok(find(bar.render(), "actions").style.border, "outlined, as a control on its own in any bar");
 assert.equal(find(bar.render(), "action-add").style.text_color, theme.dim);
+assert.ok(find(bar.render(), "action-more"));
 fire(find(bar.render(), "action-add"), "on_hover", true, cx);
 assert.equal(find(bar.render(), "action-add").style.text_color, theme.foreground, "its icon brightens with its text");
 fire(find(bar.render(), "action-add"), "on_click", {}, cx);
@@ -90,6 +91,7 @@ assert.deepEqual(calls.at(-1), ["terminal.open", { argv: ["sh", "-c", "bun dev"]
 // The menu hangs from the bar under the press; with none (assistive tech), at the pointer.
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.equal(overlays.at(-1).at, undefined);
+assert.equal(overlays.at(-1).height, 8 + 28 + 3 * 28 + 9 + 28 + 9 + 2 * 28, "the menu fits the saved rows and the Games group");
 fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 36 * zoom });
@@ -116,16 +118,44 @@ assert.deepEqual(strings(find(bar.render(), "action-run")), ["Test"]);
 fire(find(menu.render(), "edit-a"), "on_click", {}, cx);
 assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
 
+// Games sit under their own label, after saved actions. A row opens a tab and leaves ▶ where it was.
+{
+  const games = load({ actions: "menu" });
+  assert.deepEqual(strings(find(games.render(), "games-label")), ["Games"]);
+  for (const [id, name, bin] of [["bastet", "Bastet", "bastet"], ["nudoku", "Nudoku", "nudoku"], ["moon-buggy", "Moon Buggy", "moon-buggy"]]) {
+    assert.deepEqual(strings(find(games.render(), `game-${id}`)), [name]);
+    assert.equal(find(games.render(), `edit-${id}`), null, "a game has no gear");
+    const before = plain(state["t3-actions"]);
+    fire(find(games.render(), `game-${id}`), "on_click");
+    const [cmd, args] = calls.at(-1);
+    assert.equal(cmd, "terminal.open");
+    assert.deepEqual(args.argv.slice(0, 2), ["sh", "-c"]);
+    assert.match(args.argv[2], new RegExp(`command -v ${bin} >/dev/null`));
+    assert.match(args.argv[2], new RegExp(`exec ${bin}\\n`));
+    assert.match(args.argv[2], new RegExp(`brew install ${bin}`));
+    assert.match(args.argv[2], new RegExp(`sudo apt install ${bin}`));
+    assert.match(args.argv[2], /exec "\$\{SHELL:-sh\}"/);
+    assert.deepEqual([args.name, args.place, args.folder], [name, "tab", undefined]);
+    assert.deepEqual(plain(state["t3-actions"]), before, "a game isn't saved and doesn't become what ▶ runs");
+  }
+  assert.deepEqual(strings(find(bar.render(), "action-run")), ["Test"]);
+}
+
 // Past the rows that show, ↑/↓ keep the highlight in view; Add action stays outside the list.
 {
   const saved = state["t3-actions"];
   state["t3-actions"] = { ...saved, list: Array.from({ length: 30 }, (_, i) => ({ id: `n${i}`, name: `N${i}`, command: "x", icon: "play" })) };
   const long = load({ actions: "menu" }), press = (k) => fire(find(long.render(), "actions-menu"), "on_key_down", { key: k }, cx);
-  assert.equal(find(long.render(), "actions-list").style.h, 420 - 45, "the list sets its own height: a popup's is only a maximum, and a flexed list would have none");
+  assert.equal(find(long.render(), "actions-list").style.h, 420 - (8 + 28 + 3 * 28 + 9 + 28 + 9), "the list sets its own height: a popup's is only a maximum, and a flexed list would have none");
   assert.ok(!find(long.render(), "action-n20"), "only the rows in view are drawn");
   for (let i = 0; i < 26; i++) press("down");
   assert.ok(find(long.render(), "action-n25"), "the highlight's row is");
-  for (let i = 0; i < 5; i++) press("down");
+  for (let i = 0; i < 4; i++) press("down");
+  assert.ok(find(long.render(), "action-n29"));
+  press("down");
+  assert.equal(find(long.render(), "game-bastet").style.bg, theme.selected, "past the saved rows, Games");
+  assert.ok(find(long.render(), "action-n29"), "the list stays where it was");
+  for (let i = 0; i < 3; i++) press("down");
   assert.ok(find(long.render(), "action-new") && find(long.render(), "action-n29"), "Add action lit, the list stays where it was");
   state["t3-actions"] = saved;
 }
@@ -165,6 +195,13 @@ const added = state["t3-actions"];
 state["t3-actions"] = { list: [] };
 assert.deepEqual(strings(find(bar.render(), "action-add")), []);
 assert.equal(find(bar.render(), "action-add").style.accessibility_label, "Add action");
+fire(find(bar.render(), "action-more"), "on_click", {}, cx);
+assert.equal(overlays.at(-1).height, 8 + 28 + 3 * 28 + 9 + 28, "no saved rows: no rule above Games");
+{
+  const only = load({ actions: "menu" });
+  assert.equal(find(only.render(), "actions-list").style.h, 0);
+  assert.ok(find(only.render(), "game-nudoku") && find(only.render(), "action-new"));
+}
 state["t3-actions"] = added;
 delete state["bar.compact"];
 
@@ -248,7 +285,12 @@ delete state["bar.compact"];
   assert.notEqual(find(menu.render(), "action-new").style.bg, theme.selected);
   key({ key: "a", key_char: "a", modifiers: {} });
   assert.equal(find(menu.render(), "action-new").style.bg, theme.selected, "typing finds Add action");
+  const named = load({ actions: "menu" }), letter = (e) => fire(find(named.render(), "actions-menu"), "on_key_down", e, cx);
+  letter({ key: "b", key_char: "b", modifiers: {} });
+  assert.equal(find(named.render(), "game-bastet").style.bg, theme.selected, "typing finds Bastet");
   assert.equal(find(menu.render(), "action-new").style.tab_index, undefined, "rows go by the arrows");
 }
+const stage = fs.readFileSync(path.join(__dirname, "../../scripts/demo/mods/demo-stage/main.js"), "utf8");
+assert.match(stage, /157 \+ \(n \? 9 : 0\)/, "the demo menu is as tall as this one");
 console.log("ok: Add action and ▶ | ▾ outlined, run, menu under the press and by keys, editor saves, Delete asks, the block sized to fit");
 })().catch((e) => { console.error(e); process.exit(1); });

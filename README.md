@@ -20,7 +20,7 @@ I'd worked this way in T3 Code: what's running stays out of sight, what needs me
 - **Home**: putting away the agent you're looking at lands on a quiet page, not the next card. What to look at next is yours to pick.
 - **One name, one set of marks**: cards, lists, tabs and pane headers name and mark each terminal the same way.
 - **Go to** (`cmd-p`): jump to any pane, agent or program, by its name.
-- **Actions**: T3 Code's run button for your own commands, in a new tab or a split.
+- **Actions**: T3 Code's run button for your own commands, in a new tab or a split. The menu's Games group opens Bastet (Tetris), Nudoku or Moon Buggy. Those three are optional programs: `brew install bastet nudoku moon-buggy` on macOS, `sudo apt install bastet nudoku moon-buggy` on Debian and Ubuntu.
 - **Slim tabs and framed panes**, in T3 Code's look.
 - **Other machines**: their spaces grouped by machine, their Inbox cards marked. In Lists, hover an Agents row to see its machine's name.
 - **Review** (optional): what's left to review in the worktree, in a pane beside the agent.
@@ -71,6 +71,7 @@ It overwrites the layout and its mods and merges `keys.json`; your pins, settled
 - `t3-tabs`: `hc get` before closing a terminal, to see whether a program is running in it. `hc label` when `cmd-shift-s` settles or brings back an agent, and to give back an unread done (`herdr.seen`) or a Woke mark (`snoozed`) that Herdr cleared when it showed a tab you didn't pick, and `hc label <agent> snoozed=` when a failed turn or new work in view ends a snooze.
 - `t3-agents`: `hc label <agent> snoozed=` when pinning a snoozed agent ends its snooze.
 - `t3-chrome`: on macOS, when the zoom changes, it rewrites the window button position in the installed `layouts/herdr-t3.json`, so the buttons stay on the brand bar's middle line.
+- Actions, when you open a game: `bastet`, `nudoku` or `moon-buggy`. Optional, and not installed with the layout. See [Actions](#features) for the install commands.
 - `t3-spaces`, `t3-agents`, `t3-inbox`, `t3-new-menu`, `t3-picker`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
 
 No network requests.
