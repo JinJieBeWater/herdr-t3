@@ -2,6 +2,12 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-10
+
+- Settings of the layout's own: the sliders button in the sidebar's footer, or `cmd-shift-,`, opens them, laid out as Herdr's Settings. Changes apply at once and survive updates.
+  - **After putting away**: Home, as before, or Next card: settling, snoozing, dragging or sweeping away the agent you're looking at opens the next card, and Home once none is left. If you removed `"home"` from `t3-inbox`'s props to get this, pick Next card instead: an update puts the prop back.
+  - **Home shows**: the page with its three buttons, as before, or a terminal in your home folder.
+
 ## 2026-11-09
 
 - Settings → Look: Herdr T3's layout card shows what the layout is for. One card that needs you is lit, the rest sit folded in Working. The old picture was the whole window shrunk until it read as noise.

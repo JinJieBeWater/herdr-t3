@@ -1,0 +1,8 @@
+// The layout's own settings (docs/adr/0009): one key in shared.json, written by t3-chrome's dialog and read where each acts,
+// every time, so a change holds at once and an update never touches it. scripts/sync.sh copies this to the mods that use it.
+import { shared } from "herdr";
+
+export const SETTINGS = "t3.settings";
+// afterAway: where putting away the agent in view lands, "home" or "next" (card). homeShows: what an empty Home opens with, "page" or "terminal".
+const DEFAULTS = { afterAway: "home", homeShows: "page" };
+export const t3Settings = () => ({ ...DEFAULTS, ...shared(SETTINGS) });

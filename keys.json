@@ -57,7 +57,8 @@
     "ctrl-alt-]": "t3-tabs.tab-next",
     "ctrl-shift-tab": "t3-tabs.tab-prev",
     "cmd-shift-[": "t3-tabs.tab-prev",
-    "ctrl-alt-[": "t3-tabs.tab-prev"
+    "ctrl-alt-[": "t3-tabs.tab-prev",
+    "cmd-shift-,": "t3-tabs.settings"
   },
   "mod:t3-picker": {
     "cmd-w": "overlay.close",
@@ -144,6 +145,12 @@
     "ctrl-alt-x": "overlay.close"
   },
   "mod:worktree": {
+    "cmd-w": "overlay.close",
+    "ctrl-alt-shift-x": "overlay.close",
+    "cmd-shift-w": "overlay.close",
+    "ctrl-alt-x": "overlay.close"
+  },
+  "mod:t3-chrome": {
     "cmd-w": "overlay.close",
     "ctrl-alt-shift-x": "overlay.close",
     "cmd-shift-w": "overlay.close",

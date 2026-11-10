@@ -261,15 +261,16 @@ export default class Inbox extends View {
       this.nextWake = next;
       this.wakeTimer = next < Infinity ? cx.timer.after(Math.min(next - now, DAY), (cx) => { this.nextWake = null; cx.notify(); }) : null;
     }
-    if (publish) this.publishRows([...pinned, ...out, ...busyRows, ...napRows, ...rows], inView,
+    if (publish) this.publishRows([...pinned, ...out, ...busyRows], [...napRows, ...rows], inView,
       [...pinned, ...out, ...work, ...nap, ...put]);
     return { now, all, ps, sp, f, every, inView, scope, term, pins, wake, ...fields, ...sections };
   }
 
-  publishRows(rows, view, ordered = rows) {
+  // `cards` lead the rows, and say how many: the tab bar's Settle goes on to the next of them (t3.settings).
+  publishRows(cards, rest, view, ordered) {
     const { stack: mode } = sidebarParts(layout());
     if (mode && mode.active !== "inbox") { this.agentOrder = null; return; }
-    const drawn = { order: rows.map((a) => a.address), view };
+    const drawn = { order: [...cards, ...rest].map((a) => a.address), view, cards: cards.length };
     if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);
     const order = ordered.filter((a) => !a.mod).map((a) => a.address);
     if (JSON.stringify(order) !== this.agentOrder || shared("t3-agent-order") !== "inbox") {
@@ -285,7 +286,7 @@ export default class Inbox extends View {
     const model = this.compute(cx, false);
     const actions = inboxActions(this, model);
     const drag = inboxDrag(this, t, model, actions);
-    this.publishRows([...model.pinned, ...model.out, ...model.busyRows, ...model.napRows, ...drag.rows], model.inView,
+    this.publishRows([...model.pinned, ...model.out, ...model.busyRows], [...model.napRows, ...drag.rows], model.inView,
       [...model.pinned, ...model.out, ...model.work, ...model.nap, ...model.put]);
     const draw = inboxRowView(this, t, model, actions, drag);
     const { top, list } = inboxList(this, t, model, actions, drag, draw, cx);

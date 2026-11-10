@@ -124,7 +124,7 @@ export default class Tabs extends View {
     if (pins.includes(address)) setShared("agents.pins", pins.filter(p => p !== address));
     this.remember("Settled", { address, snoozed, pins }, cx);
     const current = focused();
-    if (["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key])) run("t3-tabs.home");
+    if (["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key]) && !this.navigation.nextCard(address)) run("t3-tabs.home");
   }
 
   unpin(address, cx) {

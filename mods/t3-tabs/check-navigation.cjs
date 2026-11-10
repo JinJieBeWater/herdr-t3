@@ -607,6 +607,69 @@ async function check() {
     peek.frame(); kid.status = "working"; peek.frame();
     assert.deepEqual(h.labelled.filter(l => l[2].startsWith("snoozed=")).map(l => l.join(" ")), ["label t0 snoozed="], "peeked at: the snooze ends");
   }
+  // The layout's settings (t3.settings): a dialog of t3-chrome's, opened by the key this bar answers; one at a time.
+  {
+    const f = fixture(), view = f.navigation();
+    await view.handle("settings", f.cx);
+    assert.deepEqual(plain(f.overlays), [{ mod: "t3-chrome", kind: "dialog", width: 880, props: { view: "settings" } }]);
+    await view.handle("settings", f.cx);
+    assert.deepEqual([f.closed, f.overlays.length], [[1], 2], "pressed again, it replaces the open one");
+  }
+
+  // Home shows a terminal when the person chose that: the shell a new space comes with stays, and an emptied Home gets one.
+  {
+    const f = fixture(), list = f.spaces(), view = f.navigation();
+    f.state["t3.settings"] = { homeShows: "terminal" };
+    const pending = view.handle("home", f.cx); await flush();
+    assert.deepEqual(plain(f.calls.splice(0)), [["space.new", { name: "Home\u200b", machine: "", folder: "/home/test" }]]);
+    list[0].active = false;
+    list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] });
+    await f.tick(); await pending;
+    assert.equal(f.state["t3-home.space"], "h");
+    assert.deepEqual(plain(f.calls.splice(0)), [], "the shell stays: no page");
+    f.panes().push({ pane: "ps", tab: "shell", terminal: "t9" });
+    f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
+    await view.handle("close-pane:ps", f.cx);
+    assert.deepEqual(plain(f.calls.splice(0)), [["pane.split", { direction: "right", pane: "ps" }], ["pane.close", { pane: "ps" }]]);
+    f.panes().pop(); f.panes().push({ pane: "ph", tab: "shell", mod: "t3-home" });
+    await view.handle("close-pane:ph", f.cx);
+    assert.deepEqual(plain(f.calls.splice(0)), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }]], "the page isn't kept: a terminal takes its place");
+  }
+
+  // Changing what Home shows swaps Home's lone default at once; anything else there is the person's (docs/adr/0005).
+  {
+    const f = fixture(), view = f.navigation(), ps = f.panes();
+    f.state["t3-home.space"] = "h";
+    f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, tabs: [{ id: "ht" }] });
+    const swap = async (setting, panes, prompt = true) => {
+      ps.splice(2); ps.push(...panes); f.calls.length = 0;
+      f.state["t3.settings"] = { homeShows: setting };
+      f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: prompt ? { pid: 1, name: "zsh" } : { pid: 2, name: "lazygit" } }) }));
+      await view.handle("home-shows", f.cx);
+      return plain(f.calls);
+    };
+    const page = { pane: "ph", tab: "ht", mod: "t3-home" }, shell = { pane: "ps", tab: "ht", terminal: "t9" };
+    assert.deepEqual(await swap("terminal", [page]), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }]]);
+    assert.deepEqual(await swap("page", [shell]), [["pane.split", { direction: "right", pane: "ps", mod: "t3-home" }], ["pane.close", { pane: "ps" }]]);
+    assert.deepEqual(await swap("page", [shell], false), [], "a program running there: it stays");
+    assert.deepEqual(await swap("terminal", [page, shell]), [], "arranged by the person: it stays");
+    assert.deepEqual(await swap("page", [page]), [], "already so");
+    assert.deepEqual(await swap("terminal", [{ pane: "pr", tab: "ht", mod: "review" }]), [], "another mod is the person's");
+  }
+
+  // Settled with the key, the agent in view gives way to the Inbox's next card, going around, if the person chose that;
+  // the rows say which are cards. No card left, or Home chosen: the caller goes Home.
+  {
+    const f = fixture(), view = f.navigation();
+    const as = (fn) => { f.calls.length = 0; fn(); return plain(f.calls.splice(0)); };
+    f.state["t3-inbox.rows"] = { order: ["A", "pane:pm", "S"], view: "A", cards: 2 };
+    assert.deepEqual([view.nextCard("A"), f.calls], [false, []], "Home by default");
+    f.state["t3.settings"] = { afterAway: "next" };
+    assert.deepEqual(as(() => assert.equal(view.nextCard("A"), true)), as(() => f.focusPane("pm")));
+    assert.deepEqual(as(() => assert.equal(view.nextCard("pane:pm"), true)), as(() => f.focusAgent("A")), "from the last, the first");
+    f.state["t3-inbox.rows"] = { order: ["A", "S"], view: "A", cards: 1 };
+    assert.deepEqual([view.nextCard("A"), f.calls], [false, []], "a settled row isn't a card");
+  }
   console.log("ok: navigation Home, close order, history, visible tabs, zoom, unread repayment and retries.");
 }
 

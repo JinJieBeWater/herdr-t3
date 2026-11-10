@@ -1173,6 +1173,21 @@ test("with a Home, Settle and Snooze on the agent in view land there, not on the
   assert.deepEqual(plain(s.calls), [["t3-tabs.home"]]);
 });
 
+test("with a Home and Next card chosen, putting away the agent in view opens the next card, and Home once none is left", () => {
+  for (const put of ["settle", "snooze"]) {
+    const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
+    f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" }); f.state["t3.settings"] = { afterAway: "next" };
+    a.focused = true; f.render(); f.calls.length = 0;
+    if (put === "settle") f.settle(); else f.mod.customSnooze(`A:${Date.now() + 3600000}`, f.cx);
+    assert.deepEqual(plain(f.calls), [["agent.focus", { terminal: "B" }]], put);
+  }
+  const s = fixture(), b = s.add("A", "idle", 300);
+  s.state["t3-home.space"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" }); s.state["t3.settings"] = { afterAway: "next" };
+  b.focused = true; s.render(); s.calls.length = 0;
+  s.settle();
+  assert.deepEqual(plain(s.calls), [["t3-tabs.home"]], "the last card: Home");
+});
+
 test("with a Home, settling Review uses the tab bar's return path", () => {
   const f = fixture(); f.add("A", "idle", 300); f.review(); f.context.props = () => ({ home: "t3-tabs.home" });
   f.context.focused = () => ({ pane: "pm", tab: "tr", terminal: null, agent: "A" }); f.render(); f.calls.length = 0;
@@ -1205,7 +1220,7 @@ test("with a Home, an agent put away in the background moves nothing, nor does t
 test("from Home the next key opens the top card: nothing is in view", () => {
   const f = fixture(); f.add("A", "idle", 300); f.add("B", "idle", 200);
   atHome(f); f.render();
-  assert.deepEqual(plain(f.state["t3-inbox.rows"]), { order: ["A", "B"], view: null });
+  assert.deepEqual(plain(f.state["t3-inbox.rows"]), { order: ["A", "B"], view: null, cards: 2 });
 });
 
 test("the agents list lights no one on a mod pane with no agent in its tab, and lights the one beside it", { skip: !lists && "t3-agents isn't here" }, () => {
@@ -1273,7 +1288,7 @@ test("a review closed fades where it was, and its record goes with it", () => {
 test("the rows the next and previous keys walk are the ones drawn, in order, with the one in view", () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "working", 200); f.add("C", "idle", 100); f.add("W", "working", 50);
   f.terms[2].labels.settled = "500:0"; a.focused = true; f.render();
-  assert.deepEqual(JSON.parse(JSON.stringify(f.state["t3-inbox.rows"])), { order: ["A"], view: "A" }, "folded shelves keep their rows out of the walk");
+  assert.deepEqual(JSON.parse(JSON.stringify(f.state["t3-inbox.rows"])), { order: ["A"], view: "A", cards: 1 }, "folded shelves keep their rows out of the walk");
   f.mod.workOpen = true; f.mod.open = true; f.render();
   const rows = f.state["t3-inbox.rows"];
   assert.deepEqual([...rows.order].sort(), ["A", "B", "C", "W"]);

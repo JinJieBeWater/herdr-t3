@@ -4,6 +4,7 @@ import { theme, run, props, updates, layout, shared, spaces, window, settings, a
 import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
+import { initSettings, settingsView } from "./settings.js";
 
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
@@ -11,6 +12,7 @@ export default class WorkspaceChrome extends View {
   async close() { stopsEnd(this); }
 
   init(_props, cx) {
+    if (props()?.view === "settings") return initSettings(this, cx);
     stopsInit(this, cx);
     if (!props()?.footer) {
       this.alignLights(cx);
@@ -48,6 +50,7 @@ export default class WorkspaceChrome extends View {
   }
 
   render() {
+    if (props()?.view === "settings") return settingsView(this);
     const t = theme();
     const lit = (id, color = t.dim) => (this.hot === id ? t.foreground : color);
     if (props()?.footer) {
@@ -76,6 +79,7 @@ export default class WorkspaceChrome extends View {
       // T3's footer: 8 in and 4 above its row, whatever height the layout gives the block.
       return focusRoot(this, div().size_full().bg(t.chrome).px(8).pt(4).child(h_flex().h(32).gap(4).items_center()
         .child(button("settings", svg("mods/t3-chrome/icons/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
+        .child(button("t3-settings", svg("mods/t3-chrome/icons/sliders-horizontal.svg").size(16), "Herdr T3 settings", () => run("t3-tabs.settings"), "t3-tabs.settings"))
         .child(button("add-machine", svg("mods/t3-chrome/icons/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(32).px(12).flex_none().flex().items_center()

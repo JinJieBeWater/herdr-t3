@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.md) · 中文
 
+## 2026-11-10
+
+- 布局有了自己的设置：点侧栏底部的 sliders 按钮或按 `cmd-shift-,` 打开，样子和 Herdr 的设置一样。改动立即生效，更新后也保留。
+  - **After putting away**：和以前一样回 Home，或者选 Next card：Settle、Snooze、拖走或划走正在看的 agent 后打开下一张卡片，没有下一张就回 Home。如果你以前为此从 `t3-inbox` 的 props 删掉了 `"home"`，改为选 Next card：更新会把这个 prop 加回来。
+  - **Home shows**：和以前一样显示三个按钮的页面，或者显示主目录下的终端。
+
 ## 2026-11-09
 
 - 设置 → Look：Herdr T3 的布局卡片直接表达这个布局的用意：只有一张需要你处理的卡片亮着，其余都折叠在 Working 里。旧图是把整个窗口缩小，缩到只剩噪点。

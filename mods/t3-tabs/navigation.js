@@ -4,13 +4,14 @@ import { descendants, kidStatus, ownStatus, treeStatus } from "./tree.js";
 import { focusAgent, focusPane } from "./zoom.js";
 import { sidebarParts } from "./sidebar.js";
 import { newTab } from "./project.js";
+import { t3Settings } from "./layout-settings.js";
 
 // One instance per Tabs view; the Herdr operations also admit the check's fake core.
 export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), window: () => window(), namer, programOf, focusAgent, focusPane }) {
   const { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, window, namer, programOf, focusAgent, focusPane } = core;
   const trail = {}, owed = new Map(), waking = new Map();
   let states = new Map();
-  let renaming = false, going, inView, wasHome, unread, focusWas, zoomOff, asking;
+  let renaming = false, going, inView, wasHome, unread, focusWas, zoomOff, asking, settingsOpen;
   const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
   // The Inbox's ways with attention hold unless Lists is the mode (docs/adr/0002).
   const listsShown = () => sidebarParts(layout()).stack?.active === "lists";
@@ -33,6 +34,9 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     if (found) setShared("t3-home.space", found.id);
   }
   const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
+  // What an empty Home opens with (t3.settings): the page, or a terminal.
+  const homePage = () => t3Settings().homeShows === "page";
+  const homeDefault = () => homePage() ? { mod: "t3-home" } : {};
   // spaces() catches up a frame or so after a command, so each step waits to see the one before.
   async function seen(cx, look) {
     // 10s: past this a slow core's Home would be there with nothing knowing it's Home, an orphan in the lists.
@@ -54,7 +58,8 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     const made = await seen(cx, () => spaces().find(s => !before.has(s.id) && s.name === HOME_NAME));
     if (!made) return;
     setShared("t3-home.space", made.id);
-    // A new space comes with a shell, and a space can't lose its last tab: the page goes in first.
+    // A new space comes with a shell: with Home a terminal, that's it. Else, as a space can't lose its last tab, the page goes in first.
+    if (!homePage()) return;
     const shell = made.tabs[0]?.id;
     run("tab.new", { space: made.id, name: "Home", mod: "t3-home" });
     const page = await seen(cx, () => spaces().find(s => s.id === made.id)?.tabs.find(c => c.id !== shell)?.id);
@@ -131,14 +136,36 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
   async function closePaneNow(pane, cx) {
     const ps = panes(), p = ps.find(p => p.pane === pane), tab = p?.tab;
     const homeTabs = spaces().find(s => s.id === homeId())?.tabs.map(c => c.id) ?? [];
-    // Home's last pane gives way to the default page, which is how Home is reset.
-    if (homeTabs.includes(tab) && ps.filter(p => homeTabs.includes(p.tab)).length === 1) run("pane.split", { direction: "right", pane, mod: "t3-home" });
+    // Home's last pane gives way to its default, the page or a terminal, which is how Home is reset.
+    if (homeTabs.includes(tab) && ps.filter(p => homeTabs.includes(p.tab)).length === 1) run("pane.split", { direction: "right", pane, ...homeDefault() });
     if (ps.filter(p => p.tab === tab).length === 1) await leave(tab, cx);
     else if (focused()?.pane === pane && p?.mod && programOf(p)?.inbox) {
       const mine = agents().filter(a => a.tab === tab), back = mine.find(a => a.address === focused()?.agent) ?? mine[0];
       if (back) focusAgent(back.address);
     }
     run("pane.close", { pane });
+  }
+
+  // What Home shows changed: its lone default gives way to the other at once. A program running there, a mod or more than one
+  // pane is the person's (docs/adr/0005), and waits for Home to be emptied.
+  async function refitHome() {
+    const tabs = spaces().find(s => s.id === homeId())?.tabs.map(c => c.id) ?? [], mine = panes().filter(p => tabs.includes(p.tab));
+    if (mine.length !== 1) return;
+    const [p] = mine, page = p.mod === "t3-home";
+    if (page === homePage() || !(page || (p.terminal && !p.mod && await atPrompt(p.terminal)))) return;
+    run("pane.split", { direction: "right", pane: p.pane, ...homeDefault() });
+    run("pane.close", { pane: p.pane });
+  }
+
+  // The Inbox's next card after `from`, going around, when the person chose to go on to it (t3.settings); its rows' first
+  // `cards` are the cards. False: the caller goes Home.
+  function nextCard(from) {
+    if (t3Settings().afterAway !== "next") return false;
+    const { order = [], cards = 0 } = shared("t3-inbox.rows") ?? {}, list = order.slice(0, cards), i = list.indexOf(from);
+    const to = i < 0 ? null : [...list.slice(i + 1), ...list.slice(0, i)][0];
+    if (to?.startsWith("pane:")) focusPane(to.slice(5));
+    else if (to) focusAgent(to);
+    return Boolean(to);
   }
 
   async function writeLabel(address, key, value, quiet = false) {
@@ -175,7 +202,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     const space = spaces().find(s => s.tabs.some(c => c.id === p.tab)), tabs = space?.tabs.map(c => c.id) ?? [];
     const last = ps.filter(q => tabs.includes(q.tab)).length === 1, inHome = space?.id === homeId();
     // The default page itself stays.
-    if (inHome && last && p.mod === "t3-home") return;
+    if (inHome && last && p.mod === "t3-home" && homePage()) return;
     // A space's last pane closes the space, and Herdr asks that itself.
     if (!p.terminal || (last && !inHome) || await atPrompt(p.terminal)) return closePaneNow(pane, cx);
     ask([namer()(p)], "", `t3-tabs.close-pane-now:${pane}`, cx);
@@ -332,6 +359,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
 
   return {
     get atHome() { return atHome(); },
+    nextCard,
     async handle(command, cx) {
       if (command === "close-tab") await closeTab(focused()?.tab, cx);
       else if (command === "close-pane") await closePane(focused()?.pane, cx);
@@ -341,6 +369,12 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
       else if (command.startsWith("close-tab-now:")) await closeTabNow(command.slice("close-tab-now:".length), { confirmed: true }, cx);
       else if (command.startsWith("close-pane-now:")) await closePaneNow(command.slice("close-pane-now:".length), cx);
       else if (command === "home") await goHome(cx);
+      else if (command === "home-shows") await refitHome();
+      // As Herdr's own Settings, a dialog; pressed again, it replaces the open one (closing one already gone does nothing).
+      else if (command === "settings") {
+        if (settingsOpen) closeOverlay(settingsOpen);
+        settingsOpen = openOverlay({ mod: "t3-chrome", kind: "dialog", width: 880, props: { view: "settings" } });
+      }
       else if (command === "next" || command === "prev") step(command);
       // New work doesn't start in Home: New picks its space.
       else if (command === "new") atHome() ? run("mod.open", { name: "t3-new-menu" }) : newTab(spaces().find(s => s.active));

@@ -73,6 +73,10 @@ _Avoid_: 稍后提醒、mute
 收起当前查看的 agent 后的落脚点，一个不属于任何项目的隐形 space。
 _Avoid_: dashboard、首页
 
+**Settings**（布局设置）：
+布局自己的设置页，和 Herdr 的 Settings 分开；只收因人而异的偏好（见 ADR 0009）。
+_Avoid_: preferences、config、T3 settings
+
 **Go to**：
 `cmd-p` 打开的跳转面板，每个窗格一行。
 _Avoid_: picker（mod 名）、Search（Inbox 里的入口名）
