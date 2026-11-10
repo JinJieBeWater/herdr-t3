@@ -17,7 +17,7 @@ import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved
 import { stopsInit, stopsEnd, stop, focusRoot, within, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 
-// The list as the layout's other menus (the sort menu, the right-click menu): 4 around, a 28px heading over 28px rows.
+// The list as the layout's other menus (the sort menu, the right-click menu): 4 around 28px rows.
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
 const WORD = { working: "Working", blocked: "Needs you", idle: "Idle" };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -42,13 +42,12 @@ function took(ms, now) {
   return s < 60 ? `${s}s` : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-// T3's ThreadRelationshipIcon: the program's 16px icon, its status an 8px dot on the bottom right corner, ringed in the panel's color.
-function kidIcon(t, k, st) {
-  const dot = st === "working" ? t.working : st === "blocked" ? t.blocked : t.muted + "73";
-  // As the menus' icons, it hangs 2 into the padding and the gap.
-  return div().relative().size(16).mx(-2).flex_none().flex().items_center().justify_center()
-    .child(programIcon(k.program, 16, t.muted) ?? svg("mods/workspace-chrome/terminal.svg").size(16).flex_none().text_color(t.muted))
-    .child(div().absolute().right(-4).bottom(-4).size(8).rounded_full().border(2).border_color(t.popover).bg(dot));
+// The Agents list's one-line marks, in the same 12px column.
+function kidMark(t, st) {
+  return div().w(12).flex_none().flex().items_center().justify_center().role("status").accessibility_label(WORD[st] ?? "Unknown")
+    .when(st === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
+    .when(st === "blocked", el => el.child(div().size(12).flex_none().rounded(3).bg(t.blocked + "26").text_size(10).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")))
+    .when(st === "idle", el => el.child(div().size(6).flex_none().rounded_full().border(1.5).border_color(t.idle ?? t.dim)));
 }
 
 function folder(cwd) {
@@ -87,14 +86,11 @@ export default class Pane extends View {
     else stopsEnd(this);
   }
 
-  // The sub-agents' list, drawn as the layout's other menus: a heading with the counts over 28px rows, each the program's icon
-  // with its status dot, the name, and how long it's been working or its status word; stepped in by level. A pick peeks that one and closes it.
+  // The sub-agents' list, as the layout's other menus: 28px rows, stepped in by level. A pick peeks that one and closes it.
   kidsMenu(t) {
     const rows = kidRows(props().kids), done = () => closeOverlay(props().overlay), now = Date.now();
     if (this.at >= rows.length) this.at = rows.length - 1;
     const peek = (k) => { done(); run("terminal.peek", { terminal: k.address }); };
-    const count = (st) => rows.filter((r) => r.st === st).length, busy = count("working"), stuck = count("blocked");
-    const heading = [plural(rows.length, "agent", "agents"), busy && `${busy} working`, stuck && `${stuck} need${stuck === 1 ? "s" : ""} you`].filter(Boolean).join(" · ");
     // T3's text-2xs with tabular figures: the time in monospace children, one per part, as the Inbox's pill.
     const mono = settings()?.font_family ?? "JetBrains Mono";
     // No status_ms is a status unchanged since it began: working since it was made.
@@ -133,8 +129,6 @@ export default class Pane extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      // The sort menu's heading.
-      .child(div().px(8).py(6).flex_none().min_w(0).truncate().text_size(12).line_height("16px").font_medium().text_color(t.muted).child(heading))
       .child(scrollList(this, "pane-kids-list", { count: rows.length, row: KIDS_ROW, height: Math.min(rows.length, KIDS_SHOWN) * KIDS_ROW, at: this.at,
         wheeled: (keep) => { if (keep >= 0) this.at = keep; },
         draw: (i) => {
@@ -154,10 +148,13 @@ export default class Pane extends View {
             })
             .on_mouse_move((e) => detailsAt(this, k.address, e))
             .on_click(() => peek(k))
-            .child(kidIcon(t, k, st))
+            // As the menus' icons, it hangs 2 into the padding and the gap.
+            .child(div().size(16).mx(-2).flex_none().flex().items_center().justify_center()
+              .child(programIcon(k.program, 16, t.muted) ?? svg("mods/workspace-chrome/terminal.svg").size(16).flex_none().text_color(t.muted)))
             .child(div().flex_1().min_w(0).truncate().child(kidName(k)))
             // The right-click menu's shortcut column: 12px medium, dim.
             .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(trail(k, st)))
+            .child(kidMark(t, st).id(`kid-status-${k.address}`))
             .when(Boolean(card), (el) => el.child(card));
         } }));
   }

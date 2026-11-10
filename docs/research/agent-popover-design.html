@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 列表 · 设计对照</title>
+<style>
+  :root { color-scheme: dark; --bg: #1e1e2e; --panel: #181825; --line: #343446; --fg: #cdd6f4; --muted: #a6adc8; --dim: #7f849c; --blue: #89b4fa; --amber: #f9e2af; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #11111b; color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: auto; padding: 48px 24px; }
+  h1 { color: #eef0f9; font-size: 28px; line-height: 1.3; margin: 8px 0 12px; }
+  p { margin: 0; }
+  .eyebrow { color: var(--blue); font-size: 12px; }
+  .intro { color: var(--muted); max-width: 650px; }
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+  h2 { font-size: 14px; font-weight: 500; margin: 0 0 12px; }
+  .canvas { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; height: 244px; padding: 20px; position: relative; }
+  .toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 20px; height: 28px; color: var(--muted); font-size: 12px; }
+  .trigger { display: flex; align-items: center; gap: 8px; }
+  .chevron { width: 6px; height: 6px; border: solid var(--dim); border-width: 0 1px 1px 0; transform: rotate(45deg); margin: -3px 3px 0 2px; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 1.5px solid #89b4fa40; border-top-color: var(--blue); border-radius: 50%; flex: none; }
+  .menu { width: 280px; max-width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 4px; margin: 8px 0 0 auto; }
+  .menu-heading { font-size: 12px; line-height: 16px; padding: 6px 8px; color: var(--muted); }
+  .old-row { display: flex; align-items: center; height: 28px; gap: 8px; background: #313144; border-radius: 4px; padding: 0 8px; }
+  .name { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; min-width: 0; flex: 1; }
+  .time { font: 12px/16px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); flex: none; }
+  .program { font-weight: 600; font-size: 12px; color: var(--dim); position: relative; }
+  .old-row .program::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); position: absolute; right: -3px; bottom: 0; }
+  .old-details { position: absolute; top: 113px; right: 304px; width: 116px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); box-shadow: 0 8px 24px #0002; font-size: 12px; }
+  .old-details strong { display: block; font-size: 11px; white-space: nowrap; margin-bottom: 6px; color: #eef0f9; }
+  .old-details p { color: var(--muted); line-height: 22px; }
+  .meta { color: var(--dim); font-size: 12px; line-height: 16px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .caption { color: var(--muted); font-size: 12px; margin-top: 12px; }
+  .next { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; align-items: start; }
+  .next .menu { margin: 0; }
+  .rules { color: var(--muted); margin: 0; padding-left: 18px; }
+  .rules li { margin-bottom: 12px; }
+  .rules strong { color: var(--fg); font-weight: 500; }
+  .needs { color: var(--amber); font-size: 12px; white-space: nowrap; }
+  .roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 28px 0; }
+  .role { padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  .role strong { display: block; color: var(--fg); font-size: 14px; margin-bottom: 4px; }
+  .context-view { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; }
+  .window { min-width: 760px; display: grid; grid-template-columns: 256px 1fr; min-height: 340px; background: var(--panel); }
+  .sidebar { padding: 12px 8px; border-right: 1px solid var(--line); }
+  .brand { padding: 0 8px 20px; color: var(--muted); }
+  .search { height: 32px; padding: 4px 8px; color: var(--dim); margin-bottom: 8px; }
+  .inbox-card { padding: 8px; border-radius: 6px; background: #313144; }
+  .inbox-card .meta { margin: 0 0 4px; }
+  .inbox-card .name { line-height: 20px; }
+  .shelf { color: var(--dim); margin-top: 120px; padding: 0 8px; font-size: 12px; display: flex; justify-content: space-between; }
+  .workspace { min-width: 0; }
+  .tabs { height: 40px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; }
+  .tab { background: #313144; border-radius: 6px; padding: 3px 12px; }
+  .pane { margin: 0 8px 8px; min-height: 290px; border-radius: 8px; background: var(--bg); position: relative; border: 2px solid var(--bg); }
+  .pane-header { height: 28px; display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+  .pane-header .trigger { margin-left: auto; flex: none; color: var(--dim); font-size: 12px; }
+  .pane-menu { position: absolute; top: 32px; right: 32px; margin: 0; z-index: 1; }
+  .compact-row { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; }
+  .compact-row:hover { background: #313144; }
+  .terminal { padding: 16px; font: 12px/24px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); }
+  .terminal p { max-width: 240px; margin-bottom: 12px; }
+  .blocked-mark { width: 12px; height: 12px; line-height: 12px; border-radius: 4px; background: #f9e2af26; color: var(--amber); text-align: center; font-size: 10px; flex: none; }
+  .compact-row.indent { padding-left: 24px; }
+  .references { color: var(--dim); font-size: 12px; margin-top: 24px; }
+  a { color: var(--blue); }
+  footer { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 16px; color: var(--dim); font-size: 12px; }
+  @media (max-width: 820px) { .comparison, .next { grid-template-columns: 1fr; } main { max-width: 540px; padding: 28px 16px; } }
+  @media (max-width: 460px) { .old-details { right: auto; left: 4px; top: 128px; } }
+  @media (max-width: 820px) { .roles { grid-template-columns: 1fr 1fr; } }
+</style>
+<main>
+  <div class="eyebrow">HERDR T3 / 设计讨论稿</div>
+  <h1>子 agent 菜单，是当前工作的局部入口。</h1>
+  <p class="intro">这套布局让人同时开着很多 agent，只看需要他的那几个。这里回答的是“它派出去的 agent 怎么样了，打开哪个看看”。因此沿用紧凑菜单，不把项目与机器信息升级为每行常驻的第二行。</p>
+  <div class="roles">
+    <div class="role"><strong>Inbox</strong>按注意力组织：什么需要我，什么可以收起。</div>
+    <div class="role"><strong>Lists</strong>按项目组织：有哪些 space 和 agent，分别在哪里。</div>
+    <div class="role"><strong>标签与窗格</strong>当前工作上下文；标题栏状态包含仍在运行的子树。</div>
+    <div class="role"><strong>子 agent 菜单</strong>查看当前 agent 的派生关系、各自状态，并 peek 一个。</div>
+  </div>
+  <h2>放回整套窗口 · Inbox 保持安静，局部入口按需展开</h2>
+  <div class="context-view">
+    <div class="window">
+      <aside class="sidebar">
+        <div class="brand">Herdr <span style="float:right">Inbox</span></div>
+        <div class="search">⌕ Search</div>
+        <div class="inbox-card"><p class="meta">智能算量</p><p class="name">当前查看的 agent</p><p class="meta">父级 · 窗口场景示意</p></div>
+        <div class="shelf"><span>Working</span><span>⌄</span></div>
+      </aside>
+      <div class="workspace">
+        <div class="tabs"><span class="tab">当前查看的 agent</span></div>
+        <div class="pane">
+          <div class="pane-header"><span class="program">Pi</span><span class="name">当前查看的 agent</span><span class="trigger">1 agent <i class="chevron"></i></span><i class="spinner" aria-label="父级子树仍在工作"></i></div>
+          <div class="menu pane-menu"><div class="compact-row"><span class="program">Pi</span><span class="name">qs-replay-watch</span><span class="time">25m</span><i class="spinner" aria-label="子 agent 自身正在工作"></i></div></div>
+          <div class="terminal"><p>当前工作的终端内容</p><p>子 agent 在后台运行。<br>需要查看时，从标题栏进入。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">侧栏按默认 256px 绘制；菜单 280px，行高 28px。父级名字未知，以“当前查看的 agent”示意。窄屏可横向查看窗口。</p>
+  <div class="comparison">
+    <section>
+      <h2>当前 · 信息分散在三处</h2>
+      <div class="canvas">
+        <div class="toolbar"><span class="trigger">1 agent <i class="chevron"></i></span><i class="spinner" aria-label="Working"></i></div>
+        <div class="menu">
+          <div class="menu-heading">1 agent · 1 working</div>
+          <div class="old-row"><span class="program">Pi</span><span class="name">qs-replay-watch</span><span class="time">25m</span></div>
+        </div>
+        <div class="old-details"><strong>qs-replay-watch</strong><p>智能算量</p><p>kvm</p><p>Pi</p></div>
+      </div>
+      <p class="caption">菜单总数重复了入口；菜单用彩点表达状态，而整套布局主要用转圈、! 和完成圆点。</p>
+    </section>
+    <section>
+      <h2>建议 · 去重复，沿用全局状态语言</h2>
+      <div class="canvas">
+        <div class="toolbar"><span class="trigger">1 agent <i class="chevron"></i></span><i class="spinner" aria-label="Pane working"></i></div>
+        <div class="menu">
+          <div class="compact-row"><span class="program">Pi</span><span class="name">qs-replay-watch</span><span class="time">25m</span><i class="spinner" aria-label="Working"></i></div>
+        </div>
+        <div class="old-details"><strong>qs-replay-watch</strong><p>智能算量</p><p>kvm</p><p>Pi</p></div>
+      </div>
+      <p class="caption">省去总数与工作数摘要；保留共用悬停详情卡。图标识别程序，最右侧统一识别状态。</p>
+    </section>
+  </div>
+  <div class="next">
+    <section>
+      <h2>多个 agent 时 · 层级和各自状态已经足够</h2>
+      <div class="menu">
+        <div class="compact-row"><span class="program">Pi</span><span class="name">qs-replay-watch</span><span class="needs">Needs you</span><span class="blocked-mark">!</span></div>
+        <div class="compact-row indent"><span class="program">Pi</span><span class="name">replay-check</span><span class="time">4m</span><i class="spinner" aria-label="Working"></i></div>
+        <div class="compact-row"><span class="program">Pi</span><span class="name">trace-compare</span><span class="time">2m</span><i class="spinner" aria-label="Working"></i></div>
+      </div>
+      <p class="caption">需要你的数量在入口显示为“1 needs you ⌄”；打开后看具体哪一个。层级和顺序沿用现有逻辑，示例名称不代表真实终端。</p>
+    </section>
+    <section>
+      <h2>为什么保留详情卡</h2>
+      <ul class="rules">
+        <li><strong>这是整套布局已有的次级信息层。</strong>Inbox 与 Agents 都把 space、机器、分支、程序放在共用详情卡，当前入口继续使用。</li>
+        <li><strong>子 agent 可能跨机器，或有自己的 pane 和分支。</strong>不能假设它与父级同处一地，也不能把这些字段删掉。</li>
+        <li><strong>完整名称用于确认详情属于哪一行。</strong>此处的重复有归属作用；详情卡时序也应沿用共享规则，不单独延迟或换成新面板。</li>
+      </ul>
+    </section>
+  </div>
+  <p class="references">设计依据：<a href="../../README.zh-CN.md">产品目标</a> · <a href="../../GLOSSARY.md">概念与分工</a> · <a href="../adr/0001-trade-off-order.md">ADR 0001：行为省注意力，外观照 T3</a> · <a href="../adr/0002-inbox-rules-stay-in-inbox.md">ADR 0002：Inbox 与 Lists 的边界</a> · <a href="../../RECIPE.md">RECIPE：窗格、Agents 与共享详情</a></p>
+  <footer>经确认的静态设计稿，<a href="sub-agent-menu-validation.md">实现验收记录与真实窗口截图</a>另存。下方对照固定显示详情卡，便于比较；实际仍按共享悬停时序出现。示意 Pi 以文字占位，实际使用官方图标。工作时长仍只表示本轮工作时间，状态语义不变。原“双行元信息常驻”的提案已撤回；真实鼠标和实体键盘操作尚未验证。</footer>
+</main>
+</html>

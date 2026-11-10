@@ -8,6 +8,7 @@
   - **After putting away**：和以前一样回 Home，或者选 Next card：Settle、Snooze、拖走或划走正在看的 agent 后打开下一张卡片，没有下一张就回 Home。如果你以前为此从 `t3-inbox` 的 props 删掉了 `"home"`，改为选 Next card：更新会把这个 prop 加回来。
   - **Home shows**，下拉选择：Default 是三个按钮的页面；Terminal 是主目录下的 shell；也可以选你自己的、`mod.json` 里写了 `"home": true` 的 mod。
 - Home 现在只放一样东西，页面、终端或你的 mod：没有窗格标题栏，全屏程序上方也不再空出一条，不能 split 也不能关；侧栏显示时，它占满原来空标签栏的高度。Home 里也不放 agent：在它的终端里起 agent，这个 space 原地变成普通 space，按目录命名；下次回 Home 会新建一个 Home。以前它会占住 Home，回 Home、Settle、Snooze 都落在它上面。
+- 窗格标题栏的子 agent 菜单去掉了顶部的计数，按钮上已经写了。每行的状态从程序图标上的圆点移到行的最右端，标记同 Agents：工作中转圈，需要你时 `!`，空闲时圆环。前面的时间或 `Needs you`、缩进和悬停详情卡都不变。
 
 ## 2026-11-09
 

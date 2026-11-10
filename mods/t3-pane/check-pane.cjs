@@ -4,7 +4,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 function element() {
-  const node = { items: [], handlers: {} };
+  const node = { items: [], handlers: {}, style: {} };
   const proxy = new Proxy(node, { get(target, key) {
     if (key in target) return target[key];
     return (...args) => {
@@ -16,6 +16,7 @@ function element() {
       else if (key === "on_hover" || key === "on_mouse_move" || key === "on_key_down") node.handlers[key] = args[0];
       else if (key === "id") node.key = args[0];
       else if (key === "pl" || key === "accessibility_label") node[key] = args[0];
+      else node.style[key] = args[0];
       return proxy;
     };
   } });
@@ -48,7 +49,7 @@ let sidebar = { id: "root", children: [{ id: "sidebar-lists", active: "lists" }]
 let props = { pane: "p2" };
 let pointer = { x: 50, y: 10 };
 const env = {
-  View: class {}, div: element, svg: element, image: (src) => { images.push(src); return element(); }, h_flex: element, v_flex: element, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, keys: () => [],
+  View: class {}, div: element, svg: (src) => { const el = element(); el.svg = src; return el; }, image: (src) => { images.push(src); return element(); }, h_flex: element, v_flex: element, Popup: { new: (id, trigger) => element().id(id).child(trigger) }, keys: () => [],
   theme: () => ({}), props: () => props, panes: () => [pane, shell, review], shared: (k) => sharedValues[k] ?? null, home: () => "/home/me",
   terminals: () => terms, agents: () => agentList, spaces: () => [{ id: "s1", name: "project", tabs: [tab] }], layout: () => sidebar,
   run: (name, args) => calls.push([name, args]), openOverlay: (o) => calls.push(["overlay", o]), closeOverlay: (id) => calls.push(["close", id]), settings: () => ({ zoom: 1 }), setShared: (k, v) => { sharedValues[k] = v; },
@@ -232,12 +233,12 @@ terms.push({ address: "child", parent: "t2", state: "live", status: "working", s
   k.handlers.left({ bounds: { x: 300, y: 2, width: 40, height: 24 } }, cx);
   k.handlers.click({}, cx);
   assert.deepEqual(take(), [["overlay", { mod: "t3-pane", kind: "popup", width: 280, at: { x: 60, y: 30 }, props: { kids: "t2" } }]], "it opens the list, not the pane's focus; no height, so it grows and shrinks with its rows");
-  // The list, as the layout's menus: a heading with the counts, every one a step in for each level with its own status;
+  // The list, as the layout's menus: no repeated counts, every one a step in for each level with its own status;
   // a click or Enter peeks it and closes the list.
   props = { kids: "t2", overlay: "o1" };
   const menu = load(...parts);
   const list = () => menu.render();
-  assert.ok(texts(list()).includes("2 agents · 1 working · 1 needs you"));
+  assert.equal(list().items[0].key, "pane-kids-list", "only rows: the button already counts the sub-agents");
   assert.equal(find(list(), "kid-gone"), null, "an ended one isn't listed");
   assert.deepEqual(["kid-child", "kid-grandchild"].map((id) => find(list(), id).pl), [8, 24]);
   assert.equal(find(list(), "kid-child").accessibility_label, "child task, Working", "its own status: the row under it says what's stuck");
@@ -247,6 +248,17 @@ terms.push({ address: "child", parent: "t2", state: "live", status: "working", s
   assert.ok(texts(find(list(), "kid-child")).includes("1h"), "no status change yet: working since it was made");
   assert.equal(find(list(), "kid-grandchild").accessibility_label, "grandchild task, Needs you");
   assert.ok(texts(find(list(), "kid-grandchild")).includes("Needs you"));
+  const mark = (address) => find(list(), `kid-status-${address}`);
+  assert.equal(mark("child").accessibility_label, "Working");
+  assert.equal(mark("child").items[0].svg, "mods/workspace-chrome/spinner.svg");
+  assert.equal(mark("child").items[0].style.spin, 900, "the working mark spins as it does in Agents");
+  assert.equal(mark("grandchild").accessibility_label, "Needs you");
+  assert.deepEqual(texts(mark("grandchild")), ["!"], "blocked uses the same badge as Agents");
+  for (const address of ["child", "grandchild"]) {
+    const row = find(list(), `kid-${address}`);
+    assert.equal(row.style.h, 28);
+    assert.equal(row.items.at(-1).key, `kid-status-${address}`, "status has the last column");
+  }
   find(list(), "kid-grandchild").handlers.click({}, cx);
   assert.deepEqual(take(), [["close", "o1"], ["terminal.peek", { terminal: "grandchild" }]]);
   const keys = find(list(), "pane-kids").handlers.on_key_down;
@@ -275,10 +287,18 @@ terms.push({ address: "child", parent: "t2", state: "live", status: "working", s
     { address: "job-kid", parent: "job", state: "live", status: "idle", name: "docs", program: { key: "pi", agent: true }, labels: {} });
   assert.equal(find(list(), "kid-job"), null, "a shell isn't listed");
   assert.equal(find(list(), "kid-job-kid").pl, 8);
-  assert.ok(texts(list()).includes("3 agents · 1 working · 1 needs you"));
+  assert.equal(mark("job-kid").accessibility_label, "Idle");
+  assert.equal(mark("job-kid").items[0].style.border, 1.5, "idle uses a ring");
+  assert.equal(mark("job-kid").items[0].style.size, 6);
+  const jobKid = terms.find((k) => k.address === "job-kid");
+  jobKid.status = null;
+  assert.equal(mark("job-kid").accessibility_label, "Unknown");
+  assert.equal(mark("job-kid").items.length, 0, "no idle mark before its first status report");
+  assert.deepEqual(texts(find(list(), "kid-job-kid")).filter(Boolean), ["docs"], "no status text before its first report");
+  jobKid.status = "idle";
   props = { pane: "p2" };
   assert.equal(find(header.render(), "ph-kids-p2").accessibility_label, "3 sub-agents, 1 needs you");
-  // All of them ended with the list open: it closes on the next tick, not left as a heading over nothing.
+  // All of them ended with the list open: it closes on the next tick.
   props = { kids: "t2", overlay: "o1" };
   const left = terms.splice(-5);
   tick();
