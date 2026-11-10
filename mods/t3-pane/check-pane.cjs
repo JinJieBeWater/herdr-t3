@@ -309,6 +309,20 @@ terms.push({ address: "child", parent: "t2", state: "live", status: "working", s
   props = { pane: "p2" };
 }
 
+// Split, the panes beside the focused one recede, as T3's split terminals do, with no ring: their icon, name and folder a step
+// down, back up while hovered. What needs the person (its status mark) and the buttons don't.
+{
+  props = { pane: "p2" };
+  const step = () => ["ph-icon-p2", "ph-name-p2", "ph-folder-p2", "ph-mark-p2"].map((id) => find(header.render(), id)?.style.opacity);
+  header.hovered = false;
+  assert.deepEqual(step(), [0.5, 0.5, 0.5, undefined], "beside the focused one: a step down, its status mark as it is");
+  pane.focused = true;
+  assert.deepEqual(step(), [undefined, undefined, undefined, undefined], "the focused one as it is");
+  pane.focused = false;
+  header.hovered = true;
+  assert.deepEqual(step().slice(0, 3), [undefined, undefined, undefined], "hovered, it's back up");
+}
+
 props = { pane: "missing" };
 assert.equal(find(header.render(), "pane-head-p2"), null);
 console.log("ok: a lone pane keeps zoom and close; focus, both splits and close target their own pane; names follow the shared rule, a mod pane's its own title and icon; quiet done dots hide in both modes; sub-agents open as a nested list that peeks; a missing pane renders nothing.");

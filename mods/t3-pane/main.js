@@ -241,6 +241,9 @@ export default class Pane extends View {
     const alone = p.zoomed || panes().filter((q) => q.tab === p.tab).length === 1;
     const crumbed = alone && sidebarParts(layout()).stack?.active === "inbox" && agents().some((a) => a.address === p.terminal);
     const name = crumbed || (!p.mod && pic && named === p.program?.name) ? "" : named;
+    // Split, the panes beside the focused one recede, as T3's split terminals do, with no ring: their icon, name and folder a
+    // step down, back up while hovered. Its status mark (what needs the person) and its buttons stay as they are.
+    const quiet = !alone && !p.focused && !this.hovered;
     // Its agent with the sub-agents it started (tree.js).
     const all = terminals();
     const kids = subAgents(agents(), all)(p.terminal);
@@ -265,10 +268,10 @@ export default class Pane extends View {
       .on_click(() => run("pane.focus", { pane }))
       // The terminal's own right-click menu (the layout's terminal_menu, at its 220×260), whose Copy address gives the address.
       .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "pane", target: { pane, terminal: p.terminal } } }); })
-      .child(div().size(16).mr(-4).flex_none().flex().items_center().justify_center().when(Boolean(pic), (el) => el.child(pic)))
-      .when(Boolean(name), (el) => el.child(div().min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).child(name)))
+      .child(div().id(`ph-icon-${pane}`).size(16).mr(-4).flex_none().flex().items_center().justify_center().when(quiet, (el) => el.opacity(0.5)).when(Boolean(pic), (el) => el.child(pic)))
+      .when(Boolean(name), (el) => el.child(div().id(`ph-name-${pane}`).min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).when(quiet, (e) => e.opacity(0.5)).child(name)))
       .child(div().relative().flex_1().min_w(0).h_full().ml(6).flex().items_center()
-        .child(div().flex_1().min_w(0).truncate().pr(12).text_color(t.dim).child(folder(p.cwd)))
+        .child(div().id(`ph-folder-${pane}`).flex_1().min_w(0).truncate().pr(12).text_color(t.dim).when(quiet, (el) => el.opacity(0.5)).child(folder(p.cwd)))
         // Over the folder's end, so hovering moves nothing else, as in the agents list and the inbox.
         .when(this.hovered || within(this, [head, ...tools]), el => el.child(h_flex().absolute().top(0).bottom(0).right(0).pl(12).flex_none().gap(4).items_center().bg(t.background)
           .child(this.button(t, `ph-r-${pane}`, "mods/t3-pane/icons/square-split-horizontal.svg", "Split right", () => run("pane.split", { direction: "right", pane }), "pane.split:right"))
