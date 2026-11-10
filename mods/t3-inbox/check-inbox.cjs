@@ -297,10 +297,13 @@ test("Clear confirms terminals, as closing a tab does", () => {
   assert.equal(opened[0].props.title, "Close 2 terminals?");
 });
 
-test("a shared Undo request is consumed on the next draw without waiting for the timer", () => {
+test("a shared Undo request seen while drawing runs just after the draw, not with the 1s poll", () => {
   const f = fixture(), a = f.add("A"); a.focused = true; f.render(); f.settle();
   const n = f.state["t3-inbox.notice"];
   f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
+  // The footer's Undo: a draw sees it first, and can't ask to be drawn again (Herdr would keep the last frame and say so).
+  f.render();
+  assert.equal(f.mod.notice.live, true, "not during the draw");
   f.render();
   assert.equal(f.mod.pending.settled.A, "");
   assert.equal(f.mod.notice.live, false);

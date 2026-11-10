@@ -188,7 +188,9 @@ export default class Inbox extends View {
   }
 
   compute(cx, publish = true) {
-    this.consumeUndo(cx);
+    // An Undo asks for a redraw, which a draw can't: one seen while drawing runs just after it, not a second later.
+    if (publish) this.consumeUndo(cx);
+    else if (JSON.stringify(shared("t3-inbox.undo")) !== JSON.stringify(this.undoRequest)) cx.timer.after(0, (cx) => { this.consumeUndo(cx); cx.notify(); });
     const now = Date.now();
     const runs = agents(), all = terminals(), ps = panes(), sp = spaces(), f = focused();
     // `pane:<id>` is a mod card's address, in t3-inbox.rows too. Docked alone, keep the original one-card-per-agentless-tab rule.

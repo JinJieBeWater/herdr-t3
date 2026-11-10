@@ -4,6 +4,7 @@
 
 ## 2026-11-10
 
+- 点侧栏底部的 Undo 时 Inbox 上方，以及 Review 里有整文件展开时切换主题，都不再闪出 Herdr 的「This view could not be re-rendered」警告。
 - 布局有了自己的设置：点侧栏底部的 sliders 按钮或按 `cmd-shift-,` 打开，样子和 Herdr 的设置一样。改动立即生效，更新后也保留。
   - **After putting away**：和以前一样回 Home，或者选 Next card：Settle、Snooze、拖走或划走正在看的 agent 后打开下一张卡片，没有下一张就回 Home。如果你以前为此从 `t3-inbox` 的 props 删掉了 `"home"`，改为选 Next card：更新会把这个 prop 加回来。
   - **Home shows**，下拉选择：Default 是三个按钮的页面；Terminal 是主目录下的 shell；也可以选你自己的、`mod.json` 里写了 `"home": true` 的 mod。

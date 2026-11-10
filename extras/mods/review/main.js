@@ -310,7 +310,8 @@ export default class ReviewPane extends View {
         // A whole file shown has them too: it's read again, still shown.
         const whole = [...this.full.keys()];
         this.full.clear();
-        for (const path of whole) { const file = this.fileAt(path); if (file) this.toggleFull(file, cx); }
+        // Just after this draw: asking for one, as each does, isn't allowed while drawing.
+        if (whole.length) cx.timer.after(0, (cx) => { for (const path of whole) { const file = this.fileAt(path); if (file) this.toggleFull(file, cx); } });
         this.version++;
         this.load(cx);
       }
