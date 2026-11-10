@@ -90,6 +90,7 @@ function fixture(width) {
     run: (name, args) => {
       calls.push([name, JSON.parse(JSON.stringify(args ?? {}))]);
       if (name === "layout.resize" && slots[args.id]) slots[args.id].size = { px: args.px };
+      if (name === "layout.select" && slots[args.stack]) slots[args.stack].active = args.child;
     },
     openOverlay: spec => overlays.push(spec), closeOverlay: id => closed.push(id), updates: () => ui.updates,
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
@@ -2139,6 +2140,28 @@ for (const width of [208, 240, 256, 320, 480]) {
     key({ key: "p", key_char: "p", modifiers: {} });
     assert.equal(lit(), "priority");
   }
+  // At Home the tab bar's row folds to 8px so Home's mod takes the height; it stays with the sidebar hidden (its toggle and
+  // the macOS window buttons are there) or the bar's own window buttons, and comes back on leaving. Home's pane shows in
+  // home-main, the frame with no header, whatever the row does.
+  {
+    const f = fixture(256), list = f.spaces();
+    f.slots["tabs-row"] = { id: "tabs-row", size: { px: 40 } };
+    f.slots["work-main"] = { id: "work-main", type: "stack", active: "main" };
+    const bar = f.load("t3-tabs"), resized = () => plain(f.calls.splice(0).filter(([n]) => n.startsWith("layout.")));
+    bar.render(cx); assert.deepEqual(resized(), [], "away from Home, as the layout has it");
+    list[0].active = false; list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, tabs: [{ id: "page", active: true }] }); f.state["t3-home.space"] = "h";
+    // The fixture applies a resize and a select, as Herdr does.
+    bar.render(cx); assert.deepEqual(resized(), [["layout.select", { stack: "work-main", child: "home-main" }], ["layout.resize", { id: "tabs-row", px: 8 }]]);
+    bar.render(cx); assert.deepEqual(resized(), [], "once");
+    f.slots.sidebar.hidden = true;
+    bar.render(cx); assert.deepEqual(resized(), [["layout.resize", { id: "tabs-row", px: 40 }]], "the sidebar hidden: its toggle needs the row");
+    f.slots.sidebar.hidden = false; f.ui.window.buttons = true;
+    bar.render(cx); assert.deepEqual(resized(), [], "window buttons of its own: it stays");
+    f.ui.window.buttons = false;
+    bar.render(cx); assert.deepEqual(resized(), [["layout.resize", { id: "tabs-row", px: 8 }]]);
+    list.pop(); list[0].active = true;
+    bar.render(cx); assert.deepEqual(resized(), [["layout.select", { stack: "work-main", child: "main" }], ["layout.resize", { id: "tabs-row", px: 40 }]], "back from Home");
+  }
   // Home's page, sidebar, pane header and bar agree on the same hidden space.
   {
     const f = fixture(256), list = f.spaces();
@@ -2196,11 +2219,10 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.equal(f.state["t3-focus"], null);
     }
 
-    // Its pane's header says nothing of it: the brand bar's lit mark tells where this is.
-    const panes = f.panes();
-    panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "t3-home" });
-    assert.ok(!strings(f.load("t3-pane", { pane: "ph" }).render(cx)).includes("t3-home"));
-    panes.pop();
+    // Home has no header, whatever is there: nothing to split or close, and the brand bar's lit mark tells where this is.
+    const panes = f.panes(), head = (tab) => { panes.push({ pane: "ph", tab, mod: "review", title: "review" }); const n = walk(f.load("t3-pane", { pane: "ph" }).render(cx)); panes.pop(); return n.some(x => x.key === "pane-head-ph"); };
+    assert.equal(head("page"), false);
+    assert.equal(head(f.spaces()[0].tabs[0].id), true, "a mod elsewhere has its header");
 
   }
   // With the Inbox showing, the bar holds the agent in view and what's around it; the sidebar says what needs the person.
@@ -2523,6 +2545,18 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.slots.sidebar.hidden = true;
     tabs.render(cx);
     assert.deepEqual([names, awake], [2, 1], "the hidden sidebar computes its counts once per frame");
+  }
+
+  // Settings offers as Home the mods whose mod.json says "home": true, the layout's page first as Default, then Terminal;
+  // a folder with no or a broken mod.json is passed over.
+  {
+    const f = fixture(256), view = f.load("t3-chrome", { view: "settings" }), scope = f.scopes.get("t3-chrome");
+    const files = { "t3-home": { title: "Home", home: true }, notes: { title: "Notes", home: true }, "t3-tabs": { title: "Tabs" }, broken: "{" };
+    scope.appHome = () => "/app";
+    scope.exec = async (cmd, args) => { assert.deepEqual(plain([cmd, args]), ["ls", ["/app/mods"]]); return { code: 0, stdout: [...Object.keys(files), "bare"].join("\n") + "\n" }; };
+    scope.readTextFile = async (file) => { const m = files[file.split("/").at(-2)]; return m === undefined ? null : typeof m === "string" ? m : JSON.stringify(m); };
+    await scope.findHomeMods(view, cx);
+    assert.deepEqual(plain(view.homeMods), [["t3-home", "Default"], [null, "Terminal"], ["notes", "Notes"]]);
   }
 
   {

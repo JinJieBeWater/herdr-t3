@@ -17,7 +17,7 @@ export default class Stage extends View {
         if (name === "setting") {
           const [key, value] = arg.split("=");
           setShared("t3.settings", { ...shared("t3.settings"), [key]: value });
-          if (key === "homeShows") run("t3-tabs.home-shows");
+          if (key === "homeMod") run("t3-tabs.home-mod");
         }
       }
     });

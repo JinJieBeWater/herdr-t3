@@ -38,8 +38,8 @@ export default class Picker extends View {
     const mine = spaces().find((s) => s.active)?.machine ?? null;
     const rank = (s) => (s.active ? 0 : (s.machine ?? null) === mine ? 1 : 2);
     const rows = [...spaces()].sort((a, b) => rank(a) - rank(b) || (a.machine ?? "").localeCompare(b.machine ?? "")).flatMap((s) => s.tabs.flatMap((c) =>
-      // Home's default page has its own key and nothing to find; what's arranged beside it has a row like any pane.
-      ps.filter((p) => p.tab === c.id && p.mod !== "t3-home").map((p) => {
+      // Home has its own key and nothing to find.
+      ps.filter((p) => p.tab === c.id && s.id !== shared("t3-home.space")).map((p) => {
         const under = p.terminal ? kids(p.terminal) : [];
         return {
           key: `pane:${p.pane}`, p, s, label: name(p), program: programOf(p), team: under.length, under, here: s.active && c.active && p.focused,

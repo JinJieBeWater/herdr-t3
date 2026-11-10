@@ -13,6 +13,9 @@ import { navigation } from "./navigation.js";
 import { newTab } from "./project.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
+// The tab bar's row, as layouts/herdr-t3.json has it.
+const ROW_PX = 40;
+const findNode = (node, id) => node?.id === id ? node : (node?.children ?? []).reduce((found, c) => found ?? findNode(c, id), undefined);
 
 // What the hidden sidebar's toggle counts, as the selected sidebar shows it. In the Inbox an agent settled there isn't news
 // while it stays settled, and a snoozed one, until it wakes, isn't news either, working or done; while it or what's under it
@@ -232,6 +235,19 @@ export default class Tabs extends View {
     run("layout.resize", { id, px });
   }
 
+  // At Home the bar has nothing to show, so its row folds to the panes' 8px gap and Home's mod takes the height. Not with the
+  // sidebar hidden (the row holds its toggle and the macOS window buttons) nor with window buttons of the bar's own. A layout
+  // click, so it reads the row's size and corrects it whatever left it so (a quit at Home, another layout). Home's pane shows in
+  // `home-main`, the same frame with no header: a blank header still took its 28px, a strip over Home's terminal.
+  fitRow(w) {
+    const root = layout(), row = findNode(root, "tabs-row"), work = findNode(root, "work-main");
+    const child = this.navigation.atHome ? "home-main" : "main";
+    if (work && work.active !== child) run("layout.select", { stack: "work-main", child });
+    if (!row) return;
+    const px = this.navigation.atHome && !sidebarParts(root).rail?.hidden && !w?.buttons ? 8 : ROW_PX;
+    if (row.size?.px !== px) run("layout.resize", { id: "tabs-row", px });
+  }
+
   // Another layout's bar shouldn't stay compact because this one was narrow when it went.
   async close() {
     stopsEnd(this);
@@ -268,6 +284,7 @@ export default class Tabs extends View {
     const space = spaces().find(p => p.active);
     // At Home, none: the brand bar's lit mark tells where this is.
     const { tabs: shown } = this.navigation.frame(!props()?.part), inbox = inboxShown();
+    if (!props()?.part) this.fitRow(w);
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
     if (this.hot?.startsWith("close-") && !shown.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).

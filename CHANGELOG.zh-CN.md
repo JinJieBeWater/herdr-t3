@@ -6,7 +6,8 @@
 
 - 布局有了自己的设置：点侧栏底部的 sliders 按钮或按 `cmd-shift-,` 打开，样子和 Herdr 的设置一样。改动立即生效，更新后也保留。
   - **After putting away**：和以前一样回 Home，或者选 Next card：Settle、Snooze、拖走或划走正在看的 agent 后打开下一张卡片，没有下一张就回 Home。如果你以前为此从 `t3-inbox` 的 props 删掉了 `"home"`，改为选 Next card：更新会把这个 prop 加回来。
-  - **Home shows**：和以前一样显示三个按钮的页面，或者显示主目录下的终端。
+  - **Home shows**，下拉选择：Default 是三个按钮的页面；Terminal 是主目录下的 shell；也可以选你自己的、`mod.json` 里写了 `"home": true` 的 mod。
+- Home 现在只放一样东西，页面、终端或你的 mod：没有窗格标题栏，全屏程序上方也不再空出一条，不能 split 也不能关；侧栏显示时，它占满原来空标签栏的高度。Home 里也不放 agent：在它的终端里起 agent，这个 space 原地变成普通 space，按目录命名；下次回 Home 会新建一个 Home。以前它会占住 Home，回 Home、Settle、Snooze 都落在它上面。
 
 ## 2026-11-09
 

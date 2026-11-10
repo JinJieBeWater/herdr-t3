@@ -6,7 +6,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 - Settings of the layout's own: the sliders button in the sidebar's footer, or `cmd-shift-,`, opens them, laid out as Herdr's Settings. Changes apply at once and survive updates.
   - **After putting away**: Home, as before, or Next card: settling, snoozing, dragging or sweeping away the agent you're looking at opens the next card, and Home once none is left. If you removed `"home"` from `t3-inbox`'s props to get this, pick Next card instead: an update puts the prop back.
-  - **Home shows**: the page with its three buttons, as before, or a terminal in your home folder.
+  - **Home shows**, a dropdown: Default, the page with its three buttons; Terminal, a shell in your home folder; or one of your own mods whose `mod.json` says `"home": true`.
+- Home is one thing alone now, its page, its terminal or your mod: no pane header, nor the empty strip one leaves above a full-screen program, nothing to split or close, and with the sidebar shown it fills the height where the empty tab bar was. Home also holds no agent: start one in its terminal and that space becomes an ordinary one, named for its folder, where you are; going Home next makes a new Home. It used to take Home over, so going Home, Settle and Snooze all landed on it.
 
 ## 2026-11-09
 

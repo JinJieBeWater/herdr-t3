@@ -3,6 +3,6 @@
 import { shared } from "herdr";
 
 export const SETTINGS = "t3.settings";
-// afterAway: where putting away the agent in view lands, "home" or "next" (card). homeShows: what an empty Home opens with, "page" or "terminal".
-const DEFAULTS = { afterAway: "home", homeShows: "page" };
+// afterAway: where putting away the agent in view lands, "home" or "next" (card). homeMod: the mod Home is, by its folder's name; null, a terminal.
+const DEFAULTS = { afterAway: "home", homeMod: "t3-home" };
 export const t3Settings = () => ({ ...DEFAULTS, ...shared(SETTINGS) });

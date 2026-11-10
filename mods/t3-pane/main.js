@@ -7,7 +7,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
-import { panes, terminals, agents, spaces, props, run, theme, home, openOverlay, closeOverlay, settings, setShared } from "herdr";
+import { panes, terminals, agents, spaces, props, run, theme, home, openOverlay, closeOverlay, settings, shared, setShared } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { agentKids, kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
@@ -233,9 +233,9 @@ export default class Pane extends View {
     const t = theme();
     if (props()?.kids) return this.kidsMenu(t);
     const p = this.me();
-    if (!p) return div();
-    // Home's default page says nothing of itself: the brand bar's lit mark tells where this is.
-    const named = p.mod === "t3-home" ? "" : namer()(p);
+    // Home has no header, mod or shell (docs/adr/0005): nothing to split, zoom or close, and the brand bar's lit mark tells where this is.
+    if (!p || spaces().find((s) => s.id === shared("t3-home.space"))?.tabs.some((c) => c.id === p.tab)) return div();
+    const named = namer()(p);
     const pic = programIcon(programOf(p), 14, t.muted);
     // A name that is only the program's says what its icon already does.
     const name = !p.mod && pic && named === p.program?.name ? "" : named;

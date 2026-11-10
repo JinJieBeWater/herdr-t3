@@ -70,7 +70,7 @@ _Avoid_: 稍后提醒、mute
 ## 位置和入口
 
 **Home**：
-收起当前查看的 agent 后的落脚点，一个不属于任何项目的隐形 space。
+收起当前查看的 agent 后的落脚点，一个不属于任何项目的隐形 space，里面只放一样东西（一个 mod 或一个 shell），不放 agent。
 _Avoid_: dashboard、首页
 
 **Settings**（布局设置）：

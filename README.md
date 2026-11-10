@@ -17,7 +17,7 @@ I'd worked this way in T3 Code: what's running stays out of sight, what needs me
 ## Features
 
 - **Inbox and Lists**: two sidebars, one key apart. Inbox sorts agents by what needs you, with T3-style Settle and Snooze; Lists sorts them by project, without Inbox's Settle and Snooze.
-- **Home**: putting away the agent you're looking at lands on a quiet page, not the next card. What to look at next is yours to pick. Settings (`cmd-shift-,`) can make it go on to the next card instead, or make Home a terminal.
+- **Home**: putting away the agent you're looking at lands on a quiet page, not the next card. What to look at next is yours to pick. Settings (`cmd-shift-,`) can make it go on to the next card instead, or make Home a terminal or a mod of your own.
 - **One name, one set of marks**: cards, lists, tabs and pane headers name and mark each terminal the same way.
 - **Go to** (`cmd-p`): jump to any pane, agent or program, by its name.
 - **Actions**: T3 Code's run button for your own commands, in a new tab or a split.

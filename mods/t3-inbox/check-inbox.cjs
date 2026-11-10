@@ -1094,6 +1094,14 @@ test("each mod pane asking for Inbox gets its own layout card, including two in 
   assert.deepEqual(cards(f.tree).sort(), ["A", "pane:pm", "pane:pn"]);
 });
 
+test("Home's mod has no card, even one that asks", () => {
+  const f = fixture(); f.review("pm", "tr", "s2"); f.state["t3-home.space"] = "s2";
+  f.context.props = () => ({ home: "t3-tabs.home" }); f.render();
+  assert.ok(!cards(f.tree).includes("pane:pm"));
+  delete f.state["t3-home.space"]; f.render();
+  assert.ok(cards(f.tree).includes("pane:pm"), "the same review elsewhere has one");
+});
+
 test("any mod that asks gets a card, by the same rules", () => {
   const f = fixture(); f.review("pm", "t1", "s2");
   const now = f.context.panes(), tabs = f.context.spaces();

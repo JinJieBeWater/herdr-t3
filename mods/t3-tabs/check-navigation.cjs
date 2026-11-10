@@ -41,7 +41,7 @@ function fixture() {
   vm.runInContext(source, scope, { filename: "navigation.js" });
   Object.assign(core, vm.runInContext("({ namer, programOf, focusAgent, focusPane })", scope));
   return { ...core, cx, slots, state, shown, calls, labelled, overlays, closed, notifications, timers, events,
-    navigation: beforeAsk => scope.navigation(beforeAsk, core),
+    navigation: (beforeAsk, over = {}) => scope.navigation(beforeAsk, { ...core, ...over }),
     answerHc: fn => { hcAnswer = fn; }, advance: ms => { now += ms; },
     async tick() { assert.equal(timers.at(-1).ms, 25); timers.at(-1).fn(); await flush(); },
   };
@@ -148,23 +148,15 @@ async function check() {
     await say("close-tab");
     assert.deepEqual([made(), f.overlays.length], [[], 0], "a key pressed out of habit doesn't close Home");
     const panes = f.panes();
-    // A pane goes as any does; the last gives way to the default page, which itself stays.
-    const last = { pane: "pb", tab: "page", terminal: "t9" };
-    panes.push(last);
+    // Home's last pane stays; a pane split in beside it (Herdr's own keys) closes as any.
+    panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "Home" });
+    await say("close-pane:ph");
+    assert.deepEqual(made(), [], "Home's last pane stays");
+    panes.push({ pane: "pb", tab: "page", terminal: "t9" });
     f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
     await say("close-pane:pb");
-    assert.deepEqual(made(), [["pane.split", { direction: "right", pane: "pb", mod: "t3-home" }], ["pane.close", { pane: "pb" }]]);
-    // A program running: nothing moves until the person says yes. A no leaves the pane alone, with no page beside it.
-    f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 2, name: "lazygit" } }) }));
-    await say("close-pane:pb");
-    assert.deepEqual(made(), [], "asking");
-    assert.deepEqual(plain(f.overlays.pop().props.command), { name: "t3-tabs.close-pane-now:pb" });
-    await say("close-pane-now:pb");
-    assert.deepEqual(made(), [["pane.split", { direction: "right", pane: "pb", mod: "t3-home" }], ["pane.close", { pane: "pb" }]], "yes: as before");
-    panes.pop(); panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "Home" });
-    await say("close-pane:ph");
-    assert.deepEqual(made(), [], "Home always has a page");
-    panes.pop();
+    assert.deepEqual(made(), [["pane.close", { pane: "pb" }]]);
+    panes.splice(-2);
 
     // Its last program ending takes the space with it, past the × above: back to a new Home, not wherever Herdr landed.
     {
@@ -616,45 +608,80 @@ async function check() {
     assert.deepEqual([f.closed, f.overlays.length], [[1], 2], "pressed again, it replaces the open one");
   }
 
-  // Home shows a terminal when the person chose that: the shell a new space comes with stays, and an emptied Home gets one.
+  // Home is the mod the person named (t3.settings): it's what a new Home gets and what an emptied one goes back to.
   {
     const f = fixture(), list = f.spaces(), view = f.navigation();
-    f.state["t3.settings"] = { homeShows: "terminal" };
+    f.state["t3.settings"] = { homeMod: "review" };
     const pending = view.handle("home", f.cx); await flush();
     assert.deepEqual(plain(f.calls.splice(0)), [["space.new", { name: "Home\u200b", machine: "", folder: "/home/test" }]]);
     list[0].active = false;
     list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] });
-    await f.tick(); await pending;
-    assert.equal(f.state["t3-home.space"], "h");
-    assert.deepEqual(plain(f.calls.splice(0)), [], "the shell stays: no page");
-    f.panes().push({ pane: "ps", tab: "shell", terminal: "t9" });
-    f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
-    await view.handle("close-pane:ps", f.cx);
-    assert.deepEqual(plain(f.calls.splice(0)), [["pane.split", { direction: "right", pane: "ps" }], ["pane.close", { pane: "ps" }]]);
-    f.panes().pop(); f.panes().push({ pane: "ph", tab: "shell", mod: "t3-home" });
-    await view.handle("close-pane:ph", f.cx);
-    assert.deepEqual(plain(f.calls.splice(0)), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }]], "the page isn't kept: a terminal takes its place");
+    await f.tick();
+    assert.deepEqual(plain(f.calls.splice(0)), [["tab.new", { space: "h", name: "Home", mod: "review" }]]);
+    list.at(-1).tabs.push({ id: "page", name: "Home" }); await f.tick(); await pending;
+    f.calls.length = 0; list.at(-1).tabs.shift();
+    f.panes().push({ pane: "pr", tab: "page", mod: "review" });
+    await view.handle("close-pane:pr", f.cx);
+    assert.deepEqual(plain(f.calls.splice(0)), [], "Home's mod stays");
   }
 
-  // Changing what Home shows swaps Home's lone default at once; anything else there is the person's (docs/adr/0005).
+  // Home is one thing alone: its own tab, a lone pane that's the setting's mod or, set so, a shell. Another mod there, or an
+  // idle shell when a mod is wanted, gives way to it; a busy shell keeps its tab and Home gets a new one.
   {
-    const f = fixture(), view = f.navigation(), ps = f.panes();
+    const f = fixture(), ps = f.panes(), list = f.spaces(), every = f.agents();
     f.state["t3-home.space"] = "h";
-    f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, tabs: [{ id: "ht" }] });
-    const swap = async (setting, panes, prompt = true) => {
-      ps.splice(2); ps.push(...panes); f.calls.length = 0;
-      f.state["t3.settings"] = { homeShows: setting };
-      f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: prompt ? { pid: 1, name: "zsh" } : { pid: 2, name: "lazygit" } }) }));
-      await view.handle("home-shows", f.cx);
+    const home = { id: "h", name: "Home\u200b", named: true, machine: null, tabs: [] };
+    list.push(home);
+    let n = 0, busy = false;
+    const tabOf = (pane) => ps.find(p => p.pane === pane)?.tab;
+    // Herdr, as far as Home needs it: a new tab, a split, a close.
+    const run = (name, args = {}) => {
+      f.run(name, args);
+      const extra = args.mod ? { mod: args.mod } : { terminal: `tn${++n}` };
+      if (name === "tab.new") { const id = `new${++n}`; home.tabs.push({ id }); ps.push({ pane: `pn${n}`, tab: id, ...extra }); }
+      if (name === "pane.split") ps.push({ pane: `px${++n}`, tab: tabOf(args.pane), ...extra });
+      if (name === "pane.close") ps.splice(ps.findIndex(p => p.pane === args.pane), 1);
+    };
+    const hc = () => Promise.resolve({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: busy ? { pid: 2, name: "lazygit" } : { pid: 1, name: "zsh" } }) });
+    const view = f.navigation(undefined, { run, hc });
+    // A step waits to see the one before: time moves until the command is through.
+    const say = async (command, mod, panes, tabs = [...new Set(panes.map(p => p.tab))]) => {
+      ps.splice(2, Infinity, ...panes.map(p => ({ ...p }))); home.tabs = tabs.map(id => ({ id })); f.calls.length = 0;
+      f.state["t3.settings"] = { homeMod: mod };
+      let done = false;
+      const pending = view.handle(command, f.cx).then(() => { done = true; });
+      for (let i = 0; i < 40 && !done; i++) { await flush(); if (!done && f.timers.length) f.timers.pop().fn(); }
+      await pending;
       return plain(f.calls);
     };
     const page = { pane: "ph", tab: "ht", mod: "t3-home" }, shell = { pane: "ps", tab: "ht", terminal: "t9" };
-    assert.deepEqual(await swap("terminal", [page]), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }]]);
-    assert.deepEqual(await swap("page", [shell]), [["pane.split", { direction: "right", pane: "ps", mod: "t3-home" }], ["pane.close", { pane: "ps" }]]);
-    assert.deepEqual(await swap("page", [shell], false), [], "a program running there: it stays");
-    assert.deepEqual(await swap("terminal", [page, shell]), [], "arranged by the person: it stays");
-    assert.deepEqual(await swap("page", [page]), [], "already so");
-    assert.deepEqual(await swap("terminal", [{ pane: "pr", tab: "ht", mod: "review" }]), [], "another mod is the person's");
+    assert.deepEqual(await say("home", "t3-home", [page]), [["tab.select", { id: "ht" }]]);
+    assert.deepEqual(await say("home-mod", "review", [page]), [["pane.split", { direction: "right", pane: "ph", mod: "review" }], ["pane.close", { pane: "ph" }]], "a change shows at once, staying where you are");
+    assert.deepEqual(await say("home-mod", null, [page]), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }]]);
+    assert.deepEqual(await say("home", "review", [page]), [["pane.split", { direction: "right", pane: "ph", mod: "review" }], ["pane.close", { pane: "ph" }], ["tab.select", { id: "ht" }]], "the setting changed");
+    assert.deepEqual(await say("home", "t3-home", [shell]), [["pane.split", { direction: "right", pane: "ps", mod: "t3-home" }], ["pane.close", { pane: "ps" }], ["tab.select", { id: "ht" }]], "an idle shell gives way");
+    busy = true;
+    assert.deepEqual(await say("home", "t3-home", [shell]), [["tab.new", { space: "h", name: "Home", folder: "/home/test", mod: "t3-home" }]], "a program running stays; a new tab shows itself");
+    busy = false;
+    // Home as a terminal: the page gives way to a shell, a new tab of it has the home folder, and the shell stays.
+    assert.deepEqual(await say("home", null, [page]), [["pane.split", { direction: "right", pane: "ph" }], ["pane.close", { pane: "ph" }], ["tab.select", { id: "ht" }]]);
+    assert.deepEqual(await say("home", null, [shell]), [["tab.select", { id: "ht" }]]);
+
+    // An agent started in Home turns it into an ordinary space where it is, renamed for its folder: nothing moves or parks.
+    // Its old name doesn't make it Home again before the rename shows; going Home makes a new one.
+    {
+      const strip = f.navigation(undefined, { run });
+      list.forEach(s => { s.active = s.id === "h"; });
+      ps.splice(2, Infinity, { pane: "pq", tab: "ht", terminal: "t6" }); home.tabs = [{ id: "ht", active: true, named: true, name: "Home" }]; every.push({ address: "t6", tab: "ht", status: "working" });
+      f.calls.length = 0; strip.frame(); strip.frame();
+      assert.deepEqual(plain(f.calls), [["space.rename", { id: "h", name: "" }], ["tab.rename", { id: "ht", name: "" }]], "once, and the view stays; the tab's Home name goes too");
+      assert.equal(f.state["t3-home.space"], null);
+      assert.equal(strip.frame().atHome, false, "an ordinary space now: its tabs show");
+      f.calls.length = 0;
+      strip.handle("home", f.cx); await flush();
+      assert.deepEqual(plain(f.calls), [["space.new", { name: "Home\u200b", machine: "", folder: "/home/test" }]], "a new Home");
+      every.pop();
+    }
   }
 
   // Settled with the key, the agent in view gives way to the Inbox's next card, going around, if the person chose that;

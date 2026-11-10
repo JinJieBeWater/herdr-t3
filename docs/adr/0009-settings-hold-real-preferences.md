@@ -2,7 +2,7 @@
 
 布局有了自己的设置页（`t3-tabs.settings` 打开，`t3-chrome` 绘制）。设置页只收这样的选项：两种做法各自对一类人更省注意力，没有一个对所有人都更好。为保留旧行为、外观微调或一次性的口味，不加设置。这条和 [0008](0008-change-behaviour-without-toggles.md) 不冲突：0008 管行为变更，不留开关保旧行为；本条管本来就因人而异的偏好。
 
-收进来的两项：收起当前 agent 后回 Home 还是跳到下一张卡片（按需挑下一步的人要 Home，连续清队列的人要下一张）；空 Home 放默认页还是终端（有人把 Home 当常驻 shell）。
+收进来的两项：收起当前 agent 后回 Home 还是跳到下一张卡片（按需挑下一步的人要 Home，连续清队列的人要下一张）；Home 放什么：默认页、终端，或自荐的 mod（默认页只放三个按钮，有人把 Home 当常驻 shell，有人想要自己的看板）。终端里起了 agent，那个 space 就不再是 Home，所以选终端不会让 Home 被占住（见 [0005](0005-home-is-a-hidden-space.md)）。
 
 ## Considered Options
 

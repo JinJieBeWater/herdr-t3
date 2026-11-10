@@ -110,10 +110,11 @@ assert.ok(!keys(open()).some((k) => k.startsWith("back:")), "the pane you're in 
 shared["t3-picker.back"] = "p9";
 assert.ok(!keys(open()).some((k) => k.startsWith("back:")));
 
-// Home's default page has no row; a program arranged beside it has one.
-panes.push({ pane: "ph", tab: "c1", mod: "t3-home", title: "Home", program: {}, focused: false }, { pane: "pb", tab: "c1", terminal: "t5", program: vite, focused: false });
-{ const rows = keys(open()); assert.ok(!rows.includes("pane:ph")); assert.ok(rows.includes("pane:pb")); }
-panes.splice(-2);
+// Home has no row, mod or shell.
+shared["t3-home.space"] = "s1";
+panes.push({ pane: "ph", tab: "c1", mod: "review", title: "Home", program: {}, focused: false }, { pane: "pb", tab: "c1", terminal: "t5", program: vite, focused: false });
+{ const rows = keys(open()); assert.ok(!rows.includes("pane:ph")); assert.ok(!rows.includes("pane:pb")); }
+panes.splice(-2); delete shared["t3-home.space"];
 // Its contents are there from the first frame: a fade leaves the popup blank.
 assert.notEqual(typeof open().render().opacity, "number");
 // Closing says so, for the buttons that open it to toggle.
