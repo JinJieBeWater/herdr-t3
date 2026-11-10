@@ -359,6 +359,16 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual([header.style.pl, header.style.pr, find(header, "sidebar-mode").style.size, find(header, "sidebar-mode").style.rounded], [76, 8, 28, 8], "past the window buttons; T3's 28px buttons, side by side so they stand over the list's top row");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
+  {
+    // Short of room the name goes whole, never cut to "Her…": 76 in, 8 + 56 at the right, 12 + 20 + 8 of the button, 40 of name.
+    const brand = f.load("t3-chrome"), named = () => strings(find(brand.render(cx), "home")).includes("Herdr");
+    fire(find(brand.render(cx), "home-name"), "on_size_change", { width: 40 }, cx);
+    fire(brand.render(cx), "on_size_change", { width: 219 }, cx);
+    assert.ok(!named(), "no room, no name");
+    assert.ok(find(brand.render(cx), "home"), "the mark still goes Home");
+    fire(brand.render(cx), "on_size_change", { width: 220 }, cx);
+    assert.ok(named(), "room for it whole, the name");
+  }
   const footer = f.load("t3-chrome", { footer: true });
   const settings = find(footer.render(cx), "settings");
   assert.deepEqual([settings.style.size, settings.items[0].style.size, settings.style.accessibility_label], [32, 16, "Settings"], "as T3's footer: 32px icon buttons");

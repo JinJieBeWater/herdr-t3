@@ -93,18 +93,22 @@ export default class WorkspaceChrome extends View {
     // button of its own. Its colours are louder than anything else here, so it waits at 70% and its name is muted, both lit
     // on hover, with no background behind them. As T3's, no tooltip. The window buttons are screen points, unzoomed: the last ends at 68
     // (traffic_lights x 16, three 12s 8 apart), and the logo's tile shows 16pt from it, less the PNG's 2 of clear edge and
-    // this button's 6 in. Short of room the name gives way, never the buttons.
-    const left = w?.platform === "macos" && !w?.fullscreen ? (68 + 16 - 2) / (settings().zoom || 1) - 6 : 8, on = this.hot === "home"
+    // this button's 6 in. Short of room the name gives way whole, never cut to "Her…", and never the buttons.
+    const zoom = settings().zoom || 1, left = w?.platform === "macos" && !w?.fullscreen ? (68 + 16 - 2) / zoom - 6 : 8, on = this.hot === "home"
       // Lit at Home too: its tab bar is empty and its panes may be anyone's, so this says where you are.
       || spaces().some((s) => s.active && s.id === shared("t3-home.space"));
+    // What the name has past the left inset: less the 8 at the right, two 28px buttons, this button's 6 each side, the 20px logo and 8 gap.
+    const named = !this.brandW || this.brandW - left - 8 - 56 - 12 - 20 - 8 >= (this.nameW || 0);
     return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pl(left).pr(8).items_center()
+      .on_size_change((size, cx) => { this.brandW = size.width / zoom; cx.notify(); })
       .child(stop(this, t, "home", h_flex().id("home").h(28).min_w(0).px(6).gap(8).items_center().rounded(8)
         .text_size(14).font_medium().text_color(on ? t.foreground : t.muted).on_hover(glow(this, "home"))
         .role("button").accessibility_label("Home")
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click(() => run("t3-tabs.home"))
         .child(image("frame/welcome/herdr.png").size(20).flex_none().rounded(5).opacity(on ? 1 : 0.7))
-        .child(div().min_w(0).truncate().child("Herdr")), 8))
+        .when(named, el => el.child(div().id("home-name").flex_none().child("Herdr")
+          .on_size_change((size, cx) => { this.nameW = size.width / zoom; cx.notify(); }))), 8))
       .child(div().flex_1())
       // T3's 28px title bar buttons, side by side instead of its 12 apart, so each stands over a button of the list's top row below.
       .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(28).flex_none().flex().items_center().justify_center().rounded(8)
