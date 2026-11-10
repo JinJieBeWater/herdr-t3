@@ -1313,7 +1313,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const at = () => Math.abs(find(view.render(cx), "tab-strip").style.ml);
     const w = (id) => find(view.render(cx), `tab-${id}`).style.w;
     const pick = (id) => strip.forEach(c => { c.active = c.id === id; });
-    const room = (width) => fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width }, cx);
+    const room = (width) => fire(find(view.render(cx), "tab-area"), "on_size_change", { width }, cx);
     const wheel = (x, y) => fire(view.render(cx), "on_scroll_wheel", { delta: { x, y } }, cx);
     // A name's width, so its tab is `whole` wide: 51 around the name.
     const name = (id, whole) => fire(find(view.render(cx), `name-${id}`), "on_size_change", { width: whole - 51 }, cx);
@@ -1347,13 +1347,24 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(at(), 134, "a swipe moves the strip");
     assert.equal(at(), 134, "and the next render doesn't pull it back");
     f.calls.length = 0;
-    wheel(0, 3);
-    assert.deepEqual(f.calls.splice(0), [["tab.select", { id: "b" }]], "the wheel still walks the tabs");
+    wheel(0, 30);
+    assert.deepEqual(f.calls.splice(0), [], "the wheel goes to no tab: a click does");
+    assert.equal(at(), 104, "up and down, the wheel scrolls the strip too");
+    wheel(0, -30);
     assert.equal(at(), 134);
     wheel(-10000, 0);
     assert.equal(at(), 162, "a swipe stops at the last tab");
     wheel(10000, 0);
     assert.equal(at(), 0, "and at the first");
+    // A cut end fades in Lists as with the Inbox: one way for the strip to run out of room.
+    const fades = () => ["strip-fade-start", "strip-fade-end"].map(id => Boolean(find(view.render(cx), id)));
+    assert.deepEqual(fades(), [false, true], "at its start, only the end is cut");
+    wheel(-10000, 0);
+    assert.deepEqual(fades(), [true, false], "at its end, only the start");
+    wheel(10000, 0);
+    room(1000);
+    assert.deepEqual(fades(), [false, false], "room for all: nothing fades");
+    room(250);
     // Its name lengthening moves the strip for its new end; another tab's doesn't.
     pick("d");
     assert.equal(at(), 162);
@@ -1406,7 +1417,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(root, "sidebar-toggle"), null, "with the sidebar shown its own header has the toggle");
   f.slots.sidebar.hidden = true;
   const bare = tabs.render(cx);
-  assert.deepEqual(bare.items.slice(0, 2).map(n => n.key), ["tip-sidebar-toggle", "tab-scroll"], "hidden, the toggle sits first, after the window buttons");
+  assert.deepEqual(bare.items.slice(0, 2).map(n => n.key), ["tip-sidebar-toggle", "tab-area"], "hidden, the toggle sits first, after the window buttons");
   const toggle = find(bare, "sidebar-toggle");
   // t0 works, but its sub-agent is stuck: it needs the person too.
   assert.deepEqual(toggle.items.slice(1).map(n => [n.key, strings(n)]), [["agents-blocked", ["!", "2"]]], "hidden, the toggle sums up agents most urgent first, idle left out");
@@ -2240,7 +2251,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const view = f.load("t3-tabs");
     const taken = () => JSON.parse(JSON.stringify(f.calls.splice(0)));
     const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; };
-    const shown = () => find(view.render(cx), "tab-strip").items.map(n => walk(n).map(x => x.key).find(k => /^tab-/.test(k ?? "")).slice(4));
+    const shown = () => find(view.render(cx), "tab-strip").items.map(n => walk(n).map(x => x.key).find(k => /^tab-/.test(k ?? ""))?.slice(4) ?? "|");
     const inbox = (on) => { f.slots["sidebar-lists"] = { id: "sidebar-lists", active: on ? "inbox" : "lists" }; };
     const spins = () => walk(find(view.render(cx), "tab-strip")).some(n => n.source === "mods/workspace-chrome/spinner.svg");
     const bang = () => strings(find(view.render(cx), "tab-strip")).includes("!");
@@ -2249,29 +2260,27 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(shown(), ["prog", "other", "mine", "kid", "rev"], "Lists keeps every tab in its order");
     assert.ok(spins() && bang(), "and every mark");
     inbox(true);
-    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "the agent in view first, its sub-agent, then tabs with no agent; no other agent");
+    assert.deepEqual(shown(), ["kid", "|", "prog", "rev"], "the agent in view is the breadcrumb's; its sub-agent's tab, a rule, then tabs with no agent; no other agent");
+    // What shows: a name's measure is clipped to nothing.
+    const shownText = (n) => typeof n === "string" ? [n] : n && typeof n === "object" && !String(n.key).startsWith("crumb-measure-") ? n.items.flatMap(shownText) : [];
+    assert.deepEqual(shownText(find(view.render(cx), "crumb")).filter(s => s !== "/"), ["P", "project 0", "mine"], "the breadcrumb: the space, then the agent in view");
     assert.ok(!spins() && !bang(), "no marks: that's the sidebar's");
     f.slots.sidebar.hidden = true;
-    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "the same with the sidebar hidden");
+    assert.deepEqual(shown(), ["kid", "|", "prog", "rev"], "the same with the sidebar hidden");
     assert.ok(!spins() && !bang(), "no marks there either");
     assert.ok(find(view.render(cx), "agents-blocked"), "its toggle still counts");
     delete f.slots.sidebar.hidden;
-
-    // The wheel uses the same visible order as the navigation commands.
-    pick("mine", "A"); view.render(cx); taken();
-    fire(view.render(cx), "on_scroll_wheel", { delta: { x: 0, y: -3 } }, cx);
-    assert.deepEqual(taken(), [["tab.select", { id: "kid" }]], "the wheel too");
 
     // Only tabs with no agent drag, and among themselves.
     const press = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_down:left", { position: { x: 0, y: 0 }, click_count: 1 }, cx);
     const over = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_move", { position: { x: 50, y: 0 } }, cx);
     const release = (id) => fire(find(view.render(cx), `tab-${id}`), "on_mouse_up:left", {}, cx);
     view.render(cx); taken();
-    press("mine"); over("prog"); release("prog");
-    assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "an agent's tab doesn't drag");
+    press("kid"); over("prog"); release("prog");
+    assert.deepEqual(taken(), [["tab.select", { id: "kid" }]], "an agent's tab doesn't drag");
     press("rev"); over("prog"); release("prog");
     assert.deepEqual(taken(), [["tab.move", { id: "rev", index: 1 }]], "to its place in the space's real order");
-    press("rev"); over("prog"); over("mine"); release("mine");
+    press("rev"); over("prog"); over("kid"); release("kid");
     assert.deepEqual(taken(), [["tab.move", { id: "rev", index: 1 }]], "an agent's tab takes no drop: it lands at the line it showed");
     // The bar's list can change under a press: an agent starting takes its tab out of the bar.
     const starts = agent("X", "prog", "working");
@@ -2297,6 +2306,136 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken(), [], "once");
     inbox(false); pick("kid", "K"); view.render(cx); close("kid"); pick("prog"); view.render(cx);
     assert.deepEqual(taken(), [["tab.select", { id: "prog" }]], "in Lists, back to the tab last shown: Home is the Inbox's");
+  }
+  // With the Inbox, a tab's agents side by side in the breadcrumb, the one in view lit as its card is; a zoomed tab's other panes
+  // a segment each beside them; in Lists a zoomed tab shows its panes so. An agent's pane shown alone leaves its name to the bar.
+  {
+    const f = fixture(256);
+    const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs;
+    tabs.splice(0, tabs.length, ...["mine", "prog"].map(id => ({ id, name: id, named: false, active: false })));
+    const agent = (address, title) => ({ address, pane: `p-${address}`, tab: "mine", space: "s0", space_name: "project 0", title, status: "idle", program, state: "live", focused: false });
+    const list = [agent("A", "layout"), agent("C", "review")];
+    f.agents().splice(0, Infinity, ...list);
+    f.terminals().splice(0, Infinity, ...list.map(a => ({ ...a })));
+    f.panes().splice(0, Infinity, ...list.map(a => ({ ...a, terminal: a.address, zoomed: false })),
+      { pane: "p-git", terminal: "git", tab: "mine", title: "lazygit", zoomed: false }, { pane: "p-prog", terminal: "sh", tab: "prog", title: "vite", zoomed: false });
+    f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+    const view = f.load("t3-tabs"), taken = () => JSON.parse(JSON.stringify(f.calls.splice(0)));
+    const at = (tab, pane) => {
+      tabs.forEach(c => { c.active = c.id === tab; });
+      f.agents().forEach(a => { a.focused = a.pane === pane; });
+      Object.assign(f.shown, { tab, pane, terminal: f.panes().find(p => p.pane === pane).terminal, agent: null });
+      return view.render(cx);
+    };
+    let root = at("mine", "p-A");
+    // Only the agent in view, the card the Inbox lights: another agent in the tab is reached by its own card, or its pane.
+    assert.equal(find(root, "peer-C"), null, "only the one in view");
+    assert.equal(find(root, "peer-A").style.text_color, f.theme().foreground, "a plain title, as T3's");
+    assert.ok(find(find(root, "peer-A"), "crumb-menu"), "the one in view has its tab's menu, its ⌄ part of the title, as T3's");
+    assert.equal(find(root, "crumb-menu").style.opacity, 0, "shown only hovered or with the keyboard on it, as T3's");
+    assert.equal(find(root, "crumb").style.gap, 12, "T3's breadcrumb gap (sm:gap-3)");
+    // The breadcrumb whole first: it takes its own width, the strip beside it gives way and scrolls, down to a tab's width, and
+    // only then do its names shorten. No cap on the space's or the parent's name.
+    // Where you are shows whole first: the crumb never shrinks for the strip, the strip gives way to nothing and scrolls.
+    assert.deepEqual([find(root, "crumb").style.flex_shrink, find(root, "tab-scroll").style.min_w], [0, 0], "the strip gives way, the crumb doesn't");
+    assert.equal(find(root, "crumb-space").style.max_w, undefined, "the space's name has no cap");
+    fire(find(root, "tab-scroll"), "on_size_change", { width: 300 }, cx);
+    view.render(cx);
+    assert.equal(view.room, 300, "its tabs share the width it got");
+    // Anchored at the right, beside Actions with 8 between: short of room the strip shows its end and is cut at the start, which
+    // fades out, as T3's scrollFade; scrolled back to its start, the end fades instead.
+    fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width: 100 }, cx);
+    let bar = view.render(cx);
+    assert.deepEqual([find(bar, "tab-strip").style.ml < 0, Boolean(find(bar, "strip-fade-start")), find(bar, "strip-fade-end"), find(bar, "tab-scroll").style.mr], [true, true, null, 4], "its end shows, its start fades");
+    fire(bar, "on_scroll_wheel", { delta: { x: 1000, y: 0 } }, cx);
+    bar = view.render(cx);
+    assert.deepEqual([find(bar, "tab-strip").style.ml, find(bar, "strip-fade-start"), Boolean(find(bar, "strip-fade-end"))], [-0, null, true], "scrolled to its start, the end fades");
+    fire(bar, "on_scroll_wheel", { delta: { x: -1000, y: 0 } }, cx);
+    fire(find(view.render(cx), "tab-scroll"), "on_size_change", { width: 300 }, cx);
+    // Its tabs hug their icon and name, as T3's panel tabs: no 96px floor, no slot kept for the ×, so the group sits flush
+    // against Actions and the gaps between them are even. Hovered, the icon turns to the ×, as T3's does.
+    fire(find(view.render(cx), "name-prog"), "on_size_change", { width: 30 }, cx);
+    const progTab = () => find(view.render(cx), "tab-prog");
+    assert.equal(progTab().style.w, 30 + 32, "6 in, the 16px icon, 2, the name, 8");
+    assert.equal(find(progTab(), "close-prog"), null, "at rest, no × and no room kept for one");
+    fire(progTab(), "on_hover", true, cx);
+    const label = find(progTab(), "label-prog");
+    assert.ok(find(label.items[0], "close-prog"), "hovered, the icon's slot is the ×");
+    fire(progTab(), "on_hover", false, cx);
+    fire(find(root, "peer-A"), "on_hover", true, cx);
+    assert.equal(find(view.render(cx), "crumb-menu").style.opacity, 1, "hovering the title shows it");
+    fire(find(view.render(cx), "peer-A"), "on_hover", false, cx);
+    // Its menu hangs 4 under the title, left edges together, as T3's title menu and the layout's other menus; not on the pointer.
+    const title = () => find(view.render(cx), "peer-A"), z = f.settings().zoom || 1;
+    f.overlays.length = 0;
+    fire(title(), "on_mouse_down:left", { bounds: { x: 300, y: 8, width: 120, height: 24 }, position: { x: 350, y: 20 } }, cx);
+    fire(title(), "on_click", {}, cx);
+    const opened = f.overlays.pop();
+    assert.deepEqual([opened.mod, opened.props.tab, plain(opened.at)], ["t3-menu", "agent", { x: 300, y: 32 + 4 * z }], "under the title, from its left edge");
+    assert.deepEqual(plain(opened.props.target), { address: "A", settle: "Settle", snooze: true, pinned: false, rename: null }, "the agent's own menu, as T3's thread actions: what its card offers");
+    // Pressed again while it's open: the press closed it (its close() stamps t3-menu.closed), so the click doesn't reopen it.
+    fire(title(), "on_mouse_down:left", { bounds: { x: 300, y: 8, width: 120, height: 24 }, position: { x: 350, y: 20 } }, cx);
+    f.state["t3-menu.closed"] = Date.now();
+    fire(title(), "on_click", {}, cx);
+    assert.equal(f.overlays.length, 0, "a second click closes it, as every popup's button");
+    // A right-click is the menu of what's under it, on the pointer: the space's, as in Spaces; an agent's pane's, as its header's.
+    fire(find(view.render(cx), "crumb-space"), "on_mouse_down:right", {}, cx);
+    fire(find(view.render(cx), "peer-A"), "on_mouse_down:right", {}, cx);
+    // The title's right-click is its click's menu, on the pointer, as T3's header.
+    assert.deepEqual(f.overlays.splice(0).map(o => [o.props.tab, o.props.target.id ?? o.props.target.address, o.at]), [["space", "s0", undefined], ["agent", "A", undefined]]);
+    // A name shown whole has no label, as a tab's (T3's title only repeats it); cut short, the tab's hover label holds it whole.
+    assert.equal(find(view.render(cx), "tip-over-peer-A"), null, "no tooltip repeating a name");
+    const crumbCard = (id) => find(view.render(cx), `details-${id}`)?.style.content;
+    const wait = () => [150, 34].forEach(ms => cx.timers.filter(t => t.ms === ms && !t.gone).forEach(t => { t.gone = true; t.fn(cx); }));
+    const hoverTitle = (on) => { fire(find(view.render(cx), "peer-A"), "on_hover", on, cx); wait(); };
+    fire(find(view.render(cx), "tab-area"), "on_size_change", { width: 1200 }, cx);
+    fire(find(view.render(cx), "crumb-measure-peer-A"), "on_size_change", { width: 80 }, cx);
+    fire(find(view.render(cx), "crumb-name-peer-A"), "on_size_change", { width: 80 }, cx);
+    hoverTitle(true);
+    assert.equal(crumbCard("peer-A"), undefined, "shown whole: no label");
+    hoverTitle(false);
+    fire(find(view.render(cx), "crumb-name-peer-A"), "on_size_change", { width: 40 }, cx);
+    hoverTitle(true);
+    assert.deepEqual([strings(crumbCard("peer-A")), crumbCard("peer-A").style.opacity], [["layout"], 1], "cut short: its whole name");
+    assert.deepEqual([find(view.render(cx), "details-peer-A").style.bottom, find(view.render(cx), "details-peer-A").style.left], [0, -9], "under it, its words where the name starts");
+    hoverTitle(false);
+    assert.equal(find(root, "crumb-space").style.accessibility_label, "Open a tab in project 0", "the space's label says what it does");
+    fire(find(root, "crumb-space"), "on_click", {}, cx);
+    assert.deepEqual(taken().at(-1), ["t3-tabs.open-empty", {}], "the space is the Inbox's way to a tab to work in");
+    assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new"), null, "so the Inbox has no + beside it");
+    root = at("mine", "p-C");
+    assert.deepEqual([Boolean(find(root, "peer-C")), find(root, "peer-A")], [true, null], "the other one focused: the title is it");
+    root = at("mine", "p-git");
+    assert.deepEqual([find(root, "peer-C").style.text_color, find(root, "peer-A")], [f.theme().muted, null], "a program beside them: the one last looked at stays, dim");
+    assert.equal(find(root, "crumb-menu"), null);
+    fire(find(root, "peer-C"), "on_click", {}, cx);
+    assert.deepEqual(taken().at(-1), ["agent.focus", { terminal: "C" }], "and leads back");
+    at("mine", "p-A");
+
+    // Zoomed: the panes that aren't the agents' are segments beside them, ⧉ shows them all again.
+    f.panes().find(p => p.pane === "p-A").zoomed = true;
+    root = at("mine", "p-A");
+    assert.ok(find(root, "group-tools-mine"), "the tab's other panes");
+    assert.equal(find(root, "seg-p-C"), null, "not its agents: each has its card");
+    fire(find(root, "seg-p-git"), "on_click", {}, cx);
+    assert.deepEqual(taken(), [["pane.zoom", { pane: "p-git" }], ["pane.focus", { pane: "p-git" }]], "a segment moves the zoom there");
+    fire(find(root, "restore-p-A"), "on_click", {}, cx);
+    assert.deepEqual(taken(), [["pane.zoom", { pane: "p-A" }]], "⧉ unzooms");
+    // Shown alone, an agent's pane header leaves its name to the breadcrumb; in Lists it keeps it.
+    const header = () => strings(f.load("t3-pane", { pane: "p-A" }).render(cx));
+    assert.ok(!header().includes("layout"));
+    f.slots["sidebar-lists"].active = "lists";
+    assert.ok(header().includes("layout"));
+    assert.ok(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new"), "Lists keeps its +");
+    root = at("mine", "p-A");
+    assert.ok(find(root, "group-mine") && find(root, "seg-p-C") && find(root, "restore-p-A"), "in Lists the zoomed tab shows all its panes");
+    assert.ok(!strings(root).some(s => / Z$/.test(s)), "no Z after its name");
+    f.agents()[0].status = "blocked";
+    assert.ok(strings(find(at("mine", "p-A"), "group-mine")).includes("!"), "and the tab's status mark stays with it");
+    f.panes().find(p => p.pane === "p-A").zoomed = false;
+    root = at("mine", "p-A");
+    assert.equal(find(root, "group-mine"), null, "split, it's a tab again");
   }
 
   // Both sidebar modes restore the last shown tab and repay an unread neighbour after an external tab close.
@@ -2387,6 +2526,31 @@ for (const width of [208, 240, 256, 320, 480]) {
     const labels = f.labelled.length; await tabs.undo(); assert.equal(f.labelled.length, labels, "expired Undo writes nothing");
     cx.timers.filter(t => t.ms === 5250).at(-1).fn(cx);
     assert.equal(f.state["t3-inbox.notice"], null);
+  }
+
+  // The breadcrumb title's menu, for the agent in view: Pin as the agents list's, Snooze as its card's, putting it away as Settle does.
+  {
+    const f = fixture(256), k = f.terminals()[0];
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    f.terminals().splice(2); k.labels = {}; f.state["agents.pins"] = ["head"];
+    Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
+    f.spaces()[0].tabs[0].active = true;
+    f.answerHc(args => { if (args[0] === "label") { const i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
+    const tabs = f.load("t3-tabs");
+    tabs.pin("t0");
+    assert.deepEqual(plain(f.state["agents.pins"]), ["head", "t0"], "Pin goes last, as the agents list's");
+    const at = Date.now() + 3600000;
+    await tabs.snooze(`t0:${at}`, cx);
+    assert.equal(k.labels.snoozed, String(at));
+    assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]], "the agent in view snoozed: Home, as Settle");
+    assert.equal(f.state["t3-inbox.notice"].action, "Snoozed");
+    f.spaces()[0].active = false; f.spaces().push({ id: "h", name: "Home", active: true, tabs: [{ id: "home" }] }); f.state["t3-home.space"] = "h";
+    await tabs.undo();
+    assert.equal(k.labels.snoozed, "", "Undo wakes it");
+    assert.deepEqual(plain(f.calls.splice(0)), [["agent.focus", { terminal: "t0" }]], "and brings it back from Home");
+    f.spaces().pop(); f.spaces()[0].active = true;
+    await tabs.snooze(`t0:${Date.now() - 1}`, cx);
+    assert.equal(f.notifications.pop().title, "Couldn't snooze the agent", "a time gone by is refused, as the card's");
   }
 
   // Lists unpin shares the notice, restores only its pin in place, and leaves agent labels and focus alone.

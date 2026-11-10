@@ -141,7 +141,7 @@ async function check() {
     assert.deepEqual(made(), [["space.select", { id: "h" }]], "there's one Home");
 
     await pending;
-    assert.deepEqual(plain(view.frame()), { tabs: [], atHome: true }, "Home has no visible tabs");
+    assert.deepEqual(plain(view.frame()), { tabs: [], atHome: true, context: null }, "Home has no visible tabs");
     await say("new");
     assert.deepEqual(made(), [["mod.open", { name: "t3-new-menu" }]], "New picks the space");
     f.shown.tab = "page";
@@ -212,7 +212,7 @@ async function check() {
     pick("mine", "A");
     assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"]);
     pick("prog");
-    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "in a program's tab, the agent last looked at stays");
+    assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "gone to a tool's tab from the bar, the agent last looked at stays: the tool is its work's");
     pick("kid", "K");
     assert.deepEqual(shown(), ["mine", "kid", "prog", "rev"], "a sub-agent counts as the agent at its top");
     pick("other", "B");
@@ -220,7 +220,7 @@ async function check() {
     pick("prog");
     assert.deepEqual(shown(), ["other", "prog", "rev"]);
 
-    // Keys and the wheel go by what's shown, around the ends; Lists keeps Herdr's own.
+    // Keys go by what's shown, around the ends; Lists keeps Herdr's own.
     pick("mine", "A"); view.frame(); taken();
     await say("tab:3");
     assert.deepEqual(taken(), [["tab.select", { id: "prog" }]], "the third shown, not the third of the space");
@@ -237,6 +237,97 @@ async function check() {
     assert.deepEqual(taken(), [["tab.select", { id: "kid" }]]);
     f.slots.lists.active = "inbox";
 
+  }
+
+  // The Inbox's bar names who's in view, the lit card: a tab's agents side by side, the one last looked at held while a program
+  // has the focus, a sub-agent under its parent. Everything comes from the frame; the one memory is checked against it.
+  {
+    const f = fixture();
+    const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
+    const tabs = f.spaces()[0].tabs;
+    tabs.splice(0, tabs.length, ...["mine", "kid", "prog"].map(id => ({ id, name: id, named: true, active: false })));
+    const agent = (address, tab, parent) => ({ address, pane: `p-${address}`, tab, space: "s0", space_name: "project 0", title: address, status: "idle", program, parent, state: "live", focused: false });
+    const list = [agent("A", "mine"), agent("C", "mine"), agent("K", "kid", "A")];
+    f.agents().splice(0, Infinity, ...list);
+    f.terminals().splice(0, Infinity, ...list.map(a => ({ ...a })));
+    f.panes().splice(0, Infinity, ...list.map(a => ({ ...a, terminal: a.address })),
+      { pane: "p-git", terminal: "git", tab: "mine", title: "lazygit" }, { pane: "p-prog", terminal: "sh", tab: "prog", title: "vite" });
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    let view = f.navigation();
+    const at = (tab, pane) => {
+      tabs.forEach(c => { c.active = c.id === tab; });
+      const p = f.panes().find(p => p.pane === pane);
+      f.agents().forEach(a => { a.focused = a.pane === pane; });
+      Object.assign(f.shown, { tab, pane, terminal: p.terminal, agent: null });
+      const c = view.frame().context;
+      return c && plain({ ...c, space: c.space.id, kin: c.kin.map(t => t.id), programs: c.programs.map(t => t.id) });
+    };
+    const who = (heads, head, more = {}) => ({ space: "s0", tab: "mine", parent: null, heads, head, sub: null, held: false, away: false, kin: ["kid"], programs: ["prog"], ...more });
+
+    assert.deepEqual(at("mine", "p-A"), who(["A", "C"], "A"), "a tab's agents are side by side; the focused one is in view");
+    assert.deepEqual(at("mine", "p-C"), who(["A", "C"], "C", { kin: [] }), "focusing the other moves which is in view, and the family is its own");
+    assert.deepEqual(at("mine", "p-git"), who(["A", "C"], "C", { held: true, kin: [] }), "a program beside them holds the one last looked at");
+    assert.deepEqual(at("prog", "p-prog"), who(["A", "C"], "C", { held: true, away: true, kin: [] }), "a tool's tab: the agent last looked at stays, away");
+    assert.deepEqual(at("kid", "p-K"), who(["K"], "K", { tab: "kid", parent: "A", kin: [] }), "a sub-agent's own tab: its parent leads back");
+
+    // A sub-agent split beside its parent isn't a peer: it shows under the one it belongs to.
+    const k2 = agent("K2", "mine", "C");
+    f.agents().push(k2); f.terminals().push({ ...k2 }); f.panes().push({ ...k2, terminal: "K2" });
+    assert.deepEqual(at("mine", "p-K2"), who(["A", "C"], "C", { sub: "K2", kin: [] }), "its family is C's, which has no other tab");
+
+    // The one held ends: the tab's first stands for it. Its parent ending leaves a sub-agent at the top.
+    at("mine", "p-C");
+    for (const l of [f.agents(), f.terminals(), f.panes()]) l.splice(l.findIndex(x => x.address === "C"), 1);
+    assert.deepEqual(at("mine", "p-git"), who(["A", "K2"], "A", { held: true }), "a gone agent isn't held");
+    f.terminals().find(k => k.address === "A").state = "exited";
+    f.agents().splice(f.agents().findIndex(a => a.address === "A"), 1);
+    assert.deepEqual(at("kid", "p-K"), who(["K"], "K", { tab: "kid", kin: [] }), "with its parent gone, a sub-agent has none to lead back to");
+
+    // After a restart nothing is remembered: the tab's first agent is held.
+    f.terminals().find(k => k.address === "A").state = "live";
+    f.agents().unshift(list[0]);
+    view = f.navigation();
+    assert.deepEqual(at("mine", "p-git"), who(["A", "K2"], "A", { held: true }));
+    // Lists has its own bar.
+    f.slots.lists.active = "lists";
+    assert.equal(at("mine", "p-A"), null);
+  }
+
+  // Starting something new in the space (its name in the breadcrumb, cmd-t) leaves the agent behind: tabs with no agent read as the
+  // space alone, gone to by the bar or not, until an agent is looked at again.
+  for (const command of ["open-empty", "new"]) {
+    const f = fixture(), tabs = f.spaces()[0].tabs, view = f.navigation();
+    tabs.splice(0, Infinity, ...["mine", "prog", "fresh"].map(id => ({ id, name: id, named: true, active: id === "mine" })));
+    f.agents()[0].tab = "mine"; f.panes()[0].tab = "mine";
+    f.panes().splice(1, Infinity, { pane: "p-prog", tab: "prog", terminal: "t-prog" }, { pane: "p-fresh", tab: "fresh", terminal: "t-fresh" });
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 1, name: "zsh" } }) }));
+    const show = (id, agent) => { tabs.forEach(c => { c.active = c.id === id; }); f.agents()[0].focused = Boolean(agent); Object.assign(f.shown, { tab: id, agent: agent ?? null }); return view.frame().context; };
+    show("mine", "t0");
+    assert.equal(show("prog").head, "t0", "a tool's tab: still the agent's");
+    await view.handle(command, f.cx);
+    assert.deepEqual([show("fresh").head, show("prog").head], [null, null], `${command}: the space alone, the tools' tabs too`);
+    show("mine", "t0");
+    assert.equal(show("prog").head, "t0", "looking at an agent again picks it back up");
+  }
+
+  // The breadcrumb's space opens a tab to work in: one already waiting, a shell alone at its prompt, the latest shown first;
+  // else a new one. A press after a press finds the first one's tab, so they don't pile up.
+  {
+    const f = fixture(), tabs = f.spaces()[0].tabs, view = f.navigation(), say = command => view.handle(command, f.cx);
+    tabs.splice(0, Infinity, ...["mine", "busy", "e1", "e2", "pair"].map(id => ({ id, name: id, active: id === "mine" })));
+    f.panes().splice(1, Infinity, ...["busy", "e1", "e2"].map(id => ({ pane: `p-${id}`, tab: id, terminal: `t-${id}` })),
+      { pane: "p-pair1", tab: "pair", terminal: "t-pair1" }, { pane: "p-pair2", tab: "pair", terminal: "t-pair2" });
+    f.panes()[0].tab = f.agents()[0].tab = "mine";
+    const shell = { pid: 1, foreground: { pid: 1, name: "zsh" } }, busy = { pid: 1, foreground: { pid: 2, name: "vite" } };
+    f.answerHc(args => ({ code: 0, stdout: JSON.stringify(args[1] === "t-busy" ? busy : shell) }));
+    const taken = () => plain(f.calls.splice(0)), show = id => { tabs.forEach(c => { c.active = c.id === id; }); view.frame(); };
+    show("e2"); show("mine"); taken();
+    await say("open-empty");
+    assert.deepEqual(taken(), [["tab.select", { id: "e2" }]], "the empty tab last shown; not a busy one, an agent's or a split's");
+    tabs.splice(2, 2);
+    await say("open-empty");
+    assert.deepEqual(taken(), [["tab.new", { space: "s0", folder: "/work/s0" }]], "none waiting: a new one");
   }
 
   {
@@ -544,7 +635,7 @@ async function check() {
     pick("next", "N");
     assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]]);
     pick("prog");
-    assert.deepEqual(plain(view.frame().tabs.map(c => c.id)), ["was", "prog"], "the agent last looked at is still the one the bar holds");
+    assert.deepEqual(plain(view.frame().tabs.map(c => c.id)), ["was", "prog"], "the agent last looked at is still the one the bar holds, not Herdr's pick of a neighbour");
   }
 
   // In Lists, the agent in view closed goes back where the person was, as any tab: landing on Home is the Inbox's.

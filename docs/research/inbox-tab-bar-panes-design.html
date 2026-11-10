@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox 标签栏 · 借鉴 T3 的线程主区域</title>
+<style>
+  :root { color-scheme: dark; --chrome: #181825; --bg: #1e1e2e; --sel: #313244; --line: #343446; --fg: #cdd6f4; --muted: #a6adc8; --dim: #7f849c; --accent: #89b4fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #11111b; color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: auto; padding: 40px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 40px 0 6px; }
+  p, li { color: var(--muted); max-width: 780px; }
+  b { color: var(--fg); font-weight: 600; }
+  .note { font-size: 13px; color: var(--dim); margin-top: 8px; }
+  .win { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--chrome); }
+  .bar { height: 40px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 12px; overflow: hidden; }
+  .crumb { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font-size: 14px; }
+  .crumb .sp { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; max-width: 160px; overflow: hidden; }
+  .crumb .sep { color: var(--dim); }
+  .crumb .parent { color: var(--muted); white-space: nowrap; }
+  .crumb .title { color: var(--fg); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crumb .title.away { color: var(--muted); font-weight: 400; }
+  .chev { color: var(--dim); font-size: 11px; }
+  .peers { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  .peer { height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 6px; color: var(--muted); white-space: nowrap; }
+  .peer.on { background: var(--sel); color: var(--fg); font-weight: 500; }
+  .peer.held { outline: 1px solid var(--line); outline-offset: -1px; color: var(--muted); }
+  .mark { width: 14px; height: 14px; border-radius: 4px; background: #45475a; flex: none; }
+  .surf { display: flex; align-items: center; gap: 4px; flex: none; }
+  .tab { height: 24px; display: flex; align-items: center; gap: 4px; padding: 0 8px 0 6px; border-radius: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; flex: none; }
+  .tab.on { background: var(--sel); color: var(--fg); }
+  .ic { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .pi { background: #cba6f7; } .cx { background: #a6e3a1; } .git { background: #fab387; } .node { background: #94e2d5; } .sh { background: #6c7086; }
+  .div { width: 1px; height: 16px; background: var(--line); margin: 0 4px; flex: none; }
+  .group { display: flex; align-items: center; height: 24px; border-radius: 6px; outline: 1px dashed var(--line); outline-offset: -1px; flex: none; }
+  .restore { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 13px; }
+  .btn { height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--muted); display: flex; align-items: center; flex: none; margin-left: 4px; }
+  .plus { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--dim); flex: none; }
+  .work { display: flex; gap: 8px; padding: 0 8px 8px; height: 120px; }
+  .pane { flex: 1; background: var(--bg); border-radius: 8px; padding: 0 6px; min-width: 0; }
+  .pane.focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .ph { height: 28px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+  .ph b { font-weight: 500; }
+  .t3 { display: grid; grid-template-columns: 1.4fr 1fr; }
+  .t3 > div { border-right: 1px solid var(--line); }
+  .t3 .bar { height: 52px; }
+  .t3 .body { height: 70px; padding: 10px 14px; color: var(--dim); font-size: 12px; }
+  table { border-collapse: collapse; margin-top: 12px; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 500; }
+  td { color: var(--muted); }
+  td:first-child { color: var(--fg); white-space: nowrap; }
+  code { font: 12px ui-monospace, Menlo, monospace; color: var(--fg); }
+</style>
+<main>
+  <h1>Inbox 标签栏：借鉴 T3 点开线程后的主区域</h1>
+  <p>T3 点开一个线程，主区域顶栏左边是面包屑 <b>项目 / 父线程 / 线程标题 ⌄</b>（<code>ChatHeader.tsx</code>：标题点开动作菜单、双击改名，项目名点了在该项目新建线程），右边面板的胶囊标签放终端、浏览器、diff 这些<b>围绕线程的界面</b>（<code>RightPanelTabs.tsx</code>）。线程是主角，其余是工具。</p>
+
+  <h2>T3（参照）</h2>
+  <div class="win t3">
+    <div>
+      <div class="bar"><div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="title">优化 Inbox 标签栏</span><span class="chev">⌄</span></div><span class="plus">▤</span><span class="plus">▭</span></div>
+      <div class="body">对话时间线 · 下方是这个线程自己的终端抽屉</div>
+    </div>
+    <div>
+      <div class="bar"><div class="surf"><div class="tab on"><span class="ic sh"></span>Terminal</div><div class="tab"><span class="ic node"></span>localhost:5173</div><div class="tab"><span class="ic git"></span>Diff</div></div></div>
+      <div class="body">右侧面板：围绕线程的界面</div>
+    </div>
+  </div>
+
+  <h2>Herdr T3 的 Inbox：一行里同时放主角和工具</h2>
+  <p>左边换成面包屑，写的是当前查看的 agent，不再是一枚和 Lists 一样的 tab 胶囊；右边紧挨 Actions 的是胶囊标签，放这个 agent 周围能去的地方。<b>形状本身就说明：左边是工作，右边是工具</b>，比一条分隔线醒目。Lists 仍是一条平级的 tab 条。</p>
+
+  <h2>① 单 pane（你的截图）</h2>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="title">布局优化</span><span class="chev">⌄</span></div>
+      <div class="surf"><div class="tab"><span class="ic pi"></span>检查布局</div><div class="div"></div><div class="tab"><span class="ic git"></span>lazygit</div><div class="tab"><span class="ic node"></span>dev server</div></div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+    <div class="work"><div class="pane focus"><div class="ph"><span class="ic pi"></span>~/my/personal/projects/herdr-t3</div></div></div>
+  </div>
+  <p class="note">“检查布局”是有自己 tab 的子 agent，排在程序前、隔一条线；没有 pane 的子 agent 仍在窗格标题的 <code>3 agents ⌄</code>。</p>
+
+  <h2>② 去看 space 里的程序</h2>
+  <p>面包屑仍写着刚才的 agent，但变暗，点它回去。T3 没有这一态，它的工具不会离开线程；我们的程序 tab 属于整个 space，所以需要这条回去的路。</p>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="title away">布局优化</span></div>
+      <div class="surf"><div class="tab"><span class="ic pi"></span>检查布局</div><div class="div"></div><div class="tab on"><span class="ic git"></span>lazygit</div><div class="tab"><span class="ic node"></span>dev server</div></div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+  </div>
+
+  <h2>③ 一个 tab 里有同级的 agent（分屏）</h2>
+  <p>同一个 tab 的顶层 agent 是同级的，各有一张 Inbox 卡片。面包屑的标题位就放<b>同级切换器</b>：高亮的是焦点所在的 agent，也就是侧栏亮着的那张卡片。点另一个 agent 的窗格、点它的卡片、点切换器里的它，三者结果相同：焦点、卡片高亮和切换器高亮一起移过去。各项位置不动，只有高亮移动。只有一个 agent 时就是普通标题。</p>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="peers"><span class="peer on"><span class="ic pi"></span>布局优化</span><span class="peer"><span class="ic cx"></span>审查</span></span><span class="chev">⌄</span></div>
+      <div class="surf"><div class="tab"><span class="ic node"></span>dev server</div></div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+    <div class="work">
+      <div class="pane focus"><div class="ph"><span class="ic pi"></span><b>布局优化</b> ~/…/herdr-t3</div></div>
+      <div class="pane"><div class="ph"><span class="ic cx"></span><b>审查</b> ~/…/herdr-t3</div></div>
+      <div class="pane"><div class="ph"><span class="ic git"></span>~/…/herdr-t3</div></div>
+    </div>
+  </div>
+
+  <h2>④ 同一个 tab 被 zoom（折叠）</h2>
+  <p>同级 agent 留在左边的切换器里，点一下就把 zoom 移过去。右边虚线框里是这个 tab 里被挡住的程序 pane。<code>⧉</code> 跟在切换器后面，只在 zoom 时出现，点了还原分屏。<b>左边是“和谁说话”，右边是“用什么工具”</b>，分屏还是 zoom 都一样。</p>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="peers"><span class="peer on"><span class="ic pi"></span>布局优化</span><span class="peer"><span class="ic cx"></span>审查</span></span><span class="chev">⌄</span><span class="restore" title="Show all panes">⧉</span></div>
+      <div class="surf">
+        <div class="group"><div class="tab"><span class="ic git"></span>lazygit</div></div>
+        <div class="div"></div><div class="tab"><span class="ic node"></span>dev server</div>
+      </div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+    <div class="work"><div class="pane focus"><div class="ph"><span class="ic pi"></span>~/my/personal/projects/herdr-t3</div></div></div>
+  </div>
+
+  <h2>⑤ 焦点在同 tab 的程序上</h2>
+  <p>这时没有在看哪个 agent，侧栏也不亮卡片。切换器按“这个 tab 里最后看的 agent”留一个空心框，所以从 lazygit 回去只要点一下；没有记录时取 tab 里第一个 agent。</p>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="peers"><span class="peer held"><span class="ic pi"></span>布局优化</span><span class="peer"><span class="ic cx"></span>审查</span></span></div>
+      <div class="surf"><div class="tab"><span class="ic node"></span>dev server</div></div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+    <div class="work">
+      <div class="pane"><div class="ph"><span class="ic pi"></span><b>布局优化</b> ~/…/herdr-t3</div></div>
+      <div class="pane"><div class="ph"><span class="ic cx"></span><b>审查</b> ~/…/herdr-t3</div></div>
+      <div class="pane focus"><div class="ph"><span class="ic git"></span>~/…/herdr-t3</div></div>
+    </div>
+  </div>
+
+  <h2>⑥ 看子 agent</h2>
+  <div class="win">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr-t3</span><span class="sep">/</span><span class="parent">布局优化</span><span class="sep">/</span><span class="title">检查布局</span><span class="chev">⌄</span></div>
+      <div class="surf"><div class="tab"><span class="ic git"></span>lazygit</div><div class="tab"><span class="ic node"></span>dev server</div></div>
+      <div class="btn">▶ dev</div><div class="plus">＋</div>
+    </div>
+  </div>
+  <p class="note">同 T3 的父线程：父级进面包屑，点它回父级；面包屑放不下时父级先缩成 …。</p>
+
+  <h2>各处的点击</h2>
+  <table>
+    <tr><th>位置</th><th>点击</th><th>来自</th></tr>
+    <tr><td>space 名</td><td>在这个 space 新建标签（<code>t3-tabs.new</code>）</td><td>T3：New thread in project</td></tr>
+    <tr><td>父 agent</td><td><code>focusAgent</code> 回父级</td><td>T3：parent thread</td></tr>
+    <tr><td>标题 ⌄</td><td>当前 agent 的菜单（改名、关闭…）；双击改名</td><td>T3：thread actions menu</td></tr>
+    <tr><td>切换器里的同级 agent</td><td><code>focusAgent</code>：焦点、卡片、高亮一起移；zoom 中则移动 zoom</td><td>和点它的卡片、窗格相同</td></tr>
+    <tr><td><code>⧉</code></td><td>还原分屏（只在 zoom 时出现）</td><td>Herdr 原生 zoom</td></tr>
+    <tr><td>变暗的标题</td><td>回到这个 agent</td><td>本布局：程序 tab 属于 space</td></tr>
+    <tr><td>虚线框里的程序</td><td>把 zoom 移过去（<code>focusPane</code>）</td><td>Herdr 原生 zoom</td></tr>
+    <tr><td>其余胶囊</td><td><code>tab.select</code>；可拖动排序、×、右键菜单同现在</td><td>T3：panel tabs</td></tr>
+  </table>
+
+  <h2>窄宽度</h2>
+  <p>先缩面包屑：父级成 …，space 名最多 160px 后截断；切换器里当前的保留名字，其余同级只剩图标（悬停显示全名）；胶囊按现有规则让位，再不够滚动。</p>
+  <div class="win" style="max-width:560px">
+    <div class="bar">
+      <div class="crumb"><span class="sp"><span class="mark"></span>herdr…</span><span class="sep">/</span><span class="title">布局优化</span><span class="chev">⌄</span></div>
+      <div class="surf"><div class="tab"><span class="ic git"></span>lazygit</div><div class="tab"><span class="ic node"></span>dev…</div></div>
+      <div class="plus">＋</div>
+    </div>
+  </div>
+</main>
+</html>

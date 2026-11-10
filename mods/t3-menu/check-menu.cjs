@@ -26,10 +26,10 @@ const theme = { selected: "#selected", hover: "#hover" };
 let target = {}, calls = [];
 const context = vm.createContext({
   View: class {}, div: el, svg: el, v_flex: el, h_flex: el,
-  run: (name, args) => calls.push(args === undefined ? [name] : [name, args]), props: () => target, closeOverlay() {}, openOverlay() {},
+  run: (name, args) => calls.push(args === undefined ? [name] : [name, args]), props: () => target, closeOverlay() {}, openOverlay: (spec) => calls.push(["overlay", spec]),
   theme: () => theme, keys: () => [], settings: () => ({ zoom: 1 }), terminals: () => [{ address: "t1", labels: {} }], spaces: () => [{ id: "s1", folder: "/work/p1", tabs: [{ id: "b1" }] }], panes: () => [{ pane: "p1", tab: "b1", cwd: "/work/s1" }], exec: async () => ({ code: 1 }),
 });
-const src = ["project.js", "list.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
+const src = ["project.js", "list.js", "snooze-presets.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Menu = class").replace(/^export /gm, "");
 vm.runInContext(src, context);
 const cx = { notify() {}, stop_propagation() {}, spawn() {}, focus_handle: () => ({ focus() {} }) };
@@ -50,6 +50,26 @@ assert.ok(block.includes("Copy address") && !["Split right", "Split down", "Zoom
 assert.deepEqual(choose({ tab: "tab", target: { id: "b1", space: "s1" } }, "Rename"), [["tab.rename", { id: "b1" }]], "the rest is Herdr's");
 assert.deepEqual(choose({ tab: "tab", target: { id: "b1", space: "s1" } }, "New tab"), [["tab.new", { space: "s1", folder: "/work/s1" }]], "New tab opens where the space's terminals are, not where it was made");
 assert.deepEqual(choose({ tab: "space", target: { id: "s1" } }, "Close"), [["space.close", { id: "s1" }]], "a space's Close is Herdr's, which asks itself");
+
+// The Inbox breadcrumb title's menu: what the agent's card offers, by what t3-tabs found it can do; Snooze opens its times.
+{
+  const items = vm.runInContext("items", context), labels = (p) => JSON.parse(JSON.stringify(items(p, null).map((it) => it[0]))), agent = (more) => ({ tab: "agent", target: { address: "t1", settle: "Settle", snooze: true, pinned: false, rename: null, ...more } });
+  assert.deepEqual(labels(agent()), ["Pin", "Snooze", "Settle"]);
+  assert.deepEqual(labels(agent({ settle: null, snooze: false, pinned: true, rename: "b1" })), ["Rename", "Unpin"], "busy and needing you: neither Settle nor Snooze");
+  assert.deepEqual(choose(agent(), "Settle"), [["t3-tabs.settle", {}]], "Settle is the key's, on the agent in view");
+  assert.deepEqual(choose(agent({ settle: "Un-settle" }), "Un-settle"), [["t3-tabs.settle", {}]]);
+  assert.deepEqual(choose(agent(), "Pin"), [["t3-tabs.pin:t1", {}]]);
+  assert.deepEqual(choose(agent({ pinned: true }), "Unpin"), [["t3-tabs.unpin:t1", {}]], "Unpin with its Undo");
+  const snooze = choose(agent(), "Snooze");
+  assert.deepEqual(JSON.parse(JSON.stringify(snooze.map((c) => [c[0], c[1].mod, c[1].props]))), [["overlay", "t3-menu", { tab: "snooze", target: { address: "t1" } }]], "its times, as the card's Snooze menu");
+  const times = items({ tab: "snooze", target: { address: "t1" } }, null);
+  // Soonest first, so from 5 to 6 pm This evening leads: compare with the presets at this time, not a fixed label.
+  assert.equal(times[0][0], vm.runInContext("presets", context)(Date.now())[0].label);
+  assert.ok(times.some((t) => t[0] === "In 1 hour"));
+  assert.match(times[0][1], /^t3-tabs\.snooze:t1:\d+$/);
+  assert.ok(times[0][3], "the time it wakes, on the right");
+  assert.deepEqual(choose({ tab: "snooze", target: { address: "t1" } }, "Custom…").map((c) => [c[1].mod, c[1].props]), [["t3-inbox", { customSnooze: "t1", answer: "t3-tabs.snooze" }]], "Custom is the Inbox's dialog, answering the tab bar");
+}
 
 // A tab's menu (Rename, New tab, Close), opened by a right-click, moves as every popup's list (shared/list.js).
 {

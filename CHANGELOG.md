@@ -2,8 +2,15 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-11
+
+- With Inbox, the tabs at the top right hug their names, evenly spaced and flush against Actions; hovering one turns its icon into the ×. They show no status mark there, so the slot after each name that holds one in Lists is gone.
+- With Inbox, the tabs at the top right line up against Actions: short of room, the ones nearest it stay whole and the far end fades out, instead of the last tab being cut off against Actions. In Lists too, the end of the tab bar that's cut now fades out.
+- The wheel over the tab bar now only scrolls the tabs, up and down as sideways, instead of switching to the next or previous tab; click a tab to go to it.
 ## 2026-11-10
 
+- With Inbox showing, the tab bar is about the agent you're looking at, the card Inbox lights, as T3's thread header. At the left: the space, which takes you to an empty tab there, the one already waiting or else a new one, and replaces `+` while Inbox shows; the parent when it's a sub-agent, and the agent's name, which opens its menu, as `⌄` after it does: Pin, Snooze and Settle, as on its card, and Rename when it's alone in its tab. A right-click on the agent's name opens the same menu, as in T3; on the space, the space's menu. Only the agent you're looking at: another agent in the same tab is reached by its card, or its pane. At the right, apart from it: its sub-agents' tabs, then the tabs with no agent. With a program in focus, the agent stays there unlit; in a tool's tab you went to from the bar it dims, and a click goes back. Once you start something new, from the space at the left or with `cmd-t`, there's only the space: the last agent's name doesn't follow you there, until you look at an agent again. In a narrow window the parent shortens to `…`. An agent's pane shown alone, the only one in its tab or zoomed, no longer repeats the agent's name in its header; split, each pane still says its own.
+- A zoomed tab with several panes shows them in the tab bar, a segment each, in Lists and Inbox alike: click one to zoom it instead, or `⧉` to see them all again. It used to show only a `Z` after the tab's name. With Inbox, the agent's own tab puts `⧉` beside the agent's name and shows only its panes that aren't agents; the other agents in it are reached by their cards.
 - Undo in the sidebar footer no longer flashes Herdr's "This view could not be re-rendered" warning over the Inbox, and neither does switching themes with a file shown whole in Review.
 - Settings of the layout's own: the sliders button in the sidebar's footer, or `cmd-shift-,`, opens them, laid out as Herdr's Settings. Changes apply at once and survive updates.
   - **After putting away**: Home, as before, or Next card: settling, snoozing, dragging or sweeping away the agent you're looking at opens the next card, and Home once none is left. If you removed `"home"` from `t3-inbox`'s props to get this, pick Next card instead: an update puts the prop back.

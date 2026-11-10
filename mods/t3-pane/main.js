@@ -7,7 +7,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, Popup } from "gpui-base";
-import { panes, terminals, agents, spaces, props, run, theme, home, openOverlay, closeOverlay, settings, shared, setShared } from "herdr";
+import { panes, terminals, agents, spaces, props, run, theme, home, openOverlay, closeOverlay, settings, shared, setShared, layout } from "herdr";
 import { modStatus, namer, programOf } from "./name.js";
 import { agentKids, kidStatus, notNews, ownStatus, subAgents, treeStatus } from "./tree.js";
 import { projectMark } from "./project.js";
@@ -16,6 +16,7 @@ import { programIcon } from "./program.js";
 import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, within, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
+import { sidebarParts } from "./sidebar.js";
 
 // The list as the layout's other menus (the sort menu, the right-click menu): 4 around 28px rows.
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
@@ -235,7 +236,11 @@ export default class Pane extends View {
     const named = namer()(p);
     const pic = programIcon(programOf(p), 14, t.muted);
     // A name that is only the program's says what its icon already does.
-    const name = !p.mod && pic && named === p.program?.name ? "" : named;
+    // With the Inbox the bar's breadcrumb names the agent in view: an agent's pane shown alone (its tab's only one, or zoomed)
+    // doesn't say it again. Split, the names tell the panes apart.
+    const alone = p.zoomed || panes().filter((q) => q.tab === p.tab).length === 1;
+    const crumbed = alone && sidebarParts(layout()).stack?.active === "inbox" && agents().some((a) => a.address === p.terminal);
+    const name = crumbed || (!p.mod && pic && named === p.program?.name) ? "" : named;
     // Its agent with the sub-agents it started (tree.js).
     const all = terminals();
     const kids = subAgents(agents(), all)(p.terminal);

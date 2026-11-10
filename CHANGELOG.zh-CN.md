@@ -2,8 +2,15 @@
 
 [English](CHANGELOG.md) · 中文
 
+## 2026-11-11
+
+- 显示 Inbox 时，右上角的标签按名字收紧，间距均匀，贴着 Actions；悬停时图标变成 ×。这里不显示状态标记，所以 Lists 里每个名字后面放标记的那一格去掉了。
+- 显示 Inbox 时，右上角的标签靠 Actions 对齐：放不下时，挨着 Actions 的那些保持完整，远端渐隐，不再是最后一个标签被 Actions 生生切断。Lists 里标签条被裁的一端现在也会渐隐。
+- 在标签栏上滚动滚轮现在只滚动标签（上下、左右都行），不再切换到上/下一个标签；点击标签才进入它。
 ## 2026-11-10
 
+- 显示 Inbox 时，标签栏以你正在看的 agent 为主角，也就是 Inbox 亮着的那张卡片，照 T3 的 thread 标题。左边是 space（点它去这个 space 的空标签：已有的就切过去，没有才新建；显示 Inbox 时它取代 `+`）、看子 agent 时的父级和 agent 的名字，点名字打开它的菜单，后面的 `⌄` 也是：Pin、Snooze、Settle，和卡片上一样，标签里只有它时还有 Rename。右键 agent 名字打开同一个菜单，和 T3 一样；右键 space 打开 space 的菜单。这里只写你正在看的 agent：同一标签里的其他 agent 用它的卡片或窗格去。右边和它分开：子 agent 的标签，再是不含 agent 的标签。焦点在程序上时，agent 留在那里但不亮；从标签栏进入工具标签时它变暗，点它回去。点左边的 space 或按 `cmd-t` 开始新的事之后只有 space，上一个 agent 的名字不跟过来，直到你再看某个 agent。窗口窄时，父级缩成 `…`。agent 的窗格单独显示时（标签里只有它，或被 zoom），窗格标题不再重复 agent 的名字；分屏时每个窗格照旧写自己的名字。
+- 被 zoom 且有几个窗格的标签，在标签栏里展开成各个窗格，每个一段，Lists 和 Inbox 都一样：点一段就改 zoom 它，点 `⧉` 还原分屏。以前只在标签名后面加一个 `Z`。Inbox 下，agent 自己的标签把 `⧉` 放在 agent 名字旁边，只展开不是 agent 的窗格；标签里的其他 agent 用它们的卡片去。
 - 点侧栏底部的 Undo 时 Inbox 上方，以及 Review 里有整文件展开时切换主题，都不再闪出 Herdr 的「This view could not be re-rendered」警告。
 - 布局有了自己的设置：点侧栏底部的 sliders 按钮或按 `cmd-shift-,` 打开，样子和 Herdr 的设置一样。改动立即生效，更新后也保留。
   - **After putting away**：和以前一样回 Home，或者选 Next card：Settle、Snooze、拖走或划走正在看的 agent 后打开下一张卡片，没有下一张就回 Home。如果你以前为此从 `t3-inbox` 的 props 删掉了 `"home"`，改为选 Next card：更新会把这个 prop 加回来。

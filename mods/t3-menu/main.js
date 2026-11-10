@@ -4,13 +4,15 @@
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
 // while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose(), T3's measures, the list's moves
-// (shared/list.js, the one way every popup's list moves) and a pane's Copy address differ from the shipped one.
+// (shared/list.js, the one way every popup's list moves), a pane's Copy address, close()'s stamp and the Inbox breadcrumb's agent
+// menu and its Snooze times differ from the shipped one.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, setShared } from "herdr";
 import { menuJump } from "./list.js";
 import { placeOf } from "./project.js";
+import { presets } from "./snooze-presets.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -70,6 +72,22 @@ function items(p, git) {
         ["Close", "tab.close", { id: tg.id }],
       ];
     }
+    // The Inbox breadcrumb title's: what the agent's card offers, as T3's thread actions, by what t3-tabs found it can do (its
+    // props): Settle or Un-settle the agent in view (the key's), Snooze unless it needs the person, Pin, and Rename for a tab's lone
+    // agent, whose name the tab's would be.
+    case "agent":
+      return [
+        ...(tg.rename ? [["Rename", "tab.rename", { id: tg.rename }]] : []),
+        [tg.pinned ? "Unpin" : "Pin", `t3-tabs.${tg.pinned ? "unpin" : "pin"}:${tg.address}`, {}],
+        ...(tg.snooze ? [["Snooze", "snooze", { address: tg.address }]] : []),
+        ...(tg.settle ? [[tg.settle, "t3-tabs.settle", {}]] : []),
+      ];
+    // Its Snooze: the card's times, when each wakes on the right, then Custom (the Inbox's dialog).
+    case "snooze":
+      return [
+        ...presets(Date.now()).map((p) => [p.label, `t3-tabs.snooze:${tg.address}:${p.at}`, {}, p.when]),
+        ["Custom…", "custom-snooze", { address: tg.address }],
+      ];
     case "space":
       return [
         ["Rename", "space.rename", { id: tg.id }],
@@ -89,8 +107,12 @@ function items(p, git) {
   }
 }
 
-function menuIcon(command) {
+// Null: a Snooze time, drawn as the card's menu draws them, with none.
+function menuIcon(command, label) {
   if (command === "copy") return "mods/t3-menu/icons/copy.svg";
+  if (command.startsWith("t3-tabs.snooze:") || command === "custom-snooze") return null;
+  const own = command === "t3-tabs.settle" ? (label === "Settle" ? "check" : "undo") : command.startsWith("t3-tabs.pin:") ? "pin" : command.startsWith("t3-tabs.unpin:") ? "pin-off" : command === "snooze" ? "alarm-clock" : null;
+  if (own) return `mods/t3-menu/icons/${own}.svg`;
   const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
@@ -99,7 +121,8 @@ function menuIcon(command) {
 function shortcut(name, args) {
   // `pane.split:right` binds pane.split with { direction: "right" }.
   const value = args && Object.values(args)[0];
-  const k = keys().find((b) => b.section === "global" && (b.action === name || b.action === `${name}:${value}`));
+  // A layout's own keys too: Settle's is the herdr-t3 layout's.
+  const k = keys().find((b) => (b.section === "global" || b.section?.startsWith("layout:")) && (b.action === name || b.action === `${name}:${value}`));
   return k ? k.keys : "";
 }
 
@@ -120,6 +143,11 @@ export default class Menu extends View {
       });
   }
 
+  // For the control that opened it: a press on it that closed this mustn't reopen it (justClosed in focus.js).
+  async close() {
+    setShared("t3-menu.closed", Date.now());
+  }
+
   choose(i, cx) {
     const it = /** @type {any} */ (items(props(), this.git)[i]);
     if (!it) return;
@@ -129,6 +157,9 @@ export default class Menu extends View {
     else if (it[1] === "tab.close") run(`t3-tabs.close-tab:${it[2].id}`);
     else if (it[1] === "pane.close") run(`t3-tabs.close-pane:${it[2].pane}`);
     else if (it[1] === "copy") cx.write_to_clipboard(it[2].text);
+    // Its times, where the pointer is: on this row.
+    else if (it[1] === "snooze") openOverlay({ mod: "t3-menu", kind: "popup", width: 220, props: { tab: "snooze", target: { address: it[2].address } } });
+    else if (it[1] === "custom-snooze") openOverlay({ mod: "t3-inbox", kind: "dialog", frame: "none", width: 384, props: { customSnooze: it[2].address, answer: "t3-tabs.snooze" } });
     else run(it[1], it[2]);
   }
 
@@ -156,7 +187,7 @@ export default class Menu extends View {
       .children(
         list.map((it, i) =>
           v_flex()
-            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(8).my(4).h(1).bg(t.border)))
+            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || it[1] === "t3-tabs.settle" || it[1] === "custom-snooze" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(8).my(4).h(1).bg(t.border)))
             .child(h_flex()
             .id(`mi-${i}`)
             .h(28)
@@ -170,9 +201,9 @@ export default class Menu extends View {
             .on_hover((on, cx) => { const to = on ? i : this.at === i ? -1 : this.at; if (to !== this.at) { this.at = to; cx.notify(); } })
             .on_click((_e, cx) => this.choose(i, cx))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
-            .child(svg(menuIcon(it[1])).size(16).mx(-2).flex_none().text_color(t.muted))
+            .when(Boolean(menuIcon(it[1], it[0])), (el) => el.child(svg(menuIcon(it[1], it[0])).size(16).mx(-2).flex_none().text_color(t.muted)))
             .child(div().flex_1().min_w(0).truncate().child(it[0]))
-            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[1] === "copy" ? it[2].text : shortcut(it[1], it[2])))),
+            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[3] ?? (it[1] === "copy" ? it[2].text : shortcut(it[1], it[2]))))),
         ),
       );
   }
