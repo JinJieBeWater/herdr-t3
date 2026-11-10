@@ -7,6 +7,8 @@ English · [中文](CHANGELOG.zh-CN.md)
 - With Inbox, the tabs at the top right hug their names, evenly spaced and flush against Actions; hovering one turns its icon into the ×. They show no status mark there, so the slot after each name that holds one in Lists is gone.
 - With Inbox, the tabs at the top right line up against Actions: short of room, the ones nearest it stay whole and the far end fades out, instead of the last tab being cut off against Actions. In Lists too, the end of the tab bar that's cut now fades out.
 - The wheel over the tab bar now only scrolls the tabs, up and down as sideways, instead of switching to the next or previous tab; click a tab to go to it.
+- The server icon in the sidebar footer is gone. Add a machine from Herdr's Settings.
+
 ## 2026-11-10
 
 - Split, the panes beside the one you're in recede: their header's icon, name and folder dim, back up when you hover them, as T3's split terminals show where you are with no ring. A status mark that needs you stays as bright.

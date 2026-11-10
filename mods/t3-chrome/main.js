@@ -80,7 +80,6 @@ export default class WorkspaceChrome extends View {
       return focusRoot(this, div().size_full().bg(t.chrome).px(8).pt(4).child(h_flex().h(32).gap(4).items_center()
         .child(button("settings", svg("mods/t3-chrome/icons/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
         .child(button("t3-settings", svg("mods/t3-chrome/icons/sliders-horizontal.svg").size(16), "Herdr T3 settings", () => run("t3-tabs.settings"), "t3-tabs.settings"))
-        .child(button("add-machine", svg("mods/t3-chrome/icons/server.svg").size(16), "Add machine", () => run("mod.open", { name: "machine-add" })))
         .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(32).px(12).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow(this, "app-update"))

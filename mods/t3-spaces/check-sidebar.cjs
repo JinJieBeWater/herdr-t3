@@ -1398,14 +1398,6 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.pop(), ["space.new", { machine: "vps" }], "New space opens a space there");
   f.calls.length = 0;
   {
-    // The sidebar's way to a new machine, in the footer both Lists and Inbox keep.
-    const f = fixture(256);
-    const add = find(f.load("t3-chrome", { footer: true }).render(cx), "add-machine");
-    assert.equal(add.style.accessibility_label, "Add machine");
-    fire(add, "on_click", {}, cx);
-    assert.deepEqual(f.calls.pop(), ["mod.open", { name: "machine-add" }]);
-  }
-  {
     // "+" on a machine's header names that machine, this computer included: without one the focused space's machine wins.
     const f = fixture(256), sp = f.load("t3-spaces");
     sp.machines = [{ name: "vps", state: "connected" }];
@@ -1671,7 +1663,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(views[3].render(cx), "on_hover", true, cx); // A pane's buttons show while its header is hovered.
     for (const view of views) for (const n of walk(view.render(cx))) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
     const rest = f.theme().dim, bright = f.theme().foreground;
-    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "add-machine"], [views[7], "tab-new"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
+    for (const [view, id] of [[views[0], "sidebar-mode"], [views[1], "t3-settings"], [views[7], "tab-new"], [views[4], "space-new"], [views[5], "ag-sort"]]) {
       const color = () => find(view.render(cx), id).style.text_color;
       assert.equal(color(), rest, `${id} at rest`);
       fire(find(view.render(cx), id), "on_hover", true, cx);
@@ -1717,12 +1709,12 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(ag.render(cx), "status-t0").style.accessibility_label, strings(mark().style.content)[0]);
     over(false);
     assert.equal(strings(mark().style.content).length, 0);
-    assert.equal(find(footer.render(cx), "tip-add-machine").style.anchor, "bottom_center");
+    assert.equal(find(footer.render(cx), "tip-settings").style.anchor, "bottom_center");
   }
   {
     // Whatever opens over its button covers it, and the pointer may not move: it doesn't stay lit.
     const f = fixture(256), footer = f.load("t3-chrome", { footer: true }), agents = f.load("t3-agents"), inbox = f.load("t3-inbox");
-    for (const [view, id] of [[footer, "settings"], [footer, "add-machine"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
+    for (const [view, id] of [[footer, "settings"], [agents, "ag-sort"], [inbox, "inbox-search"], [inbox, "inbox-new-tab"]]) {
       fire(find(view.render(cx), id), "on_hover", true, cx);
       assert.equal(view.hot, id);
       fire(find(view.render(cx), id), "on_click", {}, cx);
@@ -2123,7 +2115,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       if (node) assert.equal(node.style.tab_index, undefined, `${id} takes no keyboard from a terminal when pressed`);
     }
     f.state["t3-focus"] = "on";
-    for (const [view, id] of [[ag, "ag-t0"], [ag, "ag-sort"], [ag, "fold-t0"], [sp, "space-s0"], [sp, "space-new"], [footer, "settings"], [footer, "add-machine"], [brand, "sidebar-mode"], [brand, "sidebar-toggle"], [tabs, "tab-b0"]])
+    for (const [view, id] of [[ag, "ag-t0"], [ag, "ag-sort"], [ag, "fold-t0"], [sp, "space-s0"], [sp, "space-new"], [footer, "settings"], [footer, "t3-settings"], [brand, "sidebar-mode"], [brand, "sidebar-toggle"], [tabs, "tab-b0"]])
       assert.equal(find(view.render(cx), id).style.tab_index, 0, `${id} is a stop`);
     assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new").style.tab_index, 0);
     // Tab's × and the pin come with the keyboard, as with the pointer.
