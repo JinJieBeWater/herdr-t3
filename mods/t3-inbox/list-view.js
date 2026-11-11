@@ -62,7 +62,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
     if (!list.length) y += mark("m:empty", y);
     const shelf = [];
     let b = 0;
-    if (work.length) { shelf.push(["m:working", "marker", b]); b += SHELF + STACK; for (const a of busyRows) { shelf.push([a, "work", b]); b += heightOf("work", a.address); } }
+    if (work.length) { shelf.push(["m:working", "marker", b]); b += SHELF + STACK; for (const a of busyRows) { shelf.push([a, "slim", b]); b += SLIM + STACK; } }
     if (nap.length) { shelf.push(["m:snoozed", "marker", b]); b += SHELF + STACK; for (const a of napRows) { shelf.push([a, "slim", b]); b += a.address === d?.from && dragging && plan ? 0 : SLIM + STACK; } }
     if (put.length || dragging) {
       shelf.push(["m:settled", "marker", b]); b += SHELF + STACK;
@@ -79,7 +79,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
   }
   // A row in its wrapper, which flies: drawn first where it was (or 40px up and clear, coming in), then let go.
   const fly = (key, kind, child) => {
-    return flying(view, key, child).on_size_change((size) => { view.rowH[`${kind}:${key}`] = size.height / zoom + (kind === "card" || kind === "work" ? CARD_GAP : STACK); });
+    return flying(view, key, child).on_size_change((size) => { view.rowH[`${kind}:${key}`] = size.height / zoom + (kind === "card" ? CARD_GAP : STACK); });
   };
   // A row that left, drawn inert where it was and fading out, riding as T3's clones do.
   const leaving = (x) => {
@@ -109,14 +109,14 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
       .child("Undo")));
   // The first shelf takes the free space above it, so both sit at the bottom.
   const shelves = v_flex().id("shelves").relative().gap(STACK).flex_none()
-    .when(Boolean(notice), (el) => el.child(notice))
-    .when(work.length > 0, (el) => el
-      .child(fly("m:working", "marker", shelf("working-header", "Working", work.length, view.workOpen, () => {
-        view.workOpen = !view.workOpen;
-        localStorage.setItem("working.open", String(view.workOpen));
-      }).on_mouse_move((_e, cx) => aim(null, cx))))
-      // Folded, no wrapper: its py(2) and the gap before it would open Working's header 5px further from Snoozed's.
-      .when(busyRows.length > 0, (el) => el.child(v_flex().py(2).gap(CARD_GAP).children(busyRows.map((a) => fly(a.address, "work", card(a)))))));
+    .when(Boolean(notice), (el) => el.child(notice));
+  // Working's rows are slim, as Snoozed's: a run that's going needs no more than its name and how long it's been at it.
+  const workShelf = v_flex().id("working").gap(STACK).flex_none()
+    .child(fly("m:working", "marker", shelf("working-header", "Working", work.length, view.workOpen, () => {
+      view.workOpen = !view.workOpen;
+      localStorage.setItem("working.open", String(view.workOpen));
+    }).on_mouse_move((_e, cx) => aim(null, cx))))
+    .children(busyRows.map((a) => fly(a.address, "slim", slim(a))));
   // T3's Snoozed shelf, between Working and Settled. Nothing lands on it, so its header takes no drop.
   const napShelf = v_flex().id("snoozed").gap(STACK).flex_none()
     .child(fly("m:snoozed", "marker", shelf("snoozed-header", "Snoozed", nap.length, view.napOpen, () => {
@@ -186,6 +186,6 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
       // The free space above the shelves pushes them to the bottom; a drag over it lands in Active, as T3's
       // nearest-row drop does.
       .child(div().id("active-rest").flex_1().min_h(0).on_mouse_move((_e, cx) => aim({ section: "active" }, cx)))
-      .child(shelves.when(nap.length > 0, (el) => el.child(napShelf)).when(put.length > 0 || (dragging && !busy(lifted)), (el) => el.child(tail)));
+      .child(shelves.when(work.length > 0, (el) => el.child(workShelf)).when(nap.length > 0, (el) => el.child(napShelf)).when(put.length > 0 || (dragging && !busy(lifted)), (el) => el.child(tail)));
   return { top, list: body };
 }

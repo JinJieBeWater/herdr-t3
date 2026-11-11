@@ -549,13 +549,13 @@ for (const width of [208, 256]) {
   const remote = f.agents()[1], k = f.terminals().find(k => k.address === "vps/t2"), child = f.terminals().find(c => c.address === "child");
   child.status = "idle";
   assert.deepEqual(strings(find(inbox.render(run), "working-header")), ["Working", "1"], "a working tree moves down to Working");
-  fire(find(inbox.render(run), "card-t0"), "on_hover", true, run);
-  // Settle sits in the corner faded out, fading in over the state when it's offered (T3's group-hover crossfade).
-  const hidden = find(inbox.render(run), "settle-t0"), labels = f.labelled.length;
-  assert.ok(hidden.style.opacity === 0 && !("role" in hidden.style) && !hidden.handlers.on_click && !hidden.handlers["on_mouse_down:left"], "a working tree can't be settled: faded, its button takes no press");
+  fire(find(inbox.render(run), "slim-t0"), "on_hover", true, run);
+  // Its slim row offers the snooze clock, fading in over its time (T3's group-hover crossfade), and never Settle.
+  const busyRow = inbox.render(run), labels = f.labelled.length;
+  assert.equal(find(busyRow, "settle-t0"), null, "a working tree can't be settled: its row has no Settle");
+  assert.ok(find(busyRow, "snooze-menu-t0"), "its clock is there");
+  assert.ok(walk(find(busyRow, "slim-corner-t0")).some(n => n.style.opacity === 0 && walk(n).some(c => "spin" in c.style)), "its spinner fades out under the clock");
   assert.equal(f.labelled.length, labels);
-  assert.deepEqual(JSON.parse(JSON.stringify(hidden.style.transition)), ["opacity", { duration: 150, easing: "ease-out" }]);
-  assert.equal(find(find(inbox.render(run), "card-t0"), "state-t0").style.opacity ?? 1, 1);
   remote.status = "done"; k.turn = 4;
   fire(find(inbox.render(run), "card-vps/t2"), "on_hover", true, run);
   const offered = inbox.render(run);
@@ -673,7 +673,7 @@ for (const width of [208, 256]) {
   const f = fixture(256), inbox = f.load("t3-inbox");
   f.agents()[0].status = "idle"; f.terminals().find(c => c.address === "child").status = "idle";
   /** @type {any} */ (f.terminals().find(c => c.address === "grandchild")).status_ms = Date.now() - 90000;
-  assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "the waiting parent shows its sub-agent's working time");
+  assert.deepEqual(strings(find(inbox.render(cx), "slim-corner-t0")), ["1m"], "the waiting parent shows its sub-agent's working time");
   f.agents()[0].status = "done"; f.panes()[0].status = "done";
   const drawn = inbox.render(cx);
   assert.ok(strings(find(drawn, "state-t0")).includes("Done"), "an unread reply isn't hidden by a working sub-agent");
@@ -681,7 +681,7 @@ for (const width of [208, 256]) {
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Done");
   assert.ok(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), "its tab shows the done dot");
   f.agents()[0].status = "idle"; f.panes()[0].status = "idle";
-  assert.deepEqual(strings(find(inbox.render(cx), "state-t0")), ["Working", "1m"], "read, the run goes on from its start");
+  assert.deepEqual(strings(find(inbox.render(cx), "slim-corner-t0")), ["1m"], "read, the run goes on from its start");
   assert.equal(find(f.load("t3-agents").render(cx), "status-t0").style.accessibility_label, "Working (sub-agent)", "a read parent waiting on a sub-agent is working");
   const spins = tree => walk(tree).some(n => n.source === "mods/workspace-chrome/spinner.svg");
   assert.ok(spins(find(f.load("t3-tabs").render(cx), "tab-b0")), "its tab still shows it working");
@@ -860,9 +860,9 @@ for (const width of [208, 256]) {
 
   const w = fixture(256), wf = w.load("t3-inbox");
   for (const k of w.terminals()) if (k.parent) k.status = "idle";
-  fire(find(wf.render(cx), "card-t0"), "on_mouse_down:left", { position: { x: 0, y: 0 }, local_position: { x: 0, y: 10 }, bounds: { height: 80 } }, cx);
+  fire(find(wf.render(cx), "slim-t0"), "on_mouse_down:left", { position: { x: 0, y: 0 }, local_position: { x: 0, y: 10 }, bounds: { height: 36 } }, cx);
   fire(wf.render(cx), "on_mouse_move", { position: { x: 0, y: 30 }, local_position: { x: 0, y: 130 } }, cx);
-  assert.equal(find(wf.render(cx), "drag-ghost"), null, "a working card doesn't lift");
+  assert.equal(find(wf.render(cx), "drag-ghost"), null, "a working row doesn't lift");
 }
 
 {

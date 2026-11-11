@@ -78,6 +78,17 @@ export function inboxRowView(view, t, model, actions, drag) {
         pic && detailsLine(t, div().flex_none().opacity(0.6).child(pic), a.program.name),
       ], { hide: Boolean(view.hot) || view.detailsHold === a.address }).ml(4)));
   };
+  // It wakes where it was, so this carries the weight, as T3's; a click dismisses it, and it stays on hover.
+  const wokeOf = (a) => woke(a) && tip(view, t, `woke-${a.address}`, "Dismiss Woke notification", stop(view, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
+    .hover((s) => s.underline()).on_hover(glow(view, `woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .on_click((_e, cx) => {
+      cx.stop_propagation();
+      view.hot = null; // It goes, before the pointer can report leaving it.
+      wake(a, cx);
+      cx.notify();
+    })
+    .child(svg("mods/t3-inbox/icons/alarm-clock.svg").size(16).flex_none().text_color(t.blocked)).child("Woke"), 4), { delay });
 
   // `ghost`: the copy that follows the pointer, drawn without handlers or ids the list already uses.
   const card = (a, ghost) => {
@@ -109,17 +120,7 @@ export function inboxRowView(view, t, model, actions, drag) {
     const pill = (color, mark, label, time) => h_flex().id(`state-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(color)
       .child(mark).child(div().child(label))
       .when(Boolean(time), (el) => el.children(time.split(" ").map((part) => div().font_family(settings().font_family ?? "JetBrains Mono").child(part))));
-    // It wakes where it was, so this carries the weight, as T3's; a click dismisses it, and it stays on hover.
-    const wokeMark = woke(a) && tip(view, t, `woke-${a.address}`, "Dismiss Woke notification", stop(view, t, `woke-${a.address}`, h_flex().id(`woke-${a.address}`).h(20).gap(4).flex_none().items_center().font_medium().text_color(t.blocked)
-      .hover((s) => s.underline()).on_hover(glow(view, `woke-${a.address}`)).role("button").accessibility_label("Dismiss Woke notification")
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => {
-        cx.stop_propagation();
-        view.hot = null; // It goes, before the pointer can report leaving it.
-        wake(a, cx);
-        cx.notify();
-      })
-      .child(svg("mods/t3-inbox/icons/alarm-clock.svg").size(16).flex_none().text_color(t.blocked)).child("Woke"), 4), { delay });
+    const wokeMark = wokeOf(a);
     const acting = offer || napOffer, quiet = acting && (menu || !woke(a));
     // Lifted, or marked by a sweep, the corner says what letting go will do instead.
     // The state or the time, faded out on hover where Settle fades in over it, as T3's corner.
@@ -185,14 +186,18 @@ export function inboxRowView(view, t, model, actions, drag) {
       .when(!ghost, (el) => stop(view, t, `card-${a.address}`, el));
   };
 
-  // A settled or snoozed row: one dim line; viewing it leaves it so. Hovered it brightens and its time becomes a
-  // bare undo arrow, or for a snoozed one, which shows when it comes back, Wake's crossed-out alarm clock, as in T3.
+  // A settled, snoozed or working row: one dim line; viewing it leaves it so. Hovered it brightens and its time becomes a
+  // bare undo arrow, or for a snoozed one, which shows when it comes back, Wake's crossed-out alarm clock, as in T3. A
+  // working one says how long it's run, and hovered offers the snooze clock, as its card would.
   const slim = (a, ghost) => {
-    const on = viewing(a), over = !dragging && !view.sweep?.moved && (view.hovered === a.address || within(view, [`slim-${a.address}`, `wake-${a.address}`, `unsettle-${a.address}`])), bright = on || over || ghost || swept(a);
-    const napping = hidden(a), undoId = `${napping ? "wake" : "unsettle"}-${a.address}`, undoLabel = napping ? "Wake agent" : "Un-settle";
+    const napping = hidden(a), busyRow = !napping && !settledAt(a);
+    const canNap = busyRow && !ghost && !a.mod, menu = canNap && view.napMenu === a.address;
+    // An open snooze menu holds the row as hovered, as a card's does.
+    const on = viewing(a), over = !dragging && !view.sweep?.moved && (menu || view.hovered === a.address || within(view, [`slim-${a.address}`, `wake-${a.address}`, `unsettle-${a.address}`, `snooze-${a.address}`, `woke-${a.address}`])), bright = on || over || ghost || swept(a);
+    const undoId = `${napping ? "wake" : "unsettle"}-${a.address}`, undoLabel = napping ? "Wake agent" : "Un-settle";
     // As T3's settled rows: its project's mark, not its program's.
     const mark = avatar(a.space, a.space_name, 16);
-    const undo = h_flex().id(undoId).h(24).px(6).flex_none().items_center().justify_center().rounded(6)
+    const undo = () => h_flex().id(undoId).h(24).px(6).flex_none().items_center().justify_center().rounded(6)
       .opacity(over ? 1 : 0).transition("opacity", MOTION)
       // Faded out it's no button: a click there is the row's.
       .when(over, (el) => el.on_hover(glow(view, undoId)).role("button").accessibility_label(undoLabel)
@@ -206,20 +211,32 @@ export function inboxRowView(view, t, model, actions, drag) {
       }))
       .child(svg(`mods/t3-inbox/icons/${napping ? "alarm-clock-off" : "undo"}.svg`).size(napping ? 12 : 14).mb(1).flex_none().text_color(lit(undoId, t.muted)))
       .when(over, (el) => stop(view, t, undoId, el, 6));
+    // A mod pane has no terminal to hold a snooze: its working row offers nothing.
+    const control = ghost ? null : busyRow ? canNap && snoozeButton(view, t, a, { now, offer: over, delay }, pick)
+      : tip(view, t, undoId, undoLabel, undo(), { action: on && !napping ? settleKey() : undefined, delay });
     const time = napping
       ? h_flex().gap(4).items_center().text_color(t.accent).child(svg("mods/t3-inbox/icons/alarm-clock.svg").size(12).flex_none().text_color(t.accent)).child(left(napUntil(a), now))
-      : !ghost && ago(settledAt(a)[0], now);
+      : busyRow
+        ? running(a)
+          ? h_flex().gap(4).items_center().text_color(t.working).child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900))
+            .when(started(a) > 0 && started(a) < Infinity, (el) => el.child(took(started(a), now)))
+          // Its run's grace: done, or quiet, until it lands on Active.
+          : state(a) === "done" ? svg("mods/t3-inbox/icons/circle-check.svg").size(12).flex_none().text_color(t.ansi2)
+          : since(a) > 0 && ago(since(a), now)
+        : !ghost && ago(settledAt(a)[0], now);
+    const wokeMark = !ghost && busyRow && wokeOf(a);
     const base = h_flex().id(`${ghost ? "ghost-" : ""}slim-${a.address}`).h(SLIM).px(8).gap(10).flex_none().items_center().rounded(6);
     return (ghost ? base : row(base, a, details).role("button").accessibility_label(title(a)).on_hover(hover(a)).when(Boolean(menuMod), context(a)).on_click(open(a)))
       .when(on, (el) => el.bg(t.selected))
-      .when(!on && !ghost && !dragging && !view.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
+      .when(!on && !ghost && !dragging && !view.sweep?.moved, (el) => el.when(menu, (m) => m.bg(t.hover)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
       .child(h_flex().id(`slim-mark-${a.address}`).size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.4).transition("opacity", MOTION).child(ghost ? mark : tipMark(view, t, `slim-space-${a.address}`, a.space_name, mark, { delay })))
       .child(div().flex_1().min_w(0).truncate().when(on, (el) => el.font_medium()).text_color(bright ? t.foreground : t.muted).child(title(a)))
       .child(ghost ? (verb ? badge(verb) : div()) : swept(a) ? badge(view.sweep.action === "unsnooze" ? "wake" : "unsettle")
-        // T3's corner: the time fades out on hover as the undo arrow fades in over it.
-        : h_flex().id(`slim-corner-${a.address}`).relative().h(24).min_w(32).flex_none().items_center().justify_end()
-          .child(div().flex_none().text_size(12).text_color(t.dim).opacity(over ? 0 : 1).transition("opacity", MOTION).child(time))
-          .child(div().absolute().top(0).right(-4).child(tip(view, t, undoId, undoLabel, undo, { action: on && !napping ? settleKey() : undefined, delay }))))
+        // T3's corner: the time fades out on hover as the control fades in over it; Woke stays beside it.
+        : h_flex().id(`slim-corner-${a.address}`).relative().h(24).min_w(32).gap(4).flex_none().items_center().justify_end().text_size(12)
+          .when(Boolean(wokeMark), (el) => el.child(wokeMark))
+          .child(div().flex_none().text_color(t.dim).opacity(over && control ? 0 : 1).transition("opacity", MOTION).child(time))
+          .when(Boolean(control), (el) => el.child(div().absolute().top(busyRow ? 2 : 0).right(-4).child(control))))
       .when(!ghost, (el) => stop(view, t, `slim-${a.address}`, el));
   };
 

@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-17
+
+- Inbox: the Working shelf's agents are slim rows, as Snoozed's: the space's mark, the name, and a spinner with how long the run has gone. Hover one for its snooze clock and details. They used to be full cards. A pinned agent at work stays a card among the pins.
+
 ## 2026-11-16
 
 - Review's file and folder rows now drag into terminals and use Files' same right-click menu without changing the current file or reviewed boxes. Deleted files offer only Copy path and cannot drag; subgroup rows have neither action.

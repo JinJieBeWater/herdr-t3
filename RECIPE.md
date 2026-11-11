@@ -34,7 +34,7 @@ The brand bar leaves room for macOS's window buttons, then shows Herdr's own mar
 
 Inbox is selected at first. Its top row has a Search button drawn like a field (it opens Go to), then the space filter, New space and New tab. Below, Pinned and Active cards fill the top; Working, Snoozed and Settled are folded shelves anchored to the bottom, each with a count, joining the cards' scroll when space runs out. A folded shelf still shows the row in view. Settled pages with Show more and offers Clear.
 
-A card (78px with all three lines) shows the space and the state or time (Working with its duration, Needs you, Done, else age), the agent's title, and an optional branch ended by the program icon and a remote-machine mark. Viewed, needs-you and done titles are medium `foreground`, others `muted`; working cards sit at 70% until hovered or viewed. Settled and Snoozed entries are slim 36px rows whose time becomes Un-settle or Wake on hover; Snoozed rows show an `accent` alarm clock, and `Woke` is `blocked` text. Hovering a card or Agents row opens a details card at its right. Spec: [inbox](docs/internals/specs/inbox.md).
+A card (78px with all three lines) shows the space and the state or time (Working with its duration, Needs you, Done, else age), the agent's title, and an optional branch ended by the program icon and a remote-machine mark. Viewed, needs-you and done titles are medium `foreground`, others `muted`; working cards (pinned ones) sit at 70% until hovered or viewed. Working, Settled and Snoozed entries are slim 36px rows whose time becomes the snooze clock, Un-settle or Wake on hover; Working rows show a `working` spinner with the run's duration, Snoozed rows an `accent` alarm clock, and `Woke` is `blocked` text. Hovering a card or Agents row opens a details card at its right. Spec: [inbox](docs/internals/specs/inbox.md).
 
 ### Lists
 
@@ -118,7 +118,7 @@ Dragging a card or slim row previews its result on a badge (Pin, Unpin, Settle, 
 
 ### Snooze
 
-Any card that doesn't need the person offers a clock before Settle: In 1 hour, In 3 hours, This evening, Tomorrow, Next week, or Custom (a date and time, or a duration). The agent waits in Snoozed, wakes where it was (at the top of Active if a run finished meanwhile) and carries `Woke` until viewed. A permission prompt shows it as Needs you meanwhile. Failure in its tree, a new turn in view, Wake, pin or Settle ends it.
+Any card or Working row that doesn't need the person offers a clock: In 1 hour, In 3 hours, This evening, Tomorrow, Next week, or Custom (a date and time, or a duration). The agent waits in Snoozed, wakes where it was (at the top of Active if a run finished meanwhile) and carries `Woke` until viewed. A permission prompt shows it as Needs you meanwhile. Failure in its tree, a new turn in view, Wake, pin or Settle ends it.
 
 ### Viewed rows and mod cards
 

@@ -34,7 +34,7 @@ Herdr App 的一个安静、近似 T3 Code 的窗口，在 agent 越开越多时
 
 初始选中 Inbox。顶行是画成输入框的 Search 按钮（打开 Go to），然后是 space 筛选、New space、New tab。下面 Pinned、Active 卡片在上；Working、Snoozed、Settled 是贴底的折叠收纳区，带数量，空间不够时并入卡片的滚动。折叠的收纳区仍露出当前查看的行。Settled 用 Show more 分页，并提供 Clear。
 
-卡片三行齐全时高 78：space 与状态或时间（Working 加时长、Needs you、Done，否则经过多久），agent 标题，可选的分支行，行末是程序图标和远程机器标记。正在看、需要人、done 的标题是 medium `foreground`，其余 `muted`；工作中卡片平时 70%，悬停或正在看时恢复。Settled、Snoozed 是 36px 窄行，悬停把时间换成 Un-settle 或 Wake；Snoozed 带 `accent` 闹钟，Woke 是 `blocked` 文字。悬停卡片或 Agents 行会在右侧出现详情卡。规格：[inbox](docs/internals/specs/inbox.md)。
+卡片三行齐全时高 78：space 与状态或时间（Working 加时长、Needs you、Done，否则经过多久），agent 标题，可选的分支行，行末是程序图标和远程机器标记。正在看、需要人、done 的标题是 medium `foreground`，其余 `muted`；工作中卡片（置顶的）平时 70%，悬停或正在看时恢复。Working、Settled、Snoozed 是 36px 窄行，悬停把时间换成 Snooze 时钟、Un-settle 或 Wake；Working 带 `working` 转圈和这一轮的时长，Snoozed 带 `accent` 闹钟，Woke 是 `blocked` 文字。悬停卡片或 Agents 行会在右侧出现详情卡。规格：[inbox](docs/internals/specs/inbox.md)。
 
 ### Lists
 
@@ -118,7 +118,7 @@ Pin 是一份与 Agents 共用的手排顺序；pin 会结束 Snooze。Settle、
 
 ### Snooze
 
-不需要人处理的卡片在 Settle 前提供 clock：In 1 hour、In 3 hours、This evening、Tomorrow、Next week，或 Custom（日期时间或时长）。agent 在 Snoozed 里等到时间，醒来回原位（期间工作结束则排 Active 顶），带 `Woke` 直到被查看。其间权限询问会暂时露成 Needs you。子树失败、查看时开始新轮、Wake、pin、Settle 都会结束它。
+不需要人处理的卡片和 Working 行提供 clock：In 1 hour、In 3 hours、This evening、Tomorrow、Next week，或 Custom（日期时间或时长）。agent 在 Snoozed 里等到时间，醒来回原位（期间工作结束则排 Active 顶），带 `Woke` 直到被查看。其间权限询问会暂时露成 Needs you。子树失败、查看时开始新轮、Wake、pin、Settle 都会结束它。
 
 ### 当前行与 mod 卡片
 

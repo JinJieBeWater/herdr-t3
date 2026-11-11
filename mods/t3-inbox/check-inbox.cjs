@@ -26,6 +26,11 @@ function cards(node, out = []) {
 
 const texts = kit.strings;
 
+// Whether a spinner turns anywhere in it: a working row's corner.
+function spinning(node) {
+  return Boolean(node && typeof node === "object" && ("spin" in node.style || node.items.some(spinning)));
+}
+
 // The element whose own child is this text: a card's title, or its branch line.
 function holding(node, text) {
   if (!node || typeof node !== "object") return null;
@@ -121,7 +126,7 @@ function fixture() {
     f.tree = f.mod.render(cx);
     return f.tree;
   };
-  f.working = () => cards(find(f.tree, "shelves"));
+  f.working = () => slims(find(f.tree, "working"));
   f.active = () => cards(find(f.tree, "inbox-list")).filter((a) => !f.working().includes(a) && !f.pins.includes(a));
   f.event = (id, name, e = {}) => {
     const node = find(f.tree, id);
@@ -155,7 +160,8 @@ test("an old settle cleanup cannot overwrite a newer turn's Settle", async () =>
   const answer = async (i, value) => { f.label("A", "settled", value); held[i]({ code: 0 }); await new Promise(setImmediate); f.flush(); };
   f.render(); f.flush();
   a.status = "done"; f.terms[0].turn = 2; f.render(2000);
-  f.mod.hovered = "A"; f.render(); f.event("settle-A", "on_click"); f.flush();
+  // In its grace it's a slim Working row, with no Settle: the key settles it, as for the agent in view.
+  a.focused = true; f.mod.settleKey(f.cx); f.flush();
   await answer(1, "2000:2"); f.render(2100);
   await answer(0, ""); f.render(2200);
   assert.deepEqual(f.labelled, ["label A settled=", "label A settled=2000:2", "label A settled=2000:2"], "the last intent is written again after both replies");
@@ -379,7 +385,7 @@ test("a quick continuation keeps its Working place, showing its real state meanw
   f.render(); assert.deepEqual(f.working(), ["B", "A"]);
   a.status = "done"; f.render(1100);
   assert.deepEqual(f.working(), ["B", "A"]);
-  assert.ok(texts(find(f.tree, "state-A")).includes("Done"));
+  assert.ok(!spinning(find(f.tree, "slim-corner-A")), "its spinner stops");
   a.status = "working"; f.render(1300);
   assert.deepEqual(f.working(), ["B", "A"]);
 });
@@ -460,7 +466,7 @@ test("what ended or began while the list wasn't drawn goes by when it did", () =
   Object.assign(at, { tz: 3000000, tb: 300000, tc: 1800000 });
   f.render(3600000);
   assert.deepEqual(f.active(), ["Z", "B"], "over long since: no grace, and the later one on top");
-  assert.ok(texts(find(f.tree, "state-C")).includes("30m"), "not Working 0s");
+  assert.ok(texts(find(f.tree, "slim-corner-C")).includes("30m"), "not Working 0s");
   // One that stopped a moment ago still gets what's left of its grace.
   const y = f.add("Y", "working"); y.tab = "ty"; f.render(3600100);
   y.status = "idle"; at.ty = 3600000; f.render(3600500);
@@ -613,7 +619,7 @@ test("Settle in view moves down the cards, then from the top", () => {
 test("times read as T3's", () => {
   const f = fixture(); f.add("A", "working"); const b = f.add("B", "working"); f.mod.workOpen = true;
   f.render(); f.render(1000 + 3720000);
-  assert.deepEqual(texts(find(f.tree, "state-A")).slice(-2), ["1h", "2m"]);
+  assert.ok(texts(find(f.tree, "slim-corner-A")).includes("1h 2m"));
   b.status = "idle"; f.render(4000000); f.render(4002000);
   assert.ok(texts(find(f.tree, "state-B")).includes("just now"));
   f.render(4002000 + 9 * 86400000); assert.ok(texts(find(f.tree, "state-B")).includes("9d"));
@@ -976,13 +982,13 @@ test("folding Working slides its header down with the list, as T3's markers move
   const f = fixture(), a = f.add("A", "working", 300); f.add("B", "working", 200); f.add("C", "idle", 100); a.focused = true;
   f.terms[2].labels.settled = "500:0"; f.mod.workOpen = true; f.mod.open = true; f.mod.listH = 600; f.render();
   f.mod.workOpen = false; f.render(1100);
-  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -83, opacity: 1 }, "the header starts where it was, a card higher");
+  assert.deepEqual(at(flyOf(f, "m:working")), { id: "fly-m:working-1", top: -37, opacity: 1 }, "the header starts where it was, a row higher");
   assert.equal(flyOf(f, "m:settled").key, "fly-m:settled-0", "Settled sits at the bottom: it doesn't move");
   assert.ok(find(f.tree, "working-header"), "the header's own element is inside its wrapper");
   f.render(1116);
   assert.equal(at(flyOf(f, "m:working")).top, 0);
   f.mod.workOpen = true; f.render(1300);
-  assert.equal(at(flyOf(f, "m:working")).top, 83, "unfolding, it goes back up from where it was");
+  assert.equal(at(flyOf(f, "m:working")).top, 37, "unfolding, it goes back up from where it was");
 });
 
 test("an agent brought into view that the space filter hides widens it, as T3's route reveal; a filter you pick stays", () => {
@@ -1111,7 +1117,7 @@ test("a review's card goes where its run says: Working while it analyzes, back o
   f.state["review.status"] = { tr: "working" }; f.render(2000);
   assert.ok(f.working().includes("pane:pm"), "busy, on the shelf");
   assert.ok(!f.active().includes("pane:pm"));
-  assert.ok(texts(find(f.tree, REVIEW)).includes("Working"));
+  assert.ok(spinning(find(f.tree, "slim-pane:pm")), "a slim row, as the shelf's others");
   f.state["review.status"] = { tr: "done" }; f.render(3000);
   assert.ok(f.working().includes("pane:pm"), "the grace, as an agent's");
   f.render(5100);
@@ -1396,8 +1402,8 @@ test("the clock opens its menu without lifting or opening the card, and the card
 test("an open snooze menu holds its card as hovered: the pointer going into the menu moves and dims nothing", () => {
   const f = fixture(); f.add("A", "idle", 100); f.add("W", "working"); f.mod.workOpen = true; f.render();
   // Where things sit: what's out of the flow and what's faded, for every control in the corner.
-  const layout = (id) => { const walk = (n) => !n || typeof n !== "object" ? [] : [[n.key, "absolute" in n.style, n.style.opacity?.[0]], ...n.items.flatMap(walk)]; return walk(find(f.tree, `corner-${id}`)); };
-  const look = (id) => [layout(id), find(f.tree, `card-${id}`).style.opacity[0], holding(f.tree, id).style.text_color[0]];
+  const layout = (id) => { const walk = (n) => !n || typeof n !== "object" ? [] : [[n.key, "absolute" in n.style, n.style.opacity?.[0]], ...n.items.flatMap(walk)]; return walk(find(f.tree, id)); };
+  const look = (id) => [layout(`corner-${id}`), find(f.tree, `card-${id}`).style.opacity[0], holding(f.tree, id).style.text_color[0]];
   f.mod.hovered = "A"; f.render();
   f.event("snooze-menu-A", "on_open_change", true); f.render();
   const before = look("A");
@@ -1410,9 +1416,10 @@ test("an open snooze menu holds its card as hovered: the pointer going into the 
   assert.equal(find(f.tree, "card-A").style.bg, undefined);
   f.mod.hovered = "W"; f.render();
   f.event("snooze-menu-W", "on_open_change", true); f.render();
-  const working = look("W");
+  const row = () => [layout(`slim-corner-W`), holding(f.tree, "W").style.text_color[0]], working = row();
   f.mod.hovered = null; f.render();
-  assert.deepEqual(look("W"), working, "a working card doesn't recede under its menu");
+  assert.deepEqual(row(), working, "a working row doesn't recede under its menu");
+  assert.ok(find(f.tree, "slim-W").style.bg, "and keeps its hover ground");
 });
 
 test("a snoozed agent leaves the cards, working or not; undoing is no news, and it wakes where it was, marked Woke", async () => {
@@ -1688,13 +1695,14 @@ test("undoing a Settle brings back a snooze that hasn't run out", () => {
   assert.deepEqual(f.labelled, ["label A settled="]);
 });
 
-test("still at work when it wakes, it says Working and Woke; hovered, Woke stays beside the controls", () => {
+test("still at work when it wakes, it spins and says Woke; hovered, Woke stays beside the clock", () => {
   const f = fixture(), a = f.add("A", "working", 100); f.mod.workOpen = true; f.label("A", "snoozed", "500"); f.render();
   assert.deepEqual(f.working(), ["A"]);
-  const says = () => texts(find(f.tree, "corner-A"));
-  assert.ok(says().includes("Working") && says().includes("Woke"));
+  const says = () => texts(find(f.tree, "slim-corner-A"));
+  assert.ok(spinning(find(f.tree, "slim-corner-A")) && says().includes("Woke"));
   f.mod.hovered = "A"; f.render();
-  assert.ok(!says().includes("Working") && says().includes("Woke"));
+  assert.equal(find(f.tree, "slim-corner-A").items[1].style.opacity[0], 0, "the time makes way for the clock");
+  assert.ok(says().includes("Woke"));
   assert.notEqual(find(f.tree, "woke-A").style.opacity, 0);
   f.mod.hovered = null; a.status = "idle"; f.render(2000); f.render(9000);
   assert.ok(find(f.tree, "woke-A"), "and it's still there when the run ends");

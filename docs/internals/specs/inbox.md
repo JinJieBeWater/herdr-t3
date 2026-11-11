@@ -21,13 +21,14 @@ Geometry, constants and edge rules of the Inbox sidebar (`t3-inbox`) and its Sno
 - Line 1: space mark and name; at the right the state or time: Working with its duration, Needs you, Done, otherwise age. Line 2: the agent's title. Optional line 3: branch, truncated in the middle.
 - The program icon (60%) and the remote-machine mark end the branch line, else the title line.
 - Titles of the viewed, needs-you and done agents are medium `foreground`; others normal `muted`, brightened on hover. Hover never moves anything.
-- Working cards are 70% until hovered or viewed.
+- Working cards (pinned ones; the Working shelf has slim rows) are 70% until hovered or viewed.
 - A pinned card shows a pin after its space mark.
 
-## Slim rows (Settled, Snoozed)
+## Slim rows (Working, Settled, Snoozed)
 
 - 36px, radius 6, 1 apart: a 16px space mark (40% until lit), the title, then elapsed or remaining time.
 - Hover replaces the time with Un-settle or Wake. Snoozed rows show an `accent` alarm clock; `Woke` is `blocked` text and stays beside the hover controls.
+- Working rows show a 12px `working` spinner and the run's duration (`9s`, `4m`, `1h 5m`); in the 2s grace, a green `circle-check` once done. Hover replaces it with the snooze clock; a mod card's row offers none.
 - Controls replace the status corner by a cross-fade, never a reflow.
 
 ## Ordering
@@ -59,7 +60,7 @@ Geometry, constants and edge rules of the Inbox sidebar (`t3-inbox`) and its Sno
 
 ## Dragging and sweeps
 
-- Moving 6px lifts an eligible card or slim row. Working cards and a Settle awaiting the core's echo can't lift.
+- Moving 6px lifts an eligible card or slim row. Working rows and a Settle awaiting the core's echo can't lift.
 - The lifted copy is `selected` with a shadow, moves only vertically, and keeps the pressed point under the pointer. Its badge previews the drop: Pin, Unpin, Settle, Un-settle or Wake.
 - Only while dragging: Pinned and Active headers expand to 24px over 150ms, Settled appears even when empty, target headers and gaps use `accent`.
 - Gaps match the destination: a card plus 5px, or a 36px slim row. Empty or folded destinations show a dashed 36px placeholder.
@@ -77,7 +78,7 @@ Geometry, constants and edge rules of the Inbox sidebar (`t3-inbox`) and its Sno
 
 ## Snooze menu
 
-- Any card not needing the person offers a clock before Settle: working and pinned included, failed turns excluded. Hover controls stay put while its menu is open.
+- Any card or Working row not needing the person offers a clock, cards before Settle: working and pinned included, failed turns excluded. Hover controls stay put while its menu is open.
 - Presets: In 1 hour, In 3 hours, This evening (18:00, listed until it has passed), Tomorrow (09:00), Next week (Monday 09:00; on Sunday it reads Tomorrow). Sorted by time, duplicate wake minutes merged. Not configurable.
 - Durations start on click. A fixed time that passed since the menu opened is refused.
 - At least 160px wide. Right-aligned below the clock if it fits to the clock's left with 5px clearance from the window, otherwise it extends right from the clock.
@@ -93,7 +94,7 @@ Geometry, constants and edge rules of the Inbox sidebar (`t3-inbox`) and its Sno
 ## Snooze lifecycle
 
 - Snooze writes a wake timestamp (`snoozed=<wake-ms>`) and puts a viewed agent away.
-- The agent wakes where it was; if a run finished while snoozed, it returns to the top of Active. It carries `Woke` until viewed or clicked with Inbox selected in an active window; a background window can't consume it. A working agent can show `Working` and `Woke` together.
+- The agent wakes where it was; if a run finished while snoozed, it returns to the top of Active. It carries `Woke` until viewed or clicked with Inbox selected in an active window; a background window can't consume it. A working agent's row can show its spinner and `Woke` together.
 - A permission prompt shows it as Needs you for a while without removing the label; answering hides it again.
 - Failure in its tree, a new turn given in view, Wake, pin or Settle clears the label. A pinned snooze keeps the pin underneath and returns to it on wake. Undo of Settle restores a snooze only if it hasn't expired.
 
