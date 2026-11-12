@@ -12,9 +12,10 @@
 // tile's whole area in memory however few dots it has.
 
 // Part of each import's cache key: raise it whenever a frame would convert differently, and every import converts again.
-export const VERSION = 1;
+export const VERSION = 2;
 const STEPS = [0.18, 0.32, 0.5, 0.75];
-const TILE = 80;
+// Dense shade rectangles must also fit the host's 1 MiB text-write limit.
+const TILE = 40;
 // A line's width, in cell heights.
 const WEIGHT = 0.14;
 
@@ -236,12 +237,8 @@ export function* decodeBmp(base64) {
   return { width, height, rgba };
 }
 
-/**
- * Pixels on an `imageGrid` as asciicn's mapTones draws an image in Braille and true colour (lib/ascii/frame.ts, with the
- * Studio's autoLevels for an image): tones stretched so 0.5% of them clip at each end, each pixel lighting its dot past
- * 0.5, each cell the average colour of its eight. Yields `null` now and then; returns the `.ans` text, as `toAnsi` writes it.
- */
-export function* brailleAns({ width, height, rgba }) {
+// Studio's autoLevels for an image: tones stretched so 0.5% of them clip at each end.
+function* imageLevels({ width, height, rgba }) {
   const tones = new Float32Array(width * height), bins = new Uint32Array(256);
   for (let i = 0; i < tones.length; i++) {
     const t = (0.2126 * rgba[i * 4] + 0.7152 * rgba[i * 4 + 1] + 0.0722 * rgba[i * 4 + 2]) / 255;
@@ -254,6 +251,17 @@ export function* brailleAns({ width, height, rgba }) {
   for (let seen = 0; low < 255; low++) if ((seen += bins[low]) > clip) break;
   for (let seen = 0; high > 0; high--) if ((seen += bins[high]) > clip) break;
   const from = high > low ? low / 255 : 0, scale = high > low ? 255 / (high - low) : 1;
+  return { tones, from, scale };
+}
+
+/**
+ * Pixels on an `imageGrid` as asciicn's mapTones draws an image in Braille and true colour (lib/ascii/frame.ts):
+ * autoLevels first, each pixel lighting its dot past 0.5, each cell the average colour of its eight.
+ * Yields `null` now and then; returns the `.ans` text, as `toAnsi` writes it.
+ */
+export function* brailleAns(pixels) {
+  const { width, height, rgba } = pixels;
+  const { tones, from, scale } = yield* imageLevels(pixels);
   // Averages rounded as asciicn's colour bytes are, by a clamped array: half to even.
   const columns = width / 2, rows = height / 4, lines = [], avg = new Uint8ClampedArray(3);
   for (let row = 0; row < rows; row++) {
@@ -271,7 +279,39 @@ export function* brailleAns({ width, height, rgba }) {
       if (code !== current) { line += code; current = code; }
       line += String.fromCodePoint(0x2800 + mask);
     }
-    lines.push(line.trimEnd() + (current ? "\x1b[0m" : ""));
+    lines.push(line + (current ? "\x1b[0m" : ""));
+    if (row % 16 === 15) yield null;
+  }
+  return lines.join("\n") + "\n";
+}
+
+/** The same image grid as Braille, spatial quadrants, or 2×2-pixel square halftone cells, all in truecolour `.ans`. */
+export function* imageAns(pixels, style = "braille") {
+  if (style === "braille") return yield* brailleAns(pixels);
+  if (style !== "blocks" && style !== "dots") throw new Error("unknown image style");
+  const { width, height, rgba } = pixels;
+  const { tones, from, scale } = yield* imageLevels(pixels);
+  const cellHeight = style === "dots" ? 2 : 4, lines = [], avg = new Uint8ClampedArray(3);
+  for (let row = 0; row < height / cellHeight; row++) {
+    let line = "", current = "";
+    for (let column = 0; column < width / 2; column++) {
+      const quadrants = [0, 0, 0, 0];
+      let r = 0, g = 0, b = 0;
+      for (let dy = 0; dy < cellHeight; dy++) for (let dx = 0; dx < 2; dx++) {
+        const i = (row * cellHeight + dy) * width + column * 2 + dx;
+        quadrants[Math.floor(dy / 2) * 2 + dx] += Math.max(0, Math.min(1, (tones[i] - from) * scale)) / 2;
+        r += rgba[i * 4]; g += rgba[i * 4 + 1]; b += rgba[i * 4 + 2];
+      }
+      const mask = quadrants.reduce((mask, tone, bit) => tone > 0.5 ? mask | (1 << bit) : mask, 0);
+      const tone = (quadrants[0] + quadrants[1]) / 2;
+      const glyph = style === "dots" ? (tone > 0 ? "·∙•⦁●"[Math.min(4, Math.floor(tone * 5))] : " ") : " ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█"[mask];
+      if (glyph === " ") { line += " "; continue; }
+      avg[0] = r / (cellHeight * 2); avg[1] = g / (cellHeight * 2); avg[2] = b / (cellHeight * 2);
+      const code = `\x1b[38;2;${avg[0]};${avg[1]};${avg[2]}m`;
+      if (code !== current) { line += code; current = code; }
+      line += glyph;
+    }
+    lines.push(line + (current ? "\x1b[0m" : ""));
     if (row % 16 === 15) yield null;
   }
   return lines.join("\n") + "\n";
