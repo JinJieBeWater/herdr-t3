@@ -6,7 +6,7 @@ import { v_flex, h_flex, h_resizable, resizable_panel, v_virtual_list, VirtualLi
 import { spaces, agents, nextCommand, exec, readTextFile, watchFolder, theme, settings, shared, setShared, run, notify, appHome, window } from "herdr";
 import * as fs from "fs/promises";
 import uFuzzy from "./vendor/ufuzzy.js";
-import { panelState, showPage } from "./panel.js";
+import { panelState, showPage, hidePanel } from "./panel.js";
 import { step, scrollList } from "./list.js";
 import { fileIcon, folderIcon } from "./file-icons.js";
 import { FILE_STATUS, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, treeRows, terms, narrows,
@@ -44,10 +44,12 @@ export default class Files extends View {
     this.cached = new Set();
     cx.spawn(async () => { await exec("rm", ["-rf", `${appHome()}/${CACHE}`]).catch(() => null); });
     cx.timer.every(REMOTE_EVERY, (cx) => this.poll(cx));
-    // `t3-files.open:<path from the space's folder>` and `t3-files.search:<words>`, for keys and scripts (the demo's).
+    // `t3-files.open:<path from the space's folder>` and `t3-files.search:<words>`, for keys and scripts (the demo's);
+    // `t3-files.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand(), st = this.current(), at = c.indexOf(":"), [what, arg] = [c.slice(0, at), c.slice(at + 1)];
+        if (c === "close") hidePanel();
         if (!st || at < 0) continue;
         if (what === "open") { this.open(st, arg, cx); this.reveal(st, arg, cx); }
         else if (what === "search") { this.search.set_value(arg); this.find(st, arg, cx); }

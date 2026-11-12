@@ -359,5 +359,5 @@ function panelButton(view, t, mark, alone) {
     .text_color(open || view.hot === "review-panel" ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(glow(view, "review-panel"))
     .role("button").accessibility_label(label)
     .on_click((_e, cx) => { view.hot = null; togglePanel(); cx.notify(); })
-    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 7), { below: true });
+    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 7), { action: "t3-tabs.panel", below: true });
 }

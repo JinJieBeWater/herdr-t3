@@ -6,7 +6,7 @@ import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
 import { initSettings, settingsView } from "./settings.js";
 import { KEY } from "./store.js";
-import { panelState, showPage, hidePanel, toggleWide } from "./panel.js";
+import { panelState, showPage, hidePanel, toggleWide, syncPanel } from "./panel.js";
 
 // The space panel's pages (docs/adr/0011), as its stack has them: a page the layout lacks has no tab.
 // Review wears pulls.review's own mark, as the Review bar does: a review, not a git command. In its colors, so an image.
@@ -137,6 +137,8 @@ export default class WorkspaceChrome extends View {
   // The space panel's top: its pages as T3's panel tabs (24px, 12px words), then widen and close as 24px icon buttons.
   // The rest of the row drags the window, as the tab bar does.
   panelHead(t, lit) {
+    // While wide the tab bar, which keeps each space's panel, is hidden: this head does it then.
+    syncPanel(this, true);
     const s = panelState(), space = spaces().find(p => p.active);
     // Review's run for this space, marked as a tab's agent is: what was news in a pane's card before (docs/adr/0011).
     const word = space && shared("review.status")?.[space.id];
@@ -166,6 +168,6 @@ export default class WorkspaceChrome extends View {
       .children(s.pages.map(page))
       .child(div().flex_1())
       .child(button("panel-wide", s.wide ? "minimize-2" : "maximize-2", s.wide ? "Restore panel" : "Expand panel", toggleWide))
-      .child(button("panel-close", "x", "Close panel", hidePanel, s.page === "files" ? "t3-tabs.files" : undefined)));
+      .child(button("panel-close", "x", "Close panel", hidePanel, "t3-tabs.panel")));
   }
 }

@@ -53,7 +53,8 @@
 | `cmd-p` | 跳到任一窗格 |
 | `cmd-shift-h` | 回到 Home |
 | `cmd-shift-,` | 布局的设置 |
-| `cmd-shift-e` | 打开 Files；面板正显示 Files 时关闭面板 |
+| `cmd-alt-b` | 打开或关闭 space 面板，停在上次的页面 |
+| `cmd-shift-g` | 打开 Review；面板正显示 Review 时关闭面板（Review 扩展） |
 | `cmd-t` | 在当前位置新建标签；在 Home 时先选 space |
 
 完整列表见[快捷键](docs/user/guide.zh-CN.md#快捷键)。

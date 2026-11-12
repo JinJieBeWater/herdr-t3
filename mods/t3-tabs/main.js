@@ -15,7 +15,7 @@ import { KEY, migrate } from "./store.js";
 import { pinList, pin, unpin, putBack } from "./pins.js";
 import { writeLabel } from "./labels.js";
 import { openMenu } from "./menu.js";
-import { panelState, togglePanel } from "./panel.js";
+import { panelState, togglePanel, syncPanel } from "./panel.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 // The tab bar's row, as layouts/herdr-t3.json has it.
@@ -101,8 +101,9 @@ export default class Tabs extends View {
         // Here because the tab bar always shows; the brand bar goes with the sidebar.
         if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
         else if (command === "settle") await this.settle(cx);
-        // The space panel's Files page (docs/adr/0011): opens it, or closes the panel already showing it.
-        else if (command === "files") togglePanel("files");
+        // The space panel (docs/adr/0011), keyed as VS Code's: a page opens on it, or closes the panel already showing it; `panel` keeps the last page.
+        else if (command === "files" || command === "review") togglePanel(command);
+        else if (command === "panel") togglePanel();
         // An agent's menu (t3-menu): Settle, Un-settle or Wake the agent it was opened on, in view or not.
         else if (command.startsWith("settle:")) await this.settle(cx, command.slice("settle:".length));
         else if (command.startsWith("wake:")) await writeLabel(command.slice("wake:".length), "snoozed", "");
@@ -316,6 +317,7 @@ export default class Tabs extends View {
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
       .on_size_change((size) => setShared(KEY.compact, size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme(), w = window();
+    if (!props()?.part) syncPanel(this, false);
     const stopPress = (_e, cx) => cx.stop_propagation();
     // 24 as T3's tab bar +; the window's own buttons 28, as its titlebar controls.
     const button = (id, glyph, label, action, key, size = 24) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
@@ -330,7 +332,7 @@ export default class Tabs extends View {
         // The space panel's toggle, last before the window's buttons, over where it opens: the sidebar's panel-left, mirrored.
         // It opens on the page last shown; the panel's head picks the page. Lit while open.
         .when(panelState().pages.length > 0 && !reviewToggle(layout()), el => el.child(button("panel-toggle", svg("mods/t3-tabs/icons/panel-right.svg").size(14).when(panelState().open, g => g.text_color(t.foreground)),
-          panelState().open ? "Hide panel" : "Show panel", () => togglePanel(), undefined)))
+          panelState().open ? "Hide panel" : "Show panel", () => togglePanel(), "t3-tabs.panel")))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
           .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-close.svg").size(16) : svg("mods/t3-tabs/icons/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));

@@ -7,7 +7,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, InputState } from "gpui-base";
 import { exec, nextCommand, setShared, shared, spaces, theme, window as appWindow } from "herdr";
-import { panelState } from "./panel.js";
+import { panelState, hidePanel } from "./panel.js";
 import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, wrapColumns, CHAR, LOOKAHEAD } from "./rows.js";
 import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
 import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
@@ -54,10 +54,11 @@ export default class ReviewPanel extends View {
     this.colorsKey = JSON.stringify(colors(theme()));
     this.handle = cx.focus_handle();
     // `review.scope` (a key, or `herdr-app do`) toggles the shown review's scope menu, as its button does; `scope:commits` or
-    // `scope:branches` opens it on that page.
+    // `scope:branches` opens it on that page. `review.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
     cx.spawn(async (cx) => {
       for (;;) {
         const [name, page] = (await nextCommand()).split(":"), s = this.shown();
+        if (name === "close") hidePanel();
         if (name !== "scope" || !s?.page) continue;
         if (!page || s.popup !== "scope") s.togglePopup("scope", cx);
         if (page === "commits" || page === "branches") openScopePage(s, page, cx);

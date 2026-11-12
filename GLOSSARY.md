@@ -90,7 +90,7 @@ _Avoid_: task、script
 _Avoid_: diff、changes、评审窗格
 
 **space 面板**：
-窗口右侧唯一的面板，页面有 Files 和 Review，同时只显示一页，内容跟随当前 space。
+窗口右侧唯一的面板，页面有 Files 和 Review，同时只显示一页，内容跟随当前 space；开没开、在哪一页、放没放大，按 space 各记一份。
 _Avoid_: 侧边面板、panel 栏
 
 **Files**：

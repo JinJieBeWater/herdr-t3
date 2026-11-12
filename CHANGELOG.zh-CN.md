@@ -9,9 +9,13 @@
 ## 2026-11-11
 
 - 显示 Inbox 时，Settle 或 Snooze 一个和工作中的 agent 分屏在同一标签里的 agent，它会离开分屏，拆到同一 space 下自己的标签，分屏里只留在工作的。它回来时（有新工作、到点醒来、需要你、你点了 Undo，或它的 agent 退回 shell），会合回原来的分屏，放在最右。你正在看的那个，等你离开后再搬；你正看着时它回来，会带你一起回到它的分屏。
+- space 面板的快捷键改为跟随 VS Code：`cmd-alt-b` 打开或关闭面板，停在上次的页面；`cmd-shift-e` 打开 Files；装了 Review 扩展时 `cmd-shift-g` 打开 Review；面板已在显示那一页时，按这一页的键则关闭面板。Herdr 的 `cmd-b` 仍然隐藏侧栏，和 VS Code 一样。更新时 `scripts/update.sh` 会加上这两个新键。
+- space 面板的快捷键改为照 T3：`cmd-alt-b` 打开或关闭面板，停在上次的页面；键盘在面板里时 `cmd-w` 关闭面板，而不是后面的标签；装了 Review 扩展时 `cmd-shift-g` 打开 Review，面板已在显示 Review 时则关闭。`cmd-d` 仍是 Herdr 的分屏。更新时 `scripts/update.sh` 会加上新键。
+- 每个 space 各记自己的面板，照 T3 按 thread 记的做法：开没开、在哪一页、放没放大，切回这个 space 时都会恢复；没打开过面板的 space 里它是关着的。宽度仍是整个窗口一份。
+
 - 显示 Inbox 时，已 Settle 或 Snooze 的 agent 在窗格标题栏的状态标记处标出：Settle 的勾，或闹钟加剩余时间。和工作中的 agent 分屏时，一眼看出哪个已收起。
 
-- 新增 Files：在窗口右侧新的面板里只读浏览当前 space 的文件夹，本机或其他机器都可以。用标签栏右端的面板按钮（和侧栏开关左右对称）或 `cmd-shift-e` 打开。右边的文件树把 Git 忽略的项变暗，改动的文件标 A、M、D 或 R；选一个文件在左边阅读，带语法着色、Markdown 预览或直接显示图片。Search files 按路径找任何文件。在某一行右键可以复制路径、在这个 space 的 agent 里提及它，或在 Finder 里显示。详见[使用指南](docs/user/guide.zh-CN.md#功能)。
+- 新增 Files：在窗口右侧新的面板里只读浏览当前 space 的文件夹，本机或其他机器都可以。用标签栏右端的面板按钮（和侧栏开关左右对称）或 `cmd-alt-b` 打开。右边的文件树把 Git 忽略的项变暗，改动的文件标 A、M、D 或 R；选一个文件在左边阅读，带语法着色、Markdown 预览或直接显示图片。Search files 按路径找任何文件。在某一行右键可以复制路径、在这个 space 的 agent 里提及它，或在 Finder 里显示。详见[使用指南](docs/user/guide.zh-CN.md#功能)。
 - 整个窗口只有这一个面板：和侧栏一样高，切换标签时不动，内容跟着当前 space。顶栏有各页的页签、`⤢`（放大盖住标签区）和 `×`（关闭）。
 - Review 搬进了这个面板，作为 Files 旁边的第二页，不再是标签里的窗格：没有 Review 窗格、标签和 Inbox 卡片了，`Open in` 设置也删掉了。点 Review 栏的计数会打开面板并切到 Review，显示那个 space 的评审；每个 space 各记各的。diff 现在在左边，分组和文件在右边。Review 栏和面板按钮合成了一个控件，放在动作控件后面：`7 uncommitted │ ↑34 │ ▯▮`，面板按钮在最后，分析状态跟在它后面。pulls.review 的 logo 挪到了面板的 Review 页签上。Review 页顶栏左边的范围按钮照 T3 Code 的 diff 面板，写着正在看的范围（Changes、Uncommitted、Outgoing、Incoming、某个 commit 或另一个分支），点开菜单换一个：上面四项带数量，下面是 Commits 和 Branches，各自翻到可搜索的第二页。看分支里的某个 commit 时，后面显示短 SHA，用 `‹ ›` 在这个分支的 commit 之间前后走。设置里新增 `Lines: Wrap`，长行自动换行。一个 space 既没有未提交的改动、也没选过 diff 时，页面会提示去 Review 栏选一段。装了这个扩展时，`scripts/update.sh` 会自己加上这一页，并把 id 为 `review` 的 Review 栏块改名为 `review-bar`。
 

@@ -1,5 +1,7 @@
 # Review 和 Files 在唯一的 space 面板里
 
+开关只有一份、不按 space 记这一条，已由 [0012](0012-each-space-keeps-its-panel.md) 取代。
+
 [0007](0007-review-belongs-to-the-space.md) 让 Review 属于 space，但它实际是某个标签里的窗格，于是要靠规则补：别的标签已开着就跳过去、标签和分屏都有卡片、关闭或 Settle 回到打开前的地方，而切到同一 space 的别的标签就看不见它。现在 Review 和新的 Files 都放进窗口右侧唯一的 space 面板：全高、和侧栏对称，跨标签固定，内容跟随当前 space。两者是面板的两页，同时只显示一页；面板只有一个，开关和宽度也只有一份，不按 space 记。
 
 面板沿用 Herdr 自带布局的结构和 id：`panel` 列里一个 `panel-body` stack，用 `layout.select`、`layout.show`、`layout.hide` 切换。顶上 40px 的面板头由 `t3-chrome` 画，列出 stack 里实际有的页。Review 是 extra，安装时把自己的块加进 `panel-body`；没装就只有 Files。

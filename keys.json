@@ -1,7 +1,8 @@
 {
   "layout:herdr-t3": {
     "cmd-shift-b": "t3-tabs.sidebar",
-    "cmd-shift-e": "t3-tabs.files",
+    "cmd-shift-g": "t3-tabs.review",
+    "cmd-alt-b": "t3-tabs.panel",
     "cmd-shift-s": "t3-tabs.settle",
     "cmd-p": "mod.open:t3-picker",
     "cmd-]": "t3-tabs.next",
@@ -156,5 +157,13 @@
     "ctrl-alt-shift-x": "overlay.close",
     "cmd-shift-w": "overlay.close",
     "ctrl-alt-x": "overlay.close"
+  },
+  "mod:t3-files": {
+    "cmd-w": "t3-files.close",
+    "ctrl-alt-shift-x": "t3-files.close"
+  },
+  "mod:review": {
+    "cmd-w": "review.close",
+    "ctrl-alt-shift-x": "review.close"
   }
 }

@@ -53,7 +53,8 @@ Dragging, sweeping across rows, pins and the rest: [Everyday use](docs/user/guid
 | `cmd-p` | Go to any pane |
 | `cmd-shift-h` | Go Home |
 | `cmd-shift-,` | The layout's settings |
-| `cmd-shift-e` | Open Files, or close the panel showing it |
+| `cmd-alt-b` | Show or hide the space panel, on the page last shown |
+| `cmd-shift-g` | Open Review, or close the panel showing it (Review extra) |
 | `cmd-t` | New tab here; at Home, pick the space first |
 
 All of them: [Keys](docs/user/guide.md#keys).
