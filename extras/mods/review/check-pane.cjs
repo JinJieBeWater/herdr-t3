@@ -273,7 +273,7 @@ const env = {
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
   run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), nextCommand: () => new Promise(done => waiting.push(done)), theme: () => ({ background: "#17191d", selected: "#ffffff17", foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888", input: "#ffffff24" }),
-  watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, CHAR: 7.25, groupFiles, buildItems, pageLabel, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns,
+  FILE: 32, ROW: 20, CHAR: 7.25, groupFiles, buildItems, pageLabel, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns,
   // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going. A later batch's
   // rows come on their own.
   review: async (_root, route, body) => {
@@ -1550,39 +1550,6 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   } });
   await wait(); older.render(cx); await wait(); older.render(cx); await wait();
   assert.deepEqual(plain(oldReads), [[], ["a.ts", "c.ts"]], "a binary file has no rows to ask for");
-  // A watched change reads the diff only if it touches it: Git's HEAD or refs, or a file Git doesn't ignore (macOS reports
-  // those too). The next batch waits a second, so at most one change read a second.
-  let batch, watches = 0; const checked = [], watchReads = [];
-  const { p: watcher } = panelOf({
-    watchFolder: () => { watches++; return new Promise(r => { batch = r; }); },
-    exec: async (_cmd, args) => {
-      const paths = args.slice(3), ignored = paths.filter(p => p.includes("node_modules"));
-      checked.push(paths);
-      return { code: ignored.length ? 0 : 1, stdout: ignored.join("\n") };
-    },
-    review: async (_root, route) => { watchReads.push(route); return { ...review, files: [] }; } });
-  await wait();
-  const changed = async (paths) => {
-    watchReads.length = 0; timers.length = 0; const before = watches;
-    batch(paths); await wait();
-    const reads = watchReads.length, waited = watches === before;
-    tick(); await wait();
-    assert.ok(waited && watches === before + 1, "the next batch a second later");
-    return reads;
-  };
-  assert.equal(await changed(["/repo/.git/objects/ab/cd", "/repo/.git/index"]), 0);
-  assert.deepEqual(checked, [], "Git's own files are judged without asking it");
-  // Only the worktree's page shows the worktree: on any other a file's change can't touch the diff, and Git isn't asked.
-  assert.equal(await changed(["/repo/a.ts"]), 0);
-  watcher.page = watcher.base = "/compare/a...b";
-  assert.equal(await changed(["/repo/a.ts"]), 0);
-  assert.deepEqual(checked, [], "files off the worktree's page are judged without asking Git");
-  assert.equal(await changed(["/repo/.git/refs/heads/fix"]), 1);
-  watcher.page = watcher.base = "/worktree";
-  assert.equal(await changed(["/repo/node_modules/x"]), 0);
-  assert.equal(await changed(["/repo/node_modules/x", "/repo/a.ts"]), 1);
-  assert.equal(await changed(["/repo/a.ts"]), 1);
-  assert.equal(await changed(["/repo/.git/refs/heads/fix"]), 1);
   // Switching page keeps the old one on screen, dimmed and inert, until the new one's read replaces it, which starts at
   // its top. Meanwhile the read asks for the new page's first group, and the title and header don't read the old review.
   let next;
@@ -1763,20 +1730,6 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.equal(p.items()[scrolled].key, "f:f15.ts");
   }
   {
-    // Away to another worktree and back before the first's watch returns: one watch goes on there, not two.
-    const watched = [];
-    const { p } = await paneOf({ watchFolder: (root) => new Promise((resolve, reject) => watched.push({ root, resolve, reject })) });
-    const to = async (root) => { p.root = root; p.watching = null; p.forget(); p.load(cx); await wait(); };
-    await to("/other"); await to("/repo");
-    timers.length = 0;
-    for (const w of watched.filter(w => w.root === "/repo")) w.resolve(["/repo/.git/refs/heads/fix"]);
-    await wait(); tick(); await wait();
-    assert.equal(watched.filter(w => w.root === "/repo").length, 3, "the first, the second, and the second's next");
-    // And the other worktree's watch failing late leaves this one's be.
-    watched.find(w => w.root === "/other").reject(new Error("late")); await wait();
-    assert.equal(p.watching?.root, "/repo");
-  }
-  {
     // A language picked while the panel's read of the settings is out stays picked once that read, from before, lands.
     let saved = { locale: "en", llm: { provider: "local-agent", agent: "pi" } }, before;
     const { p } = await paneOf({ request: async (_root, method, route, body) => {
@@ -1800,7 +1753,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     const scrolledDown = () => { calls.length = 0; p.scrollTop = { "review-files": 40 }; };
     const files = () => { p.width = 1200; p.listHeight = { "review-files": 28 }; p.render(cx); return p.scrollTop["review-files"]; };
     files(); scrolledDown();
-    p.root = "/other"; p.watching = null; p.forget(); p.load(cx); await wait();
+    p.root = "/other"; p.forget(); p.load(cx); await wait();
     assert.deepEqual([tops(), files()], [1, 0], "another worktree");
     scrolledDown();
     scope.review = () => Promise.reject(new Error("down"));
@@ -2016,6 +1969,108 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     // Loading, as Files' does: a spinner and a line, announced as a status.
     p.review = null; drawn.clear(); p.render(cx);
     assert.ok(texts.get("review-loading-text") === "Loading the review…" && styles["review-loading"].role === "status");
+  }
+  {
+    // Only the three spaces shown last keep their whole review. An older one keeps what it was reading - its page, group, file
+    // and folds - and a run going; its diff, rows, lists and scroll go, and a read out for it is dropped when it lands. Shown
+    // again, it's read anew. Nothing watches a folder: the host can't end a watchFolder, and unseen nothing is to go on.
+    assert.ok(!/watchFolder\s*\(|import[^;]*watchFolder/.test(source("main.js")), "no folder watch");
+    const ids = ["a", "b", "c", "d"], asked = [], late = [], wasShown = sharedStore.get("review.shown"), wasStatus = sharedStore.get("review.status");
+    let active = "a", holding = false;
+    const two = { ...review, files: [...review.files, file("d.ts")], groups: [...review.groups, { key: "h", label: "H", category: "core", critical: false, missing: [], files: ["d.ts"], notes: {}, children: [] }] };
+    sharedStore.set("review.shown", Object.fromEntries(ids.map(id => [id, { root: "/repo", page: id === "a" ? "/commit/c1" : "/branch/fix", base: "/branch/fix" }])));
+    pageShown = "review"; windowActive = true;
+    const scope = load("main.js", { ...env,
+      spaces: () => ids.map(id => ({ id, folder: "/repo", machine: null, active: id === active, tabs: [] })),
+      review: async (_root, route, body) => {
+        if (route === "/api/review/status") return { running: false };
+        if (holding) { holding = false; await new Promise(r => late.push(r)); }
+        if (route === "/api/review") asked.push(body.page);
+        return route === "/api/review/rows" ? { files: structuredClone(two.files) } : structuredClone(two);
+      } });
+    const view = new scope.Mod(); view.init({}, cx);
+    const wake = every[1000].at(-1), poll = every[1500].at(-1);
+    const show = async (id) => { active = id; for (let i = 0; i < 2; i++) { drawn.clear(); view.render(cx); await wait(); } };
+    const whole = () => [...view.bySpace].filter(([, s]) => s.review).map(([id]) => id);
+    await show("a");
+    const a = view.bySpace.get("a");
+    assert.ok(a.review);
+    a.groupKey = "h"; a.current = "d.ts"; a.collapsed.add("a.ts"); a.version++;
+    a.review.analysis = { state: "running", agent: true }; await show("a");
+    holding = true; a.load(cx);
+    for (const id of ["b", "c", "d"]) await show(id);
+    assert.deepEqual(whole(), ["b", "c", "d"]);
+    assert.ok(a.evicted && !a.review && !a.scroll && !a.full.size && !a.parts.size && !a.itemList && !a.treeOf && !a.loading, "a keeps no diff");
+    late.splice(0).forEach(r => r()); await wait();
+    assert.ok(!a.review && !a.itemList && !a.loading, "a read landing late brings nothing back");
+    // A run going stays one, on the status poll alone, until it ends.
+    assert.ok(a.analyzing() && sharedStore.get("review.status").a === "working");
+    poll(cx); await wait();
+    assert.ok(!a.analyzing() && sharedStore.get("review.status").a === "done" && !a.review);
+    // Unseen, a review is due a read when it's seen again, and none comes meanwhile.
+    const b = view.bySpace.get("b");
+    asked.length = 0; wake(cx); await wait();
+    assert.ok(b.dirty && !b.evicted && asked.length === 0);
+    // Back to a: read again, on its page, group, file and folds; b, now the oldest, keeps no diff.
+    asked.length = 0; await show("a"); await show("a");
+    assert.equal(asked[0], "/commit/c1");
+    assert.ok(!a.evicted && a.review && a.scroll && a.page === "/commit/c1" && a.groupKey === "h" && a.current === "d.ts" && a.collapsed.has("a.ts"));
+    assert.deepEqual(whole(), ["c", "d", "a"]);
+    assert.ok(b.evicted && !b.review);
+    // The scope menu's git read, out when c is evicted, lands on nothing.
+    const c = view.bySpace.get("c");
+    let gate; const gated = new Promise(r => { gate = r; });
+    scope.exec = async (_cmd, args) => { await gated; return args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : { code: 0, stdout: "# branch.head fix\n" }; };
+    vm.runInContext("readScope", scope)(c, cx);
+    // Evicted b sent to another repository: what it was reading there goes, its folds too.
+    b.groupKey = "h"; b.current = "d.ts"; b.restoreTo = "d.ts"; b.collapsed.add("a.ts"); b.flipped.add("src");
+    const request = sharedStore.get("review");
+    sharedStore.set("review", { space: "b", root: "/other", page: "/worktree", n: Date.now() + 1000 });
+    await show("b"); await show("b");
+    assert.ok(c.evicted && !b.evicted);
+    gate(); await wait();
+    assert.ok(c.scopeGit === undefined && c.picks === undefined && c.refs === undefined, "a late scope read brings nothing back");
+    scope.exec = env.exec; sharedStore.set("review", request);
+    // A space's first git read, out when the space is closed, sets nothing and starts no further read.
+    const gitCalls = []; let open; const opened = new Promise(r => { open = r; });
+    scope.exec = async (_cmd, args) => { gitCalls.push(args.at(-1)); await opened; return { code: 0, stdout: "/repo\n" }; };
+    ids.push("e"); await show("e");
+    const e = view.bySpace.get("e");
+    ids.pop(); active = "d"; wake(cx); open(); await wait();
+    assert.ok(!view.bySpace.has("e") && e.root === null && e.page === null);
+    assert.deepEqual(gitCalls, ["--show-toplevel"], "no read after it");
+    scope.exec = env.exec;
+    assert.ok(b.root === "/other" && b.page === "/worktree" && b.groupKey === "g" && b.current !== "d.ts" && !b.collapsed.has("a.ts") && !b.flipped.has("src"));
+    // Spaces closed: nothing of them stays.
+    ids.splice(0, 2); active = "d"; wake(cx); await wait();
+    assert.deepEqual([...view.bySpace.keys()], ["c", "d"]);
+    assert.ok(a.evicted && !a.review && !a.scroll);
+    sharedStore.set("review.shown", wasShown); sharedStore.set("review.status", wasStatus);
+  }
+  {
+    // Analyze pressed, the daemon not saying it runs yet, and the space evicted at once: the status poll still follows the run
+    // to its end. A "not running" from before the run starts doesn't end it.
+    const ids = ["p", "q", "r", "s"], wasShown = sharedStore.get("review.shown"), wasStatus = sharedStore.get("review.status");
+    let active = "p", status = { running: false };
+    sharedStore.set("review.shown", Object.fromEntries(ids.map(id => [id, { root: "/repo", page: "/branch/fix", base: "/branch/fix" }])));
+    const scope = load("main.js", { ...env,
+      spaces: () => ids.map(id => ({ id, folder: "/repo", machine: null, active: id === active, tabs: [] })),
+      review: async (_root, route) => route === "/api/review/status" ? status : route === "/api/review/analyze" ? {} : structuredClone(review) });
+    const view = new scope.Mod(); view.init({}, cx);
+    const poll = every[1500].at(-1), word = () => sharedStore.get("review.status")?.p;
+    const show = async (id) => { active = id; for (let i = 0; i < 2; i++) { drawn.clear(); view.render(cx); await wait(); } };
+    await show("p");
+    const p = view.bySpace.get("p");
+    p.analyze(cx, false); await wait();
+    for (const id of ["q", "r", "s"]) await show(id);
+    assert.ok(p.evicted && !p.review && p.analyzing());
+    poll(cx); await wait();
+    assert.ok(p.analyzing(), "not ended by a read from before the run");
+    status = { running: true, progress: { kind: "thinking", step: 1 } }; poll(cx); await wait();
+    assert.ok(p.startingUntil === 0 && p.analyzing() && word() === "working");
+    status = { running: false }; poll(cx); await wait();
+    assert.ok(!p.analyzing() && word() === "done" && !p.review);
+    sharedStore.set("review.shown", wasShown); sharedStore.set("review.status", wasStatus);
   }
   console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; the files in the panel's navigation column, the groups as the tree's top rows (none without an analysis), its switch and no breakpoint, the file in front its one selected row, moved by keys; the row menu, none of it opening Files; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom; one review per space, none on another machine, nothing asked of it by Files, the scope button and its menu, a commit's sha and steps, wrapped lines, the shared loading, empty and error states.");
 })();

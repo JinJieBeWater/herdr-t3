@@ -3,7 +3,7 @@
 // One copy serves every space, here or on another machine: what each one shows is kept by its id.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Editor, EditorState, TextView } from "gpui-base";
-import { spaces, nextCommand, exec, readTextFile, watchFolder, theme, settings, shared, setShared, appHome, window } from "herdr";
+import { spaces, nextCommand, exec, readTextFile, theme, settings, shared, setShared, appHome, window } from "herdr";
 import * as fs from "fs/promises";
 import uFuzzy from "./vendor/ufuzzy.js";
 import { panelState, hidePanel } from "./panel.js";
@@ -22,19 +22,21 @@ const RESULTS = 200, REMOTE_IMAGE = 512 * 1024, TEXT_MAX = 1024 * 1024;
 // Expand all lists at most this many folders, Git-ignored ones left closed, as T3's.
 // shortcut: a folder past it stays closed; list more in batches if a big repo wants it all.
 const EXPAND_MAX = 200;
-// Here, the folder watch tells; a missed event waits for this. Another machine has no watch: it's asked this often while shown.
-const LOCAL_EVERY = 60000, REMOTE_EVERY = 10000;
+// Asked again while it shows: here every 5 s, another machine every 10; a refresh that took long, 10 times as long, a minute at
+// most. Nothing is watched: Herdr's folder watch can't be stopped once asked, and a hidden page runs nothing.
+const LOCAL_EVERY = 5000, REMOTE_EVERY = 10000, SLOWEST = 60000;
+const FULL = 3; // the spaces last shown that keep all they read; older ones keep their file, open folders and search
 const CACHE = "cache/t3-files"; // under the app's home, where image() can read
 const MARKDOWN = "t3-files.markdown"; // "code" once someone picked it; Preview otherwise
 
-const GIT = ["--no-optional-locks", "-c", "core.fsmonitor=false"]; // reads that write nothing under .git, so the watch stays quiet
+const GIT = ["--no-optional-locks", "-c", "core.fsmonitor=false"]; // keep reads from updating the index or filesystem-monitor state
 
 const count = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const zoom = () => Number(settings()?.zoom) || 1;
 
 // What one space's page knows and shows.
 function blank(sp) {
-  return { id: sp.id, root: sp.folder, on: sp.machine ?? null, git: undefined, real: null, entries: new Map(), expanded: new Set(), ignored: new Set(),
+  return { id: sp.id, root: sp.folder, on: sp.machine ?? null, git: undefined, entries: new Map(), expanded: new Set(), ignored: new Set(),
     marks: new Map(), dirs: new Set(), version: 0, file: null, view: null, lit: null, focus: null, query: "", at: -1, results: null, total: 0, paths: null };
 }
 
@@ -53,8 +55,11 @@ export default class Files extends View {
     /** @type {{ at?: number, want?: number, run?: number }} */
     this.codeHold = {};
     this.cached = new Set();
+    // The state being worked for, and a count that moves each time that changes (going).
+    this.awake = null; this.gen = 0;
     cx.spawn(async () => { await exec("rm", ["-rf", `${appHome()}/${CACHE}`]).catch(() => null); });
-    cx.timer.every(REMOTE_EVERY, (cx) => this.poll(cx));
+    // A hidden copy isn't drawn, so this is what sees it go out of view.
+    cx.timer.every(1000, (cx) => { this.sync(cx); this.poll(cx); });
     // `t3-files.open:<path from the space's folder>` and `t3-files.search:<words>`, for keys and scripts (the demo's);
     // `t3-files.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
     cx.spawn(async (cx) => {
@@ -78,43 +83,89 @@ export default class Files extends View {
     return sp ? this.states.get(sp.id) : null;
   }
 
-  // The active space's state, made the first time and made again when its folder moves.
-  stateFor(sp, cx) {
+  // A space's state, made the first time and made again when its folder moves; the latest one last. The FULL last keep all
+  // they read; older ones only how they were being read, and read again when back.
+  stateFor(sp) {
     let st = this.states.get(sp.id);
-    if (!st || st.root !== sp.folder || st.on !== (sp.machine ?? null)) {
-      this.states.set(sp.id, st = blank(sp));
-      if (st.root) this.load(st, cx);
-    }
+    if (!st || st.root !== sp.folder || st.on !== (sp.machine ?? null)) { if (st) this.drop(st); st = blank(sp); }
+    else if ([...this.states.keys()].at(-1) === sp.id) return st;
+    this.states.delete(sp.id);
+    this.states.set(sp.id, st);
+    for (const old of [...this.states.values()].slice(0, -FULL)) this.states.set(old.id, this.slim(old));
     return st;
   }
 
+  // What `st` read let go, for whatever still holds it too (a read under way): its editor, image and lists.
+  drop(st) {
+    st.view?.code?.release();
+    if (st.view?.image) this.uncache(st.view.image);
+    Object.assign(st, { view: null, entries: new Map(), ignored: new Set(), marks: new Map(), dirs: new Set(), rows: null, paths: null, lower: null, last: null, results: null });
+  }
+
+  // A space let go of, keeping its file, open folders and search's words.
+  slim(st) {
+    this.drop(st);
+    return Object.assign(blank({ id: st.id, folder: st.root, machine: st.on }), { file: st.file, expanded: new Set(st.expanded), focus: st.focus, query: st.query });
+  }
+
+  // It works only while it shows: the page in the open panel, the window in front, for the active space. Shown, it reads at
+  // once; hidden, answers still under way are dropped and nothing more is asked. A closed space's state goes.
+  sync(cx) {
+    const all = spaces(), sp = all.find((s) => s.active);
+    for (const [id, st] of this.states) if (!all.some((s) => s.id === id)) { this.drop(st); this.states.delete(id); }
+    const st = sp && this.shown() ? this.stateFor(sp) : null;
+    if (st === this.awake) return;
+    this.awake = st; this.gen++;
+    if (!st?.root) return;
+    if (st.git === undefined) this.load(st, cx); else this.recheck(st, cx);
+  }
+
+  // The page in the open panel, the window in front.
+  shown() { const p = panelState(); return p.open && p.page === "files" && Boolean(window()?.active); }
+  // Whether what started now may go on: `st` still the one worked for and in view, without having gone out of it since. It
+  // asks the layout itself, as sync sees a hide only at its next tick; one it finds puts the page to sleep, so showing again
+  // reads again.
+  going(st) {
+    const gen = this.gen;
+    return () => {
+      if (this.gen !== gen || this.awake !== st || !this.live(st)) return false;
+      if (this.shown() && spaces().find((s) => s.active)?.id === st.id) return true;
+      this.awake = null; this.gen++;
+      return false;
+    };
+  }
+  // A ticket (model.js) that also lapses once `st` stops showing.
+  fresh(st, kind) { const t = ticket(st, kind), go = this.going(st); return () => t() && go(); }
   live(st) { return this.states.get(st.id) === st; }
   changed(st) { st.version++; st.rows = null; }
 
+  // Git asked where the folder is, then the rest as a recheck: a space read again gets its file and search back too.
   load(st, cx) {
+    const going = this.going(st);
     cx.spawn(async (cx) => {
       const top = await exec("git", ["rev-parse", "--show-toplevel", "--show-prefix"], { cwd: st.root, on: st.on }).catch(() => null);
+      if (!going()) return;
       const [dir, prefix] = top?.code === 0 ? top.stdout.split("\n") : [];
       st.git = dir ? { top: dir, prefix: prefix ?? "" } : null;
-      const real = await exec("pwd", ["-P"], { cwd: st.root, on: st.on }).catch(() => null);
-      st.real = real?.code === 0 ? real.stdout.trim() : st.root;
-      await this.refresh(st, cx);
-      if (!st.on) this.watch(st, cx);
+      this.recheck(st, cx);
     });
   }
 
-  // Git's marks, and every folder shown listed again.
+  // Git's marks, and every folder shown listed again. The search's list of files is made again at its next word.
   async refresh(st, cx) {
-    if (!this.live(st) || st.git === undefined) return;
-    st.refreshed = Date.now();
+    const go = this.going(st);
+    if (!go() || st.git === undefined) return;
+    const began = st.refreshed = Date.now();
     const shown = ["", ...st.expanded].filter((p) => p === "" || ancestors(p).every((a) => st.expanded.has(a)));
     await Promise.all([this.status(st), ...shown.map((p) => this.list(st, p))]);
+    if (!go()) return;
+    st.refreshed = Date.now(); st.took = st.refreshed - began; st.paths = null;
     cx.notify();
   }
 
   async status(st) {
     if (!st.git) return;
-    const fresh = ticket(st, "status");
+    const fresh = this.fresh(st, "status");
     const r = await exec("git", [...GIT, "status", "--porcelain=v2", "-z", "--untracked-files=all"], { cwd: st.git.top, on: st.on }).catch(() => null);
     if (r?.code !== 0 || !fresh()) return;
     Object.assign(st, parseStatus(r.stdout, st.git.prefix));
@@ -122,7 +173,8 @@ export default class Files extends View {
   }
 
   async list(st, rel) {
-    const fresh = ticket(st, `list:${rel}`), dir = join(st.root, rel);
+    const fresh = this.fresh(st, `list:${rel}`), dir = join(st.root, rel);
+    if (!fresh()) return;
     const inIgnored = [rel, ...ancestors(rel)].some((p) => p && st.ignored.has(p));
     const [r, ig] = await Promise.all([
       exec("sh", ["-c", LIST, "files", dir], { on: st.on }).catch((e) => ({ code: 1, stdout: "", stderr: String(e) })),
@@ -142,48 +194,24 @@ export default class Files extends View {
     this.changed(st);
   }
 
-  // Here, Herdr's watch: a burst is taken as one, Git asked again, and only the folders shown that hold a change listed again.
-  watch(st, cx) {
-    cx.spawn(async (cx) => {
-      try {
-        while (this.live(st)) {
-          const paths = await watchFolder(st.root);
-          if (!this.live(st)) return;
-          await cx.sleep(300);
-          const rel = (p) => [st.real, st.root].map((r) => p === r ? "" : p.startsWith(`${r}/`) ? p.slice(r.length + 1) : null).find((x) => x !== null) ?? null;
-          const all = paths.map(rel);
-          const work = all.filter((p) => p !== null && p !== ".git" && !p.startsWith(".git/"));
-          if (all.includes("")) await this.refresh(st, cx);
-          else {
-            const folders = new Set(work.map(parentOf).filter((p) => st.entries.has(p) && (p === "" || st.expanded.has(p))));
-            await Promise.all([this.status(st), ...[...folders].map((p) => this.list(st, p))]);
-          }
-          if (work.length || all.includes("")) {
-            st.paths = null;
-            if (st.query) this.find(st, st.query, cx);
-            if (st.file && (all.includes("") || work.includes(st.file))) this.open(st, st.file, cx, true);
-          }
-          cx.notify();
-        }
-      } catch { /* a watch Herdr refused: the timer still refreshes */ }
-    });
-  }
-
-  // While the page shows: another machine's space every 10 s, the window in front; here, a minute after the last refresh.
+  // While it shows (sync), asked again: every LOCAL_EVERY here or REMOTE_EVERY on another machine from the last refresh's end,
+  // 10 times as long as that refresh took if longer, SLOWEST at most.
   poll(cx) {
-    const st = this.current(), p = panelState();
-    if (!st || st.git === undefined || !p.open || p.page !== "files") return;
-    if (st.on ? !window()?.active : Date.now() - (st.refreshed ?? 0) < LOCAL_EVERY) return;
-    if (!st.on) return void cx.spawn(async (cx) => this.refresh(st, cx));
-    this.recheck(st, cx);
+    const st = this.awake;
+    if (!st || st.git === undefined) return;
+    const every = Math.min(SLOWEST, Math.max(st.on ? REMOTE_EVERY : LOCAL_EVERY, 10 * (st.took ?? 0)));
+    if (Date.now() - (st.refreshed ?? 0) >= every) this.recheck(st, cx);
   }
 
-  // Git, the folders shown and the file asked again. Another machine's image comes over whole each time: one changed there
+  // Git, the folders shown and the file asked again. An image shown is copied whole each time, so it's left be: one changed
   // shows when it's picked again.
   recheck(st, cx) {
+    st.refreshed = Date.now();
     cx.spawn(async (cx) => {
       await this.refresh(st, cx);
-      if (st.file && !(st.on && kindOf(st.file) === "image")) this.open(st, st.file, cx, true);
+      // A search showing, found again, the lit result kept lit; each asks only while it shows.
+      if (st.query) this.find(st, st.query, cx, st.results?.[st.at]?.path ?? null);
+      if (st.file && !st.view?.image) this.open(st, st.file, cx, true);
     });
   }
 
@@ -192,12 +220,14 @@ export default class Files extends View {
     else {
       st.expanded.add(path);
       // A folder holding just a folder opens with it, as the tree shows them as one row.
+      const go = this.going(st);
       cx.spawn(async (cx) => {
-        for (let p = path, kids; p && this.live(st); p = kids?.length === 1 && kids[0].dir ? join(p, kids[0].name) : null) {
+        for (let p = path, kids; p && go(); p = kids?.length === 1 && kids[0].dir ? join(p, kids[0].name) : null) {
           await this.list(st, p);
           kids = st.entries.get(p);
           if (kids?.length === 1 && kids[0].dir) st.expanded.add(join(p, kids[0].name));
         }
+        if (!go()) return;
         this.changed(st);
         cx.notify();
       });
@@ -212,11 +242,13 @@ export default class Files extends View {
     for (const p of ancestors(path)) st.expanded.add(p);
     st.lit = path && path !== st.file ? path : null;
     this.changed(st);
+    const go = this.going(st);
     cx.spawn(async (cx) => {
-      for (const p of ancestors(path)) if (!st.entries.has(p)) await this.list(st, p);
+      for (const p of ancestors(path)) if (go() && !st.entries.has(p)) await this.list(st, p);
+      if (!go()) return;
       // The space's folder is the tree's top.
       const id = `t3-files-tree-${st.id}`;
-      if (this.live(st)) { if (path) revealRow(this, id, path); else this.scrollTop = { ...this.scrollTop, [id]: 0 }; }
+      if (path) revealRow(this, id, path); else this.scrollTop = { ...this.scrollTop, [id]: 0 };
       cx.notify();
     });
     cx.notify();
@@ -238,7 +270,8 @@ export default class Files extends View {
       this.changed(st);
       cx.notify();
     }
-    const fresh = ticket(st, "file"), abs = join(st.root, rel), kind = kindOf(rel);
+    const fresh = this.fresh(st, "file"), abs = join(st.root, rel), kind = kindOf(rel);
+    if (!fresh()) return;
     cx.spawn(async (cx) => {
       const view = await this.read(st, abs, rel, kind, fresh).catch(() => ({ problem: "This file can't be read." }));
       if (view?.problem) view.failed = failedRead(view.problem);
@@ -260,6 +293,7 @@ export default class Files extends View {
     let size = null;
     if (st.on) {
       const p = await exec("sh", ["-c", PROBE, "probe", abs], { on: st.on });
+      if (!fresh()) return null;
       if (p.code !== 0) return { problem: "This file can't be read." };
       const [bytes, nuls] = p.stdout.trim().split(" ").map(Number);
       size = bytes;
@@ -270,8 +304,10 @@ export default class Files extends View {
       if (st.on && size > REMOTE_IMAGE) return { problem: `This image is larger than 512 KB, too large to bring over from ${st.on}.` };
       const name = `${CACHE}/${Date.now()}-${nameOf(rel).replace(/[^\w.-]/g, "_")}`, dest = `${appHome()}/${name}`;
       await fs.mkdir(`${appHome()}/${CACHE}`, { recursive: true }).catch(() => null);
+      if (!fresh()) return null;
       if (st.on) {
         const r = await exec("base64", [abs], { on: st.on, timeout: 60000 });
+        if (!fresh()) return null;
         if (r.code !== 0) return { problem: "This image can't be read." };
         const bin = /** @type {any} */ (globalThis).atob(r.stdout.replace(/\s+/g, "")), bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -305,11 +341,14 @@ export default class Files extends View {
       syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
   }
 
-  // Every term in the path, case aside. Here, over the folder's whole list, kept until something changes; elsewhere, there.
-  find(st, query, cx) {
-    st.query = query; st.at = 0;
-    const words = terms(query), fresh = ticket(st, "search");
+  // Every term in the path, case aside. Here, over the folder's whole list, kept until the next refresh; elsewhere, there.
+  // `keep`: the path to keep lit, if it's still found.
+  find(st, query, cx, keep = null) {
+    st.query = query;
+    if (!keep) st.at = 0;
+    const words = terms(query), fresh = this.fresh(st, "search");
     if (!words.length) { st.results = null; cx.notify(); return; }
+    if (!fresh()) return;
     cx.spawn(async (cx) => {
       let found, total;
       if (st.on) {
@@ -340,7 +379,8 @@ export default class Files extends View {
       }
       st.results = found.length <= RANKED ? rank(this.uf, found, query, RESULTS) : found.slice(0, RESULTS).map((path) => ({ path, ranges: [] }));
       st.total = total;
-      st.at = Math.min(Math.max(st.at, 0), st.results.length - 1);
+      const kept = keep ? st.results.findIndex((r) => r.path === keep) : -1;
+      st.at = kept >= 0 ? kept : Math.min(Math.max(keep ? 0 : st.at, 0), st.results.length - 1);
       cx.notify();
     });
     cx.notify();
@@ -359,7 +399,8 @@ export default class Files extends View {
   render(cx) {
     const t = theme(), sp = spaces().find((s) => s.active);
     if (!sp) return div().id("t3-files").size_full();
-    const st = this.stateFor(sp, cx);
+    this.sync(cx);
+    const st = this.stateFor(sp);
     // Lines changed: the editor made again, just after this draw, as an editor can't be made in one.
     const v = st.view;
     if (v?.code && v.wrap !== wrapLines()) cx.timer.after(0, (cx) => {
@@ -371,10 +412,6 @@ export default class Files extends View {
     });
     // The search field shows this space's words.
     if (this.searchFor !== st.id) { this.searchFor = st.id; if (this.search.value() !== st.query) this.search.set_value(st.query); }
-    // Shown again (the page, or the window in front): what changed meanwhile, now.
-    const p = panelState(), shown = p.open && p.page === "files" && Boolean(window()?.active);
-    if (shown && !this.shown && st.git !== undefined) this.recheck(st, cx);
-    this.shown = shown;
     const width = this.size?.width ?? 800;
     return v_flex().id("t3-files").relative().size_full().min_h(0).text_color(t.foreground).text_size(13)
       .on_size_change((size, cx) => { this.size = { width: size.width / zoom(), height: size.height / zoom() }; cx.notify(); })
@@ -466,14 +503,16 @@ export default class Files extends View {
   // Collapse all while any folder is open; else open every folder, Git-ignored ones aside, EXPAND_MAX at most.
   foldAll(st, cx) {
     if (st.expanded.size) { st.expanded.clear(); this.changed(st); cx.notify(); return; }
+    const go = this.going(st);
     cx.spawn(async (cx) => {
       const queue = [""];
-      for (let n = 0; queue.length && n < EXPAND_MAX && this.live(st); n++) {
+      for (let n = 0; queue.length && n < EXPAND_MAX && go(); n++) {
         const rel = queue.shift();
         if (!st.entries.has(rel)) await this.list(st, rel);
         if (rel) st.expanded.add(rel);
         for (const e of st.entries.get(rel) ?? []) if (e.dir && !st.ignored.has(join(rel, e.name))) queue.push(join(rel, e.name));
       }
+      if (!go()) return;
       this.changed(st);
       cx.notify();
     });

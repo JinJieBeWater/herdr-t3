@@ -61,15 +61,18 @@ export function scopeOf(view) {
 // The counts, commits and bases, read afresh on each opening; the last read shows meanwhile. With a base picked,
 // Changes counts against it and Commits lists what's past it, as T3's; a base gone since (a deleted branch) counts as Automatic.
 function readScope(view, cx) {
-  const root = view.root, base = chosenBase(view);
+  const { root, page } = view, base = chosenBase(view);
+  // Evicted (main.js evict), or on another diff: what it read is the old one's.
+  const live = () => !view.evicted && root === view.root && page === view.page;
   cx.spawn(async (cx) => {
     const r = await readReview(root).catch(() => null);
+    if (!live()) return;
     const ab = r && base && r.branch !== "(detached)" ? await git(root, ["rev-list", "--left-right", "--count", `${base}...HEAD`]).catch(() => null) : null;
-    if (root !== view.root) return;
+    if (!live()) return;
     if (ab?.code === 0) r.chosen = { ref: base, unmerged: parseInt(ab.stdout.trim().split(/\s+/)[1], 10) || 0 };
     view.scopeGit = r; cx.notify();
     const [picks, refs] = r ? await Promise.all([readPicks(r.chosen ? { ...r, baseRef: r.chosen.ref, unmerged: r.chosen.unmerged } : r).catch(() => null), readRefs(root).catch(() => [])]) : [null, []];
-    if (root === view.root && view.scopeGit === r) { view.picks = picks; view.refs = refs; cx.notify(); }
+    if (live() && view.scopeGit === r) { view.picks = picks; view.refs = refs; cx.notify(); }
   });
 }
 

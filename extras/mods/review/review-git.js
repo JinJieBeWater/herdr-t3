@@ -3,7 +3,7 @@
 // scripts/sync.sh copies this to pulls-review and review. Read-only: nothing here writes under .git.
 import { exec } from "herdr";
 
-// Reads write nothing under .git, so the folder watch doesn't wake on them.
+// Keep these reads from updating the repository's index or filesystem-monitor state.
 export const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
 // The files the pane lists for the working tree, as the daemon's worktreeDiff reads them: HEAD to the working tree, net,
 // new files marked intent-to-add in a throwaway copy of the index so a moved file pairs up as one rename.

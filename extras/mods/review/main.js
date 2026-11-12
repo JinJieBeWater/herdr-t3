@@ -33,6 +33,8 @@ const RETIRED = [`${PANE}.titles`, `${PANE}.program`];
 const GONE = ["openIn", "fileList", "groupNav", "wrap"];
 // After a click or a key picks a file, the list is still scrolling to it this long: the file at its top isn't the one in front yet.
 const PICKED = 600;
+// The spaces shown last whose reviews stay whole; an older one's is read again when it shows (evict).
+const KEEP = 3;
 
 export default class ReviewPanel extends View {
   init(_props, cx) {
@@ -87,13 +89,21 @@ export default class ReviewPanel extends View {
         cx.notify();
       }
     });
-    // While a run goes the review follows it; otherwise the folder watch and a slow timer catch new diffs.
+    // While a run goes the review follows it; otherwise a slow timer reads it while it's seen. Nothing watches the folder:
+    // the host can't end a watchFolder, and an unseen review keeps nothing going.
     // Every space's: the tab bar's Review bar and the panel head show how each space's run goes.
     const each = (f) => { for (const s of this.bySpace.values()) f(s); };
     cx.timer.every(1500, (cx) => each(s => { if (s.analyzing()) s.poll(cx); }));
-    // Unseen, the slow timer and the watch only note a read is due; it follows within a second of the review being seen again.
     cx.timer.every(15000, (cx) => each(s => s.refresh(cx)));
-    cx.timer.every(1000, (cx) => each(s => { if (s.dirty && s.onScreen()) s.load(cx); }));
+    // Unseen, a review is due a read, which follows within a second of it being seen again. A space closed leaves nothing.
+    cx.timer.every(1000, (cx) => {
+      const ids = new Set(spaces().map(s => s.id));
+      for (const [id, s] of this.bySpace) {
+        if (!ids.has(id)) { s.evict(); this.bySpace.delete(id); if (this.front === s) this.front = null; }
+        else if (!s.onScreen()) s.dirty = true;
+        else if (s.dirty) s.load(cx);
+      }
+    });
     // Scrolling redraws only the list. What the rest shows of where it is - the aside's group, the files and groups in view,
     // as the app's scroll spy marks them - is checked here and redrawn when it moved.
     // Off screen, what the list shows can't move: nothing to measure.
@@ -119,25 +129,44 @@ export default class ReviewPanel extends View {
   spaceReview(space, cx) {
     const panel = this.panel;
     let s = panel.bySpace.get(space.id);
-    if (s) return s;
-    s = Object.create(panel);
-    s.begin(space.id);
-    panel.bySpace.set(space.id, s);
-    // Its list's scroll and its first read on its own timer: neither can start while drawing (gpui-kit.d.ts). A request in
-    // that draw has started a read already.
-    cx.timer.after(0, (cx) => {
-      s.scroll = VirtualListScrollHandle.new();
-      if (!s.root) s.start(space, cx); else if (!s.loading && !s.review) s.load(cx);
-      cx.notify();
-    });
+    if (!s) { s = Object.create(panel); s.begin(space.id); panel.bySpace.set(space.id, s); }
+    // Shown after another: the latest again, on its own timer, as is its list's scroll and its first read: none can start
+    // while drawing (gpui-kit.d.ts). A request in that draw has asked for a read already.
+    if (panel.front !== s) { panel.front = s; cx.timer.after(0, (cx) => panel.bring(s, space, cx)); }
     return s;
+  }
+
+  bring(s, space, cx) {
+    if (this.bySpace.get(s.space) !== s) return;
+    this.bySpace.delete(s.space); this.bySpace.set(s.space, s);
+    [...this.bySpace.values()].slice(0, -KEEP).forEach(old => old.evict());
+    if (!s.scroll) {
+      s.evicted = false; s.scroll = VirtualListScrollHandle.new();
+      if (!s.root) s.start(space, cx); else if (!s.loading && !s.review) s.load(cx);
+    }
+    cx.notify();
+  }
+
+  // Past the KEEP spaces shown last, a review keeps only what it was reading - its page, group, file and folds - and a run
+  // going, for the status poll: its diff, rows, lists and scroll go, and a read out for it is dropped when it lands.
+  evict() {
+    if (this.evicted) return;
+    // A run just asked for (startingUntil) keeps its state as it was, so the poll still sees it start, or a "not running" before then end nothing.
+    const a = this.runState();
+    this.awayAnalysis = this.analyzing() ? { state: a?.state ?? "none", error: a?.error ?? null } : null;
+    this.evicted = true; this.dirty = true; this.restoreTo = this.current;
+    this.loadId++; this.loading = null; this.again = false; this.stale = false; this.error = null;
+    this.review = null; this.switching = false; this.baseCommits = null; this.full.clear(); this.parts.clear();
+    this.scroll = null; this.wrapHold = {};
+    // Back to the panel's own, none, as at begin.
+    for (const key of ["itemList", "itemsId", "sizes", "visible", "paths", "pathsOf", "treeOf", "tabStats", "settling", "lastSpied", "revealedCurrent", "scopeGit", "picks", "refs"]) delete this[key];
   }
 
   // A space's review's own state, at its start: what review.shown says it showed, and requests from before it ignored.
   begin(space) {
     const was = shared(`${PANE}.shown`)?.[space];
     this.space = space; this.root = was?.root ?? null; this.page = was?.page ?? null; this.base = was?.base ?? this.page;
-    this.handled = Date.now() - FRESH; this.noRepo = false;
+    this.handled = Date.now() - FRESH; this.noRepo = false; this.evicted = false; this.awayAnalysis = null;
     // The width wrapped lines are cut at (`at`), a moment behind a width that's moving (nav-column.js holdWidth).
     this.wrapHold = {};
     // The page a count's click asked to analyze, until its first read.
@@ -152,12 +181,16 @@ export default class ReviewPanel extends View {
   // Nothing shown in this space yet: its folder's repository, on its branch's Changes as T3's diff panel opens, against the
   // base picked for the space; a detached HEAD, with no branch, on its uncommitted changes.
   start(space, cx) {
+    // Evicted or closed meanwhile (evict bumps loadId): a late answer sets nothing and reads no further.
+    const id = this.loadId, live = () => !this.evicted && id === this.loadId;
     cx.spawn(async (cx) => {
       const git = (args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd: space.folder || undefined }).catch(() => null);
       const top = await git(["rev-parse", "--show-toplevel"]);
+      if (!live()) return;
       if (this.root || top?.code !== 0) { this.noRepo = !this.root; return cx.notify(); }
       this.root = top.stdout.trim();
       const head = await git(["symbolic-ref", "--short", "-q", "HEAD"]), branch = head?.code === 0 && head.stdout.trim();
+      if (!live()) return;
       if (!this.page) { this.page = this.base = branch ? changesPage(chosenBase(this), branch) : "/worktree"; this.load(cx); }
       cx.notify();
     });
@@ -173,7 +206,7 @@ export default class ReviewPanel extends View {
   }
 
   // No review shown, or none yet: what belonged to the last one goes with it.
-  forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.parts.clear(); this.shift = [0, 0, 0]; }
+  forget() { this.restoreTo = null; this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.parts.clear(); this.shift = [0, 0, 0]; }
 
   // The window active, this review's space the active one, and the panel open on its review page.
   onScreen() {
@@ -195,13 +228,16 @@ export default class ReviewPanel extends View {
   analyze(cx, force) { return analyzeReview(this, cx, force); }
 
   // A run going, as the app's from the click: the daemon answers before the worktree server has started it, and a read until then finds none.
-  analyzing() { return (!this.switching && this.review?.analysis.state === "running") || Date.now() < this.startingUntil; }
+  analyzing() { return this.runState()?.state === "running" || Date.now() < this.startingUntil; }
+
+  // The run's state: the review's, or, evicted, what was kept of it.
+  runState() { return this.switching ? null : this.review?.analysis ?? this.awayAnalysis; }
 
   // What the Review bar and the panel head's Review tab show, as the word an agent would report: a run going, then how it
   // ended until this review is looked at. In the review, the button keeps a failure.
   // shortcut: the panel's review page starts only when first shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until the page is shown.
   report() {
-    const a = this.switching ? null : this.review?.analysis, real = a?.state === "running";
+    const a = this.runState(), real = a?.state === "running";
     if (this.wasRunning && !real) this.news = this.analyzeError ?? a?.error ? "blocked" : "done";
     this.wasRunning = real;
     if (this.analyzing() || this.onScreen()) this.news = null;
@@ -394,7 +430,7 @@ export default class ReviewPanel extends View {
     const request = shared(PANE);
     if (request && request.space === this.space && request.n > this.handled) {
       this.handled = request.n;
-      if (request.root !== this.root) { this.root = request.root; this.watching = null; this.seen.clear(); this.collapsed.clear(); this.page = null; this.forget(); }
+      if (request.root !== this.root) { this.root = request.root; this.seen.clear(); this.collapsed.clear(); this.flipped.clear(); this.page = null; this.forget(); }
       // With the same base, ‹ › stepping to another page of the same diff: its commits stay.
       if (!request.base || request.base !== this.base) this.baseCommits = null;
       this.base = request.base ?? request.page;

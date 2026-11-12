@@ -161,6 +161,165 @@ async function page() {
   assert.deepEqual(wrote.filter((k) => /reveal/.test(k)), [], "no cross-page request");
 }
 
+// It works only for what shows: the Files page, open, in the window in front, for the active space; nothing is watched, so
+// nothing runs behind it. The last 3 spaces shown keep all they read; older ones keep their file and open folders, and read
+// again when back. A space closed lets go of all of it.
+async function resources() {
+  const { view, cx, w, tick, settle, show, activate, send } = makePage({ page: "review", spaces: [space("s1", "/r1", true)] });
+  const ran = () => w.ran.splice(0).map((r) => r.line);
+  const st = (id) => view.states.get(id);
+  const full = () => [...view.states.values()].filter((s) => s.entries.size).map((s) => s.id);
+  await settle(); ran();
+
+  // Hidden: drawn or not, a while on, nothing read.
+  view.render(cx); await tick(); await tick();
+  assert.deepEqual(ran(), [], "hidden: no I/O");
+  // Shown: read at once.
+  show("files"); await tick();
+  let lines = ran();
+  assert.ok(lines.some((l) => l.includes("rev-parse")) && lines.some((l) => l.includes(" status ")) && lines.some((l) => l.includes(m.LIST)), `read: ${lines}`);
+  assert.ok(view.render(cx) && st("s1").entries.has(""));
+  // While it shows, asked again every 5 s here; a refresh that took long asks less often (10 times as long), a minute at most.
+  await tick();
+  assert.deepEqual(ran(), [], "not again within 5 s");
+  st("s1").refreshed -= 5000; await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")), "again after 5 s");
+  st("s1").refreshed -= 5000; st("s1").took = 1000; await tick();
+  assert.deepEqual(ran(), [], "a 1 s refresh: not again for 10 s");
+  st("s1").refreshed -= 5000; await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")), "again after 10 s");
+  st("s1").refreshed -= 59000; st("s1").took = 60000; await tick();
+  assert.deepEqual(ran(), []);
+  st("s1").refreshed -= 1000; await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")), "a minute at most");
+  st("s1").took = 0;
+
+  // A search showing is found again with each refresh: a file gone leaves it, a new one joins, the lit one stays lit.
+  send("search:js"); await settle();
+  const paths = () => plain(st("s1").results.map((r) => r.path).sort());
+  const lit = () => st("s1").results[st("s1").at].path;
+  assert.deepEqual(paths(), ["a.js", "b.js"]);
+  st("s1").at = st("s1").results.findIndex((r) => r.path === "b.js");
+  w.files = ["0.js", "b.js", "c.js"]; st("s1").refreshed -= 5000; await tick();
+  assert.deepEqual(paths(), ["0.js", "b.js", "c.js"], "refreshed: a.js gone, 0.js and c.js in");
+  assert.equal(lit(), "b.js", "the lit result stays lit");
+  assert.ok(st("s1").at > 0, "lit where it now is, not the first");
+  w.files = ["c.js", "d.js", "e.js"]; st("s1").refreshed -= 5000; await tick();
+  assert.deepEqual(paths(), ["c.js", "d.js", "e.js"]);
+  assert.equal(st("s1").at, 0, "the lit one gone: the first");
+  send("search:"); await settle(); w.files = ["a.js", "b.js"];
+
+  // An image shown is copied once: a refresh leaves it be (picking it again reads it again).
+  send("open:p.png"); await settle();
+  assert.ok(ran().includes("cp /r1/p.png " + st("s1").view.image.replace("cache/", "/tmp/none/cache/")), "the image copied");
+  st("s1").refreshed -= 5000; await tick();
+  assert.ok(!ran().some((l) => l.startsWith("cp ")), "a refresh copies it no more");
+
+  // Hidden while a folder opens (`src` holds just `d`, which would open with it) or a path is revealed, before the timer
+  // has seen it: what comes back is dropped, nothing more is asked, nothing drawn.
+  const hiddenMid = async (start, what) => {
+    w.stall = (l) => l.includes(m.LIST) && l.endsWith("/r1/src"); start(); await settle();
+    assert.equal(w.stalled.length, 1, `${what}: listing src`);
+    ran(); show("review"); const notified = w.notified;
+    w.stall = null; w.stalled.splice(0).forEach((r) => r()); await settle();
+    assert.deepEqual(ran(), [], `${what}: nothing asked after`);
+    assert.equal(w.notified, notified, `${what}: nothing drawn`);
+    assert.ok(!st("s1").entries.has("src"), `${what}: the answer dropped`);
+    show("files"); await tick(); ran();
+  };
+  await hiddenMid(() => view.toggle(st("s1"), "src", cx), "a folder opening");
+  st("s1").expanded.clear(); st("s1").entries.delete("src");
+  await hiddenMid(() => view.reveal(st("s1"), "src/d/x.js", cx), "a path revealed");
+  st("s1").expanded.clear(); st("s1").entries.delete("src");
+
+  // Hidden mid-read: what comes back is dropped, and nothing more is asked, the open file not read again.
+  send("open:a.js"); await settle();
+  st("s1").refreshed -= 5000; w.stall = (l) => l.includes(" status "); await tick();
+  show("review"); await tick();
+  const version = st("s1").version, refreshed = st("s1").refreshed, notified = w.notified;
+  ran(); w.read.length = 0; w.stall = null; w.stalled.splice(0).forEach((r) => r()); await settle();
+  assert.deepEqual([st("s1").refreshed, w.notified], [refreshed, notified], "hidden: a late refresh notes and draws nothing");
+  await tick(); st("s1").refreshed -= 60000; await tick();
+  assert.deepEqual(ran(), [], "hidden: a late answer asks nothing more, and no poll");
+  assert.deepEqual(w.read, [], "hidden: the file not read again");
+  assert.equal(st("s1").version, version, "hidden: a late answer is dropped");
+  // The window behind: the same.
+  show("files"); await tick(); ran();
+  w.windowActive = false; st("s1").refreshed -= 60000; await tick();
+  assert.deepEqual(ran(), [], "window behind: no I/O");
+  w.windowActive = true; await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")), "in front again: read at once");
+
+  // Outside Git and on another machine: listed, asked again while shown (another machine every 10 s).
+  w.spaces = [...w.spaces, space("n", "/n"), space("v", "/x", false, "vps")];
+  // Hidden while it asks Git where it is: nothing asked after.
+  w.stall = (l) => l.includes("rev-parse"); activate("n"); await tick(); show("review");
+  w.stall = null; w.stalled.splice(0).forEach((r) => r()); await settle();
+  assert.deepEqual(ran(), ["git rev-parse --show-toplevel --show-prefix"], "hidden mid-load: nothing more");
+  assert.equal(st("n").git, undefined, "hidden mid-load: Git's answer dropped, so it loads again when back");
+  show("files"); await tick();
+  assert.ok(ran().some((l) => l.includes(m.LIST)), "outside Git: listed");
+  activate("v"); await tick();
+  assert.ok(w.ran.filter((r) => r.line.includes(m.LIST)).every((r) => r.on === "vps") && w.ran.some((r) => r.on === "vps"), "another machine's, there");
+  ran();
+  assert.ok(view.render(cx) && st("v").entries.has(""), "another machine's tree");
+  st("v").refreshed -= 5000; await tick();
+  assert.deepEqual(ran(), [], "another machine: not within 10 s");
+  st("v").refreshed -= 5000; await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")), "another machine: again after 10 s");
+  // Hidden while another machine's file is checked: it isn't read after.
+  w.stall = (l) => l.includes(m.PROBE); view.open(st("v"), "a.js", cx); await settle();
+  assert.equal(w.stalled.length, 1, "probing");
+  w.read.length = 0; ran(); w.windowActive = false;
+  w.stall = null; w.stalled.splice(0).forEach((r) => r()); await settle();
+  assert.deepEqual([ran(), w.read], [[], []], "hidden mid-probe: not read");
+  w.windowActive = true; await tick();
+  assert.ok(w.read.includes("/x/a.js"), "back: read");
+  ran();
+  assert.equal(w.watchers.length, 0, "nothing ever watched");
+
+  // Four spaces, a file open in each: the oldest lets go of what it read, its editor released, and keeps its file and folders.
+  w.spaces = ["s1", "s2", "s3", "s4"].map((id, i) => space(id, `/r${i + 1}`, id === "s1"));
+  await tick();
+  assert.ok(!view.states.has("n") && !view.states.has("v"), "closed spaces dropped");
+  st("s1").expanded.add("src");
+  for (const id of ["s1", "s2", "s3", "s4"]) {
+    activate(id); await tick(); send("open:a.js"); await settle();
+    if (id === "s1") { send("search:b"); await settle(); }
+    view.render(cx);
+  }
+  const old = st("s1");
+  assert.equal(st("s1").file, "a.js");
+  assert.deepEqual([st("s1").query, st("s1").results], ["b", null], "its search's words kept, not its results");
+  assert.deepEqual(full(), ["s2", "s3", "s4"], "three spaces keep all they read");
+  assert.equal(old.view, null, "s1's view let go");
+  assert.ok(w.made.filter((e) => e.text).length >= 4 && w.made.every((e) => e === st("s2").view?.code || e === st("s3").view?.code || e === st("s4").view?.code || e.released), "every other editor released");
+  // Back: read again, its file too.
+  w.read.length = 0; ran();
+  activate("s1"); await tick();
+  assert.ok(ran().some((l) => l.includes(" status ")) && w.read.includes("/r1/a.js"), "back: read again");
+  assert.ok(st("s1").view?.code && !st("s1").view.code.released, "its file in an editor again");
+  assert.ok(st("s1").expanded.has("src"), "its folders as they were");
+  assert.deepEqual(plain(st("s1").results.map((r) => r.path)), ["b.js"], "its search found again");
+  assert.deepEqual(full(), ["s3", "s4", "s1"]);
+
+  // A read still under way when its space lets go comes back to nothing: no editor made, nothing kept.
+  w.hold = "/r2"; activate("s2"); await tick();
+  assert.equal(w.held.length, 1, "s2's file being read");
+  for (const id of ["s3", "s4", "s1"]) { activate(id); await tick(); }
+  assert.deepEqual(full(), ["s3", "s4", "s1"], "s2 let go");
+  const made = w.made.length;
+  w.held.splice(0).forEach((r) => r()); await settle();
+  assert.equal(w.made.length, made, "a stale read makes no editor");
+  assert.equal(st("s2").view, null, "and leaves nothing behind");
+  w.hold = null;
+
+  // A space closed: all of it let go.
+  const gone = st("s3").view.code;
+  w.spaces = w.spaces.filter((s) => s.id !== "s3"); await tick();
+  assert.ok(!view.states.has("s3") && gone.released, "a closed space's editor released");
+}
+
 (async () => {
   // A listing in the tree's order: folders first, then names as people read them (shared/check-file-tree.cjs has the order).
   assert.deepEqual(plain(m.parseListing("f\0file10\0f\0file2\0")).map((e) => e.name), ["file2", "file10"]);
@@ -288,5 +447,6 @@ async function page() {
     assert.deepEqual(search("pkg"), ["node_modules/pkg/i.js"], "outside Git: find");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   await page();
+  await resources();
   console.log("t3-files checks passed");
 })().catch((e) => { console.error(e); process.exit(1); });

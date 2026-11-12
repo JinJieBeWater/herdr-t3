@@ -1,4 +1,4 @@
-import { exec, theme, watchFolder } from "herdr";
+import { theme } from "herdr";
 import { review } from "./daemon.js";
 import { clipRows } from "./rows.js";
 import { TREE } from "./files.js";
@@ -12,35 +12,6 @@ const LOAD_TIMEOUT = 30000;
 export function colors(t) {
   const kinds = { foreground: t.foreground, keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6, boolean: t.ansi6 };
   return Object.fromEntries(Object.entries(kinds).filter(([, color]) => /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(color ?? "")));
-}
-
-// Worth a read? Of Git's own files only HEAD and refs, and nothing Git ignores: macOS reports those too.
-// Off the worktree's page no file is: the daemon reads the worktree only for that page.
-// `git check-ignore` exits 0 when some are ignored, listing them, 1 when none are, 128 when it can't judge.
-async function touchesDiff(root, paths, page) {
-  if (paths.some(p => /\/\.git\/(HEAD|refs\/)/.test(p))) return true;
-  if (page !== "/worktree") return false;
-  const files = paths.filter(p => !/\/\.git(\/|$)/.test(p));
-  if (!files.length) return false;
-  const r = await exec("git", ["--no-optional-locks", "check-ignore", "--", ...files], { cwd: root }).catch(() => null);
-  return r?.code !== 0 || r.stdout.trim().split("\n").length < files.length;
-}
-
-// Each watch its own: one left waiting on a root the pane went away from and came back to must end, not run beside the new one.
-function watchReview(view, cx) {
-  const root = view.root;
-  if (view.watching?.root === root) return;
-  const me = view.watching = { root };
-  cx.spawn(async (cx) => {
-    try {
-      while (view.watching === me) {
-        const paths = await watchFolder(root);
-        if (view.watching === me && await touchesDiff(root, paths, view.page)) view.refresh(cx);
-        // At most one change read a second: what changes meanwhile comes in the next batch.
-        await new Promise(resolve => cx.timer.after(1000, resolve));
-      }
-    } catch { if (view.watching === me) view.watching = null; }
-  });
 }
 
 // A read of the page shown. Only the latest counts: one that doesn't answer in LOAD_TIMEOUT says so and offers Retry.
@@ -71,6 +42,8 @@ function endRead(view, cx, id) {
 // Only the latest read counts: a read of the page being read waits for it (a burst of changes can't restart it forever),
 // a read of another starts at once and the old one's answer is dropped.
 export function loadReview(view, cx, poll = false) {
+  // Evicted (main.js evict): read when shown again.
+  if (view.evicted) { view.dirty = true; return; }
   if (!view.root || !view.page) return;
   if (view.loading?.root === view.root && view.loading.page === view.page) { view.again = true; return; }
   // Switching, the group shown is the old page's: the new page's first group comes with the read instead.
@@ -92,7 +65,8 @@ export function loadReview(view, cx, poll = false) {
       // the ~50ms Herdr gives a render, past which it's interrupted, and a task has ~500.
       view.items();
       view.error = null; view.stale = false;
-      watchReview(view, cx);
+      // Back from eviction, on the file it was reading.
+      if (view.restoreTo) { const path = view.restoreTo; view.restoreTo = null; if (view.fileAt(path)) view.select(path, cx); }
       // A rows read changes no commit, and the base's whole read can outweigh it. Nor does stepping to another page of the
       // same diff: a new base clears its commits (main.js), and a refresh still reads them.
       if (!rows.length && !(switched && view.baseCommits)) loadBaseCommits(view, cx);
@@ -169,16 +143,19 @@ export function pollReview(view, cx) {
   if (view.polling) return;
   const { root, page } = view;
   view.polling = true;
+  // Without a review (evicted, main.js), the run's state kept is all there is to end; the diff is read once it shows.
+  const ended = (cx, error) => { if (!view.review) { view.awayAnalysis = { state: "none", error }; view.report(); cx.notify(); } view.load(cx, true); };
   cx.spawn(async (cx) => {
     try {
       const s = await review(root, "/api/review/status", { page });
-      const a = view.review?.analysis;
-      if (root !== view.root || page !== view.page || !a || view.switching) return;
+      const a = view.runState();
+      if (root !== view.root || page !== view.page || !a) return;
       if (s.running) {
-        view.review.analysis = { ...a, state: "running", progress: s.progress }; view.startingUntil = 0;
-        view.report(); cx.notify();
-      } else if (a.state === "running" || (s.error && s.error !== a.error)) view.load(cx, true);
-    } catch { if (root === view.root && page === view.page) view.load(cx, true); }
+        const run = { ...a, state: "running", progress: s.progress };
+        if (view.review) view.review.analysis = run; else view.awayAnalysis = { state: "running", error: a.error ?? null };
+        view.startingUntil = 0; view.report(); cx.notify();
+      } else if (a.state === "running" || (s.error && s.error !== a.error)) ended(cx, s.error ?? null);
+    } catch (e) { if (root === view.root && page === view.page) ended(cx, e?.message ?? String(e)); }
     finally { view.polling = false; }
   });
 }
@@ -229,7 +206,7 @@ function loadBaseCommits(view, cx) {
   if (view.page === base) return;
   cx.spawn(async (cx) => {
     const r = await review(root, "/api/review", { page: base, colors: colors(theme()), rows: [] }).catch(() => null);
-    if (r && root === view.root && base === view.base) { view.baseCommits = r.commits; cx.notify(); }
+    if (r && !view.evicted && root === view.root && base === view.base) { view.baseCommits = r.commits; cx.notify(); }
   });
 }
 
