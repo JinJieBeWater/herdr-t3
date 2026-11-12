@@ -162,10 +162,11 @@ export function openScope(view, cx) {
   readScope(view, cx);
 }
 
-// As T3's scope trigger: an xs secondary button, its words truncating, a chevron at 70%.
+// As the toolbar's xs ghost buttons (docs/adr/0013), its words truncating, a chevron at 70%: no fill of its own over the
+// toolbar's, only hovered or while its menu is open.
 function scopeButton(view, t, s) {
   return h_flex().id("review-scope").h(24).min_w(0).px(7).gap(4).items_center().rounded(8).text_size(12).font_medium().text_color(t.foreground)
-    .bg(view.popup === "scope" ? t.selected : t.foreground + "08").hover(el => el.bg(hover(t)))
+    .when(view.popup === "scope", el => el.bg(t.selected)).hover(el => el.bg(hover(t)))
     .role("button").accessibility_label(`Diff scope: ${s.label}`)
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); view.togglePopup("scope", cx); })
     .child(div().id("review-scope-label").min_w(0).truncate().child(s.label))

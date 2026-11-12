@@ -955,6 +955,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.width = 1200; draw();
   assert.equal(texts.get("review-scope-label"), "Changes");
   assert.ok(styles["review-scope"].h === 24 && styles["review-scope"].min_w === 0 && styles["review-scope-label"].truncate);
+  // A ghost button, as the toolbar's others (docs/adr/0013): no fill of its own over the toolbar's, only hovered or open.
+  assert.equal(styles["review-scope"].bg, undefined);
   assert.deepEqual([texts.get("review-ref-head"), texts.get("review-ref-base")], ["fix", "origin/main"]);
   assert.ok(!drawn.has("commit-older") && !drawn.has("review-sha"), "the whole diff: no sha, nothing to step");
   pane.width = 500; draw();
@@ -1606,7 +1608,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     const order = (a, b) => [...drawn].indexOf(a) < [...drawn].indexOf(b);
     assert.ok(p.review.groups.length === 3 && drawn.has("group-tab-row") && order("group-tab-x", "group-tab-y"));
     assert.ok(order("review-header", "group-tab-row") && order("group-tab-row", "review-diff-area") && order("group-tab-row", "review-nav"), "under the toolbar, across the page");
-    assert.ok(styles["group-tab-x"].shadow_sm && !styles["group-tab-y"]?.shadow_sm, "the group shown, raised");
+    assert.ok(styles["group-tab-x"].bg === "#eeeeee1f" && styles["group-tab-y"].bg === undefined, "the group shown, lit");
+    // Upstream's proportions in T3's tokens: two lines, 8 by 2 in, 6 apart, a 1px outline at radius 8; the row 8 in, on the
+    // toolbar's line. Only the group shown has a fill.
+    assert.deepEqual([styles["group-tab-row"].px, styles["group-tab-row"].py, styles["group-tab-row"].gap], [8, 8, 6]);
+    assert.deepEqual([styles["group-tab-x"].px, styles["group-tab-x"].py, styles["group-tab-x"].rounded, styles["group-tab-x"].border], [8, 2, 8, 1]);
+    assert.equal(styles["review-header"].px, 8);
+    assert.equal(styles["group-tab-x"].text_size, 12);
     assert.equal(texts.get("group-tab-y-count"), "・1 file");
     assert.equal(texts.get("group-tab-z-count"), "1 file", "no lines to count, no separator before the files");
     // The column head counts the group shown's files, as the tree lists them.
@@ -1623,11 +1631,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.ok(p.tabStats.stats !== stats && p.tabStats.stats.get("y").progress === 1);
     p.setReviewed(p.fileAt("src/b.ts"), false, cx);
     const toTop = []; p.scrollToTop = (i) => toTop.push(i);
-    handlers.get("group-tab-y-button.on_click")({}, cx); drawn.clear(); p.render(cx);
+    handlers.get("group-tab-y.on_click")({}, cx); drawn.clear(); p.render(cx);
     assert.deepEqual([p.groupKey, p.current, toTop], ["y", "src/b.ts", [0]], "another group's row shows it from its top");
     assert.ok(drawn.has("tree-f-src/b.ts") && !drawn.has("tree-f-src/a.ts"));
     // A binary file is its header alone: its header says so.
-    handlers.get("group-tab-z-button.on_click")({}, cx); drawn.clear(); p.render(cx);
+    handlers.get("group-tab-z.on_click")({}, cx); drawn.clear(); p.render(cx);
     assert.deepEqual(plain(p.items().map(i => i.key)), ["f:img/c.png"]);
     p.select("src/a.ts", cx); drawn.clear(); p.render(cx);
     assert.deepEqual([p.groupKey, p.current], ["x", "src/a.ts"]);

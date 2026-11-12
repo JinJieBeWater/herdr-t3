@@ -1,7 +1,7 @@
 import { div, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { groupFiles } from "./rows.js";
-import { LU, zoom, isLight, diffStats, hover, FADED } from "./controls.js";
+import { LU, zoom, isLight, diffStats, FADED } from "./controls.js";
 import { hoverKept } from "./tip.js";
 
 // The app's category icons (Lucide here, for one icon set across the layout; the app's are Phosphor duotone, in its own shapes) and hues (Tailwind's 300 on dark, 800 on light), by category.
@@ -48,9 +48,8 @@ export function donut(t, value) {
 
 /**
  * As pulls.review's DiffGroupNav: the groups as one row of tabs across the page under its toolbar, sideways scrolled rather
- * than wrapped. A tab is bordered but for its foot, which is 2px and the category's hue on the group shown (raised a pixel,
- * on a shadow); its category icon (grey until shown or hovered), label and critical mark over its counts, its progress as a
- * donut. Picking one shows it alone, in the diff and the tree, where its subgroups are. A lone group has no row.
+ * than wrapped. A tab is upstream's two lines in T3's outline, the group shown lit at 12%: its category icon (grey until
+ * shown or hovered), label and critical mark over its counts, its progress as a donut. Picking one shows it alone, in the diff and the tree, where its subgroups are. A lone group has no row.
  */
 export function groupTabs(view, t, pick) {
   const groups = view.review.groups;
@@ -59,25 +58,25 @@ export function groupTabs(view, t, pick) {
   if (view.tabStats?.review !== view.review || view.tabStats.marks !== view.marks) {
     view.tabStats = { review: view.review, marks: view.marks, stats: new Map(groups.map(g => [g.key, groupStats(view, g)])) };
   }
-  // The shown tab is raised a pixel: the row's top pixel keeps it from the clip.
-  return v_flex().id("group-tabs").flex_none().pt(9).pb(8).border_b(1).border_color(t.border)
-    .child(h_flex().id("group-tab-row").px(16).pt(1).gap(6).overflow_x_scroll().children(groups.map(g => {
-      const id = `group-tab-${g.key}`, active = g.key === view.groupKey, [, darkHue, lightHue] = CATEGORY[g.category] ?? CATEGORY.other;
+  // Upstream's DiffGroupNavItem in T3's tokens: two lines, the name over its counts, 8 by 2 in, 6 apart, a 1px outline at
+  // radius 8 (T3's outline button) rather than a tab's coloured foot; the row 8 in, on the toolbar's line, ruled off as it is.
+  // The group shown is lit at 12%, as the tree's selected row, its icon in its hue; the others fade until hovered.
+  return div().id("group-tabs").flex_none().border_b(1).border_color(t.border)
+    .child(h_flex().id("group-tab-row").px(8).py(8).gap(6).overflow_x_scroll().children(groups.map(g => {
+      const id = `group-tab-${g.key}`, active = g.key === view.groupKey;
       const stats = view.tabStats.stats.get(g.key), critical = g.critical || g.children.some(c => c.critical);
-      return hoverKept(view, "hovered", id, v_flex().id(id)).flex_none().rounded_t(6).border_t(1).border_l(1).border_r(1).border_color(t.border).bg(t.background)
-        .when(active, el => el.relative().top(-1).shadow_sm())
-        .child(h_flex().id(`${id}-button`).px(8).py(2).gap(8).items_center().text_size(14).font_medium().text_color(t.foreground)
-          .opacity(active ? 1 : FADED).hover(s => s.opacity(1).bg(hover(t)))
-          .role("tab").accessibility_label(g.label).on_click((_e, cx) => pick(g.key, cx))
-          .child(v_flex().items_start()
-            .child(h_flex().gap(8).items_center()
-              .child(categoryIcon(t, g.category, active || view.hovered === id))
-              .child(g.label)
-              .when(critical, el => el.child(criticalMark(t))))
-            .child(h_flex().items_center().text_size(11)
-              .child(diffStats(t, stats.added, stats.deleted))
-              .child(div().id(`${id}-count`).text_color(t.dim).child(`${stats.added || stats.deleted ? "・" : ""}${stats.count} ${stats.count === 1 ? "file" : "files"}`))))
-          .when(stats.progress !== 0, el => el.child(donut(t, stats.progress))))
-        .child(div().h(2).w_full().bg(active ? (isLight(t.background) ? lightHue : darkHue) : t.border));
+      return hoverKept(view, "hovered", id, h_flex().id(id)).flex_none().px(8).py(2).gap(8).items_center().rounded(8).border(1).border_color(t.border)
+        .text_size(12).font_medium().text_color(t.foreground)
+        .when(active, el => el.bg(t.foreground + "1f")).when(!active, el => el.opacity(FADED).hover(s => s.opacity(1).bg(t.foreground + "12")))
+        .role("tab").accessibility_label(g.label).on_click((_e, cx) => pick(g.key, cx))
+        .child(v_flex().items_start()
+          .child(h_flex().gap(6).items_center()
+            .child(categoryIcon(t, g.category, active || view.hovered === id).size(14))
+            .child(g.label)
+            .when(critical, el => el.child(criticalMark(t, 14))))
+          .child(h_flex().items_center().text_size(11).font_normal()
+            .child(diffStats(t, stats.added, stats.deleted))
+            .child(div().id(`${id}-count`).text_color(t.dim).child(`${stats.added || stats.deleted ? "・" : ""}${stats.count} ${stats.count === 1 ? "file" : "files"}`))))
+        .when(stats.progress !== 0, el => el.child(donut(t, stats.progress)));
     })));
 }
