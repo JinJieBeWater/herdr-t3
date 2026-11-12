@@ -95,7 +95,7 @@ Or tell your Herdr agent: "Update Herdr T3: clone github.com/JinJieBeWater/herdr
 - A space on another machine has no Review bar and no Review page.
 - Files on another machine: changes show up within 10 seconds, and images over 512 KB aren't previewed.
 - Files previews text up to 1 MB, and colors only common languages (JavaScript and TypeScript, JSON, YAML, Rust, Go, Python, shell, CSS, C and C++, Java, Kotlin, Ruby, PHP, SQL, Lua, GraphQL, Makefiles); TOML, HTML, Swift and others show plain.
-- Review's `Lines: Wrap` breaks a long line at the panel's edge, mid-word if need be.
+- Wrapped long lines (the default, in Files and Review) break at the panel's edge, in Review mid-word if need be, though never inside an accented letter or a joined emoji.
 - Files searches paths only, not contents, and leaves out what Git ignores; outside Git it covers at most 200,000 files.
 - While `⤢` widens the panel over the tab bar, `cmd-alt-b` and `cmd-shift-g` do nothing: close the panel with its `×` or `cmd-w` in it, or narrow it with `⤢`.
 - Until the Inbox has shown once since Herdr started, it doesn't keep its card order while the sidebar is hidden, so `cmd-]` and `cmd-[` may walk an old order. `cmd-shift-s` settles as usual.

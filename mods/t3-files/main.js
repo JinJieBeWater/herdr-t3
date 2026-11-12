@@ -12,10 +12,10 @@ import { fileIcon } from "./file-icons.js";
 import { TREE_ROW, treeRows, rowAt, treeKey, treeList, treeRow, revealRow } from "./file-tree.js";
 import { withNav, navToggle, foldAllButton, ghostButton, navOpen, setNavOpen } from "./nav-column.js";
 import { fileMenuItems, fileMenuView, agentFor, runCommon } from "./file-menu.js";
-import { KEY } from "./store.js";
+import { KEY, wrapLines, setWrapLines } from "./store.js";
 import { loadingState, emptyState, errorBar } from "./panel-states.js";
 import { LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, terms, narrows,
-  filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket } from "./model.js";
+  filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket, holdWidth } from "./model.js";
 
 const MOD = "mods/t3-files";
 const RESULTS = 200, REMOTE_IMAGE = 512 * 1024, TEXT_MAX = 1024 * 1024;
@@ -48,6 +48,9 @@ export default class Files extends View {
     this.search.on("submit", (_e, cx) => { const st = this.current(); const r = st?.results?.[st.at]; if (r) this.pick(st, r.path, cx); });
     this.handle = cx.focus_handle();
     this.navOpen = navOpen();
+    // The width the code is laid out at, behind its room while that moves (codeView, model.js holdWidth).
+    /** @type {{ at?: number, want?: number, run?: number }} */
+    this.codeHold = {};
     // An Open in Files this young when the page starts is the press that opened it; an older one was already shown.
     this.revealed = Date.now() - 10000;
     this.cached = new Set();
@@ -244,7 +247,7 @@ export default class Files extends View {
       const old = st.view;
       if (again && old && view.text !== undefined && view.text === old.text) return;
       if (old?.image && old.image !== view.image) this.uncache(old.image);
-      if (view.text !== undefined && (kind === "text" || shared(MARKDOWN) === "code")) view.code = this.editor(rel, view.text);
+      if (view.text !== undefined && (kind === "text" || shared(MARKDOWN) === "code")) this.editor(view, rel);
       if (old?.code) old.code.release();
       st.view = view;
       cx.notify();
@@ -295,9 +298,11 @@ export default class Files extends View {
     fs.unlink(`${appHome()}/${name}`).catch(() => null);
   }
 
-  editor(rel, text) {
+  // The view's code, wrapped as the layout's Lines choice says (store.js), which it notes: the editor takes it only when made.
+  editor(view, rel) {
     const t = theme();
-    return EditorState.new({ language: languageOf(nameOf(rel)), value: text, readonly: true, font_family: /** @type {string} */ (settings().font_family), font_size: 12,
+    view.wrap = wrapLines();
+    view.code = EditorState.new({ language: languageOf(nameOf(rel)), value: view.text, readonly: true, soft_wrap: view.wrap, font_family: /** @type {string} */ (settings().font_family), font_size: 12,
       syntax: { keyword: t.ansi5, string: t.ansi2, comment: t.dim, function: t.ansi4, type: t.ansi3, number: t.ansi1, constant: t.ansi6 } });
   }
 
@@ -376,6 +381,15 @@ export default class Files extends View {
     if (!sp) return div().id("t3-files").size_full();
     const st = this.stateFor(sp, cx);
     this.follow(st, cx);
+    // Lines changed here or on Review: the editor made again, just after this draw, as an editor can't be made in one.
+    const v = st.view;
+    if (v?.code && v.wrap !== wrapLines()) cx.timer.after(0, (cx) => {
+      if (st.view !== v || !v.code || v.wrap === wrapLines()) return;
+      const old = v.code;
+      this.editor(v, st.file);
+      old.release();
+      cx.notify();
+    });
     // The search field shows this space's words.
     if (this.searchFor !== st.id) { this.searchFor = st.id; if (this.search.value() !== st.query) this.search.set_value(st.query); }
     // Shown again (the page, or the window in front): what changed meanwhile, now.
@@ -411,7 +425,7 @@ export default class Files extends View {
       .child(label);
     const tab = (label, on, value) => div().id(`t3-files-${value}`).h(24).px(8).flex().items_center().rounded(8).text_size(12)
       .text_color(on ? t.foreground : t.muted).when(on, (el) => el.bg(t.selected)).when(!on, (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground)))
-      .on_click((_e, cx) => { if (on) return; if (value === "code" && st.view?.text !== undefined && !st.view.code) st.view.code = this.editor(st.file, st.view.text); setShared(MARKDOWN, value); cx.notify(); })
+      .on_click((_e, cx) => { if (on) return; if (value === "code" && st.view?.text !== undefined && !st.view.code) this.editor(st.view, st.file); setShared(MARKDOWN, value); cx.notify(); })
       .child(label);
     return h_flex().id("t3-files-toolbar").h(40).flex_none().px(8).gap(8).items_center().border_b(1).border_color(t.border)
         // The first word 16 in, as Review's scope button's: the toolbar's 8 and an xs button's 8 (a crumb's own 4, and 4 more).
@@ -421,6 +435,8 @@ export default class Files extends View {
         .when(md, (el) => el.child(h_flex().flex_none().gap(2).child(tab("Preview", !code, "preview")).child(tab("Code", code, "code"))))
         // The page's buttons 4 apart, as Review's.
         .child(h_flex().flex_none().gap(4).items_center()
+          // Wrap or scroll long lines, the choice Review's settings show too.
+          .when(Boolean(st.view?.code), (el) => el.child(ghostButton(t, MOD, "t3-files-wrap", "text-wrap", wrapLines() ? "Scroll long lines" : "Wrap long lines", (cx) => { setWrapLines(!wrapLines()); cx.notify(); }, { on: wrapLines() })))
           .when(review, (el) => el.child(ghostButton(t, MOD, "t3-files-review", "file-diff", "Open in Review", () => this.openInReview(st, st.file))))
           .child(navToggle(t, MOD, "t3-files-nav-toggle", this.navOpen, (cx) => { this.navOpen = !this.navOpen; setNavOpen(this.navOpen); cx.notify(); })));
   }
@@ -436,8 +452,22 @@ export default class Files extends View {
           : v.problem ? emptyState(t, "t3-files-problem", `${MOD}/icons/file-text.svg`, nameOf(st.file), v.problem)
           : v.image ? div().size_full().p(16).flex().items_center().justify_center().child(image(v.image).max_w_full().max_h_full())
           : md && !code ? div().id("t3-files-md").size_full().overflow_y_scrollbar().px(24).py(16).child(TextView.markdown(`t3-files-md-${st.id}-${st.file}`, v.text).selectable(true).scrollable(false).text_size(14))
-          : v.code ? Editor.new(v.code).size_full()
+          // Laid out at the width its room last held (model.js holdWidth), cut off or short of it while the room moves.
+          : v.code ? this.codeView(v.code)
           : div());
+  }
+
+  codeView(code) {
+    const hold = this.codeHold;
+    return div().id("t3-files-code").size_full().min_w(0).overflow_hidden()
+      .on_size_change((size, cx) => {
+        const width = size.width / zoom();
+        if (Math.abs(width - (hold.want ?? hold.at ?? -1)) < 1) return;
+        holdWidth(hold, width, (ms, f) => cx.timer.after(ms, f));
+        cx.notify();
+      })
+      // Always at the held width once known: switching between it and w_full laid the file out again, as long as the drag's step.
+      .child(Editor.new(code).h_full().when(hold.at != null, (el) => el.w(hold.at)).when(hold.at == null, (el) => el.w_full()));
   }
 
   // The column's head: the search, as T3's ghost InputGroup, and Collapse all / Expand all. Its keys are the results'.

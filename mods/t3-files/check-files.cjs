@@ -11,7 +11,7 @@ const load = (file) => fs.readFileSync(path.join(__dirname, file), "utf8")
   .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (async function|function|const) /gm, "$1 ").replace(/^export \{[\s\S]*?\};?\s*$/m, "");
 const context = vm.createContext({});
 vm.runInContext([load("vendor/ufuzzy.js"), load("file-icons-data.js"), load("file-icons.js"), load("file-tree.js"), load("model.js"),
-  "globalThis.m = { join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, naturalCompare, sortEntries, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket };"].join("\n"), context);
+  "globalThis.m = { holdWidth, CODE_SETTLE, join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, naturalCompare, sortEntries, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket };"].join("\n"), context);
 const m = context.m;
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -147,5 +147,20 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     fs.rmSync(path.join(dir, ".git"), { recursive: true });
     assert.deepEqual(search("pkg"), ["node_modules/pkg/i.js"], "outside Git: find");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  // The code is laid out at the width it last held: its room changing every frame (the panel dragged) would wrap the whole file
+  // again each time, ~500 ms a step for a 60 KB file. The first width at once; then one once the room holds CODE_SETTLE ms.
+  {
+    const timers = [], after = (ms, f) => timers.push([ms, f]), cx = { n: 0, notify() { this.n++; } }, hold = {};
+    m.holdWidth(hold, 600, after);
+    assert.deepEqual([hold.at, timers.length], [600, 0], "the first width at once");
+    m.holdWidth(hold, 610, after); m.holdWidth(hold, 640, after);
+    assert.equal(hold.at, 600, "held while it moves");
+    assert.ok(timers.every(([ms]) => ms === m.CODE_SETTLE));
+    timers.splice(0).forEach(([, f]) => f(cx));
+    assert.deepEqual([hold.at, cx.n], [640, 1], "the last width, once: the earlier timer is stale");
+    m.holdWidth(hold, 640, after);
+    timers.splice(0).forEach(([, f]) => f(cx));
+    assert.equal(cx.n, 1, "the same width draws nothing again");
+  }
   console.log("t3-files checks passed");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -26,7 +26,7 @@ const load = (file, env) => {
 // Values made in another realm compare unequal to this one's: compare them as JSON.
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const rows = load("rows.js", {});
-const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns })", rows);
+const { pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns, charWidth, lineCount } = vm.runInContext("({ pairRows, buildItems, noteHeight, pageLabel, groupFiles, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns, charWidth, lineCount })", rows);
 
 const row = (kind, old, next) => ({ kind, old, new: next, tokens: [[`${kind}${old ?? ""}:${next ?? ""}`]] });
 // A run of deletions faces the additions after it; context faces itself.
@@ -127,14 +127,19 @@ const huge = [{ kind: "+", new: 1, tokens: [["{", "#fff"], ["x".repeat(100000), 
 clipRows(huge);
 assert.deepEqual(plain(huge[0].tokens.map(([text, color]) => [text.length, color])), [[1, "#fff"], [999, "#0f0"]]);
 assert.equal(contentWidth([{ kind: "row", lines: huge }]), contentWidth([long("a".repeat(1000))]));
-// A newer daemon cuts rows itself and says how many columns each takes: clipRows leaves those as they come.
-const measured = [{ kind: "+", new: 1, columns: 3, tokens: [["x".repeat(2000)]] }];
-clipRows(measured);
-assert.equal(measured[0].tokens[0][0].length, 2000);
-assert.equal(contentWidth([{ kind: "row", lines: measured }]), contentWidth([long("abc")]));
-// The columns a daemon's row says are the ones the pane would count: tabs as 4, CJK as 2, an astral character as 2.
-for (const [tokens, want] of [[[["abc"]], 3], [[["\tx"]], 5], [[["中文"]], 4], [[["😀"]], 2], [[["a"], ["\t"], ["中"]], 7], [[["a".repeat(1000)]], 1000]])
-  assert.equal(contentWidth([{ kind: "row", lines: [{ kind: "+", tokens }] }]), contentWidth([{ kind: "row", lines: [{ kind: "+", tokens: [], columns: want }] }]));
+// Measured as it arrives, after the cut: a width a row came with (an older daemon's) is counted again.
+const measured = clipRows([{ kind: "+", new: 1, columns: 3, tokens: [["\t中x".repeat(500)]] }]);
+assert.equal(measured[0].columns, 333 * 7 + 4); // 1000 characters: 333 times "\t中x" (7 columns), then a tab
+// A code point's columns are Unicode's: East Asian Wide or Fullwidth 2 (CJK, Hangul and its leading jamo, fullwidth forms, emoji
+// drawn as emoji even in the BMP), a combining mark or a default-ignorable 0, the rest 1 (halfwidth kana, ambiguous ①, the
+// private use area's icons, a lone surrogate).
+for (const [ch, want] of [["a", 1], ["é", 1], ["中", 2], ["한", 2], ["\u1100", 2], ["Ａ", 2], ["✅", 2], ["⚡", 2], ["😀", 2], ["\u0301", 0],
+  ["\u200d", 0], ["\ufe0f", 0], ["\u200b", 0], ["ｱ", 1], ["①", 1], ["\ue000", 1], ["\ud83d", 1], ["\u00ad", 0], ["\u3000", 2]])
+  assert.equal(charWidth(ch.codePointAt(0)), want, `U+${ch.codePointAt(0).toString(16)}`);
+// A row's columns: tabs as 4 (an ASCII token's too), wide as 2, a mark, a joiner or what it joins as 0.
+for (const [tokens, want] of [[[["abc"]], 3], [[["\tx"]], 5], [[["中文"]], 4], [[["😀"]], 2], [[["a"], ["\t"], ["中"]], 7], [[["a".repeat(1000)]], 1000],
+  [[["✅ e\u0301"]], 4], [[["👨\u200d👩"]], 2], [[["한\u1100Ａ\u3000"]], 8], [[["ｱ①\ue000\ud83d\u00ad\ufe0f\u200b"]], 4], [[["\t\tx\t"]], 13], [[["\t中"]], 6], [[["a\u0085"]], 2]])
+  assert.equal(clipRows([{ kind: "+", tokens }])[0].columns, want, JSON.stringify(tokens));
 // Wrapped, a row's tokens break into lines of at most `cols` columns, counted as columns() counts them (CJK 2, a tab 4),
 // each piece keeping its color; an empty row is one line.
 const lineText = (lines) => plain(lines).map(l => l.map(([t]) => t).join(""));
@@ -143,8 +148,49 @@ assert.deepEqual(plain(wrapRow({ tokens: [["ab", "#f00"], ["cd", "#0f0"]] }, 3))
 assert.deepEqual(lineText(wrapRow({ tokens: [["测试一下"]] }, 5)), ["测试", "一下"]);
 assert.deepEqual(lineText(wrapRow({ tokens: [["\tx"]] }, 3)), ["   ", " x"]);
 assert.deepEqual(lineText(wrapRow({ tokens: [] }, 5)), [""]);
+// A mark stays with the character it's drawn on, an emoji with the joiner before it; a BMP emoji is 2 wide.
+assert.deepEqual(lineText(wrapRow({ tokens: [["abce\u0301f"]] }, 4)), ["abce\u0301", "f"]);
+assert.deepEqual(lineText(wrapRow({ tokens: [["ab👨\u200d👩c"]] }, 4)), ["ab👨\u200d👩", "c"]);
+assert.deepEqual(lineText(wrapRow({ tokens: [["ab✅c"]] }, 3)), ["ab", "✅c"]);
+// It cuts runs of one width at once, not a character at a time (a first build cut 922 rows, 185k characters, in 38 of the
+// render's 50ms): the same lines as cutting each character in turn, an astral pair never split, nor after a joiner; a wide
+// character as wide as measured. lineCount, which a width's change runs on every row, counts as many lines without cutting.
+{
+  const each = (tokens, cols, wide = 2) => {
+    const lines = [[]];
+    let narrow = 0, wides = 0, prev = "";
+    for (const [text, color] of tokens) {
+      let part = "";
+      for (const ch of text.replaceAll("\t", "    ")) {
+        const w = prev === "\u200d" ? 0 : charWidth(ch.codePointAt(0)), dn = w === 2 ? 0 : w, dw = w === 2 ? 1 : 0;
+        if ((narrow || wides) && narrow + dn + wide * (wides + dw) > cols) { if (part) lines.at(-1).push([part, color]); lines.push([]); part = ""; narrow = wides = 0; }
+        part += ch; narrow += dn; wides += dw; prev = ch;
+      }
+      if (part) lines.at(-1).push([part, color]);
+    }
+    return lines;
+  };
+  const bits = ["a", "bc", "\t", "中", "文字", "😀", "\ud83d", "\ude00", " ", "x".repeat(17), "测".repeat(9), "ｱ", "\u0301", "\u200d", "✅", "\ufe0f"];
+  let seed = 7;
+  const rnd = (n) => (seed = (seed * 1103515245 + 12345) % 2147483648) % n;
+  for (let k = 0; k < 3000; k++) {
+    const tokens = Array.from({ length: rnd(6) }, (_, i) => [Array.from({ length: rnd(8) }, () => bits[rnd(bits.length)]).join(""), `#${i}`]);
+    const cols = 3 + rnd(40), wide = [2, 1.66, 1.5][rnd(3)], want = each(tokens, cols, wide);
+    assert.deepEqual(plain(wrapRow({ tokens }, cols, wide)), want, JSON.stringify([tokens, cols, wide]));
+    assert.equal(lineCount({ tokens }, cols, wide), want.length, JSON.stringify([tokens, cols, wide]));
+    // An ASCII row's count is its columns over the width.
+    const ascii = tokens.map(([text, color]) => [text.replace(/[^\0-\x7f]/gu, "a"), color]);
+    assert.equal(lineCount({ tokens: ascii }, cols, wide), each(ascii, cols).length, JSON.stringify([ascii, cols]));
+  }
+}
 // The columns a line wraps at: unified past both numbers, split past one on each half (less the rule), an added file's whole width.
-assert.deepEqual(plain(wrapColumns(1000, 10)), { row: Math.floor((1000 - 92 - 16) / 10), pair: Math.floor(((1000 - 1) / 2 - 52 - 16) / 10), solo: Math.floor((1000 - 52 - 16) / 10) });
+// A wide character takes its measured width, as columns: 2 until measured.
+assert.deepEqual(plain(wrapColumns(1000, 10)), { row: Math.floor((1000 - 92 - 16) / 10), pair: Math.floor(((1000 - 1) / 2 - 52 - 16) / 10), solo: Math.floor((1000 - 52 - 16) / 10), wide: 2 });
+assert.equal(wrapColumns(1000, 7.25, 12).wide, 12 / 7.25);
+// Drawn about 1em where the code font has no CJK, a wide character fits more of them on a line, and widens the code less.
+assert.deepEqual(lineText(wrapRow({ tokens: [["测试一下中文"]] }, 10, 1.66)), ["测试一下中文"]);
+assert.deepEqual(lineText(wrapRow({ tokens: [["测试一下中文"]] }, 10, 2)), ["测试一下中", "文"]);
+assert.equal(contentWidth([long("测".repeat(60))], undefined, 7.25, 1.6), contentWidth([long("a".repeat(96))]));
 {
   // A wrapped row is as many ROWs tall as its lines; a split pair as its longer side.
   const long = { kind: "+", new: 2, tokens: [["x".repeat(25)]] }, g = { key: "w", files: ["w.ts"], notes: {}, children: [] };
@@ -878,15 +924,20 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.view = 1000; drawn.clear(); pane.render(cx);
   assert.ok(pane.itemList.some(item => item.kind === "pair"));
   {
-    // Lines: Wrap, under Diff in the settings (review.prefs.wrap, Scroll by default): a long line takes as many rows as it runs
+    // Lines, under Diff in the settings (t3.wrap, shared with Files; Wrap unless set to Scroll): a long line takes as many rows as it runs
     // to at the diff's width, again when the width changes, and nothing scrolls sideways. The character's width is measured
     // once, from a known run of text.
-    const hunk = pane.review.files[0].hunks[0], kept = hunk.rows[2], long = hunk.rows[2] = { ...kept, tokens: [["x".repeat(300)]] };
-    assert.ok(!pref("wrap"));
+    const hunk = pane.review.files[0].hunks[0], kept = hunk.rows[2], long = hunk.rows[2] = { ...kept, columns: undefined, tokens: [["x".repeat(300)]] }; // new tokens, so not the old row's measure
+    assert.ok(sharedStore.get("t3.wrap") === undefined && pane.wrapCols, "wrapped by default");
     pane.popupClosedAt = 0; press("settings");
     assert.ok(drawn.has("lines-scroll") && drawn.has("lines-wrap") && styles["lines-scroll"].accessibility_label === "Lines: Scroll");
+    press("lines-scroll");
+    assert.equal(sharedStore.get("t3.wrap"), false);
+    drawn.clear(); pane.render(cx);
+    assert.equal(pane.wrapCols, null, "scrolled");
     press("lines-wrap"); pane.closePopup(cx);
-    assert.equal(pref("wrap"), true);
+    assert.equal(sharedStore.get("t3.wrap"), true);
+    assert.equal(pref("wrap"), undefined, "not Review's own any more");
     drawn.clear(); pane.render(cx);
     assert.ok(drawn.has("review-char"));
     handlers.get("review-char.on_size_change")({ width: 800, height: 16 }, cx);
@@ -901,8 +952,25 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     setPref("split", true);
     assert.equal(sizeAt(1000), 20 + Math.ceil(300 / wrapColumns(1000, 8).pair) * 20, "split, each half wraps on its own, a pair as its longer side");
     assert.ok(pane.sideMax(0) === 0 && pane.sideMax(1) === 0);
+    // Dragged, a width that keeps changing keeps the lines as they were cut, and cuts them again once it has held 150ms:
+    // cutting the rows in view anew at each step was most of a step (76ms against 27 unwrapped, the floor 19).
+    {
+      setPref("split", false); timers.length = 0;
+      const area = handlers.get("review-diff-area.on_size_change");
+      const rows = (view) => 2 * 20 + Math.ceil(300 / wrapColumns(view, 8).row) * 20;
+      const longSize = () => { drawn.clear(); pane.render(cx); return pane.itemList.find(i => i.lines?.some(l => l === long)).size; };
+      area({ width: 500, height: 600 }, cx);
+      assert.equal(longSize(), rows(500), "the first width at once");
+      area({ width: 1000, height: 600 }, cx);
+      assert.equal(pane.view, 1000, "the width itself follows");
+      assert.equal(longSize(), rows(500), "still cut at 500 while it moves");
+      area({ width: 900, height: 600 }, cx);
+      timers.splice(0).forEach(f => f(cx));
+      assert.equal(longSize(), rows(900), "cut at the width it held");
+      delete pane.wrapView; setPref("split", true);
+    }
     pane.popupClosedAt = 0; press("settings"); press("lines-scroll"); pane.closePopup(cx);
-    assert.equal(pref("wrap"), false);
+    assert.equal(sharedStore.get("t3.wrap"), false);
     assert.equal(sizeAt(1000), 40);
     hunk.rows[2] = kept; pane.version++; drawn.clear(); pane.render(cx);
   }
@@ -1552,6 +1620,17 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   mainScope.review = daemon;
   // A pane of its own on /repo's /branch/fix, its daemon `api` until a test swaps the scope's.
   const paneOf = async (extra = {}) => { const made = panelOf(extra); await wait(); return made; };
+  {
+    // A Lines choice made before it was the layout's goes along to t3.wrap, unless one's there already; Review keeps none.
+    const was = sharedStore.get("t3.wrap");
+    sharedStore.delete("t3.wrap"); setPref("wrap", false);
+    await paneOf();
+    assert.ok(sharedStore.get("t3.wrap") === false && pref("wrap") === undefined);
+    sharedStore.set("t3.wrap", true); setPref("wrap", false);
+    await paneOf();
+    assert.ok(sharedStore.get("t3.wrap") === true && pref("wrap") === undefined, "the layout's choice wins");
+    sharedStore.set("t3.wrap", was);
+  }
   {
     // After a rows read that fails, Retry asks for its files again, and they leave "Loading…".
     const { p, scope } = await paneOf();

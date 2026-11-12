@@ -8,8 +8,22 @@ import { LU, mono, zoom, isLight, checkMark, diffStats, popover } from "./contro
 import { fileStatus } from "./files.js";
 import { emptyState } from "./panel-states.js";
 
-// The run measured for a character's width: long enough that rounding the whole to a pixel doesn't matter.
-const MEASURED = "0".repeat(100);
+// The runs measured for a character's width, and a wide one's: long enough that rounding the whole to a pixel doesn't matter.
+const MEASURED = "0".repeat(100), MEASURED_WIDE = "中".repeat(100);
+// A run of the code font, drawn unseen under the list until its width is known, for where wrapped lines break (rows.js
+// wrapColumns); again when the font is changed in the settings.
+const measureRun = (id, text, set) => div().id(id).absolute().top(0).left(0).opacity(0).font_family(mono()).text_size(12).whitespace_nowrap()
+  .on_size_change((size, cx) => { if (size.width > 0) { set(size.width / zoom() / text.length); cx.notify(); } })
+  .child(text);
+// Wrapped lines are cut again for a width once it has held this long (ms): a panel dragged changes it every frame, and cutting
+// the rows in view anew each time, as new text for Herdr to lay out, was most of a step (76ms against 27 unwrapped).
+const WRAP_SETTLE = 150;
+/** The width lines wrap at (`wrapView`) follows the diff's: at once the first time, else once it holds WRAP_SETTLE. */
+function settleWrap(view, cx) {
+  if (view.wrapView == null) { view.wrapView = view.view; return; }
+  const run = view.wrapRun = (view.wrapRun ?? 0) + 1;
+  cx.timer.after(WRAP_SETTLE, (cx) => { if (run === view.wrapRun && view.wrapView !== view.view) { view.wrapView = view.view; cx.notify(); } });
+}
 // How long a sideways scroll's bars stay after it stops (ms).
 const BARS_LINGER = 1000;
 
@@ -128,7 +142,7 @@ export function diffView(view, t) {
     .child(div().id("review-diff-area").flex_1().min_h(0).overflow_hidden().relative().text_size(12)
       .on_size_change((size, cx) => {
         view.diffHeight = size.height / zoom();
-        if (Math.abs(size.width / zoom() - view.view) >= 1) { view.view = size.width / zoom(); cx.notify(); }
+        if (Math.abs(size.width / zoom() - view.view) >= 1) { view.view = size.width / zoom(); settleWrap(view, cx); cx.notify(); }
       })
       // Code scrolls sideways by the wheel: split, each side under the pointer; the full-width rows under either.
       // Headers and notes stay put, and the list keeps the vertical.
@@ -147,12 +161,9 @@ export function diffView(view, t) {
       })
       // A row reports only its key: where the press landed says which part of a file's header it was for.
       .on_mouse_down("left", (event) => { view.pressX = (event.local_position?.x ?? 0) / zoom(); view.pressY = (event.local_position?.y ?? 0) / zoom(); })
-      // A character's width, measured once from a known run of the code's font, for where wrapped lines break (rows.js wrapColumns).
-      // Under the list, drawn only until it's known.
-      // Measured again when the font is changed in the settings.
-      .when(!view.charWidth || view.charFont !== mono(), el => el.child(div().id("review-char").absolute().top(0).left(0).opacity(0).font_family(mono()).text_size(12).whitespace_nowrap()
-        .on_size_change((size, cx) => { if (size.width > 0) { view.panel.charWidth = size.width / zoom() / MEASURED.length; view.panel.charFont = mono(); cx.notify(); } })
-        .child(MEASURED)))
+      // A wide character's own: a code font seldom has CJK, and the one drawn in its place makes it about 1em, not 2 columns.
+      .when(!view.charWidth || view.charFont !== mono(), el => el.child(measureRun("review-char", MEASURED, (w) => { view.panel.charWidth = w; view.panel.charFont = mono(); })))
+      .when(!view.wideWidth || view.wideFont !== mono(), el => el.child(measureRun("review-wide", MEASURED_WIDE, (w) => { view.panel.wideWidth = w; view.panel.wideFont = mono(); })))
       // A blank after the items (trailing) lets the last header reach the top.
       .child(v_virtual_list("review-diff", items.length + 1, view.listSizes(), (i) => items[i]?.key ?? "end",
         // The range drawn is the only word on where the list is scrolled, and its frames on when a scroll has landed.
@@ -279,7 +290,7 @@ function diffItem(view, t, item) {
 
 // One code line of a run, ROW tall; wrapped, as many ROWs as its lines (a pair, its longer side's), as buildItems counts them.
 function diffLine(view, t, kind, line) {
-  const cols = view.wrapCols?.[kind], cut = (row) => cols && row ? wrapRow(row, cols) : null;
+  const cols = view.wrapCols?.[kind], cut = (row) => cols && row ? wrapRow(row, cols, view.wrapCols.wide) : null;
   if (kind === "pair") {
     const left = cut(line.left), right = cut(line.right);
     return h_flex().w_full().h(cols ? Math.max(left?.length ?? 1, right?.length ?? 1) * ROW : ROW)

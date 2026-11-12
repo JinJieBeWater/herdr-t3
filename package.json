@@ -2,6 +2,7 @@
   "private": true,
   "description": "Only what scripts/vendor.sh bundles into the mods; nobody installing the layout needs it.",
   "devDependencies": {
-    "@leeoniya/ufuzzy": "1.0.19"
+    "@leeoniya/ufuzzy": "1.0.19",
+    "get-east-asian-width": "1.7.0"
   }
 }

@@ -95,7 +95,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - 其他机器上的 space 没有 Review 栏，也没有 Review 页。
 - 其他机器上的 Files：变化最多 10 秒后才显示，超过 512 KB 的图片不预览。
 - Files 只预览 1 MB 以内的文本，只给常见语言着色（JavaScript 和 TypeScript、JSON、YAML、Rust、Go、Python、shell、CSS、C 和 C++、Java、Kotlin、Ruby、PHP、SQL、Lua、GraphQL、Makefile）；TOML、HTML、Swift 等显示为纯文本。
-- Review 的 `Lines: Wrap` 在面板边缘断行，必要时会从单词中间断开。
+- 长行自动换行（Files 和 Review 的默认）时在面板边缘断行，Review 里必要时会从单词中间断开，但不会拆开带重音的字母或连成一个的 emoji。
 - Files 只按路径搜索，不搜内容，也不含 Git 忽略的文件；不在 Git 里时最多搜 20 万个文件。
 - 用 `⤢` 把面板放大盖住标签栏时，`cmd-alt-b` 和 `cmd-shift-g` 不起作用：用面板的 `×` 或在面板里按 `cmd-w` 关闭，或再按 `⤢` 收回。
 - 这次启动 Herdr 后 Inbox 还没显示过时，侧栏隐藏期间它不更新卡片顺序，`cmd-]` 和 `cmd-[` 可能按旧顺序走。`cmd-shift-s` 照常能 Settle。

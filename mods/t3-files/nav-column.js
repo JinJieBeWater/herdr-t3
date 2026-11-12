@@ -3,7 +3,7 @@
 // at most 560 and never leaving the content less than 256. Both pages share one width (`t3.navWidth`); each page keeps
 // whether its column is open in its own localStorage (`nav.open`). scripts/sync.sh copies this to both mods.
 import { div, svg } from "gpui-kit";
-import { v_flex, h_flex, h_resizable, resizable_panel } from "gpui-base";
+import { v_flex, h_flex } from "gpui-base";
 import { shared, setShared, settings } from "herdr";
 import { KEY } from "./store.js";
 
@@ -21,24 +21,46 @@ export function navWidth(body, kept = shared(KEY.navWidth)) {
 export const navOpen = () => localStorage.getItem("nav.open") !== "false";
 export const setNavOpen = (open) => localStorage.setItem("nav.open", String(open));
 
+// The column's edge being dragged, on this page (each mod has its own copy): the pointer's x and the width it started from,
+// and the width it's at now.
+let drag = null;
+
 /**
  * The page's `content`, and right of it, while `open`, the column: `head` in its 40 head, `list` under it. `id` names it;
- * `body` is the page's width. The divider drags, and the width it lands at is the one both pages show.
+ * `body` is the page's width. Its left edge drags, and the width it lands at is the one both pages show.
  */
 /** @param {any} t @param {string} id @param {number} body @param {{ content: any, head: any, list: any, open: boolean }} parts */
 export function withNav(t, id, body, { content, head, list, open }) {
   if (!open) return div().id(`${id}-solo`).size_full().min_w(0).child(content);
-  const width = navWidth(body), [least, most] = navRange(body), z = Number(settings()?.zoom) || 1;
-  // A panel's sizes, set and reported, are the window's points, not zoomed as the rest of what a script sets.
-  // Herdr keeps a group's sizes under its id, and grows them with the page: named by the width and the page's, the group
-  // starts again at the width the other page set, and stays at it as the page widens.
-  return h_resizable(`${id}-${Math.round(width)}-${Math.round(body)}`).size_full()
-    .on_resize((sizes) => { const to = Math.round(sizes.at(-1) / z); if (to !== Math.round(width)) setShared(KEY.navWidth, to); })
-    .child(resizable_panel().child(content))
-    .child(resizable_panel().size(width * z).size_range(least * z, most * z)
-      .child(v_flex().id(`${id}-nav`).size_full().min_w(0).border_l(1).border_color(t.border)
-        .child(h_flex().id(`${id}-nav-head`).h(40).flex_none().px(8).gap(4).items_center().border_b(1).border_color(t.border).child(head))
-        .child(div().flex_1().min_h(0).pt(4).child(list))));
+  const [least, most] = navRange(body), z = Number(settings()?.zoom) || 1, mine = drag?.id === id;
+  const width = mine ? Math.min(most, Math.max(least, drag.width)) : navWidth(body);
+  // Written once, on release: a shared value draws every mod again. A pointer leaving the page lets go there.
+  const end = (cx) => {
+    if (drag?.id !== id) return;
+    const to = Math.round(width);
+    drag = null;
+    if (to !== Math.round(navWidth(body))) setShared(KEY.navWidth, to);
+    cx.notify();
+  };
+  // Not Herdr's resizable group: it keeps its panels' sizes under its id and scales them with the page, so a resizing panel
+  // drew the column a frame scaled, then a frame at its width again (a group named by the page's width), and twitched.
+  // The pointer's positions are zoomed pixels.
+  return h_flex().id(`${id}-split`).size_full().min_w(0)
+    .when(mine, (el) => el.cursor_col_resize())
+    .on_mouse_move((e, cx) => {
+      if (drag?.id !== id) return;
+      const to = drag.from - (e.position.x - drag.x) / z;
+      if (to !== drag.width) { drag.width = to; cx.notify(); }
+    })
+    .on_mouse_up("left", (_e, cx) => end(cx))
+    .on_hover((on, cx) => { if (!on) end(cx); })
+    .child(div().flex_1().min_w(0).h_full().child(content))
+    .child(v_flex().id(`${id}-nav`).relative().w(width).flex_none().h_full().border_l(1).border_color(t.border)
+      .child(h_flex().id(`${id}-nav-head`).h(40).flex_none().px(8).gap(4).items_center().border_b(1).border_color(t.border).child(head))
+      .child(div().flex_1().min_h(0).pt(4).child(list))
+      // The edge, 6 wide across the rule, over what's beside it.
+      .child(div().id(`${id}-nav-edge`).absolute().top(0).bottom(0).left(-3).w(6).cursor_col_resize()
+        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); drag = { id, x: e.position.x, from: width, width }; cx.notify(); })));
 }
 
 /** T3's xs ghost icon button, as the toolbars and the column's head have them: 24, a 14 icon, `on` lit, greyed when `disabled`. */

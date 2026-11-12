@@ -162,3 +162,15 @@ export function ticket(st, kind) {
   const n = st.tickets[kind] = (st.tickets[kind] ?? 0) + 1;
   return () => st.tickets[kind] === n;
 }
+
+// The code's room changes every frame while the panel is dragged, and the editor wraps the whole file again for each width
+// it's laid out at: ~500 ms a step for a 60 KB file (19 with lines scrolled). So it's laid out at the width it last held.
+export const CODE_SETTLE = 300;
+/** `hold.at`, the width the code is laid out at, follows its room `width`: at once the first time, else once the room has held
+ * CODE_SETTLE ms. `after(ms, f)` runs `f(cx)` later (cx.timer.after). */
+export function holdWidth(hold, width, after) {
+  if (hold.at == null) { hold.at = width; return; }
+  hold.want = width;
+  const run = hold.run = (hold.run ?? 0) + 1;
+  after(CODE_SETTLE, (cx) => { if (run === hold.run && hold.at !== hold.want) { hold.at = hold.want; cx.notify(); } });
+}

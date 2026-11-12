@@ -6,13 +6,13 @@ const vm = require("node:vm");
 
 const state = {}, local = new Map();
 const src = fs.readFileSync(path.join(__dirname, "store.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.store = { KEY, migrate, migrateLocal };";
+  + "\nglobalThis.store = { KEY, migrate, migrateLocal, wrapLines, setWrapLines };";
 const context = vm.createContext({
   shared: (k) => state[k] ?? null, setShared: (k, v) => { state[k] = v; },
   localStorage: { getItem: (k) => local.get(k) ?? null, setItem: (k, v) => local.set(k, v), removeItem: (k) => local.delete(k) },
 });
 vm.runInContext(src, context);
-const { KEY, migrate, migrateLocal } = context.store;
+const { KEY, migrate, migrateLocal, wrapLines, setWrapLines } = context.store;
 
 Object.assign(state, { "agents.pins": ["a", "b"], "t3-actions": { list: [{ id: "x" }], last: "x" }, "t3-inbox.notice": { live: true }, "space.icons": { k: "i" }, "t3-home.space": "h1" });
 state[KEY.home] = "h2";
@@ -32,6 +32,11 @@ assert.equal(JSON.stringify(state), before, "run again, it changes nothing");
 local.set("working-open", "true"); local.set("open", "false"); local.set("settled.open", "true");
 migrateLocal([["working-open", "working.open"], ["open", "settled.open"]]);
 assert.deepEqual([local.get("working.open"), local.get("settled.open"), local.has("working-open"), local.has("open")], ["true", "true", false, false], "localStorage alike: moved, the new one kept, the old gone");
+
+// Long lines wrap until someone picks Scroll, on either page.
+assert.equal(wrapLines(), true);
+setWrapLines(false); assert.ok(state[KEY.wrap] === false && wrapLines() === false);
+setWrapLines(true); assert.equal(wrapLines(), true);
 
 for (const k of Object.values(KEY)) assert.match(k, /^(t3|t3-[a-z-]+)\.[a-z][A-Za-z]*$/, `${k}: <mod>.<name> or t3.<name>, lowerCamel`);
 console.log("ok: store moves old names once, keeps what's worth keeping, and names every key by the rule.");

@@ -1,3 +1,4 @@
 logo.svg is pulls.review's favicon (https://github.com/antfu/pulls.review), MIT License, Copyright (c) 2021-PRESENT Anthony Fu.
 icons/cat/: Catppuccin VSCode Icons (https://github.com/catppuccin/vscode-icons), MIT License, see icons/cat/LICENSE.
+vendor/char-width.js is made from get-east-asian-width (https://github.com/sindresorhus/get-east-asian-width), MIT License, see vendor/LICENSE-get-east-asian-width.
 The other icons in icons/ are from Lucide (https://lucide.dev), ISC License, Copyright (c) Lucide Contributors.

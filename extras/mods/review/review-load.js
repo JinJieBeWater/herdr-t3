@@ -87,6 +87,9 @@ export function loadReview(view, cx, poll = false) {
       // Read before a reviewed mark landed, it would undo the mark on screen: the mark's own read follows.
       if (view.marking || marks !== view.marks) return;
       view.apply(r);
+      // The list is built here, in the read's task, and not in the next render: cutting a group's wrapped lines can take most of
+      // the ~50ms Herdr gives a render, past which it's interrupted, and a task has ~500.
+      view.items();
       view.error = null; view.stale = false;
       watchReview(view, cx);
       // A rows read changes no commit, and the base's whole read can outweigh it. Nor does stepping to another page of the
@@ -151,6 +154,7 @@ export function loadRows(view, cx) {
         if (file?.clipped && rowCount(file.hunks) === before) file.stuck = true;
       }
       view.version++;
+      view.items();
     } catch (e) {
       // A batch a daemon without the route (an older one) or a failed read didn't bring: the whole page brings it, or says why.
       if (id === view.loadId) { if (more) view.error = e?.message ?? String(e); else view.stale = view.again = true; }
