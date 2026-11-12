@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>面包屑里的 Review 计数：设计对比</title>
+<style>
+  /* Catppuccin Mocha, as the demo window; the bar's sizes as t3-tabs draws them (40px bar, 14px medium crumb, 12px controls). */
+  :root {
+    --chrome: #181825; --bg: #1e1e2e; --border: #313244; --fg: #cdd6f4; --muted: #a6adc8; --dim: #7f849c;
+    --hover: rgba(205, 214, 244, .07); --selected: rgba(205, 214, 244, .12); --green: #a6e3a1; --red: #f38ba8; --blue: #89b4fa;
+    --ui: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; background: #11111b; color: var(--fg); font: 14px/1.5 var(--ui); }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 28px; max-width: 880px; }
+  section { margin: 0 0 28px; max-width: 980px; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
+  h2 .tag { font-size: 11px; font-weight: 500; color: var(--bg); background: var(--blue); border-radius: 4px; padding: 0 6px; }
+  h2 .tag.no { background: var(--red); }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .note b { color: var(--fg); font-weight: 500; }
+
+  /* The tab bar: the work column's top, 40 high, the window's chrome. */
+  .bar { height: 40px; background: var(--chrome); border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; padding: 0 12px; gap: 12px; margin: 6px 0; }
+  .crumb { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; min-width: 0; }
+  .space { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .mark { width: 14px; height: 14px; border-radius: 3px; background: #45475a; color: #cba6f7; font-size: 9px; font-weight: 700; display: grid; place-items: center; }
+  .sep { color: var(--dim); }
+  .title { color: var(--fg); }
+  .end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .action { height: 24px; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; font-size: 12px; color: var(--muted); }
+  .action span { padding: 0 8px; }
+  .action span + span { border-left: 1px solid var(--border); padding: 0 5px; }
+  .panelbtn { height: 24px; padding: 0 6px; border-radius: 8px; display: flex; align-items: center; gap: 5px; color: var(--dim); }
+  .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(137,180,250,.25); border-top-color: var(--blue); }
+  .icon { width: 14px; height: 14px; border: 1.5px solid currentColor; border-radius: 3px; position: relative; }
+  .icon::after { content: ""; position: absolute; top: 0; bottom: 0; right: 4px; border-left: 1.5px solid currentColor; }
+
+  /* The counts, per option. */
+  .count { height: 24px; display: inline-flex; align-items: center; border-radius: 6px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+  .count:hover, .count.hot { background: var(--hover); color: var(--fg); }
+  .count.on { background: var(--hover); color: var(--fg); }
+  /* Today: icon + number buttons. */
+  .now .count { padding: 0 6px; gap: 4px; font-size: 12px; }
+  .now .glyph { width: 14px; height: 14px; border: 1.5px solid currentColor; border-radius: 2px; font-size: 9px; display: grid; place-items: center; }
+  /* A: words in the crumb's own line. */
+  .a .counts { display: flex; align-items: center; gap: 2px; margin-left: -6px; }
+  .a .count { padding: 0 6px; font-size: 13px; }
+  /* B: the branch as its own crumb, its counts as a prompt after it. */
+  .b .branch { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .b .count { padding: 0 4px; font-size: 13px; margin-left: -4px; }
+  .b .count + .count { margin-left: 0; }
+  /* C: one quiet pill. */
+  .c .pill { height: 20px; padding: 0 8px; border-radius: 6px; background: var(--hover); color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .c .pill:hover, .c .pill.hot { background: var(--selected); color: var(--fg); }
+  .c .pill i { font-style: normal; color: var(--dim); }
+
+  /* D: the branch as a crumb, its state in its own type. */
+  .d .seg { display: inline-flex; align-items: center; gap: 0; color: var(--muted); height: 24px; padding: 0 4px; margin: 0 -4px; border-radius: 6px; position: relative; }
+  .d .seg.hot { color: var(--fg); background: var(--hover); }
+  .d .dirty { color: inherit; }
+  .d .sync { margin-left: 8px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .d .seg.hot .sync { color: var(--muted); }
+  .d .spin { margin-left: 8px; }
+  .d .card { position: absolute; top: 30px; left: -5px; white-space: nowrap; background: var(--chrome); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 400; color: var(--fg); box-shadow: 0 6px 18px rgba(0,0,0,.4); line-height: 1.5; z-index: 2; }
+  .d .card span { color: var(--dim); }
+  .withcard { height: 88px; align-items: flex-start; padding-top: 7px; margin-bottom: 0; }
+  .menu { position: relative; display: inline-block; }
+  .menu .pop { position: absolute; top: 28px; left: 0; width: 240px; background: var(--chrome); border: 1px solid var(--border); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 2; font-size: 14px; font-weight: 400; }
+  .menu .pop div { height: 28px; padding: 0 8px; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; color: var(--fg); }
+  .menu .pop div:first-child { background: var(--selected); }
+  .menu .pop small { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .withpop { height: 150px; align-items: flex-start; padding-top: 7px; }
+  .label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<h1>面包屑里的 Review 计数</h1>
+<p class="lede" style="color:var(--fg)"><b>结论（2026-11-11）：都不放。</b>面包屑只管导航（在哪、去那个 space），挂上 git 状态和 Review 入口会让它一个控件干三件事；旁加的图标、胶囊又和路径格格不入。标签栏只留面板按钮，分析状态在按钮里、图标左边；这个布局里不再为计数读 git。要看数量：Spaces 行的 ↑↓，Review 页的范围菜单。</p>
+<p class="lede">同一行标签栏，按真实尺寸画（40px 高，面包屑 14px medium，Catppuccin Mocha）。用户的要求：git 状态要融进面包屑本身，否则不如不要。所以只有 D 是候选，A–C 留作对照。</p>
+
+<section class="d">
+  <h2><span class="tag">D</span>分支成为路径的一段，状态写在分支名上（建议）</h2>
+  <div class="label">你的情况：main 上有未提交改动，61 个提交待推送，分析在跑</div>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="sep">/</span><span class="seg">main<span class="dirty">*</span><span class="sync">↑61</span><span class="spin"></span></span>
+    <span class="sep">/</span><span class="title">Review 面板状态指示</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <div class="label">功能分支，悬停分支段：整段提亮，说明卡写全</div>
+  <div class="bar withcard"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="sep">/</span><span class="seg hot">feat/fold<span class="dirty">*</span><span class="sync">↑2</span>
+      <span class="card">3 uncommitted · 5 ahead of main · 2 to push<br><span>Open in Review</span></span></span>
+    <span class="sep">/</span><span class="title">Fold the tab bar's controls</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <div class="label">干净、和上游同步：只剩分支名</div>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="sep">/</span><span class="seg">main</span>
+    <span class="sep">/</span><span class="title">Tidy the panel</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <p class="note"><b>没有新控件</b>：分支就是路径里的一级（space / 分支 / agent），和 space 段同一个字号、字重、颜色、悬停方式；状态用编辑器和 shell 通用的写法贴在分支名上：<code>*</code> 有未提交改动（VS Code 的 <code>main*</code>），<code>↑n ↓n</code> 待推/拉（Spaces 行已经这样写）。分析在跑时转圈跟在后面，完成是圆点、失败是 <code>!</code>，和 tab 上 agent 的标记一样；面板按钮回到纯图标。<br>
+  <b>数字只留 ↑↓</b>：未提交的文件数、比默认分支多几个提交放进悬停说明卡和 Review 页的范围菜单，不占路径。<b>点分支段</b>在 Review 页打开它最相关的范围（有未提交就 Uncommitted，否则这个分支对默认分支的 Changes），和点 space 段开标签一样是“去那里”。不在 git 仓库里时没有这一段。Lists 没有面包屑，不显示。</p>
+</section>
+
+<p class="lede" style="margin-top:36px">以下是上一版的三个方向，都还是在路径旁边另加东西，按你的意见放弃。</p>
+
+
+<section class="now">
+  <h2><span class="tag no">现状</span>图标 + 数字</h2>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="count"><span class="glyph">±</span>82</span><span class="count"><span class="glyph">↑</span>61</span>
+    <span class="sep">/</span><span class="title">Review 面板状态指示</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="spin"></span><span class="icon"></span></div></div></div>
+  <p class="note">图标在 14px 的文字里像一排按钮，和面包屑的“地址”语气不合；四种图标（文件、分支、上、下）要学才认得。</p>
+</section>
+
+<section class="a">
+  <h2><span class="tag no">A</span>名字后面一句安静的话</h2>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="counts"><span class="count">82 changed</span><span class="count">↑61</span></span>
+    <span class="sep">/</span><span class="title">Review 面板状态指示</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="spin"></span><span class="icon"></span></div></div></div>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="counts"><span class="count on">3 changed</span><span class="count">5 ahead of main</span><span class="count hot">↑2</span></span>
+    <span class="sep">/</span><span class="title">Fold the tab bar's controls</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <p class="note"><b>没有图标，只用字和 git 自己的 ↑↓</b>（Spaces 行已经这样写领先/落后）。13px 常规字重、暗色，比 14px medium 的名字轻一档，读起来是名字的补充说明。未提交写 <code>changed</code>，比默认分支多的写 <code>ahead of main</code>，推/拉用 ↑↓。面板正显示的那个范围常亮（第二行的 3 changed），悬停的也亮（↑2）。窄时把 changed / ahead of main 缩成数字。</p>
+</section>
+
+<section class="b">
+  <h2><span class="tag no">B</span>分支做一段面包屑，计数像 shell 提示符</h2>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="sep">/</span><span class="branch">main <span class="count">↑61</span><span class="count">*82</span></span>
+    <span class="sep">/</span><span class="title">Review 面板状态指示</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="spin"></span><span class="icon"></span></div></div></div>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="sep">/</span><span class="branch">feat/fold <span class="count">+5</span><span class="count hot">↑2</span><span class="count on">*3</span></span>
+    <span class="sep">/</span><span class="title">Fold the tab bar's controls</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <p class="note"><b>多了“在哪个分支上”这条信息</b>，计数紧贴分支名，像 starship 之类的提示符（<code>*</code> 未提交，<code>+</code> 比默认分支多，↑↓ 推拉）。代价：面包屑多一级、更长；<code>*</code> 和 <code>+</code> 也要学；和 Spaces 行重复显示分支。</p>
+</section>
+
+<section class="c">
+  <h2><span class="tag no">C</span>一个计数胶囊，点开是范围菜单</h2>
+  <div class="bar"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="pill">82<i>·</i>↑61</span>
+    <span class="sep">/</span><span class="title">Review 面板状态指示</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="spin"></span><span class="icon"></span></div></div></div>
+  <div class="bar withpop"><div class="crumb"><div class="space"><span class="mark">H</span>herdr-t3</div>
+    <span class="menu"><span class="pill hot">3<i>·</i>+5<i>·</i>↑2</span>
+      <span class="pop"><div>Uncommitted <small>3</small></div><div>Changes vs main <small>5</small></div><div>Outgoing <small>2</small></div><div>Incoming <small>0</small></div></span></span>
+    <span class="sep">/</span><span class="title">Fold the tab bar's controls</span></div>
+    <div class="end"><div class="action"><span>▶ Test</span><span>⌄</span></div><div class="panelbtn"><span class="icon"></span></div></div></div>
+  <p class="note"><b>最紧凑，一个点击目标</b>，点开和 Review 页的范围菜单同一份内容。代价：胶囊有底色，比 A 显眼；光看 <code>3 · +5 · ↑2</code> 不知道每个数是什么，要点开或悬停才知道；多一层菜单。</p>
+</section>
+</body>
+</html>

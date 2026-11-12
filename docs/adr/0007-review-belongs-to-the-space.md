@@ -1,5 +1,7 @@
 # Review 属于 space，每个 space 一个
 
+> Review 的位置（标签里的窗格、卡片、跳转和回到原处）已被 [0011](0011-one-space-panel.md) 取代；Review 栏的部分仍然有效。
+
 agent 和 space 是多对一：决定时的快照里，9 个有 agent 的 space 没有一个跨仓库，4 个有多个 agent，最多 7 个共用一个 worktree，diff 没法归到某个 agent 头上。所以每个 space 一个 Review、一张卡片，标签和分屏都有卡片；入口在别的标签已开着时跳过去，不再新开；关闭或 Settle 回到打开它之前的地方。
 
 Review 栏是当前 space 的状态和入口，留在标签栏右侧、和 Actions 同一组；在 commit 之间切换是 Review 窗格自己顶栏的事。计数常驻、每段可点，agent 工作时照常更新；不用彩色，因为颜色在这个布局里表示 agent 状态，窄窗口改用图标；logo 固定在最右。自动分析只在点计数打开时触发。

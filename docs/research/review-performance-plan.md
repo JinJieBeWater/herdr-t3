@@ -12,6 +12,8 @@
 | 2 SHA 复用 diff | pulls.review `f5018a6`（core `revisions()`）、`f064c80`（`pageEntry`、`repoCacheDir` 记忆） | 按 §1.5 只复用本进程写入的条目，daemon 重启后每页首读重写一次 |
 | 3 过滤无效重读 | herdr-t3 `dfa0017` | 无 |
 
+2026-11-12 撤回第 1 项的列宽部分（pulls.review `72a4092`）：列宽规则改用 Unicode 宽度表后，两个仓库要各维护一份同样的规则，daemon 等于在替面板算排版。面板改为在 `clipRows`（读取任务里，自 `b1c23a8` 起列表也在任务里建）按到达的行量宽，不在渲染里量。按真实 QuickJS 实测，每读 600 KB 的行约 12.5 ms（herdr-t3 `/branch/main`，18,737 行、324 万字符）。批次上限不变。
+
 已测：herdr-t3 `/compare/e4b2787...dfa0017`（26 files、1,118 rows）首读 162–180 ms，复读 38–41 ms，所有行带 `columns`。未测：原 113 commits 样本的热读、Render 中断回放、长行与 3 万行全文。进程内 diff 缓存与并发合并仍按本文推迟。
 
 ## 推荐的完整方案

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>顺序审计：八处核实与可做的改进</title>
+<style>
+  /* t3-code-dark 的取值，同 context-menu-design.html */
+  :root { color-scheme: dark; --bg: #0a0a0a; --panel: #111; --raised: #1e1e1e; --sel: #1b1b1b; --border: #262626;
+    --fg: #f5f5f5; --muted: #a1a1a1; --dim: #8f8f8f; --red: #f87171; --amber: #fbbf24; --green: #4ade80; --blue: #60a5fa; --accent: #346bf1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: auto; padding: 36px 20px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 8px; }
+  section { border-top: 1px solid var(--border); padding: 26px 0 8px; }
+  h2 { font-size: 15px; margin: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .n { color: var(--dim); font-weight: 500; }
+  .tag { font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 4px; background: var(--raised); }
+  .ok { color: var(--green); } .fix { color: var(--amber); } .no { color: var(--dim); } .rec { color: var(--blue); }
+  .fact { color: var(--muted); margin: 6px 0 12px; max-width: 860px; }
+  code { font: 12px ui-monospace, Menlo, monospace; color: var(--fg); }
+  .cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; align-items: start; }
+  .col h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--dim); }
+  .box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+  .r { height: 30px; padding: 0 8px; display: flex; gap: 8px; align-items: center; border-radius: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; }
+  .r .t { margin-left: auto; font-size: 12px; color: var(--dim); }
+  .r.hd { height: 24px; font-size: 11px; color: var(--dim); }
+  .r.on { background: var(--sel); }
+  .r.hi { box-shadow: inset 2px 0 0 var(--accent); }
+  .r.ghost { color: var(--dim); }
+  .d { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .d.b { background: var(--amber); } .d.g { background: var(--green); } .d.i { background: transparent; border: 1px solid #555; } .d.w { border: 2px solid var(--blue); border-right-color: transparent; }
+  .sep { height: 1px; background: var(--border); margin: 4px 8px; }
+  .note { font-size: 12px; color: var(--dim); margin-top: 6px; }
+  .strip { display: flex; gap: 4px; align-items: center; overflow: hidden; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
+  .tab { flex: none; padding: 3px 10px; border-radius: 6px; background: var(--raised); font-size: 12px; color: var(--muted); }
+  .tab.cut { opacity: .25; } .tab.on { color: var(--fg); outline: 1px solid #444; } .tab.dash { border: 1px dashed #555; background: none; }
+  .bc { flex: none; font-size: 12px; color: var(--fg); padding-right: 6px; border-right: 1px solid var(--border); }
+  .verdict { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .verdict b { color: var(--fg); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 10px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--dim); font-weight: 500; } td { color: var(--muted); } td:first-child { color: var(--fg); white-space: nowrap; }
+</style>
+<main>
+  <h1>顺序审计：八处逐条核实</h1>
+  <p class="lead">每条都按当前 HEAD <code>2dfcad7</code> 重读了代码，T3 对照的是 fork <code>97db94c</code>。图里的行是示意，状态点：<span style="color:var(--amber)">●</span> 卡住等你　<span style="color:var(--green)">●</span> done 未读　○ idle　◌ working。</p>
+
+  <section>
+    <h2><span class="n">1</span> Pinned：新置顶的位置 <span class="tag ok">属实</span><span class="tag rec">建议改</span></h2>
+    <p class="fact"><code>shared/pins.js:13</code> 写的是 <code>[...pins, address]</code>，注释说这是照 Herdr agents 列表的做法。T3 的 <code>useThreadActions.ts:104</code> 是 “a fresh pin lands at the top”。Inbox、Agents、标签栏用的是同一份 pins，改一处三处都会变；Undo 的 <code>putBack</code> 按相邻项归位，前插也不受影响。</p>
+    <div class="cmp">
+      <div class="col"><h3>现在：刚置顶的 C 排到最后</h3><div class="box">
+        <div class="r hd">Pinned</div><div class="r"><span class="d i"></span>api-refactor</div><div class="r"><span class="d g"></span>docs-sync</div><div class="r hi"><span class="d i"></span>C · 刚置顶</div></div></div>
+      <div class="col"><h3>改成：刚置顶的就在眼前</h3><div class="box">
+        <div class="r hd">Pinned</div><div class="r hi"><span class="d i"></span>C · 刚置顶</div><div class="r"><span class="d i"></span>api-refactor</div><div class="r"><span class="d g"></span>docs-sync</div></div></div>
+    </div>
+    <p class="verdict"><b>改动：</b><code>shared/pins.js</code> 改一行，再 sync。拖拽排出来的顺序保持不变。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span> Review 的 base 选择器 <span class="tag fix">报告有误，已修正</span><span class="tag rec">建议小改</span></h2>
+    <p class="fact">报告说 T3「按名字排」，<b>这一点说错了</b>。T3 的服务端（<code>GitVcsDriverCore.ts:2570,2725</code>）是先放当前分支，再放默认分支，其余按最近提交时间排，时间相同再按名字。本地 <code>readRefs</code> 也是按最近提交排，所以真正的差别只有一点：<b>默认分支没有固定在顶上</b>。<code>main</code> 好几天没提交的话，会被挤到下面去。</p>
+    <div class="cmp">
+      <div class="col"><h3>现在</h3><div class="box">
+        <div class="r on">Automatic</div><div class="r">feat/base-picker</div><div class="r">fix/scope-menu</div><div class="r">spike/files</div><div class="r">main</div><div class="r ghost">origin/old-thing</div></div></div>
+      <div class="col"><h3>改成（与 T3 相同）</h3><div class="box">
+        <div class="r on">Automatic</div><div class="r hi">main</div><div class="r">feat/base-picker</div><div class="r">fix/scope-menu</div><div class="r">spike/files</div><div class="r ghost">origin/old-thing</div></div></div>
+    </div>
+    <p class="verdict"><b>改动：</b>在 <code>baseList</code> 里把 <code>baseRef</code> 对应的那一项提到 Automatic 下面。<b>注意：</b>review 这块今天还有别的会话在改，最好交给那边一起做。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span> Inbox 标签条放不下时 <span class="tag ok">机制属实</span><span class="tag no">少见，暂不改</span></h2>
+    <p class="fact"><code>t3-tabs/main.js:236</code>：标签条贴着右端（Actions 旁边），空间不够时从左边切；当前标签总会滚进视野。Inbox 下的标签是紧凑宽度（名字宽度 + 32px），正常窗口大约要 8 个以上程序标签才会溢出。没截图，另一个会话正在用 demo 环境。</p>
+    <div class="cmp">
+      <div class="col"><h3>现在：溢出时左侧先被切</h3>
+        <div class="strip"><span class="bc">space › agent</span><span class="tab dash cut">lazygit</span><span class="tab cut">sub-agent</span><span class="tab">vite</span><span class="tab">logs</span><span class="tab">psql</span><span class="tab">htop</span></div>
+        <p class="note">被切掉的是和手上工作相关的那一组，留下的反而是不相干的程序。</p></div>
+      <div class="col"><h3>可以改成：溢出时从左边开始放</h3>
+        <div class="strip"><span class="bc">space › agent</span><span class="tab dash">lazygit</span><span class="tab">sub-agent</span><span class="tab">vite</span><span class="tab">logs</span><span class="tab cut">psql</span><span class="tab cut">htop</span></div>
+        <p class="note">放得下时仍然右对齐，所以平时看起来完全一样。</p></div>
+    </div>
+    <p class="verdict"><b>建议：</b>先不动，哪天真遇到再截图确认后修。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span> Settled 默认折叠 <span class="tag ok">属实</span><span class="tag no">建议保持</span></h2>
+    <p class="fact">本地 <code>t3-inbox/main.js:48</code> 默认是 <code>false</code>，T3 <code>Sidebar.tsx:2079</code> 默认是 <code>true</code>。两边都会记住你上次是开还是关，所以差别只在第一次打开时。</p>
+    <div class="cmp">
+      <div class="col"><h3>现在</h3><div class="box"><div class="r hd">Working · 2 ›</div><div class="r hd">Snoozed · 1 ›</div><div class="r hd">Settled · 14 ›</div></div></div>
+      <div class="col"><h3>照 T3</h3><div class="box"><div class="r hd">Working · 2 ›</div><div class="r hd">Snoozed · 1 ›</div><div class="r hd">Settled · 14 ⌄</div><div class="r ghost">○ release-notes</div><div class="r ghost">○ lint-fix</div><div class="r ghost">… 共 10 行</div></div></div>
+    </div>
+    <p class="verdict"><b>建议保持：</b>Settled 收的是「不需要你了」的东西，默认折叠更省注意力（ADR 0001），一个只影响第一次打开的默认值不值得跟 T3。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span> Agents 列表默认 Priority <span class="tag ok">属实</span><span class="tag no">建议保持</span></h2>
+    <p class="fact"><code>t3-agents/main.js:20</code>：<code>agents.sort</code> 没设过时用 Priority。README 写的是「Lists 按项目排」，但这一点 Spaces 列表已经做到了。<code>agents.sort</code> 和 Herdr 自带的 agents 列表共用，它的默认也是 Priority。</p>
+    <p class="verdict"><b>建议保持顺序</b>，只把 README 改准确些：「Spaces 按项目排，Agents 默认按紧急程度排，也可以按 space 分组」。这处只改文案。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">6</span> 多台机器：看到的顺序和按键走的顺序 <span class="tag ok">代码属实，未在真机复现</span><span class="tag rec">建议改</span></h2>
+    <p class="fact"><code>t3-spaces/main.js:198-216</code> 会用 <code>space.move</code> 把 Herdr 内部的顺序调成「按仓库排」，但不按机器分块。屏幕上却是先本机、再按名字列各台远端机器。远端 space 是后开的，夹在本机 space 中间，所以 <code>space.next</code> 和 <code>ctrl-N</code> 会跳到另一台机器上去。</p>
+    <div class="cmp">
+      <div class="col"><h3>屏幕上</h3><div class="box">
+        <div class="r hd">This computer</div><div class="r on">1 · herdr-t3</div><div class="r">2 · herdr-t3-inbox</div><div class="r hd">kvm</div><div class="r">3 · build-farm</div></div>
+        <p class="note">你以为 <code>ctrl-2</code> 是 herdr-t3-inbox。</p></div>
+      <div class="col"><h3>Herdr 内部（现在）</h3><div class="box">
+        <div class="r on">1 · herdr-t3</div><div class="r" style="color:var(--amber)">2 · build-farm (kvm)</div><div class="r">3 · herdr-t3-inbox</div></div>
+        <p class="note"><code>space.next</code> 和 <code>ctrl-2</code> 都会去 kvm。</p></div>
+      <div class="col"><h3>改成</h3><div class="box">
+        <div class="r on">1 · herdr-t3</div><div class="r">2 · herdr-t3-inbox</div><div class="r">3 · build-farm (kvm)</div></div>
+        <p class="note">排出目标顺序时先按机器分块，内部顺序就和屏幕一致了。</p></div>
+    </div>
+    <p class="verdict"><b>改动：</b><code>ordered()</code> 算目标顺序时加一层「本机在前、远端按名字」的稳定排序，已有的 <code>space.move</code> 循环会自动对齐。New 菜单和 Go to 是「当前 space → 同一台机器 → 其他机器」，有意先给当前机器，不用改。<b>验证：</b>要连上 kvm 开两台机器的 space。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">7</span> Inbox 卡片只按时间排 <span class="tag ok">属实，影响比报告说的大</span><span class="tag rec">建议改（方案 A）</span></h2>
+    <p class="fact"><code>t3-inbox/row-model.js:118</code>：卡片区里的卡住、done 未读、idle 只按<b>最近一次状态变化</b>倒序排。卡住十分钟的 agent，会排在一分钟前刚结束、已经看过的 idle 下面。T3 新版干脆是「活动不改变顺序」，也不按状态排，所以这里没有现成做法可照搬。卡片顺序同时也是 <code>cmd-]</code> 的巡行顺序。</p>
+    <div class="cmp">
+      <div class="col"><h3>现在</h3><div class="box">
+        <div class="r"><span class="d i"></span>lint-fix<span class="t">1m</span></div><div class="r"><span class="d g"></span>api-refactor<span class="t">5m</span></div><div class="r"><span class="d b"></span>migrate-db · 等你批准<span class="t">10m</span></div><div class="r"><span class="d i"></span>docs-sync<span class="t">20m</span></div></div></div>
+      <div class="col"><h3>A：只把卡住的提到最前（推荐）</h3><div class="box">
+        <div class="r hi"><span class="d b"></span>migrate-db · 等你批准<span class="t">10m</span></div><div class="sep"></div><div class="r"><span class="d i"></span>lint-fix<span class="t">1m</span></div><div class="r"><span class="d g"></span>api-refactor<span class="t">5m</span></div><div class="r"><span class="d i"></span>docs-sync<span class="t">20m</span></div></div>
+        <p class="note">回复以后它会进 Working，看一眼不会让它动。</p></div>
+      <div class="col"><h3>B：卡住 → 未读 → idle</h3><div class="box">
+        <div class="r"><span class="d b"></span>migrate-db<span class="t">10m</span></div><div class="r"><span class="d g"></span>api-refactor<span class="t">5m</span></div><div class="r"><span class="d i"></span>lint-fix<span class="t">1m</span></div><div class="r"><span class="d i"></span>docs-sync<span class="t">20m</span></div></div>
+        <p class="note">缺点：一点开 done，它变成 idle 就会往下掉，卡片刚看就跑开了。</p></div>
+    </div>
+    <p class="verdict"><b>改动（A）：</b><code>inboxSections</code> 的 <code>out</code> 排序前面加一个「卡住的在前」的键，再补 check-inbox 用例；行为变了，CHANGELOG 和 guide 两种语言都要写。</p>
+  </section>
+
+  <section>
+    <h2><span class="n">8</span> Go to (cmd-p) <span class="tag fix">现状比报告说的好</span><span class="tag no">建议保持</span></h2>
+    <p class="fact"><code>t3-picker/main.js:52</code>：最顶上已经有一行 <b>Back</b>，就是上次从 Go to 跳走前所在的窗格。下面按当前 space → 同一台机器 → 其他机器，每个 space 里按标签顺序。T3 的命令面板是按侧栏的最近活动排；要照做得新记一份焦点历史，<code>panes()</code> 里没有时间信息。</p>
+    <p class="verdict"><b>建议保持：</b>来回切换最常用的情况已经有 Back 这一行了，再记焦点历史的成本对不上收益。</p>
+  </section>
+
+  <section>
+    <h2>汇总</h2>
+    <table>
+      <tr><th>#</th><th>结论</th><th>改动量</th><th>谁的地盘</th></tr>
+      <tr><td>1 Pinned 新置顶放最前</td><td>改</td><td>1 行 + sync + 文档</td><td>本仓库</td></tr>
+      <tr><td>7A 卡住的卡片排最前</td><td>改</td><td>1 个排序键 + check + 文档</td><td>本仓库（会同步到 herdr-t3-inbox）</td></tr>
+      <tr><td>6 多台机器的顺序对齐</td><td>改</td><td>1 处排序，要两台机器验证</td><td>本仓库</td></tr>
+      <tr><td>2 默认分支置顶</td><td>小改</td><td>几行</td><td>review，有别的会话在改</td></tr>
+      <tr><td>5 README 措辞</td><td>只改文案</td><td>两种语言各一句</td><td>本仓库</td></tr>
+      <tr><td>3 / 4 / 8</td><td>保持</td><td>—</td><td>—</td></tr>
+    </table>
+  </section>
+</main>
+</html>
