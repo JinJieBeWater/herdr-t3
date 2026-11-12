@@ -7,6 +7,7 @@ import { stop, pressed, justClosed } from "./focus.js";
 import { step, scrollList } from "./list.js";
 import { FIRST } from "./row-model.js";
 import { KEY } from "./store.js";
+import { openMenu } from "./menu.js";
 
 // The space filter's rows, flush as T3's, and how many show before the list scrolls: the whole rows T3's 23rem holds.
 const SCOPE_ROW = 32, SCOPE_SHOWN = 9;
@@ -48,6 +49,8 @@ export function inboxTop(view, t, model) {
       .on_hover((over, cx) => { if (over && view.scopeAt !== i) { view.scopeAt = i; cx.notify(); } })
       .role("button").accessibility_label(s.name)
       .on_click((e, cx) => view.pick(s, e.modifiers.shift, cx))
+      // A space's row: the space's menu, as in Spaces; the list closes under it.
+      .when(Boolean(s.id && props()?.menu), (el) => el.on_mouse_down("right", (_e, cx) => { view.scopeOpen = false; openMenu(view, "space", { id: s.id }, cx, props().menu); cx.notify(); }))
       .child(div().relative().flex_none()
         .child(s.id ? avatar(s.id, s.name, 16) : svg("mods/t3-inbox/icons/folder.svg").size(16).text_color(t.muted))
         // T3's ring is outside its 12px badge; a border here is inside, so 16 and 2 further out.

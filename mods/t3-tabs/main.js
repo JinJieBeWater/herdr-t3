@@ -14,6 +14,7 @@ import { newTab, projectMark } from "./project.js";
 import { KEY, migrate } from "./store.js";
 import { pinList, pin, unpin, putBack } from "./pins.js";
 import { writeLabel } from "./labels.js";
+import { openMenu } from "./menu.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 // The tab bar's row, as layouts/herdr-t3.json has it.
@@ -97,6 +98,9 @@ export default class Tabs extends View {
         // Here because the tab bar always shows; the brand bar goes with the sidebar.
         if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
         else if (command === "settle") await this.settle(cx);
+        // An agent's menu (t3-menu): Settle, Un-settle or Wake the agent it was opened on, in view or not.
+        else if (command.startsWith("settle:")) await this.settle(cx, command.slice("settle:".length));
+        else if (command.startsWith("wake:")) await writeLabel(command.slice("wake:".length), "snoozed", "");
         else if (command.startsWith("unpin:")) this.unpin(command.slice("unpin:".length), cx);
         // The Inbox breadcrumb title's menu (t3-menu).
         else if (command.startsWith("pin:")) pin(command.slice("pin:".length));
@@ -107,17 +111,20 @@ export default class Tabs extends View {
     });
   }
 
-  async settle(cx) {
+  // `given`: an agent's menu names it; the key takes the agent in view.
+  async settle(cx, given = null) {
     // Settle is the Inbox's: Lists has no Settled to put it in (docs/adr/0002).
     if (this.navigation.atHome || sidebarParts(layout()).stack?.active === "lists") return;
     const f = { ...focused() }, ps = panes(), p = ps.find(p => p.pane === f.pane), every = agents(), all = terminals();
-    if (p?.mod && programOf(p)?.inbox) {
+    if (!given && p?.mod && programOf(p)?.inbox) {
       if (!["working", "blocked"].includes(modStatus(p))) await this.navigation.handle(`close-pane-now:${p.pane}`, cx);
       return;
     }
     const byAddress = new Map(all.map(k => [k.address, k]));
-    let address = f?.pane && !f.terminal ? (every.find(a => a.tab === f.tab && a.address === f.agent) ?? every.find(a => a.tab === f.tab))?.address
-      : f?.terminal ?? f?.agent ?? every.find(a => a.focused)?.address;
+    let address = given ?? (f?.pane && !f.terminal ? (every.find(a => a.tab === f.tab && a.address === f.agent) ?? every.find(a => a.tab === f.tab))?.address
+      : f?.terminal ?? f?.agent ?? every.find(a => a.focused)?.address);
+    // One settled from its menu in the background moves nothing, as its card's Settle.
+    const inView = !given || f.terminal === given || every.find(a => a.focused)?.address === given;
     const seen = new Set();
     while (address && !every.some(a => a.address === address) && !seen.has(address)) { seen.add(address); address = byAddress.get(address)?.parent; }
     const a = every.find(a => a.address === address), k = byAddress.get(address);
@@ -139,7 +146,7 @@ export default class Tabs extends View {
     unpin([address]);
     this.remember("Settled", { address, snoozed, pins }, cx);
     const current = focused();
-    if (["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key]) && !this.navigation.nextCard(address)) run("t3-tabs.home");
+    if (inView && ["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key]) && !this.navigation.nextCard(address)) run("t3-tabs.home");
   }
 
   // `<address>:<wake ms>`, as an Inbox card's Snooze: the label, an Undo that wakes it, and the agent in view put away as Settle
@@ -437,7 +444,7 @@ export default class Tabs extends View {
           else if (strip.some(x => x.id === from)) run("tab.select", { id: from });
           cx.notify();
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { detailsFor(this, null, cx); openMenu(this, "tab", { id: c.id, space: space.id }, cx); })
         // Its name's whole width, whatever the tab's: clipped to nothing, it only measures.
         .child(div().id(`name-${c.id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[c.id] = size.width / settings().zoom; cx.notify(); }))
@@ -506,23 +513,18 @@ export default class Tabs extends View {
   crumb(t, ctx, { every, all, under, st, ps, name, narrow, stopPress, button, work }) {
     const space = ctx.space, dim = ctx.held || ctx.away, agentOf = (address) => every.find(a => a.address === address);
     const nameOf = (address) => { const a = agentOf(address); return a ? name(a) : address; };
-    // The title's menu: the agent's, as T3's thread actions, what its card offers (t3-menu's "agent"). It hangs 4 under the title,
-    // left edges together, as T3's (rect.left, rect.bottom + 4) and the layout's other menus. A click while it's open closes it.
+    // The title's menu: the agent's (t3-menu's "agent", the same wherever it's opened), as T3's thread actions. It hangs 4 under
+    // the title, left edges together, as T3's (rect.left, rect.bottom + 4) and the layout's other menus. A click while it's open
+    // closes it.
     const titled = ctx.sub ?? ctx.head;
     const menu = (b) => {
       this.hot = null;
-      const z = Number(settings()?.zoom) || 1, a = agentOf(titled), k = all.find(x => x.address === titled);
-      const own = ownStatus(a?.status, titled, all), kids = under(titled), busy = [own, ...kids].some(s => s === "working" || s === "blocked");
-      openOverlay({ mod: "t3-menu", kind: "popup", width: 220, ...(b ? { at: { x: b.x, y: b.y + b.height + 4 * z } } : {}), props: { tab: "agent", target: {
-        address: titled, settle: busy ? null : stillSettled(k, own, kids) ? "Un-settle" : "Settle", snooze: Boolean(a) && st(a) !== "blocked",
-        pinned: pinList().includes(titled),
-        // The tab's name is its lone agent's, unless Pi names it (name.js): only then would a rename show.
-        rename: ctx.heads.length === 1 && !ctx.sub && !k?.labels?.["pi.session"] ? ctx.tab : null } } });
+      const z = Number(settings()?.zoom) || 1;
+      openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, ...(b ? { at: { x: b.x, y: b.y + b.height + 4 * z } } : {}), props: { tab: "agent", target: { address: titled } } });
     };
-    // A right-click is the menu of what's under it, on the pointer, as everywhere: the space's (as in Spaces), an agent's pane's
-    // (as its header's), so a Close there ends that and nothing beside it.
-    const context = (props, height) => (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); this.hot = null; openOverlay({ mod: "t3-menu", kind: "popup", width: 220, ...(height ? { height } : {}), props }); };
-    const paneMenu = (address) => { const a = agentOf(address); return context({ tab: "pane", target: { pane: a?.pane, terminal: address } }, 260); };
+    // A right-click is the menu of what's under it, on the pointer, as everywhere: the space's (as in Spaces), an agent's (as
+    // its card's).
+    const context = (kind, target) => (_e, cx) => { detailsFor(this, null, cx); openMenu(this, kind, target, cx); };
     const fromTitle = () => { const b = this.titleFrom; this.titleFrom = null; if (!justClosed(this, "t3-menu.closed")) menu(b); };
     const sep = (id) => div().id(id).flex_none().text_color(t.dim).child("/");
     const press = (e, cx) => { stopPress(e, cx); detailsFor(this, null, cx); this.titleFrom = e.bounds; pressed(this); };
@@ -543,7 +545,7 @@ export default class Tabs extends View {
           .mt(4).max_w(320).px(8).py(4).rounded(6).border(1).border_color(t.border).bg(t.chrome).shadow_md().text_size(12).font_normal().text_color(t.foreground)
           .opacity(on ? 1 : 0).top(on ? 0 : -4).transition("opacity", fade).transition("top", fade).child(label)));
       return stop(this, t, id, el.id(id).relative().role("button").accessibility_label(label)
-        .on_mouse_down("left", press).on_click(act(action)).on_mouse_down("right", own ? (_e, cx) => { cx.stop_propagation(); detailsFor(this, null, cx); menu(null); } : paneMenu(agent))
+        .on_mouse_down("left", press).on_click(act(action)).on_mouse_down("right", context("agent", { address: own ? titled : agent }))
         .on_hover((hovered, cx) => { glow(this, id)(hovered, cx); detailsFor(this, hovered && cut ? id : null, cx); })
         .on_mouse_move((e) => detailsAt(this, id, e))
         // Its whole name's width, clipped to nothing.
@@ -573,7 +575,7 @@ export default class Tabs extends View {
     // Its own width and no less (flex weighting alone let the strip win): capped at the row, where its names shorten.
     return h_flex().id("crumb").flex_grow(1).flex_shrink(0).min_w(0).when(this.area > 0, el => el.max_w(this.area)).h_full().gap(12).items_center().text_size(14).font_medium()
       .child(link("crumb-space", `Open a tab in ${space.name}`, h_flex().min_w(0).flex_shrink(1).gap(6).items_center()
-        .text_color(this.hot === "crumb-space" ? t.foreground : t.muted).on_mouse_down("right", context({ tab: "space", target: { id: space.id } }, 260))
+        .text_color(this.hot === "crumb-space" ? t.foreground : t.muted).on_mouse_down("right", context("space", { id: space.id }))
         .child(projectMark(space, 14, t, ps)).child(div().min_w(0).truncate().child(space.name)), () => run("t3-tabs.open-empty")))
       .when(Boolean(ctx.parent), el => el.child(sep("crumb-sep-parent")).child(named("crumb-parent", nameOf(ctx.parent),
         h_flex().min_w(0).flex_shrink(1).items_center().text_color(this.hot === "crumb-parent" ? t.foreground : t.muted)
@@ -596,7 +598,7 @@ export default class Tabs extends View {
         .when(on, el => el.bg(t.selected)).when(!on, el => el.hover(s => s.bg(t.hover))).on_hover(glow(this, id))
         .role("button").accessibility_label(label)
         .on_mouse_down("left", stopPress).on_click(() => focusPane(p.pane))
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "pane", target: { pane: p.pane, terminal: p.terminal } } }); })
+        .on_mouse_down("right", (_e, cx) => openMenu(this, "pane", { pane: p.pane, terminal: p.terminal }, cx))
         .child(div().id(`name-${id}`).absolute().top(0).left(0).h(0).overflow_hidden().whitespace_nowrap().child(label)
           .on_size_change((size, cx) => { this.nameW[id] = size.width / settings().zoom; cx.notify(); }))
         .child(div().size(16).flex_none().flex().items_center().justify_center().child(glyph))

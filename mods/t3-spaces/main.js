@@ -10,6 +10,7 @@ import { spaces, machines, panes, focused, run, openOverlay, exec, hc, theme, sh
 import { projectMark, tint } from "./project.js";
 import { repoFacts } from "./repos.js";
 import { dragGone, glow, hoverKept, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
+import { openMenu } from "./menu.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
 import { KEY } from "./store.js";
@@ -32,7 +33,15 @@ export default class Spaces extends View {
     this.dragKeys = cx.focus_handle();
     // pane.go onto this list (mod.json's "focusable"): the keyboard starts at the heading's button.
     cx.spawn(async (cx) => {
-      for (;;) if (await nextCommand() === "focus") enter(this, cx, "space-new");
+      for (;;) {
+        const command = await nextCommand();
+        if (command === "focus") enter(this, cx, "space-new");
+        // A machine heading's menu (t3-menu): its Connect.
+        else if (command.startsWith("reconnect:")) {
+          const name = command.slice("reconnect:".length), machine = this.machines.find(k => k.name === name) ?? this.reconnecting[name]?.machine;
+          if (machine) this.reconnect(machine, cx);
+        }
+      }
     });
     this.repos = repoFacts({ exec, watchFolder, cx });
     this.opening = new Map(); // repo -> when its checkout was opened from its dim row
@@ -132,11 +141,6 @@ export default class Spaces extends View {
       this.refreshMachines(cx);
       cx.notify();
     });
-  }
-
-  menu(w) {
-    // A popup is as tall as its items; height is only the most.
-    openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "space", target: { id: w.id } } });
   }
 
   orderingDue(now) {
@@ -251,6 +255,8 @@ export default class Spaces extends View {
       const head = hoverKept(this, "overMachine", `machine-${id}`, h_flex().id(`machine-${id}`).h(ROW).flex_none().mx(2).px(8).gap(8).items_center()
         .text_size(12).font_medium().text_color(t.dim)
         .role("button").accessibility_label(`${folded ? "Expand" : "Collapse"} ${m ?? "This computer"}`))
+        // Its + and its Connect in a menu; asleep, with neither, it has none.
+        .when(connected || (rebuilt && !repair?.busy), el => el.on_mouse_down("right", (_e, cx) => openMenu(this, "machine", { machine: m, connected, connect: rebuilt && !repair?.busy }, cx)))
         .on_click((_e, cx) => {
           folded ? this.folded.delete(m) : this.folded.add(m);
           localStorage.setItem("machines.folded", JSON.stringify([...this.folded]));
@@ -362,7 +368,9 @@ export default class Spaces extends View {
     return ghost ? el : stop(this, t, rowId, el.id(rowId)
       .when(!this.drag?.moved, el => el.hover(s => s.bg(t.hover)).active(s => s.bg(t.selected)))
       .role("button").accessibility_label(w.folder ? `Open ${w.name}` : `${this.foldedRepos.has(g.repo) ? "Expand" : "Collapse"} ${w.name}`)
-      .on_click((_e, cx) => { if (w.folder) this.openCheckout(r); else this.toggleRepo(g.repo, cx); cx.notify(); }), 8);
+      .on_click((_e, cx) => { if (w.folder) this.openCheckout(r); else this.toggleRepo(g.repo, cx); cx.notify(); })
+      // A bare repo has nothing to open or copy.
+      .when(Boolean(w.folder), el => el.on_mouse_down("right", (_e, cx) => openMenu(this, "checkout", { folder: w.folder, machine: w.machine ?? null }, cx))), 8);
   }
 
   row({ w, g, tree, kids = 0, hiding = kids }, t, ps, ghost) {
@@ -411,7 +419,7 @@ export default class Spaces extends View {
         run("space.select", { id: w.id });
         cx.notify();
       })
-      .on_mouse_down("right", () => this.menu(w)),
+      .on_mouse_down("right", (_e, cx) => openMenu(this, "space", { id: w.id }, cx)),
     // A space goes by its mouse-up, which a key isn't.
     8, { enter: () => run("space.select", { id: w.id }) });
   }

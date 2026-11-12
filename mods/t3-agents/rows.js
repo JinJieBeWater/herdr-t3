@@ -1,7 +1,7 @@
 // The agents list's rows and group headers, including their leaving ghosts.
 import { div, svg } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, run, openOverlay } from "herdr";
+import { spaces, run } from "herdr";
 import { namer } from "./name.js";
 import { focusAgent } from "./zoom.js";
 import { agentKids, kidStatus } from "./tree.js";
@@ -12,6 +12,7 @@ import { programIcon } from "./program.js";
 import { stop, within } from "./focus.js";
 import { MOTION, foldArrow } from "./motion.js";
 import { pin } from "./pins.js";
+import { openMenu } from "./menu.js";
 
 // T3's one-line row and shelf or folder header, its folders 8 apart and its list's 1px between items (gap-px).
 const ROW = 36, HEAD = 32, HEAD_GAP = 8;
@@ -43,6 +44,9 @@ function agentTree(all, addr, lead = [], seen = new Set()) {
 }
 
 // `ghost`: drawn for its leaving, without handlers or ids the list uses.
+// A row's right-click: the agent's menu (t3-menu), its details card taken down first.
+const agentMenu = (view, address) => (_e, cx) => { detailsFor(view, null, cx); openMenu(view, "agent", { address }, cx); };
+
 function agentSubRow(view, t, s, shown, card, ghost) {
   const k = s.t;
   const st = kidStatus(k, view.listed);
@@ -83,6 +87,7 @@ function agentSubRow(view, t, s, shown, card, ghost) {
       cx.notify();
     })
     .on_mouse_move((e) => detailsAt(view, rowId, e))
+    .on_mouse_down("right", agentMenu(view, k.address))
     .on_click((_e, cx) => {
       // The peek opens where the card stands: no fade, or the two overlap.
       detailsFor(view, null, cx);
@@ -253,6 +258,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
         cx.notify();
       })
       .on_mouse_move((e) => detailsAt(view, a.address, e))
+      .on_mouse_down("right", agentMenu(view, a.address))
       .on_click((_e, cx) => {
         // As a T3 tooltip, a click takes its card down until the pointer comes back.
         detailsFor(view, null, cx);
@@ -315,7 +321,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       .active((s) => s.bg(t.selected))
       .role("button").accessibility_label(`${open ? "Collapse" : "Expand"} ${g.label}`)
       .on_click((_e, cx) => view.toggleFold(g.id, cx, false))
-      .on_mouse_down("right", () => openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "space", target: { id: g.space } } }))), 8);
+      .on_mouse_down("right", (_e, cx) => openMenu(view, "space", { id: g.space }, cx))), 8);
   };
   // A closed group still shows the row you're on, as T3's route row, and hints at the rest.
   const entries = groups.flatMap((g, i) => {

@@ -13,7 +13,7 @@
 - **各处同一个名字**：Inbox 卡片、agents 列表、标签和窗格标题用同一条规则给终端取名：Pi 在跑时用 Pi 会话名，其次是你命名过的标签，再其次是有意义的终端标题，最后是程序名。同一个标签里的两个 Pi 各自显示自己的会话名；Pi 退出后在原处启动的 lazygit 显示为 lazygit，不沿用旧会话名。
 - **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。已 Settle 或 Snooze 的 agent 在各处都不再显示 done 圆点，Lists 也一样；只有 Inbox 会藏起工作中的 Snooze agent，其他地方照样转圈。显示 Inbox 时，标签上不显示任何标记：什么需要你由侧栏来说。
 - **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）；分屏时，你不在的窗格标题栏变暗，同 T3。有子 agent 的 agent 在这里显示子 agent 数量，有需要你的就显示需要你的个数；点开只列出这个 agent 的子 agent，每个一行：程序图标、名字、已工作多久或在等什么，最右是它自己的状态，标记同 Agents；嵌套的缩进。悬停显示详情，选一个就 peek 它。Inbox 里就靠它打开子 agent。zoom 一个分屏的标签，标签栏会展开它的各个窗格，每个一段：点一段就改 zoom 它，点 `⧉` 还原分屏。
-- **Inbox 下的标签栏**：以你正在看的 agent 为主角，也就是 Inbox 亮着的卡片。左边是它的 space、是子 agent 时的父级和它的名字；点 space 去这里的空标签，已有就切过去、没有才新建，这时标签栏右边不再有 `+`；点名字或 `⌄` 打开这个 agent 的菜单：Pin、Snooze、Settle，和卡片上一样，标签里只有它时还有 Rename。右键名字打开同一个菜单，和 T3 一样；右键 space 打开 space 的菜单。这里只写你正在看的 agent：同一标签里的其他 agent 用它的卡片或窗格去。右边分开放：它的子 agent 的标签，再是不含 agent 的标签。焦点在程序上时 agent 留在那里但不亮；从标签栏进入工具标签时它变暗，点它回去。点左边的 space 或按 `cmd-t` 开始新的事之后只有 space，直到你再看某个 agent。这个 agent 的窗格单独显示时，标题里不再写标签栏已经写了的名字。
+- **Inbox 下的标签栏**：以你正在看的 agent 为主角，也就是 Inbox 亮着的卡片。左边是它的 space、是子 agent 时的父级和它的名字；点 space 去这里的空标签，已有就切过去、没有才新建，这时标签栏右边不再有 `+`；点名字或 `⌄` 打开这个 agent 的菜单：Pin、Snooze、Settle，和卡片上一样，标签里只有它时还有 Rename。右键名字或父级打开那个 agent 的菜单，和 T3 一样；右键 space 打开 space 的菜单。这里只写你正在看的 agent：同一标签里的其他 agent 用它的卡片或窗格去。右边分开放：它的子 agent 的标签，再是不含 agent 的标签。焦点在程序上时 agent 留在那里但不亮；从标签栏进入工具标签时它变暗，点它回去。点左边的 space 或按 `cmd-t` 开始新的事之后只有 space，直到你再看某个 agent。这个 agent 的窗格单独显示时，标题里不再写标签栏已经写了的名字。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签（显示 Inbox 时由标签栏左边的 space 承担，先去已有的空标签）；侧栏的 New tab（Lists 和 Inbox 都有）先选 space。侧栏的 New space 在机器多于一台时先问建在哪台；`cmd-n` 不问，直接用当前 space 的机器。不选 agent：在终端里启动。
 - **Home**：Settle 或 Snooze 当前查看的 agent 后，回到一个安静的固定位置，不再跳到下一张卡片，下一步看什么由你决定。想继续跳到下一张，或者把 Home 换成终端或别的 mod，见下面的设置。用这里的按钮或 `cmd-]`、`cmd-p`、`cmd-t` 决定下一步，Undo 能带回刚才的 agent。`cmd-shift-h` 或侧栏左上角的 Herdr logo 可随时进入。它不占 space 序号。它只放一样东西（页面、终端或 mod），没有窗格标题栏：不能 split 也不能关，agent 也不会留在里面。侧栏显示时，空的标签栏会收起，Home 占满高度。
 - **跳转**（`cmd-p`，或 Inbox 的 Search）：每个窗格一行，agent 和程序都在，名字和图标与窗格标题相同（标签名只有你命名过才算），所以输入 `lazygit` 就能直接跳到那个窗格，不管它旁边有没有 agent、在哪个 space。第一行回到上次从这里跳走前的窗格，所以 `cmd-p`、回车就能来回切换。
@@ -21,6 +21,7 @@
 - **其他机器**：机器多于一台时 Spaces 按机器分组，来自其他机器的 Inbox 卡片带服务器标记，标记不单独弹提示。Lists 的 Agents 行只在悬停详情里显示机器名；Inbox 卡片的悬停详情也能查看机器名。在 Herdr 的 Settings 里添加机器；重建过的机器会提供 Connect，New space 会先问建在哪台机器上。
 - **程序图标**：Inbox、Agents、标签、窗格标题、Go to 和子 agent 菜单直接使用 Herdr 官方素材，保留原有留白和配色，图标槽按各组件的尺寸绘制。
 - **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
+- **右键菜单**：代表 agent、space、仓库、机器、标签或窗格的东西，右键都打开它的菜单，在哪里右键都是同一份。agent 的（Inbox 卡片、Agents 行、标签栏里的名字）：Pin、Settle、Snooze 或 Wake（只在 Inbox 下有）、标签里只有它时的 Rename、Copy address、Send back 回父级、Close。space 的（Spaces 或 Agents 里的行、标签栏、Inbox 的筛选）：New tab、Rename、Copy path、New worktree 和 Open worktree、Remove worktree、Close。Spaces 里仓库那一行暗行：Open、Copy path。机器标题：New space here、Connect。标签的：New tab、Rename、Close。窗格的（终端、窗格标题栏）：Split、Zoom、Copy address、Send right-clicks to pane、Close pane。当下做不了的不列出来。
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 和右键菜单的 Close 在有程序运行时先询问，没有程序运行时直接关闭。
 - **Review**（可选，[见扩展](extras.zh-CN.md#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后打开：每个 space 一个，可以是分屏或独立标签，已经开着就跳过去。切换 commit 在窗格自己的顶栏。它的窗格标题（显示 Lists 时还有标签）用布局的状态标记显示分析进度，在 Inbox 里也有一张卡片。
 

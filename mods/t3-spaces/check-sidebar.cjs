@@ -423,6 +423,13 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(inFlow(lit).at(-1).style.text_color, f.theme().foreground, "it lights with its row");
   fire(lit, "on_mouse_down:right", {}, cx);
   assert.deepEqual(plain(f.overlays.pop().props), { tab: "space", target: { id: "s0" } }, "right-click is the space's menu");
+  // An agent's row and a sub-agent's: the agent's menu, as its Inbox card's; it names the agent, the menu reads the rest.
+  fire(find(ag.render(cx), "ag-t0"), "on_mouse_down:right", {}, cx);
+  assert.deepEqual(plain(f.overlays.pop()), { mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "agent", target: { address: "t0" } } });
+  if (find(ag.render(cx), "sub-child")) {
+    fire(find(ag.render(cx), "sub-child"), "on_mouse_down:right", {}, cx);
+    assert.deepEqual(plain(f.overlays.pop().props), { tab: "agent", target: { address: "child" } });
+  }
   fire(group, "on_hover", false, cx);
   // Closed, it says how many it hides and whether one wants you, and still shows the row you're on.
   f.agents().splice(1, 0, { ...f.agents()[0], address: "t9", pane: "p9", seq: 9, focused: false, status: "blocked", title: "stuck" });
@@ -519,6 +526,10 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok(walk(mark).some(n => n.source === "mods/t3-inbox/icons/server.svg"));
   assert.ok(!strings(card).some(s => s.includes("vps")), "the machine isn't spelled out on the card");
   assert.equal(find(find(root, "card-t0"), "machine-t0"), null, "this computer's cards carry no mark");
+  // A right-click is the agent's menu, as its Agents row's; the Inbox on its own has no menu to open.
+  assert.equal(find(root, "card-t0").handlers["on_mouse_down:right"], undefined);
+  fire(find(f.load("t3-inbox", { menu: "t3-menu" }).render(cx), "card-t0"), "on_mouse_down:right", {}, cx);
+  assert.deepEqual(plain(f.overlays.pop()), { mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "agent", target: { address: "t0" } } });
 }
 {
   // Agents' times come from when the tab changed, not when the list next draws, and go on by themselves.
@@ -900,6 +911,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   press("space-s0"); move(40);
   root = sp.render(cx);
   assert.deepEqual(rows(root), ["machine-local", "gap-32", "space-s1", "machine-vps", "space-s2"]);
+  fire(find(sp.render(cx), "machine-local"), "on_mouse_down:right", {}, cx);
+  assert.deepEqual(plain(f.overlays.pop().props), { tab: "machine", target: { machine: null, connected: true, connect: false } }, "a machine's heading: its + in a menu");
+  assert.equal(find(sp.render(cx), "machine-vps").handlers["on_mouse_down:right"], undefined, "asleep, with nothing to offer, no menu");
   assert.ok(!find(root, "space-rows").items.some(n => keyOf(n)?.startsWith("leaving-")), "nothing leaves: the lifted row is still there");
   root = sp.render(cx);
   assert.deepEqual([rows(root)[2], fly(root, "space-s1").style.top], ["gap-32", 33], "then the rows make way, sliding");
@@ -1120,6 +1134,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(moves(), [["space.move", { id: "s0", index: 3 }]], "after the group's last worktree");
     view.landing = null;
     let root = view.render(cx), head = find(root, headId);
+    fire(head, "on_mouse_down:right", {}, cx);
+    assert.deepEqual(plain(o.overlays.pop().props).tab, "checkout", "its menu opens it or copies its path, as T3's project folder");
     assert.ok(strings(head).includes("Engineer"), "named for its repo");
     // Its arrow is a checkout's: dim until itself hovered, in the same column.
     const foldId = `${headId}-fold`;
@@ -2384,7 +2400,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     fire(title(), "on_click", {}, cx);
     const opened = f.overlays.pop();
     assert.deepEqual([opened.mod, opened.props.tab, plain(opened.at)], ["t3-menu", "agent", { x: 300, y: 32 + 4 * z }], "under the title, from its left edge");
-    assert.deepEqual(plain(opened.props.target), { address: "A", settle: "Settle", snooze: true, pinned: false, rename: null }, "the agent's own menu, as T3's thread actions: what its card offers");
+    assert.deepEqual(plain(opened.props.target), { address: "A" }, "the agent's own menu: which agent; t3-menu reads what it offers, as from its card");
     // Pressed again while it's open: the press closed it (its close() stamps t3-menu.closed), so the click doesn't reopen it.
     fire(title(), "on_mouse_down:left", { bounds: { x: 300, y: 8, width: 120, height: 24 }, position: { x: 350, y: 20 } }, cx);
     f.state["t3-menu.closed"] = Date.now();
@@ -2567,6 +2583,25 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.spaces().pop(); f.spaces()[0].active = true;
     await tabs.snooze(`t0:${Date.now() - 1}`, cx);
     assert.equal(f.notifications.pop().title, "Couldn't snooze the agent", "a time gone by is refused, as the card's");
+  }
+
+  // An agent's menu (t3-menu) settles the agent it was opened on: one in the background stays where the person is; the one in
+  // view goes Home, as the key. Wake ends its snooze.
+  {
+    const f = fixture(256), [k0, k2] = f.terminals();
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    f.terminals().splice(2);
+    for (const [a, k] of [[f.agents()[0], k0], [f.agents()[1], k2]]) { a.status = k.status = "done"; k.turn = 1; k.labels = {}; }
+    Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
+    f.spaces()[0].tabs[0].active = true;
+    f.answerHc(args => { if (args[0] === "label") { const k = f.terminals().find(t => t.address === args[1]), i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
+    const tabs = f.load("t3-tabs");
+    await tabs.settle(cx, "vps/t2");
+    assert.deepEqual([k2.labels.settled?.endsWith(":1"), k0.labels.settled, plain(f.calls.splice(0))], [true, undefined, []], "the background one, and nowhere to go");
+    await tabs.settle(cx, "t0");
+    assert.deepEqual([k0.labels.settled?.endsWith(":1"), plain(f.calls.splice(0))], [true, [["t3-tabs.home", {}]]], "the one in view goes Home");
+    await tabs.settle(cx, "vps/t2");
+    assert.equal(k2.labels.settled, "", "again: Un-settle");
   }
 
   // Lists unpin shares the notice, restores only its pin in place, and leaves agent labels and focus alone.

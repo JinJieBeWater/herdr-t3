@@ -18,6 +18,7 @@ import { stopsInit, stopsEnd, stop, focusRoot, within, pressed, justClosed } fro
 import { menuJump, scrollList } from "./list.js";
 import { sidebarParts } from "./sidebar.js";
 import { KEY } from "./store.js";
+import { openMenu } from "./menu.js";
 
 // The list as the layout's other menus (the sort menu, the right-click menu): 4 around 28px rows.
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
@@ -267,8 +268,8 @@ export default class Pane extends View {
       .on_hover((on, cx) => this.headHover(on, cx))
       .on_mouse_move((e) => { pointerMoved(e.position); this.box = e.bounds; })
       .on_click(() => run("pane.focus", { pane }))
-      // The terminal's own right-click menu (the layout's terminal_menu, at its 220×260), whose Copy address gives the address.
-      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, props: { tab: "pane", target: { pane, terminal: p.terminal } } }); })
+      // The terminal's own right-click menu (the layout's terminal_menu), whose Copy address gives the address.
+      .on_mouse_down("right", (_e, cx) => openMenu(this, "pane", { pane, terminal: p.terminal }, cx))
       .child(div().id(`ph-icon-${pane}`).size(16).mr(-4).flex_none().flex().items_center().justify_center().when(quiet, (el) => el.opacity(0.5)).when(Boolean(pic), (el) => el.child(pic)))
       .when(Boolean(name), (el) => el.child(div().id(`ph-name-${pane}`).min_w(0).truncate().font_medium().text_color(p.focused ? t.foreground : t.muted).when(quiet, (e) => e.opacity(0.5)).child(name)))
       .child(div().relative().flex_1().min_w(0).h_full().ml(6).flex().items_center()

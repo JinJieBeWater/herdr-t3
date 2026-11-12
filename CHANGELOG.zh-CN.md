@@ -8,6 +8,8 @@
 
 ## 2026-11-11
 
+- 显示 Inbox 时，Settle 或 Snooze 一个和工作中的 agent 分屏在同一标签里的 agent，它会离开分屏，拆到同一 space 下自己的标签，分屏里只留在工作的。它回来时（有新工作、到点醒来、需要你、你点了 Undo，或它的 agent 退回 shell），会合回原来的分屏，放在最右。你正在看的那个，等你离开后再搬；你正看着时它回来，会带你一起回到它的分屏。
+- 代表 agent、space、仓库、机器、标签或窗格的东西，右键都打开它的菜单，在哪里右键都是同一份。新增右键的有：Inbox 卡片和 settled、snoozed 行，Agents 的 agent 行和子 agent 行，Spaces 里仓库那一行暗行（Open、Copy path），机器标题（New space here、Connect），以及 Inbox 筛选里的 space。agent 菜单依次是 Pin、Settle、Snooze（已 Snooze 时是 Wake；Lists 下只有 Pin），然后是 Rename、Copy address、Send back，最后是 Close。space 菜单多了 New tab 和 Copy path。菜单项照 T3 分组，组之间有分隔线，当下做不了的不列出来。看着别的 agent 时从菜单 Settle 一个 agent，你会留在原处。标签栏里右键父级或变暗的标题，打开的是那个 agent 的菜单，不再是它窗格的菜单。Herdr 自带的主题和快捷键菜单在这里没有入口，已移除。
 - 从标签栏菜单置顶 agent 现在也会结束它的 Snooze，和从 agents 列表置顶一样。背后是置顶、终端标签和各项存储都改成各自只经一处读写。你的置顶、Home、动作和 Inbox 收纳区的展开状态，会在布局第一次启动时自动迁到新的名字下，不需要做什么。
 - 显示 Inbox 时，右上角的标签按名字收紧，间距均匀，贴着 Actions；悬停时图标变成 ×。这里不显示状态标记，所以 Lists 里每个名字后面放标记的那一格去掉了。
 - 显示 Inbox 时，右上角的标签靠 Actions 对齐：放不下时，挨着 Actions 的那些保持完整，远端渐隐，不再是最后一个标签被 Actions 生生切断。Lists 里标签条被裁的一端现在也会渐隐。

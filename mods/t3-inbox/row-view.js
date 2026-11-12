@@ -1,6 +1,6 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Popup } from "gpui-base";
-import { settings } from "herdr";
+import { settings, props } from "herdr";
 import { namer } from "./name.js";
 import { projectMark } from "./project.js";
 import { glow, tip, tipMark, keyOf } from "./tip.js";
@@ -10,6 +10,7 @@ import { programIcon } from "./program.js";
 import { stop, within } from "./focus.js";
 import { snoozeButton } from "./snooze.js";
 import { SLIM } from "./list-view.js";
+import { openMenu } from "./menu.js";
 
 // The settle key: the layout's tab bar holds it; a standalone Inbox, its own command.
 const settleKey = () => keyOf("t3-tabs.settle") ? "t3-tabs.settle" : "t3-inbox.settle";
@@ -52,6 +53,13 @@ export function inboxRowView(view, t, model, actions, drag) {
   const avatar = (id, name, size) => projectMark(sp.find((s) => s.id === id) ?? { name: name ?? "" }, size, t, ps);
   // A control's label in a row belongs to the same group as the row's card, so it too opens at once.
   const delay = detailsLive(view) ? 0 : 150;
+  // A right-click: the agent's menu, as an Agents row's and the tab bar title's; a page's card (Review) is its pane's. The
+  // layout names the menu (props.menu); the Inbox on its own has none.
+  const menuMod = props()?.menu;
+  const context = (a) => (el) => el.on_mouse_down("right", (_e, cx) => {
+    detailsFor(view, null, cx);
+    openMenu(view, a.mod ? "pane" : "agent", a.mod ? { pane: a.pane } : { address: a.address }, cx, menuMod);
+  });
   const machineOf = (a) => a.address.includes("/") ? a.address.split("/")[0] : null;
   const branchOf = (a) => ps.find((p) => p.pane === a.pane)?.branch;
   // A row's details, as T3's thread card: on the row's right from its top. A 1px anchor just outside its top right corner, as
@@ -153,7 +161,7 @@ export function inboxRowView(view, t, model, actions, drag) {
     const base = v_flex().id(`${ghost ? "ghost-" : ""}card-${a.address}`).px(10).py(8).flex_none().rounded(6)
       // A working row recedes until it's hovered or in view, as T3's.
       .when(!ghost, (el) => el.opacity(running(a) && !woke(a) && !on && !over ? 0.7 : 1).transition("opacity", MOTION));
-    return (ghost ? base : row(base, a, details).role("button").accessibility_label(title(a)).on_hover(hover(a))
+    return (ghost ? base : row(base, a, details).role("button").accessibility_label(title(a)).on_hover(hover(a)).when(Boolean(menuMod), context(a))
       .on_click(open(a)).on_size_change((size) => { view.cardH = size.height / zoom; }))
       .when(on, (el) => el.bg(t.selected))
       .when(!on && !ghost && !dragging && !view.sweep?.moved, (el) => el.when(menu, (m) => m.bg(t.hover)).hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
@@ -200,7 +208,7 @@ export function inboxRowView(view, t, model, actions, drag) {
       ? h_flex().gap(4).items_center().text_color(t.accent).child(svg("mods/t3-inbox/icons/alarm-clock.svg").size(12).flex_none().text_color(t.accent)).child(left(napUntil(a), now))
       : !ghost && ago(settledAt(a)[0], now);
     const base = h_flex().id(`${ghost ? "ghost-" : ""}slim-${a.address}`).h(SLIM).px(10).gap(10).flex_none().items_center().rounded(6);
-    return (ghost ? base : row(base, a, details).role("button").accessibility_label(title(a)).on_hover(hover(a)).on_click(open(a)))
+    return (ghost ? base : row(base, a, details).role("button").accessibility_label(title(a)).on_hover(hover(a)).when(Boolean(menuMod), context(a)).on_click(open(a)))
       .when(on, (el) => el.bg(t.selected))
       .when(!on && !ghost && !dragging && !view.sweep?.moved, (el) => el.hover((s) => s.bg(t.hover)).active((s) => s.bg(t.selected)))
       .child(h_flex().id(`slim-mark-${a.address}`).size(16).flex_none().items_center().justify_center().opacity(bright ? 1 : 0.4).transition("opacity", MOTION).child(ghost ? mark : tipMark(view, t, `slim-space-${a.address}`, a.space_name, mark, { delay })))

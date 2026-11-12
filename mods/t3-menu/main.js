@@ -1,18 +1,22 @@
-// Context menus (Herdr's items). Opened as a popup with
-// props { tab: "pane" | "tab" | "space" | "global", target }.
-// ↑/↓, Home, End and typeahead move, Enter runs, Esc closes. An item is [label, command, args];
+// Context menus, one per thing (docs/research/context-menu-plan.md). Opened as a popup with
+// props { tab: "pane" | "tab" | "space" | "agent" | "snooze" | "checkout" | "machine", target }: which thing, not what it offers.
+// ↑/↓, Home, End and typeahead move, Enter runs, Esc closes. An item is [label, command, args, hint, group];
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
-// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Only choose(), T3's measures, the list's moves
-// (shared/list.js, the one way every popup's list moves), a pane's Copy address, close()'s stamp and the Inbox breadcrumb's agent
-// menu and its Snooze times differ from the shipped one.
+// while a program runs and leaves first, so Herdr's pick of a neighbour never shows. Beyond the shipped one: T3's measures and
+// groups, the list's moves (shared/list.js, the one way every popup's list moves), Copy address and path, close()'s stamp, and
+// the agent's, a checkout's and a machine's menus with the Snooze times.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, keys, terminals, spaces, panes, exec, setShared } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, keys, terminals, agents, spaces, panes, exec, setShared, layout } from "herdr";
 import { menuJump } from "./list.js";
+import { openMenu } from "./menu.js";
 import { placeOf } from "./project.js";
 import { presets } from "./snooze-presets.js";
+import { ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
+import { pinList } from "./pins.js";
+import { sidebarParts } from "./sidebar.js";
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -28,6 +32,54 @@ async function checkout(folder, on) {
   return common.stdout.trim() === `${top.stdout.trim()}/.git` ? "main" : "linked";
 }
 
+// The nearest live agent above `address`, through what isn't one (a shell between them), as the tab bar reads it.
+function above(address, all, every) {
+  const byAddress = new Map(all.map((k) => [k.address, k])), seen = new Set();
+  let k = byAddress.get(byAddress.get(address)?.parent);
+  while (k?.state === "live" && !seen.has(k.address)) {
+    const a = every.find((x) => x.address === k.address);
+    if (a) return a;
+    seen.add(k.address);
+    k = byAddress.get(k.parent);
+  }
+  return null;
+}
+
+// An agent's menu, wherever it's right-clicked (an Inbox card, an Agents row, the tab bar's title): what it can do now, as
+// T3's thread actions. Settle and Snooze are the Inbox's (docs/adr/0002): with Lists chosen they aren't offered.
+function agentItems(address) {
+  const all = terminals(), every = agents(), k = all.find((t) => t.address === address), a = every.find((x) => x.address === address);
+  if (!k) return [];
+  const inbox = sidebarParts(layout()).stack?.active !== "lists";
+  const kids = subAgents(every, all)(address), own = ownStatus(a?.status, address, all);
+  const busy = [own, ...kids].some((s) => s === "working" || s === "blocked");
+  const parent = k.parent && all.find((t) => t.address === k.parent);
+  const head = a && above(address, all, every);
+  // Rename names the tab: only for its lone agent, whose name the tab's would be, and not when Pi names it (name.js).
+  const heads = a ? every.filter((x) => x.tab === a.tab && above(x.address, all, every)?.tab !== a.tab) : [];
+  const rename = heads.length === 1 && heads[0] === a && !k.labels?.["pi.session"];
+  const pinned = pinList().includes(address), napping = Number(k.labels?.snoozed) > Date.now();
+  // The settle key acts on the agent in view, so its key shows only there.
+  const inView = every.find((x) => x.focused)?.address === address;
+  return grouped(
+    [
+      ...(a && !head ? [[pinned ? "Unpin" : "Pin", `t3-tabs.${pinned ? "unpin" : "pin"}:${address}`, {}]] : []),
+      ...(inbox && a && !busy ? [[stillSettled(k, own, kids) ? "Un-settle" : "Settle", `t3-tabs.settle:${address}`, {}, inView ? shortcut("t3-tabs.settle") : ""]] : []),
+      ...(inbox && a ? napping ? [["Wake", `t3-tabs.wake:${address}`, {}]] : treeStatus(own, kids) !== "blocked" ? [["Snooze", "snooze", { address }]] : [] : []),
+    ],
+    [
+      ...(rename ? [["Rename", "tab.rename", { id: a.tab }]] : []),
+      ["Copy address", "copy", { text: address }],
+      ...(parent ? [[`Send back to ${parent.name || parent.address}`, "terminal.park", { terminal: address }]] : []),
+    ],
+    a ? [["Close", "pane.close", { pane: a.pane }]] : [],
+  );
+}
+
+// Groups in T3's order (where to, state, names and copies, worktrees, ending), a rule between two that show. An item is
+// [label, command, args, hint, group]; a hint of "" shows none.
+const grouped = (...groups) => groups.flatMap((g, n) => g.map((it) => [it[0], it[1], it[2], it[3], n]));
+
 function items(p, git) {
   p = p ?? {};
   const tg = p.target ?? {};
@@ -42,78 +94,77 @@ function items(p, git) {
       // A terminal shown outside a tab (a layout terminal block, a window) has
       // no pane to split, zoom or close: its pane is the block's id.
       const inTab = panes().some((pane) => pane.pane === tg.pane);
-      return [
-        ...(inTab
+      return grouped(
+        inTab
           ? [
               ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
               ["Split down", "pane.split", { direction: "down", pane: tg.pane }],
               ["Zoom", "pane.zoom", { pane: tg.pane }],
             ]
-          : []),
-        // To tell an agent which terminal: the address shows where a key would.
-        ...(term ? [["Copy address", "copy", { text: term.address }]] : []),
-        ...(term
-          ? [
-              toProgram
-                ? ["Use Herdr right-click menu", "terminal.right_click", { terminal: term.address, to: "menu" }]
-                : ["Send right-clicks to pane", "terminal.right_click", { terminal: term.address, to: "program" }],
-            ]
-          : []),
-        ...(parent ? [[`Send back to ${parent.name || parent.address}`, "terminal.park", { terminal: term.address }]] : []),
-        ...(inTab ? [["Close pane", "pane.close", { pane: tg.pane }]] : []),
-      ];
+          : [],
+        [
+          // To tell an agent which terminal: the address shows where a key would.
+          ...(term ? [["Copy address", "copy", { text: term.address }]] : []),
+          ...(term
+            ? [
+                toProgram
+                  ? ["Use Herdr right-click menu", "terminal.right_click", { terminal: term.address, to: "menu" }]
+                  : ["Send right-clicks to pane", "terminal.right_click", { terminal: term.address, to: "program" }],
+              ]
+            : []),
+          ...(parent ? [[`Send back to ${parent.name || parent.address}`, "terminal.park", { terminal: term.address }]] : []),
+        ],
+        inTab ? [["Close pane", "pane.close", { pane: tg.pane }]] : [],
+      );
     }
     case "tab": {
       // Where its space is now, as the space's mark and folder say; with no space named, tab.new takes the active one.
       const sp = spaces().find((s) => (tg.space ? s.id === tg.space : s.active));
-      return [
-        ["Rename", "tab.rename", { id: tg.id }],
-        ["New tab", "tab.new", { space: tg.space, folder: sp && placeOf(sp, panes()) }],
-        ["Close", "tab.close", { id: tg.id }],
-      ];
+      return grouped(
+        [["New tab", "tab.new", { space: tg.space, folder: sp && placeOf(sp, panes()) }]],
+        [["Rename", "tab.rename", { id: tg.id }]],
+        [["Close", "tab.close", { id: tg.id }]],
+      );
     }
-    // The Inbox breadcrumb title's: what the agent's card offers, as T3's thread actions, by what t3-tabs found it can do (its
-    // props): Settle or Un-settle the agent in view (the key's), Snooze unless it needs the person, Pin, and Rename for a tab's lone
-    // agent, whose name the tab's would be.
     case "agent":
-      return [
-        ...(tg.rename ? [["Rename", "tab.rename", { id: tg.rename }]] : []),
-        [tg.pinned ? "Unpin" : "Pin", `t3-tabs.${tg.pinned ? "unpin" : "pin"}:${tg.address}`, {}],
-        ...(tg.snooze ? [["Snooze", "snooze", { address: tg.address }]] : []),
-        ...(tg.settle ? [[tg.settle, "t3-tabs.settle", {}]] : []),
-      ];
+      return agentItems(tg.address);
     // Its Snooze: the card's times, when each wakes on the right, then Custom (the Inbox's dialog).
     case "snooze":
-      return [
-        ...presets(Date.now()).map((p) => [p.label, `t3-tabs.snooze:${tg.address}:${p.at}`, {}, p.when]),
-        ["Custom…", "custom-snooze", { address: tg.address }],
-      ];
-    case "space":
-      return [
-        ["Rename", "space.rename", { id: tg.id }],
-        ...(git ? [["New worktree", "worktree", { space: tg.id, action: "new" }], ["Open worktree", "worktree", { space: tg.id, action: "open" }]] : []),
-        ...(git === "linked" ? [["Remove worktree", "worktree", { space: tg.id, action: "remove" }]] : []),
-        ["Close", "space.close", { id: tg.id }],
-      ];
+      return grouped(presets(Date.now()).map((p) => [p.label, `t3-tabs.snooze:${tg.address}:${p.at}`, {}, p.when]), [["Custom…", "custom-snooze", { address: tg.address }]]);
+    case "space": {
+      const s = spaces().find((s) => s.id === tg.id);
+      const folder = s && place(s);
+      return grouped(
+        [["New tab", "tab.new", { space: tg.id, folder }]],
+        [["Rename", "space.rename", { id: tg.id }], ...(folder ? [["Copy path", "copy", { text: folder }, ""]] : [])],
+        git ? [["New worktree", "worktree", { space: tg.id, action: "new" }], ["Open worktree", "worktree", { space: tg.id, action: "open" }]] : [],
+        [...(git === "linked" ? [["Remove worktree", "worktree", { space: tg.id, action: "remove" }]] : []), ["Close", "space.close", { id: tg.id }]],
+      );
+    }
+    // A repo's checkout with no space open: the dim row in Spaces, as T3's project folder (New thread, Copy path).
+    case "checkout":
+      return grouped([["Open", "space.new", { folder: tg.folder, machine: tg.machine ?? "" }]], [["Copy path", "copy", { text: tg.folder }, ""]]);
+    // A machine's heading in Spaces: its + and, when its core was rebuilt, its Connect.
+    case "machine":
+      return grouped([
+        ...(tg.connected ? [["New space here", "space.new", { machine: tg.machine ?? "" }]] : []),
+        ...(tg.connect ? [["Connect", `t3-spaces.reconnect:${tg.machine}`, {}]] : []),
+      ]);
     default:
-      return [
-        ["New space", "space.new", {}],
-        ["Keybinds", "app.help", {}],
-        ["Theme: graphite", "app.theme", { name: "graphite" }],
-        ["Theme: ink", "app.theme", { name: "ink" }],
-        ["Theme: moss", "app.theme", { name: "moss" }],
-        ["Theme: atom one dark", "app.theme", { name: "atom-one-dark" }],
-      ];
+      return [];
   }
 }
 
 // Null: a Snooze time, drawn as the card's menu draws them, with none.
-function menuIcon(command, label) {
+function menuIcon(command, label, args) {
   if (command === "copy") return "mods/t3-menu/icons/copy.svg";
   if (command.startsWith("t3-tabs.snooze:") || command === "custom-snooze") return null;
-  const own = command === "t3-tabs.settle" ? (label === "Settle" ? "check" : "undo") : command.startsWith("t3-tabs.pin:") ? "pin" : command.startsWith("t3-tabs.unpin:") ? "pin-off" : command === "snooze" ? "alarm-clock" : null;
+  const own = command.startsWith("t3-tabs.settle") ? (label === "Settle" ? "check" : "undo") : command.startsWith("t3-tabs.pin:") ? "pin"
+    : command.startsWith("t3-tabs.unpin:") ? "pin-off" : command === "snooze" ? "alarm-clock" : command.startsWith("t3-tabs.wake:") ? "alarm-clock-off" : null;
   if (own) return `mods/t3-menu/icons/${own}.svg`;
-  const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
+  const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command === "space.new" && args?.folder ? "folder"
+    : command.endsWith(".new") ? "plus" : command === "worktree" ? (args?.action === "remove" ? "x" : "git-branch") : command.startsWith("t3-spaces.reconnect:") ? "server"
+    : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
 
@@ -158,7 +209,7 @@ export default class Menu extends View {
     else if (it[1] === "pane.close") run(`t3-tabs.close-pane:${it[2].pane}`);
     else if (it[1] === "copy") cx.write_to_clipboard(it[2].text);
     // Its times, where the pointer is: on this row.
-    else if (it[1] === "snooze") openOverlay({ mod: "t3-menu", kind: "popup", width: 220, props: { tab: "snooze", target: { address: it[2].address } } });
+    else if (it[1] === "snooze") openMenu(null, "snooze", { address: it[2].address }, cx);
     else if (it[1] === "custom-snooze") openOverlay({ mod: "t3-inbox", kind: "dialog", frame: "none", width: 384, props: { customSnooze: it[2].address, answer: "t3-tabs.snooze" } });
     else run(it[1], it[2]);
   }
@@ -187,7 +238,7 @@ export default class Menu extends View {
       .children(
         list.map((it, i) =>
           v_flex()
-            .when(i > 0 && (it[1].endsWith(".close") || it[1] === "app.help" || it[1] === "t3-tabs.settle" || it[1] === "custom-snooze" || (it[1] === "app.theme" && list[i - 1][1] !== "app.theme")), el => el.child(div().mx(8).my(4).h(1).bg(t.border)))
+            .when(i > 0 && list[i - 1][4] !== it[4], el => el.child(div().mx(8).my(4).h(1).bg(t.border)))
             .child(h_flex()
             .id(`mi-${i}`)
             .h(28)
@@ -196,12 +247,13 @@ export default class Menu extends View {
             .rounded(4)
             .items_center()
             .justify_between()
-            .text_color(t.foreground)
+            // Only what deletes something is red, in words, as T3's destructive item: a Close asks first while a program runs.
+            .text_color(it[1] === "worktree" && it[2].action === "remove" ? t.ansi1 : t.foreground)
             .when(i === this.at, (el) => el.bg(t.selected))
             .on_hover((on, cx) => { const to = on ? i : this.at === i ? -1 : this.at; if (to !== this.at) { this.at = to; cx.notify(); } })
             .on_click((_e, cx) => this.choose(i, cx))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
-            .when(Boolean(menuIcon(it[1], it[0])), (el) => el.child(svg(menuIcon(it[1], it[0])).size(16).mx(-2).flex_none().text_color(t.muted)))
+            .when(Boolean(menuIcon(it[1], it[0], it[2])), (el) => el.child(svg(menuIcon(it[1], it[0], it[2])).size(16).mx(-2).flex_none().text_color(t.muted)))
             .child(div().flex_1().min_w(0).truncate().child(it[0]))
             .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[3] ?? (it[1] === "copy" ? it[2].text : shortcut(it[1], it[2]))))),
         ),
