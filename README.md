@@ -84,7 +84,7 @@ No network requests.
 
 - **pulls.review**: a Review bar and the panel's Review page.
 - **Theme export for Pi**: Pi's colors follow Herdr's.
-- **asciicn wallpaper**: Home in your theme's colours: four pictures built in, or preview your image in Braille, Blocks or Dots before applying it. Import Studio `.ans` files too, including Unicode, leading-dash and hidden filenames. A failed Apply keeps your preview for retry; deleting an added wallpaper asks for confirmation and stops its conversion. See [the extras](docs/user/extras.md#asciicn-wallpaper).
+- **asciicn wallpaper**: Home in your theme's colours: four pictures built in, or add your image in Dots or a Studio `.ans` with its character style intact. Before Apply, preview Fill or Fit, drag to position, zoom 1–4× and reset; keyboard controls work too. Apply fixes the composition; Cancel keeps your previous wallpaper. Unicode, leading-dash and hidden filenames work. A failed Apply keeps your preview for retry; deletion asks for confirmation and stops its conversion. See [the extras](docs/user/extras.md#asciicn-wallpaper).
 - **Themes**: Catppuccin and T3 Code, light and dark.
 
 How to add them: [the extras](docs/user/extras.md).

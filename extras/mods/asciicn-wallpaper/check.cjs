@@ -5,13 +5,14 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 function element() {
-  const n = { items: [], handlers: {} };
+  const n = { items: [], handlers: {}, props: {} };
   const p = new Proxy(n, { get: (o, k) => k in o ? o[k] : (...a) => {
     if (k === "child") n.items.push(a[0]);
     else if (k === "children") n.items.push(...a[0]);
     else if (k === "when") { if (a[0]) a[1](p); }
     else if (k === "id") n.key = a[0];
-    else if (k.startsWith("on_")) n.handlers[k] = a[0];
+    else if (k.startsWith("on_")) n.handlers[k] = a.at(-1);
+    else n.props[k] = a[0];
     return p;
   } });
   return p;
@@ -25,8 +26,10 @@ const files = new Map(), calls = [], overlays = [], messages = [], state = {};
 let pick = "/photos/Coast.png", failDelete = false, holdWrite = null;
 let beforePublish = null, afterPublish = null, failPart = false;
 const ok = (stdout = "") => ({ code: 0, stdout, stderr: "" });
+const slider = () => ({ current: 1, handlers: {}, value() { return this.current; }, set_value(v) { this.current = v; }, on(name, fn) { this.handlers[name] = fn; }, release() {} });
 const env = {
   View: class {}, div: element, svg: element, h_flex: element, v_flex: element,
+  SliderState: { new: slider }, Slider: { new: element }, SliderTrack: { new: element }, SliderIndicator: { new: element }, SliderThumb: { new: element },
   SCENES: [{ id: "lighthouse", name: "Lighthouse", width: 2, height: 1, focus: 0.5, tiles: [] }],
   VERSION: 1, appHome: () => "/app", settings: () => ({}), theme: () => ({}), window: () => ({ platform: "macos" }),
   stopsInit: view => { view.fs = {}; }, stopsEnd() {}, enter() {}, focusRoot: (_view, el) => el, stop: (_view, _t, _id, el) => el,
@@ -80,14 +83,14 @@ const env = {
   },
   imageGrid: () => ({ width: 4, height: 4 }),
   decodeBmp: function* () { return { width: 4, height: 4, rgba: [] }; },
-  imageAns: function* (_pixels, style) { yield null; return ({ braille: "⡇", blocks: "▌", dots: "●" })[style] + "\n"; },
+  imageAns: function* (_pixels, style) { yield null; return style === undefined ? "●\n" : "old style\n"; },
   convert: function* (text) {
     if (!text.trim()) return { width: 2, height: 1 };
     yield { file: "tile.svg", svg: text.slice(0, 100), tint: "foreground", opacity: 1, x0: 0, x1: 2, y0: 0, y1: 1 };
     return { width: 2, height: 1 };
   },
 };
-const cx = { notify() {}, spawn: fn => fn(cx), timer: { after: (_ms, fn) => fn(cx) } };
+const cx = { notify() {}, stop_propagation() {}, spawn: fn => fn(cx), timer: { after: (_ms, fn) => fn(cx) } };
 const context = vm.createContext(env);
 vm.runInContext(source, context);
 const mod = new context.Mod();
@@ -98,22 +101,68 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
 (async () => {
   await mod.choose(cx);
   assert.ok(mod.draft?.scene, "choosing a photo previews it before saving");
+  assert.equal(mod.draft.text, "●\n", "pictures always preview as Dots");
   assert.deepEqual(saved(), []);
   assert.equal(state["asciicn-wallpaper.scene"], undefined, "preview does not change the shared choice");
   assert.ok(find(mod.render(cx), "wallpaper-preview"));
-  await mod.previewStyle("dots", cx);
-  assert.equal(mod.draft.text, "●\n");
+  assert.equal(find(mod.render(cx), "wallpaper-style-braille"), undefined);
+  const initial = mod.render(cx);
+  assert.equal(find(initial, `wallpaper-${mod.draft.scene.id}`).props.w, 1600, "Fill covers the pane without stretching");
+  mod.scale.handlers.change(2, cx);
+  assert.equal(find(mod.render(cx), `wallpaper-${mod.draft.scene.id}`).props.w, 3200, "native slider scales the existing tiles");
+  find(mod.render(cx), "wallpaper-reset").handlers.on_click({}, cx);
+  assert.equal(mod.draft.placement.zoom, 1);
   await mod.cancelPreview(cx);
   assert.equal(mod.draft, null);
   assert.deepEqual([...files.keys()], [], "cancel removes preview tiles");
 
   await mod.choose(cx);
-  await mod.previewStyle("blocks", cx);
+  const card = mod.render(cx);
+  find(card, "wallpaper-contain").handlers.on_click({}, cx);
+  let picture = find(mod.render(cx), `wallpaper-${mod.draft.scene.id}`);
+  assert.equal(picture.props.w, 1000, "contain fits the entire 2:1 drawing in a 1000×800 pane");
+  assert.equal(picture.props.h, 500);
+  assert.equal(picture.props.bottom, 150);
+  const canvas = find(mod.render(cx), "wallpaper-compose");
+  canvas.handlers.on_mouse_down({ position: { x: 300, y: 300 } }, cx);
+  canvas.handlers.on_mouse_move({ position: { x: 300, y: 450 } }, cx);
+  canvas.handlers.on_mouse_up({}, cx);
+  assert.equal(mod.draft.placement.y, 1, "dragging moves the drawing to the lower edge");
+  canvas.handlers.on_key_down({ key: "up", modifiers: {} }, cx);
+  assert.ok(mod.draft.placement.y < 1, "keyboard arrows move the composition too");
+  canvas.handlers.on_mouse_down({ position: { x: 300, y: 300 } }, cx);
+  canvas.handlers.on_mouse_move({ position: { x: 300, y: 9000 } }, cx);
+  canvas.handlers.on_hover(false, cx);
+  canvas.handlers.on_mouse_move({ position: { x: 300, y: -9000 } }, cx);
+  assert.equal(mod.draft.placement.y, 1, "leaving the canvas releases drag and positions stay bounded");
+  const writes = calls.length;
+  find(mod.render(cx), "wallpaper-zoom").handlers.on_key_down({ key: "right", modifiers: {} }, cx);
+  assert.equal(mod.draft.placement.zoom, 1.1, "zoom is keyboard accessible");
+  assert.equal(calls.length, writes, "position and zoom never rewrite files");
+  find(mod.render(cx), "wallpaper-zoom").handlers.on_key_down({ key: "left", modifiers: {} }, cx);
+  assert.equal(state["asciicn-wallpaper.placements"], undefined, "draft composition is memory only");
   await mod.applyPreview(cx);
   assert.equal(mod.draft, null);
   assert.deepEqual(saved(), ["/app/asciicn-wallpaper/Coast.ans"]);
-  assert.equal(files.get(saved()[0]), "▌\n");
+  assert.equal(files.get(saved()[0]), "●\n");
   assert.equal(state["asciicn-wallpaper.scene"], "file:Coast");
+  assert.equal(state["asciicn-wallpaper.placements"]["file:Coast"].y, 1);
+  picture = find(mod.render(cx), "wallpaper-file:Coast");
+  assert.equal(picture.props.bottom, 0, "Apply keeps the exact preview composition");
+  assert.equal(find(mod.render(cx), "wallpaper-compose"), undefined, "saved wallpapers cannot be dragged");
+  mod.width = 600;
+  picture = find(mod.render(cx), "wallpaper-file:Coast");
+  assert.equal(picture.props.w, 600, "resizing recalculates the fit from saved relative parameters");
+  assert.equal(picture.props.h, 300);
+  assert.equal(picture.props.bottom, 0);
+  mod.width = 1000;
+  const kept = state["asciicn-wallpaper.placements"]["file:Coast"];
+  state["asciicn-wallpaper.placements"]["file:Coast"] = { mode: "invalid", zoom: Infinity, x: -2, y: 3 };
+  picture = find(mod.render(cx), "wallpaper-file:Coast");
+  assert.equal(picture.props.w, 1600, "invalid stored modes and zoom use safe Fill defaults");
+  assert.equal(picture.props.left, "0%", "stored horizontal alignment is bounded");
+  assert.equal(picture.props.bottom, 0, "stored vertical alignment is bounded");
+  state["asciicn-wallpaper.placements"]["file:Coast"] = kept;
   assert.equal([...files.keys()].some(f => f.includes("/.preview/")), false);
 
   pick = null;
@@ -122,7 +171,9 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
   assert.equal(messages.length, 0);
   pick = "/photos/Studio.ans";
   await mod.choose(cx, true);
-  assert.equal(mod.draft, null, ".ans imports retain their finished drawing without an image style step");
+  assert.ok(mod.draft, ".ans imports preview their composition before saving");
+  assert.equal(saved().length, 1);
+  await mod.applyPreview(cx);
   assert.equal(saved().length, 2);
 
   // A detailed Dots image exceeds the host's per-write limit even at the usual image grid.
@@ -139,6 +190,7 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
   files.set("/photos/Studio detailed.ans", large);
   pick = "/photos/Studio detailed.ans";
   await mod.choose(cx, true);
+  await mod.applyPreview(cx);
   assert.ok(files.get("/app/asciicn-wallpaper/Studio detailed.ans") === large, "Studio imports share the large-file save path");
   assert.equal(state["asciicn-wallpaper.scene"], "file:Studio detailed");
   files.delete("/photos/Studio detailed.ans");
@@ -169,7 +221,11 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
   };
   const applying = mod.applyPreview(cx);
   for (let n = 0; n < 80; n++) await Promise.resolve();
-  try { assert.ok(mod.draft, "Apply keeps the preview until another Home finishes the drawing"); }
+  try {
+    assert.ok(mod.draft, "Apply keeps the preview until another Home finishes the drawing");
+    assert.equal(state["asciicn-wallpaper.scene"], "file:Studio detailed", "conversion must not select early");
+    assert.equal(state["asciicn-wallpaper.placements"]["file:Shared"], undefined, "composition commits only after the cache is ready");
+  }
   finally { finishOther(); }
   await applying; await otherJob;
   afterPublish = null;
@@ -184,28 +240,29 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
   beforePublish = null;
   assert.ok(mod.draft, "an atomic save conflict keeps the preview available to retry");
   assert.equal(files.get(collision), "another Home's picture", "a concurrent save is never overwritten");
-  assert.equal(mod.picking, null, "failed save clears even a suffixed pending name");
   assert.equal(state["asciicn-wallpaper.scene"], "file:Shared");
   await mod.cancelPreview(cx);
   files.delete(collision);
 
+  pick = "/photos/Cancelled.png";
   await mod.choose(cx);
-  let finishStyle;
-  holdWrite = new Promise(r => { finishStyle = r; });
-  const oldStyle = mod.previewStyle("blocks", cx);
-  for (let n = 0; n < 20; n++) await Promise.resolve();
-  await mod.previewStyle("dots", cx);
-  finishStyle(); await oldStyle;
-  assert.equal(mod.draft.text, "●\n", "a slow old style cannot overwrite the latest style");
-  assert.equal(mod.draft.busy, false);
+  let releaseApply;
+  const pendingPublish = new Promise(r => { releaseApply = r; });
+  afterPublish = async () => pendingPublish;
+  const cancelledApply = mod.applyPreview(cx);
+  for (let n = 0; n < 40; n++) await Promise.resolve();
   await mod.cancelPreview(cx);
+  releaseApply(); await cancelledApply;
+  afterPublish = null;
+  assert.equal(state["asciicn-wallpaper.scene"], "file:Shared", "cancelled Apply cannot select a late result");
+  assert.equal(state["asciicn-wallpaper.placements"]["file:Cancelled"], undefined);
+  assert.equal(files.has("/app/asciicn-wallpaper/Cancelled.ans"), true, "cancellation keeps a source already published by Apply");
 
   pick = "/photos/Coast.png";
-  await mod.choose(cx);
   let release;
   holdWrite = new Promise(r => { release = r; });
-  const stale = mod.previewStyle("dots", cx);
-  await Promise.resolve(); await Promise.resolve();
+  const stale = mod.choose(cx);
+  for (let n = 0; n < 40; n++) await Promise.resolve();
   await mod.cancelPreview(cx);
   release(); await stale;
   assert.equal(mod.draft, null, "late drawing cannot reopen a cancelled preview");
@@ -229,5 +286,7 @@ const saved = () => [...files.keys()].filter(f => f.endsWith(".ans"));
   await mod.remove(scene, cx);
   assert.equal(files.has("/app/asciicn-wallpaper/Coast.ans"), false);
   assert.notEqual(state["asciicn-wallpaper.scene"], "file:Coast");
+  assert.equal(state["asciicn-wallpaper.placements"]["file:Coast"], undefined, "confirmed deletion removes only that composition");
+  assert.ok(state["asciicn-wallpaper.placements"]["file:Shared"]);
   console.log("ok: wallpaper preview, apply, cancel, stale jobs, .ans import and confirmed deletion.");
 })().catch(e => { console.error(e); process.exitCode = 1; });

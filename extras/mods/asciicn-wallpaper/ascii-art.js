@@ -196,9 +196,9 @@ export function* convert(text, aspect) {
   return { width: round(columns * aspect), height: lines.length, aspect };
 }
 
-// ---- An image, without the Studio: the frame its default for an image in Braille and true colour would make.
+// ---- An image, without the Studio: square halftone dots in true colour.
 
-/** The sample grid for a `width` by `height` image: rows of Braille cells, columns as its aspect needs, 2×4 pixels a cell. */
+/** The sample grid: 96 bands of 4 pixels, columns as the image's aspect needs; each Dots cell samples 2×2 pixels. */
 export function imageGrid(width, height) {
   const rows = 96, columns = Math.max(16, Math.min(480, Math.round((2 * rows * width) / height)));
   return { columns, rows, width: columns * 2, height: rows * 4 };
@@ -255,58 +255,27 @@ function* imageLevels({ width, height, rgba }) {
 }
 
 /**
- * Pixels on an `imageGrid` as asciicn's mapTones draws an image in Braille and true colour (lib/ascii/frame.ts):
- * autoLevels first, each pixel lighting its dot past 0.5, each cell the average colour of its eight.
+ * Pixels on an `imageGrid` as square halftone dots in true colour: autoLevels first, then each 2×2 cell's average
+ * tone picks its dot size and its four pixels' average colour supplies the ink.
  * Yields `null` now and then; returns the `.ans` text, as `toAnsi` writes it.
  */
-export function* brailleAns(pixels) {
+export function* imageAns(pixels) {
   const { width, height, rgba } = pixels;
   const { tones, from, scale } = yield* imageLevels(pixels);
   // Averages rounded as asciicn's colour bytes are, by a clamped array: half to even.
-  const columns = width / 2, rows = height / 4, lines = [], avg = new Uint8ClampedArray(3);
-  for (let row = 0; row < rows; row++) {
-    let line = "", current = "";
-    for (let column = 0; column < columns; column++) {
-      let mask = 0, r = 0, g = 0, b = 0;
-      for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 2; dx++) {
-        const i = (row * 4 + dy) * width + column * 2 + dx;
-        if ((tones[i] - from) * scale > 0.5) mask |= BRAILLE_BITS[dy][dx];
-        r += rgba[i * 4]; g += rgba[i * 4 + 1]; b += rgba[i * 4 + 2];
-      }
-      if (!mask) { line += " "; continue; }
-      avg[0] = r / 8; avg[1] = g / 8; avg[2] = b / 8;
-      const code = `\x1b[38;2;${avg[0]};${avg[1]};${avg[2]}m`;
-      if (code !== current) { line += code; current = code; }
-      line += String.fromCodePoint(0x2800 + mask);
-    }
-    lines.push(line + (current ? "\x1b[0m" : ""));
-    if (row % 16 === 15) yield null;
-  }
-  return lines.join("\n") + "\n";
-}
-
-/** The same image grid as Braille, spatial quadrants, or 2×2-pixel square halftone cells, all in truecolour `.ans`. */
-export function* imageAns(pixels, style = "braille") {
-  if (style === "braille") return yield* brailleAns(pixels);
-  if (style !== "blocks" && style !== "dots") throw new Error("unknown image style");
-  const { width, height, rgba } = pixels;
-  const { tones, from, scale } = yield* imageLevels(pixels);
-  const cellHeight = style === "dots" ? 2 : 4, lines = [], avg = new Uint8ClampedArray(3);
-  for (let row = 0; row < height / cellHeight; row++) {
+  const lines = [], avg = new Uint8ClampedArray(3);
+  for (let row = 0; row < height / 2; row++) {
     let line = "", current = "";
     for (let column = 0; column < width / 2; column++) {
-      const quadrants = [0, 0, 0, 0];
-      let r = 0, g = 0, b = 0;
-      for (let dy = 0; dy < cellHeight; dy++) for (let dx = 0; dx < 2; dx++) {
-        const i = (row * cellHeight + dy) * width + column * 2 + dx;
-        quadrants[Math.floor(dy / 2) * 2 + dx] += Math.max(0, Math.min(1, (tones[i] - from) * scale)) / 2;
+      let tone = 0, r = 0, g = 0, b = 0;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+        const i = (row * 2 + dy) * width + column * 2 + dx;
+        tone += Math.max(0, Math.min(1, (tones[i] - from) * scale)) / 4;
         r += rgba[i * 4]; g += rgba[i * 4 + 1]; b += rgba[i * 4 + 2];
       }
-      const mask = quadrants.reduce((mask, tone, bit) => tone > 0.5 ? mask | (1 << bit) : mask, 0);
-      const tone = (quadrants[0] + quadrants[1]) / 2;
-      const glyph = style === "dots" ? (tone > 0 ? "·∙•⦁●"[Math.min(4, Math.floor(tone * 5))] : " ") : " ▘▝▀▖▌▞▛▗▚▐▜▄▙▟█"[mask];
+      const glyph = tone > 0 ? "·∙•⦁●"[Math.min(4, Math.floor(tone * 5))] : " ";
       if (glyph === " ") { line += " "; continue; }
-      avg[0] = r / (cellHeight * 2); avg[1] = g / (cellHeight * 2); avg[2] = b / (cellHeight * 2);
+      avg[0] = r / 4; avg[1] = g / 4; avg[2] = b / 4;
       const code = `\x1b[38;2;${avg[0]};${avg[1]};${avg[2]}m`;
       if (code !== current) { line += code; current = code; }
       line += glyph;

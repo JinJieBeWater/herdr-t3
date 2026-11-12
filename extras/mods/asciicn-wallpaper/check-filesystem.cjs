@@ -14,6 +14,7 @@ const sourceFile = async relative => revision
   : fs.readFile(path.join(repo, relative), "utf8");
 const FRAME = "\x1b[38;2;200;150;220m●\x1b[0m\n";
 const KEY = "asciicn-wallpaper.scene";
+const PLACEMENTS = "asciicn-wallpaper.placements";
 const pending = () => {
   let resolve;
   const promise = new Promise(r => { resolve = r; });
@@ -27,9 +28,10 @@ async function runtime(base) {
   await fs.mkdir(path.join(dir, ".preview"), { recursive: true });
   const state = {}, messages = [], overlays = [], hooks = {};
   const art = await sourceFile("extras/mods/asciicn-wallpaper/ascii-art.js");
-  const engine = vm.runInNewContext(art.replace(/^export /gm, "") + "; ({VERSION,convert,imageGrid,decodeBmp,imageAns:typeof imageAns==='undefined'?null:imageAns,brailleAns})");
+  const engine = vm.runInNewContext(art.replace(/^export /gm, "") + "; ({VERSION,convert,imageGrid,decodeBmp,imageAns})");
   const env = {
     ...engine, View: class {},
+    SliderState: { new: () => ({ set_value() {}, on() {}, release() {} }) },
     SCENES: [{ id: "lighthouse", name: "Lighthouse", width: 1, height: 1, focus: 0.5, tiles: [] }],
     appHome: () => app, window: () => ({ platform: "macos" }), settings: () => ({}), theme: () => ({}),
     stopsInit: v => { v.fs = {}; }, stopsEnd() {}, enter() {},
@@ -40,6 +42,7 @@ async function runtime(base) {
       try {
         const body = await fs.readFile(file, "utf8");
         if (Buffer.byteLength(body) > 1024 * 1024) throw new Error("Text file exceeds 1 MiB");
+        await hooks.afterRead?.(file, body);
         return body;
       } catch (e) { if (e.code === "ENOENT") return null; throw e; }
     },
@@ -95,10 +98,14 @@ async function runtime(base) {
         await fs.writeFile(input, FRAME);
         r.hooks.picked = input;
         await h.choose(r.cx, true);
+        assert.ok(h.draft, "the picker opens composition before publishing the Studio file");
+        assert.deepEqual((await fs.readdir(r.dir)).filter(n => n.endsWith(".ans")), []);
+        await h.applyPreview(r.cx);
         record({ filename, saved: (await fs.readdir(r.dir)).filter(n => n.endsWith(".ans")), imported: h.imported.map(s => s.id), selected: r.state[KEY] ?? null, notices: r.messages.length });
         assert.equal(h.imported.length, 1, "a valid named .ans must be visible after successful import");
         assert.equal(h.imported[0].name + ".ans", filename, "valid names are preserved");
         await h.choose(r.cx, true);
+        await h.applyPreview(r.cx);
         assert.equal(h.imported.length, 2, "reimport allocates a distinct name, including hidden names");
       });
     }
@@ -144,7 +151,8 @@ async function runtime(base) {
       const r = await runtime(path.join(root, "cache-failure")), h = r.home();
       const out = path.join(r.dir, ".preview", "draft");
       const scene = await h.drawTiles(FRAME, out, r.cx);
-      h.draft = { id: "draft", name: "Fail", dir: out, style: "dots", version: 1,
+      const composed = { mode: "contain", zoom: 1.5, x: 0.2, y: 0.9 };
+      h.draft = { id: "draft", name: "Fail", dir: out, placement: composed,
         scene: { ...scene, id: "preview:draft:1", name: "Fail", base: "asciicn-wallpaper/.preview/draft", out },
         text: FRAME, busy: false, applying: false, error: null };
       r.hooks.beforeWrite = async file => { if (file.includes("/.tiles/Fail/") && file.endsWith(".svg")) throw new Error("ENOSPC: simulated cache write failure"); };
@@ -152,17 +160,29 @@ async function runtime(base) {
       record({ sourceSaved: await exists(path.join(r.dir, "Fail.ans")), draftRetained: !!h.draft, previousPreviewFilesRetained: await exists(out), imported: h.imported.map(s => s.id), selected: r.state[KEY] ?? null, notices: r.messages.map(m => m.title) });
       assert.ok(h.draft, "failed final conversion must retain the working preview for recovery");
       assert.equal(h.draft.applying, false);
+      assert.equal(r.state[PLACEMENTS], undefined, "cache failure cannot publish draft composition");
+      assert.equal(h.draft.placement, composed, "cache failure keeps composition for retry");
       assert.equal(await exists(out), true);
       r.hooks.beforeWrite = null;
       await h.applyPreview(r.cx);
       assert.equal(h.draft, null, "retry selects the completed import and clears the draft");
       assert.deepEqual((await fs.readdir(r.dir)).filter(n => n.endsWith(".ans")), ["Fail.ans"], "retry reuses the saved source");
       assert.equal(r.state[KEY], "file:Fail");
+      assert.deepEqual(JSON.parse(JSON.stringify(r.state[PLACEMENTS]["file:Fail"])), composed);
+      const reopened = r.home();
+      await reopened.refresh(r.cx);
+      assert.deepEqual(JSON.parse(JSON.stringify(r.state[PLACEMENTS]["file:Fail"])), composed, "another Home keeps the saved composition");
+      await fs.rm(path.join(r.dir, ".tiles/Fail"), { recursive: true });
+      await reopened.refresh(r.cx);
+      assert.deepEqual(JSON.parse(JSON.stringify(r.state[PLACEMENTS]["file:Fail"])), composed, "cache rebuild keeps composition");
+      await fs.unlink(path.join(r.dir, "Fail.ans"));
+      await reopened.refresh(r.cx);
+      assert.equal(r.state[PLACEMENTS]["file:Fail"], undefined, "confirmed missing source removes its composition");
     });
     await test("retry-preserves-replaced-source", async record => {
       const r = await runtime(path.join(root, "replaced")), h = r.home();
       const out = path.join(r.dir, ".preview", "draft"), scene = await h.drawTiles(FRAME, out, r.cx);
-      h.draft = { name: "Replaced", dir: out, scene, text: FRAME, busy: false, applying: false, error: null };
+      h.draft = { name: "Replaced", dir: out, scene, text: FRAME, placement: { mode: "cover", zoom: 1, x: 0.5, y: 0.5 }, busy: false, applying: false, error: null };
       r.hooks.beforeWrite = async file => { if (file.includes("/.tiles/")) throw new Error("cache failure"); };
       await h.applyPreview(r.cx);
       assert.ok(h.draft);
@@ -174,6 +194,57 @@ async function runtime(base) {
       assert.equal(r.state[KEY], "file:Replaced 2");
       assert.equal(h.draft, null);
       record({ externallyReplacedSourceKept: true, draftSavedSeparately: true });
+    });
+    await test("delete-before-apply-commit", async record => {
+      const r = await runtime(path.join(root, "delete-apply")), a = r.home(), b = r.home();
+      const input = path.join(root, "import.ans");
+      await fs.writeFile(input, FRAME);
+      r.hooks.picked = input;
+      await a.choose(r.cx, true);
+      await a.saveFile("Tracked", FRAME);
+      await a.refresh(r.cx); await b.refresh(r.cx);
+      a.draft.savedName = "Tracked";
+      r.state[KEY] = "lighthouse";
+      const read = pending(), release = pending();
+      r.hooks.afterRead = async file => {
+        if (!file.endsWith("/Tracked/scene.json")) return;
+        r.hooks.afterRead = null;
+        read.resolve(); await release.promise;
+      };
+      const applying = a.applyPreview(r.cx);
+      await read.promise;
+      await b.remove(b.imported[0], r.cx);
+      release.resolve(); await applying;
+      assert.equal(await exists(path.join(r.dir, "Tracked.ans")), false);
+      assert.equal(r.state[KEY], "lighthouse", "late Apply cannot reselect a deleted wallpaper");
+      assert.equal(r.state[PLACEMENTS]?.["file:Tracked"], undefined, "late Apply cannot restore deleted metadata");
+      assert.ok(a.draft, "the original preview stays available to save under a new name");
+      record({ deletedSourceKeptAbsent: true, lateApplyDidNotCommit: true });
+    });
+    await test("old-scan-preserves-new-composition", async record => {
+      const r = await runtime(path.join(root, "scan-placement")), a = r.home(), b = r.home();
+      const input = path.join(root, "replace.ans");
+      await fs.writeFile(input, FRAME);
+      r.hooks.picked = input;
+      await b.choose(r.cx, true);
+      b.draft.name = "Reused";
+      const composed = { mode: "contain", zoom: 2, x: 0.2, y: 0.8 };
+      r.state[PLACEMENTS] = { "file:Reused": composed };
+      b.draft.placement = composed;
+      const scanned = pending(), release = pending();
+      r.hooks.afterExec = async (cmd, args) => {
+        if (cmd !== "sh" || !args[1].startsWith("for f")) return;
+        r.hooks.afterExec = null;
+        scanned.resolve(); await release.promise;
+      };
+      const old = a.refresh(r.cx);
+      await scanned.promise;
+      await b.applyPreview(r.cx);
+      assert.equal(r.state[KEY], "file:Reused");
+      release.resolve(); await old;
+      assert.ok(r.state[PLACEMENTS]["file:Reused"], "a new composition survives the old scan");
+      assert.deepEqual(JSON.parse(JSON.stringify(r.state[PLACEMENTS]["file:Reused"])), composed, "an old missing-source scan cannot clear a newly saved identical composition");
+      record({ newlySavedCompositionKept: true });
     });
     await test("source-changes-during-conversion", async record => {
       const r = await runtime(path.join(root, "changed")), h = r.home();
