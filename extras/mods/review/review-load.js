@@ -1,6 +1,7 @@
 import { exec, theme, watchFolder } from "herdr";
 import { review } from "./daemon.js";
 import { clipRows } from "./rows.js";
+import { TREE } from "./files.js";
 import { pref } from "./controls.js";
 
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
@@ -194,14 +195,14 @@ export function applyReview(view, r) {
   if (view.review && !view.switching && said(r) === said(view.review)) return;
   for (const path of view.full.keys()) if (old.get(path)?.sha !== r.files.find(file => file.path === path)?.sha) view.full.delete(path);
   const switched = view.switching;
-  if (switched) { view.forget(); view.scrolledDownBy = 0; view.settling = null; }
+  if (switched) { view.forget(); view.settling = null; }
   view.review = r;
   if (r.analysis.state === "running") view.startingUntil = 0;
   // The diff's commits, for stepping through them while one is shown on its own (its page lists only itself).
   if (view.page === view.base) view.baseCommits = r.commits;
   // Another list - another page or worktree, a read after a failed one, an analysis's groups - starts at its top: the
   // scroll handle keeps the old list's place. forget() leaves no group, so every one of them comes through here.
-  if (!r.groups.some(g => g.key === view.groupKey)) { view.groupKey = r.groups[0]?.key ?? null; view.scroll.scroll_to_item(0); view.treeOf = null; }
+  if (!r.groups.some(g => g.key === view.groupKey)) { view.groupKey = r.groups[0]?.key ?? null; view.scroll.scroll_to_item(0); view.treeOf = null; view.scrollTop = { ...view.scrollTop, [TREE]: 0 }; }
   view.version++;
 }
 
@@ -229,3 +230,4 @@ export function analyzeReview(view, cx, force) {
     view.load(cx);
   });
 }
+

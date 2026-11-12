@@ -10,8 +10,8 @@ const { execFileSync } = require("node:child_process");
 const load = (file) => fs.readFileSync(path.join(__dirname, file), "utf8")
   .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (async function|function|const) /gm, "$1 ").replace(/^export \{[\s\S]*?\};?\s*$/m, "");
 const context = vm.createContext({});
-vm.runInContext([load("vendor/ufuzzy.js"), load("file-icons-data.js"), load("file-icons.js"), load("model.js"),
-  "globalThis.m = { join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, naturalCompare, sortEntries, parseListing, parseStatus, parseIgnored, markIgnored, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, ticket };"].join("\n"), context);
+vm.runInContext([load("vendor/ufuzzy.js"), load("file-icons-data.js"), load("file-icons.js"), load("file-tree.js"), load("model.js"),
+  "globalThis.m = { join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, naturalCompare, sortEntries, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket };"].join("\n"), context);
 const m = context.m;
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -47,10 +47,15 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
   assert.deepEqual(plain([...ignored]), ["dist"]);
   const tree = { entries: new Map([["", [{ name: "dist", dir: true }, { name: "src", dir: true }, { name: "a.md", dir: false }]], ["dist", [{ name: "x.js", dir: false }]], ["src", [{ name: "b.js", dir: false }]]]),
     expanded: new Set(["dist", "src"]), ignored, marks: new Map([["src/c.js", "D"], ["src/b.js", "M"]]) };
-  assert.deepEqual(plain(m.treeRows(tree)).map((r) => [r.path, r.depth, r.ignored, r.gone]),
+  const rows = (st) => m.treeRows(m.folderEntries(st), (p) => st.expanded.has(p));
+  assert.deepEqual(plain(rows(tree)).map((r) => [r.path, r.depth, r.ignored, r.gone]),
     [["dist", 0, true, false], ["dist/x.js", 1, true, false], ["src", 0, false, false], ["src/b.js", 1, false, false], ["src/c.js", 1, false, true], ["a.md", 0, false, false]]);
   tree.expanded.delete("src");
-  assert.equal(m.treeRows(tree).some((r) => r.path.startsWith("src/")), false, "a closed folder's rows go");
+  assert.equal(rows(tree).some((r) => r.path.startsWith("src/")), false, "a closed folder's rows go");
+  // A folder holding just a folder is one row with it once open, ignored as its last folder is.
+  const chain = { entries: new Map([["", [{ name: "a", dir: true }]], ["a", [{ name: "b", dir: true }]], ["a/b", [{ name: "c.js", dir: false }]]]),
+    expanded: new Set(["a", "a/b"]), ignored: new Set(["a/b"]), marks: new Map() };
+  assert.deepEqual(plain(rows(chain)).map((r) => [r.path, r.name, r.ignored]), [["a/b", "a / b", true], ["a/b/c.js", "c.js", true]]);
 
   // Search: every term, case aside; a longer query starts from the last one's matches; it pauses every 5000, and stops
   // when a newer query comes.
@@ -84,6 +89,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
   for (const [name, lang] of [["a.tsx", "js"], ["a.jsonc", "json"], ["a.yml", "yaml"], ["a.rs", "rust"], ["Makefile", "makefile"], ["GNUmakefile", "makefile"], ["a.hpp", "cpp"], ["a.toml", undefined], ["a.md", undefined], ["Dockerfile", undefined]])
     assert.equal(m.languageOf(name), lang, name);
   assert.match(m.readProblem(new Error("Text file exceeds 1 MiB")), /larger than 1 MB/);
+  assert.deepEqual([m.failedRead("This file can't be read."), m.failedRead("This image can't be read."), m.failedRead("This is a binary file, so there's no text to show."), m.failedRead("This file was deleted.")], [true, true, false, false], "a failed read is retried from the error bar; what a file is, said on the page");
   assert.match(m.readProblem("stream did not contain valid UTF-8"), /binary/);
   assert.match(m.readProblem("Is a directory (os error 21)"), /can't be read/);
 

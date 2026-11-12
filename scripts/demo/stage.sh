@@ -128,7 +128,7 @@ EOF
     { "id": "dev", "name": "Dev server", "command": "npm run dev", "icon": "play", "place": "tab" },
     { "id": "lint", "name": "Lint", "command": "npm run lint", "icon": "lint", "place": "down" }
   ] },
-  "review.prefs": { "autoAnalyze": true, "fileList": "tree", "split": true }
+  "review.prefs": { "autoAnalyze": true, "split": true }
 }
 EOF
 }

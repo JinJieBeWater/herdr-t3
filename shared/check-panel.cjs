@@ -48,4 +48,10 @@ ui.space = "a"; frame(); frame(); togglePanel("files"); frame(); toggleWide(); f
 assert.deepEqual(shows(), { panel: true, page: "files", work: true }, "narrowed in b after a wide switch, it stays narrow");
 ui.space = "a"; frame(); frame();
 assert.deepEqual(shows(), { panel: true, page: "files", work: false }, "a as it was left, wide");
+// The stack that holds the pages is a card, as the work column's panes; the pages paint none of their own, so it shows through (docs/adr/0013).
+{
+  const find = (node, id) => node.id === id ? node : (node.children ?? []).map((c) => find(c, id)).find(Boolean);
+  const layout = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "../layouts/herdr-t3.json"), "utf8"));
+  assert.deepEqual([find(layout.root ?? layout, "panel-body").background, find(layout.root ?? layout, "panel-body").radius], ["background", 8], "the panel's pages sit on a card, as the panes on the left");
+}
 console.log("ok: each space keeps its panel's open, page and wide; switching restores it, the head keeps it while wide.");

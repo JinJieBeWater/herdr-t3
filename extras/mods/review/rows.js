@@ -3,7 +3,7 @@
 
 // Heights on one scale: 20 a code line, 24 a hunk, 28 a group, 32 a file.
 export const ROW = 20, HUNK = 24, GROUP = 28, FILE = 32, NOTE_LINE = 18;
-// One column of 12px JetBrains Mono; past MAX_COLUMNS characters a line is cut, not scrolled to.
+// One column of 12px code font; past MAX_COLUMNS characters a line is cut, not scrolled to.
 export const CHAR = 7.25, MAX_COLUMNS = 1000;
 // Code lines go to the list in runs of up to this many, one item each: Herdr's v_virtual_list takes at most 10000 items,
 // which a group of a few thousand changed lines passes when each line is one.
@@ -137,43 +137,6 @@ export function noteHeight(text, width, anchored) {
   const columns = Math.max(20, Math.floor(noteWidth(width, anchored) / 7));
   const lines = text.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil([...line].reduce((w, c) => w + (c.charCodeAt(0) > 0x2e7f ? 2 : 1), 0) / columns)), 0);
   return lines * NOTE_LINE + (anchored ? 16 : 12);
-}
-
-/**
- * A group's files as sidebar rows, ported from the app's `fileRows` (components/diff/file-rows.ts):
- * "list" is one row per path; "tree" nests them under folders, a chain of single-child folders
- * as one row (`packages/cli/src`), in the order the diffs show. Missing paths trail, as there.
- */
-export function fileRows(paths, missing, layout) {
-  const leaves = [...paths.map(path => ({ path, missing: false })), ...missing.map(path => ({ path, missing: true }))];
-  if (layout === "list") return leaves.map(({ path, missing }) => ({ key: `${missing ? "missing" : "file"}:${path}`, depth: 0, type: missing ? "missing" : "file", name: path, path }));
-  const root = { name: "", children: new Map() };
-  for (const { path, missing } of leaves) {
-    const segments = path.split("/");
-    let node = root;
-    for (const segment of segments.slice(0, -1)) {
-      if (!node.children.has(segment)) node.children.set(segment, { name: segment, children: new Map() });
-      node = node.children.get(segment);
-    }
-    node.children.set(`\0file:${path}`, { name: segments.at(-1), children: new Map(), path, missing });
-  }
-  const collect = (node) => [...node.children.values()].flatMap(child => child.path ? (child.missing ? [] : [child.path]) : collect(child));
-  const rows = [];
-  const walk = (node, depth, prefix) => {
-    for (const [key, child] of node.children) {
-      if (child.path) { rows.push({ key: `${child.missing ? "missing" : "file"}:${child.path}`, depth, type: child.missing ? "missing" : "file", name: child.name, path: child.path }); continue; }
-      let name = child.name, tail = child, at = `${prefix}${key}/`;
-      while (tail.children.size === 1) {
-        const [onlyKey, only] = [...tail.children.entries()][0];
-        if (only.path) break;
-        name += `/${only.name}`; tail = only; at += `${onlyKey}/`;
-      }
-      rows.push({ key: `folder:${at}`, depth, type: "folder", name, paths: collect(tail) });
-      walk(tail, depth + 1, at);
-    }
-  };
-  walk(root, 0, "");
-  return rows;
 }
 
 /** Every file a group shows: its own, then its children's. */

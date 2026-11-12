@@ -1,8 +1,10 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { LU, MONO, COMPACT, button, iconButton, popover } from "./controls.js";
-import { donut } from "./groups.js";
+import { LU, COMPACT, button, iconButton, popover } from "./controls.js";
 import { scopeHeader } from "./scope.js";
+import { navToggle, ghostButton, setNavOpen } from "./nav-column.js";
+import { panelState } from "./panel.js";
+import { openInFiles } from "./files.js";
 
 // As the app's describeProgress, but the file's name only: the agent's paths run long, often through its own scratch folder.
 function progressText(progress) {
@@ -40,16 +42,16 @@ export function head(view) {
   if (r) {
     const files = r.files, done = files.filter(f => f.reviewed).length;
     parts.push({ text: `+${files.reduce((n, f) => n + f.additions, 0)}`, color: "ansi2" }, { text: `−${files.reduce((n, f) => n + f.deletions, 0)}`, color: "ansi1" },
-      { text: `${done}/${files.length}`, color: "dim", donut: files.length ? done / files.length : 1 });
+      { text: `${done}/${files.length}`, color: "dim" });
     const a = r.analysis, { error } = analysisStatus(view);
     const compact = view.width < COMPACT;
     // As the app's DiffAnalyzeButton, the analysis's state is the button's: running or failed, it opens the status; without
     // a spinner of its own while running, as the pane's header marks the review working;
     // an agent, the settings. An analysis of an older version (the app has none) says so after its Re-analyze.
-    const analyze = !a.agent ? { text: "Set up agent", lead: `${LU}/key-round.svg`, primary: true, run: (cx) => view.togglePopup("settings", cx) }
+    const analyze = !a.agent ? { text: "Set up agent", lead: `${LU}/key-round.svg`, run: (cx) => view.togglePopup("settings", cx) }
       : view.analyzing() ? { text: "Analyzing…", run: (cx) => view.togglePopup("status", cx) }
       : error ? { text: "Analysis failed", lead: `${LU}/circle-alert.svg`, color: "ansi1", run: (cx) => view.togglePopup("status", cx) }
-      : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${LU}/sparkles.svg`, primary: a.state === "none", note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => view.analyze(cx, a.state === "current") };
+      : { text: a.state === "none" ? "Analyze with AI" : "Re-analyze", lead: `${LU}/sparkles.svg`, note: a.state === "outdated" ? "(outdated)" : null, run: (cx) => view.analyze(cx, a.state === "current") };
     buttons.push({ id: "analyze", ...analyze, ...compact && { text: null, icon: analyze.lead ?? `${LU}/sparkles.svg`, label: analyze.text } });
     buttons.push({ id: "fold-menu", icon: `${LU}/chevrons-up-down.svg`, label: "Expand or collapse files", active: view.popup === "fold", run: (cx) => view.togglePopup("fold", cx) });
   }
@@ -62,16 +64,17 @@ export function head(view) {
 export function header(view, t, head) {
   // As T3's DiffPanel header: the scope and what it compares, the counts as its DiffStatLabel, then the tools. Narrow, the
   // words give way and the buttons never.
-  return h_flex().id("review-header").h(40).flex_none().px(16).gap(8).items_center().overflow_hidden().border_b(1).border_color(t.border).bg(t.chrome)
+  return h_flex().id("review-header").h(40).flex_none().px(8).gap(8).items_center().overflow_hidden().border_b(1).border_color(t.border)
     .child(scopeHeader(view, t))
     // The counts hold, as T3's stats beside its tools: a long commit subject truncates instead.
-    .when(head.parts.length > 0, el => el.child(h_flex().id("review-counts").flex_none().gap(4).items_center().text_size(11).font_family(MONO)
-      .children(head.parts.map(p => h_flex().gap(4).items_center().text_color(t[p.color] ?? t.dim)
-        .when(p.donut !== undefined, el => el.ml(4).child(donut(t, p.donut)))
-        .child(div().child(p.text))))))
+    .when(head.parts.length > 0, el => el.child(h_flex().id("review-counts").flex_none().gap(4).items_center().text_size(11)
+      .children(head.parts.map(p => div().text_color(t[p.color] ?? t.dim).child(p.text)))))
     .child(div().flex_1())
     .child(h_flex().flex_none().gap(4).items_center()
       .children(head.buttons.map(b => b.text
-        ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], primary: b.primary, note: b.note })
-        : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active }))));
+        ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], note: b.note })
+        : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active })))
+      // The file in front, in the Files page, while the panel has it; last, the file tree's switch, greyed with no files to list.
+      .when(Boolean(view.review && view.current) && panelState().pages.includes("files"), el => el.child(ghostButton(t, "mods/review", "review-open-files", "files", "Open in Files", (cx) => openInFiles(view, view.current, cx))))
+      .child(navToggle(t, "mods/review", "review-nav-toggle", view.navOpen, (cx) => { view.panel.navOpen = !view.navOpen; setNavOpen(view.panel.navOpen); cx.notify(); }, !view.review || view.navEmpty())));
 }

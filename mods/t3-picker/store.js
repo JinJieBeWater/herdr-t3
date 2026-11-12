@@ -5,7 +5,7 @@ import { shared, setShared } from "herdr";
 // Every shared key the layout's mods keep data under: `<mod>.<name>` when one mod writes it, `t3.<name>` when several do or it
 // is the layout's own. Code names a key only through here.
 export const KEY = {
-  settings: "t3.settings", pins: "t3.pins", notice: "t3.notice", focus: "t3.focus", spaceIcons: "t3.spaceIcons", agentOrder: "t3.agentOrder", panels: "t3.panels",
+  settings: "t3.settings", pins: "t3.pins", notice: "t3.notice", focus: "t3.focus", spaceIcons: "t3.spaceIcons", agentOrder: "t3.agentOrder", panels: "t3.panels", navWidth: "t3.navWidth", filesReveal: "t3-files.reveal",
   home: "t3-tabs.home", undo: "t3-tabs.undo", unsettled: "t3-tabs.unsettled", compact: "t3-tabs.compact", recent: "t3-tabs.recent",
   inboxRows: "t3-inbox.rows", agentsRows: "t3-agents.rows", actions: "t3-actions.actions", menuChain: "t3-menu.chain",
 };

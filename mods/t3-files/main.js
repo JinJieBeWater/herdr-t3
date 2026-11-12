@@ -2,20 +2,26 @@
 // one block: the file picked on the left, the tree on the right by the window's edge, the split between them dragged.
 // One copy serves every space, here or on another machine: what each one shows is kept by its id.
 import { View, div, svg, image } from "gpui-kit";
-import { v_flex, h_flex, h_resizable, resizable_panel, v_virtual_list, VirtualListScrollHandle, InputState, Input, Editor, EditorState, TextView } from "gpui-base";
-import { spaces, agents, nextCommand, exec, readTextFile, watchFolder, theme, settings, shared, setShared, run, notify, appHome, window } from "herdr";
+import { v_flex, h_flex, InputState, Input, Editor, EditorState, TextView } from "gpui-base";
+import { spaces, nextCommand, exec, readTextFile, watchFolder, theme, settings, shared, setShared, appHome, window } from "herdr";
 import * as fs from "fs/promises";
 import uFuzzy from "./vendor/ufuzzy.js";
 import { panelState, showPage, hidePanel } from "./panel.js";
 import { step, scrollList } from "./list.js";
-import { fileIcon, folderIcon } from "./file-icons.js";
-import { FILE_STATUS, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, treeRows, terms, narrows,
-  filterPaths, rank, kindOf, languageOf, readProblem, ticket } from "./model.js";
+import { fileIcon } from "./file-icons.js";
+import { TREE_ROW, treeRows, rowAt, treeKey, treeList, treeRow, revealRow } from "./file-tree.js";
+import { withNav, navToggle, foldAllButton, ghostButton, navOpen, setNavOpen } from "./nav-column.js";
+import { fileMenuItems, fileMenuView, agentFor, runCommon } from "./file-menu.js";
+import { KEY } from "./store.js";
+import { loadingState, emptyState, errorBar } from "./panel-states.js";
+import { LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, terms, narrows,
+  filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket } from "./model.js";
 
 const MOD = "mods/t3-files";
-const MONO = "JetBrains Mono"; // Review's, for paths
-const ROW = 28, RESULTS = 200, REMOTE_IMAGE = 512 * 1024, TEXT_MAX = 1024 * 1024;
-const TREE = 280, TREE_MIN = 200;
+const RESULTS = 200, REMOTE_IMAGE = 512 * 1024, TEXT_MAX = 1024 * 1024;
+// Expand all lists at most this many folders, Git-ignored ones left closed, as T3's.
+// shortcut: a folder past it stays closed; list more in batches if a big repo wants it all.
+const EXPAND_MAX = 200;
 // Here, the folder watch tells; a missed event waits for this. Another machine has no watch: it's asked this often while shown.
 const LOCAL_EVERY = 60000, REMOTE_EVERY = 10000;
 const CACHE = "cache/t3-files"; // under the app's home, where image() can read
@@ -29,18 +35,21 @@ const zoom = () => Number(settings()?.zoom) || 1;
 // What one space's page knows and shows.
 function blank(sp) {
   return { id: sp.id, root: sp.folder, on: sp.machine ?? null, git: undefined, real: null, entries: new Map(), expanded: new Set(), ignored: new Set(),
-    marks: new Map(), dirs: new Set(), version: 0, file: null, view: null, lit: null, query: "", at: -1, results: null, total: 0, paths: null };
+    marks: new Map(), dirs: new Set(), version: 0, file: null, view: null, lit: null, focus: null, query: "", at: -1, results: null, total: 0, paths: null };
 }
 
 export default class Files extends View {
   init(_props, cx) {
     this.states = new Map();
     this.uf = new (/** @type {any} */ (uFuzzy))();
-    this.treeScroll = VirtualListScrollHandle.new();
+    this.treeHandle = cx.focus_handle();
     this.search = InputState.new({ placeholder: "Search files" });
     this.search.on("change", (_e, cx) => { const st = this.current(); if (st && this.search.value() !== st.query) this.find(st, this.search.value(), cx); });
     this.search.on("submit", (_e, cx) => { const st = this.current(); const r = st?.results?.[st.at]; if (r) this.pick(st, r.path, cx); });
     this.handle = cx.focus_handle();
+    this.navOpen = navOpen();
+    // An Open in Files this young when the page starts is the press that opened it; an older one was already shown.
+    this.revealed = Date.now() - 10000;
     this.cached = new Set();
     cx.spawn(async () => { await exec("rm", ["-rf", `${appHome()}/${CACHE}`]).catch(() => null); });
     cx.timer.every(REMOTE_EVERY, (cx) => this.poll(cx));
@@ -180,7 +189,16 @@ export default class Files extends View {
     if (st.expanded.has(path)) st.expanded.delete(path);
     else {
       st.expanded.add(path);
-      cx.spawn(async (cx) => { await this.list(st, path); cx.notify(); });
+      // A folder holding just a folder opens with it, as the tree shows them as one row.
+      cx.spawn(async (cx) => {
+        for (let p = path, kids; p && this.live(st); p = kids?.length === 1 && kids[0].dir ? join(p, kids[0].name) : null) {
+          await this.list(st, p);
+          kids = st.entries.get(p);
+          if (kids?.length === 1 && kids[0].dir) st.expanded.add(join(p, kids[0].name));
+        }
+        this.changed(st);
+        cx.notify();
+      });
     }
     st.lit = null;
     this.changed(st);
@@ -194,8 +212,9 @@ export default class Files extends View {
     this.changed(st);
     cx.spawn(async (cx) => {
       for (const p of ancestors(path)) if (!st.entries.has(p)) await this.list(st, p);
-      const i = path ? this.rows(st).findIndex((r) => r.path === path) : 0;
-      if (i >= 0 && this.live(st)) this.treeScroll.scroll_to_item(i, path ? "center" : "top");
+      // The space's folder is the tree's top.
+      const id = `t3-files-tree-${st.id}`;
+      if (this.live(st)) { if (path) revealRow(this, id, path); else this.scrollTop = { ...this.scrollTop, [id]: 0 }; }
       cx.notify();
     });
     cx.notify();
@@ -220,6 +239,7 @@ export default class Files extends View {
     const fresh = ticket(st, "file"), abs = join(st.root, rel), kind = kindOf(rel);
     cx.spawn(async (cx) => {
       const view = await this.read(st, abs, rel, kind, fresh).catch(() => ({ problem: "This file can't be read." }));
+      if (view?.problem) view.failed = failedRead(view.problem);
       if (!view || !fresh() || st.file !== rel) return;
       const old = st.view;
       if (again && old && view.text !== undefined && view.text === old.text) return;
@@ -322,43 +342,40 @@ export default class Files extends View {
     cx.notify();
   }
 
-  // The agent a mention goes to: the space's focused one, else one in its tab in view, else its first.
-  agentFor(st) {
-    const sp = spaces().find((s) => s.id === st.id), mine = agents().filter((a) => a.space === st.id), tab = sp?.tabs.find((c) => c.active)?.id;
-    return mine.find((a) => a.focused) ?? mine.find((a) => a.tab === tab) ?? mine[0] ?? null;
-  }
-
+  // A row's menu: file-menu.js's items, Open in Review here.
   menuItems(st, path) {
-    const abs = join(st.root, path), agent = this.agentFor(st), mac = window()?.platform === "macos", dir = this.rows(st).find((r) => r.path === path)?.dir;
-    return [
-      { label: "Copy path", icon: "copy", hint: st.on ?? "", run: (cx) => cx.write_to_clipboard(abs) },
-      { label: "Copy relative path", icon: "copy", run: (cx) => cx.write_to_clipboard(path) },
-      ...(agent ? [{ label: "Mention in agent", icon: "at-sign", hint: agent.program?.name ?? "", run: (cx) => this.mention(path, agent.address, cx) }] : []),
-      ...(!st.on && mac ? [{ label: "Reveal in Finder", icon: "folder-open", run: () => exec("open", ["-R", abs]) }] : []),
-      ...(!st.on && !dir && (mac || window()?.platform === "linux") ? [{ label: "Open in default app", icon: "external-link", run: () => exec(mac ? "open" : "xdg-open", [abs]) }] : []),
-    ];
+    const abs = join(st.root, path), agent = agentFor(st.id), platform = window()?.platform, dir = Boolean(this.rows(st).find((r) => r.path === path)?.dir);
+    return fileMenuItems({ page: "files", dir, remote: Boolean(st.on), platform, agent, changed: this.reviewable(st, path) }).map((it) => ({ ...it,
+      hint: it.id === "copy-path" ? st.on ?? "" : it.id === "mention" ? agent.program?.name ?? "" : "",
+      run: (cx) => { if (it.id === "open-review") this.openInReview(st, path); else runCommon(it.id, { abs, rel: path, agent, platform }, cx); } }));
   }
 
-  // Into the agent's input as a paste, never sent: the clipboard carries it and gets its text back. Paste reads the clipboard a
-  // moment later, so it's put back after 150 ms. A clipboard holding no text (an image) isn't touched.
-  mention(path, address, cx) {
-    const previous = cx.read_from_clipboard();
-    if (previous === undefined) {
-      notify({ title: "The clipboard holds something that isn't text", body: "Mention in agent would replace it. Copy relative path, then paste it yourself.", level: "warning" });
-      return;
-    }
-    cx.write_to_clipboard(`@${path} `);
-    run("pane.focus", { terminal: address });
-    run("terminal.paste");
-    cx.spawn(async (cx) => { await cx.sleep(150); cx.write_to_clipboard(previous); });
+  // A change Review shows: here, in Git, with the panel having Review.
+  reviewable(st, path) { return Boolean(path && !st.on && st.git && st.marks.has(path) && panelState().pages.includes("review")); }
+
+  // Review, on this file: `review.reveal` (its path from the Git top) for it to go to, then its page.
+  openInReview(st, path) {
+    setShared("review.reveal", { space: st.id, file: st.git.prefix + path, n: Date.now() });
+    showPage("review");
   }
 
-  rows(st) { return st.rows ??= treeRows(st); }
+  // Review's Open in Files (`t3-files.reveal`, its path from the Git top): this page shows, the file opens and the tree goes to
+  // it. Once Git is known, just after this draw; an ask from before this copy started was already shown.
+  follow(st, cx) {
+    const ask = shared(KEY.filesReveal);
+    if (ask?.space !== st.id || !(ask.n > this.revealed) || st.git === undefined) return;
+    this.revealed = ask.n;
+    const prefix = st.git?.prefix ?? "", path = ask.file.startsWith(prefix) ? ask.file.slice(prefix.length) : null;
+    if (path) cx.timer.after(0, (cx) => { this.open(st, path, cx); this.reveal(st, path, cx); });
+  }
+
+  rows(st) { return st.rows ??= treeRows(folderEntries(st), (p) => st.expanded.has(p)); }
 
   render(cx) {
     const t = theme(), sp = spaces().find((s) => s.active);
     if (!sp) return div().id("t3-files").size_full();
     const st = this.stateFor(sp, cx);
+    this.follow(st, cx);
     // The search field shows this space's words.
     if (this.searchFor !== st.id) { this.searchFor = st.id; if (this.search.value() !== st.query) this.search.set_value(st.query); }
     // Shown again (the page, or the window in front): what changed meanwhile, now.
@@ -366,7 +383,7 @@ export default class Files extends View {
     if (shown && !this.shown && st.git !== undefined) this.recheck(st, cx);
     this.shown = shown;
     const width = this.size?.width ?? 800;
-    return div().id("t3-files").relative().size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(13)
+    return v_flex().id("t3-files").relative().size_full().min_h(0).text_color(t.foreground).text_size(13)
       .on_size_change((size, cx) => { this.size = { width: size.width / zoom(), height: size.height / zoom() }; cx.notify(); })
       .on_mouse_down("right", (e, cx) => {
         if (!this.menuFor) return;
@@ -375,51 +392,58 @@ export default class Files extends View {
         this.handle.focus();
         cx.notify();
       })
-      .child(h_resizable("t3-files-split").size_full()
-        .child(resizable_panel().child(this.content(st, t)))
-        .child(resizable_panel().size(TREE).size_range(TREE_MIN, Math.max(TREE_MIN, Math.round(width * 0.6))).child(this.side(st, t))))
-      .when(Boolean(this.menu), (el) => el.child(this.menuView(st, t)));
+      .child(this.toolbar(st, t))
+      // What failed, under the toolbar: the folder's listing, or the file's read. Retry asks again.
+      .when(Boolean(st.error), (el) => el.child(errorBar(t, "t3-files-error", st.error, (cx) => cx.spawn(async (cx) => this.refresh(st, cx)))))
+      .when(Boolean(!st.error && st.view?.failed), (el) => el.child(errorBar(t, "t3-files-error", st.view.problem, (cx) => this.open(st, st.file, cx))))
+      .child(div().flex_1().min_h(0).child(withNav(t, "t3-files", width, { content: this.content(st, t), head: this.searchHead(st, t), list: st.results ? this.found(st, t) : this.tree(st, t), open: this.navOpen })))
+      .when(Boolean(this.menu), (el) => el.child(fileMenuView(this, t, MOD, this.menuItems(st, this.menu.path), this.handle, this.size ?? { width: 800, height: 600 })));
   }
 
-  // The file: where it is, Preview or Code for Markdown, Review for a change, then it; with none, a quiet line.
-  content(st, t) {
-    const v = st.view, md = kindOf(st.file ?? "") === "markdown", code = shared(MARKDOWN) === "code";
-    if (!st.file) return v_flex().id("t3-files-empty").size_full().items_center().justify_center().gap(8).text_color(t.dim)
-      .child(svg(`${MOD}/icons/file-text.svg`).size(24).text_color(t.dim))
-      .child(div().text_size(13).child("No file open"))
-      .child(div().text_size(12).child(st.root ? "Pick one in the tree, or search for it." : "This space has no folder."));
-    const review = !st.on && st.git && st.marks.has(st.file) && panelState().pages.includes("review");
-    const parts = st.file.split("/");
+  // The page's toolbar, across it, there with no file too: where the file is (the folder's name alone without one), Preview
+  // or Code for Markdown, Review for a change, and the tree's switch.
+  toolbar(st, t) {
+    const md = kindOf(st.file ?? "") === "markdown", code = shared(MARKDOWN) === "code";
+    const review = this.reviewable(st, st.file);
+    const parts = st.file?.split("/") ?? [];
     const crumb = (label, path, last) => div().id(`crumb-${path}`).flex_none().px(4).rounded(4).text_color(last ? t.foreground : t.muted)
       .when(!last, (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => this.reveal(st, path, cx)))
       .child(label);
-    const tab = (label, on, value) => div().id(`t3-files-${value}`).h(24).px(8).flex().items_center().rounded(6).text_size(12)
+    const tab = (label, on, value) => div().id(`t3-files-${value}`).h(24).px(8).flex().items_center().rounded(8).text_size(12)
       .text_color(on ? t.foreground : t.muted).when(on, (el) => el.bg(t.selected)).when(!on, (el) => el.cursor_pointer().hover((s) => s.text_color(t.foreground)))
       .on_click((_e, cx) => { if (on) return; if (value === "code" && st.view?.text !== undefined && !st.view.code) st.view.code = this.editor(st.file, st.view.text); setShared(MARKDOWN, value); cx.notify(); })
       .child(label);
-    return v_flex().size_full().min_w(0)
-      .child(h_flex().h(40).flex_none().pl(8).pr(8).gap(8).items_center().border_b(1).border_color(t.border)
-        .child(h_flex().flex_1().min_w(0).overflow_hidden().items_center().text_size(12).font_family(MONO)
-          .child(crumb(nameOf(st.root.replace(/\/$/, "")) || st.root, "", false))
+    return h_flex().id("t3-files-toolbar").h(40).flex_none().px(8).gap(8).items_center().border_b(1).border_color(t.border)
+        // The first word 16 in, as Review's scope button's: the toolbar's 8 and an xs button's 8 (a crumb's own 4, and 4 more).
+        .child(h_flex().flex_1().min_w(0).overflow_hidden().items_center().text_size(12).pl(4)
+          .when(Boolean(st.root), (el) => el.child(crumb(nameOf(st.root.replace(/\/$/, "")) || st.root, "", !st.file)))
           .children(parts.flatMap((part, i) => [div().flex_none().text_color(t.dim).child("/"), crumb(part, parts.slice(0, i + 1).join("/"), i === parts.length - 1)])))
         .when(md, (el) => el.child(h_flex().flex_none().gap(2).child(tab("Preview", !code, "preview")).child(tab("Code", code, "code"))))
-        .when(Boolean(review), (el) => el.child(div().id("t3-files-review").flex_none().h(24).px(8).flex().items_center().rounded(6).border(1).border_color(t.border)
-          .text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
-          .on_click(() => { setShared("review.reveal", { space: st.id, file: st.git.prefix + st.file, n: Date.now() }); showPage("review"); })
-          .child("Review ↗"))))
-      .child(div().flex_1().min_h(0).min_w(0)
-        .child(!v || v.loading ? div().p(16).text_size(12).text_color(t.dim).child("Loading…")
-          : v.problem ? div().p(16).text_size(13).text_color(t.dim).child(v.problem)
+        // The page's buttons 4 apart, as Review's.
+        .child(h_flex().flex_none().gap(4).items_center()
+          .when(review, (el) => el.child(ghostButton(t, MOD, "t3-files-review", "file-diff", "Open in Review", () => this.openInReview(st, st.file))))
+          .child(navToggle(t, MOD, "t3-files-nav-toggle", this.navOpen, (cx) => { this.navOpen = !this.navOpen; setNavOpen(this.navOpen); cx.notify(); })));
+  }
+
+  // The file: Preview or Code for Markdown, the code, an image or why there's none; with no file, a quiet line.
+  content(st, t) {
+    const v = st.view, md = kindOf(st.file ?? "") === "markdown", code = shared(MARKDOWN) === "code";
+    if (!st.file) return emptyState(t, "t3-files-empty", `${MOD}/icons/file-text.svg`, "No file open", st.root ? "Pick one in the tree, or search for it." : "This space has no folder.");
+    return div().size_full().min_h(0).min_w(0)
+        .child(!v || v.loading ? loadingState(t, "t3-files-loading", "Loading the file…")
+          // A read that failed is the error bar's (the toolbar's); a file there's nothing to show of says why, as an empty page.
+          : v.problem && v.failed ? div()
+          : v.problem ? emptyState(t, "t3-files-problem", `${MOD}/icons/file-text.svg`, nameOf(st.file), v.problem)
           : v.image ? div().size_full().p(16).flex().items_center().justify_center().child(image(v.image).max_w_full().max_h_full())
           : md && !code ? div().id("t3-files-md").size_full().overflow_y_scrollbar().px(24).py(16).child(TextView.markdown(`t3-files-md-${st.id}-${st.file}`, v.text).selectable(true).scrollable(false).text_size(14))
           : v.code ? Editor.new(v.code).size_full()
-          : div()));
+          : div());
   }
 
-  // The tree, or what the search finds: by the window's edge, the field over it.
-  side(st, t) {
+  // The column's head: the search, as T3's ghost InputGroup, and Collapse all / Expand all. Its keys are the results'.
+  searchHead(st, t) {
     const results = st.results;
-    return v_flex().id("t3-files-side").size_full().min_w(0).border_l(1).border_color(t.border)
+    return h_flex().id("t3-files-search").flex_1().min_w(0).h_full().gap(4).items_center()
       .on_key_down((e, cx) => {
         if (e.key === "escape" && st.query) { st.query = ""; st.results = null; this.search.set_value(""); }
         else if (results?.length) { const to = step(e, st.at, results.length); if (to < 0) return; st.at = to; }
@@ -427,34 +451,54 @@ export default class Files extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      // As T3's Combobox search: 12 across and 10 above, a 26 field, 6 to the rule.
-      .child(div().flex_none().px(12).pt(10)
-        .child(h_flex().h(33).pb(6).gap(4).items_center().border_b(1).border_color(t.border)
-          .child(svg(`${MOD}/icons/search.svg`).size(16).flex_none().text_color(t.dim))
-          .child(Input.new(this.search).flex_1().h_full().text_size(13).text_color(t.foreground))))
-      .child(div().flex_1().min_h(0).pt(4).px(4)
-        .child(results ? this.found(st, t) : this.tree(st, t)));
+      .child(svg(`${MOD}/icons/search.svg`).size(16).flex_none().text_color(t.dim))
+      .child(Input.new(this.search).flex_1().h(28).text_size(12).text_color(t.foreground))
+      .child(foldAllButton(t, MOD, "t3-files-fold-all", st.expanded.size === 0, (cx) => this.foldAll(st, cx)));
   }
 
+  // Collapse all while any folder is open; else open every folder, Git-ignored ones aside, EXPAND_MAX at most.
+  foldAll(st, cx) {
+    if (st.expanded.size) { st.expanded.clear(); this.changed(st); cx.notify(); return; }
+    cx.spawn(async (cx) => {
+      const queue = [""];
+      for (let n = 0; queue.length && n < EXPAND_MAX && this.live(st); n++) {
+        const rel = queue.shift();
+        if (!st.entries.has(rel)) await this.list(st, rel);
+        if (rel) st.expanded.add(rel);
+        for (const e of st.entries.get(rel) ?? []) if (e.dir && !st.ignored.has(join(rel, e.name))) queue.push(join(rel, e.name));
+      }
+      this.changed(st);
+      cx.notify();
+    });
+  }
+
+  // The folder's tree, as T3's: a click opens a file or a folder; the keys move a ring, ↵ opens what it's on.
   tree(st, t) {
-    if (!st.root || st.error || !st.entries.has("")) return div().p(8).text_size(12).text_color(t.dim).child(!st.root ? "This space has no folder." : st.error ?? "Loading…");
+    if (!st.root || st.error) return div().p(8).text_size(12).text_color(t.dim).child(!st.root ? "This space has no folder." : "");
+    if (!st.entries.has("")) return loadingState(t, "t3-files-tree-loading", "Loading files…");
     const rows = this.rows(st);
     if (!rows.length) return div().p(8).text_size(12).text_color(t.dim).child("This folder is empty.");
-    const byPath = new Map(rows.map((r) => [r.path, r]));
-    const draw = (r) => {
-      const open = r.dir && st.expanded.has(r.path), mark = !r.dir && st.marks.get(r.path), lit = r.path === st.file || r.path === st.lit;
-      return h_flex().id(`row-${r.path}`).h(ROW).w_full().pl(8 + r.depth * 14).pr(8).gap(6).items_center().rounded(6).text_size(12).font_family(MONO)
-        .when(lit, (el) => el.bg(t.selected)).when(!lit, (el) => el.hover((s) => s.bg(t.hover)))
-        .child(r.dir ? svg(`${MOD}/icons/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim) : div().w(12).flex_none())
-        .child(image(`${MOD}/${r.dir ? folderIcon(r.name, open) : fileIcon(r.name, r.path)}`).size(14).flex_none().when(r.ignored || r.gone, (el) => el.opacity(0.5)))
-        .child(div().flex_1().min_w(0).truncate().when(r.ignored || r.gone, (el) => el.opacity(0.5)).when(r.gone, (el) => el.line_through()).child(r.name))
-        .when(Boolean(mark), (el) => el.child(letter(mark)))
-        .when(r.dir && !open && st.dirs.has(r.path), (el) => el.child(div().size(6).mr(5).flex_none().rounded_full().bg(t.muted)));
+    const lit = st.lit ? rowAt(rows, st.lit) : -1, ringed = this.treeHandle.is_focused() ? rows.findIndex((r) => r.path === st.focus) : -1;
+    const act = (r, cx) => { if (r.dir) this.toggle(st, r.path, cx); else this.open(st, r.path, cx); };
+    const draw = (r, i) => {
+      const mark = !r.dir && st.marks.get(r.path), open = r.dir && r.open;
+      return treeRow(t, MOD, r, `row-${r.path}`, { selected: r.path === st.file || i === lit, focused: i === ringed, status: mark || undefined, dim: r.ignored || r.gone, struck: r.gone,
+        trailing: r.dir && !open && st.dirs.has(r.path) ? div().size(6).mr(5).flex_none().rounded_full().bg(t.muted) : null })
+        .on_click((_e, cx) => { st.focus = null; act(r, cx); })
+        .on_mouse_down("right", () => { this.menuFor = r.path; });
     };
-    return v_virtual_list("t3-files-tree", rows.length, ROW, (i) => rows[i].path, (range) => rows.slice(range.start, range.end).map(draw))
-      .size_full().track_scroll(this.treeScroll)
-      .on_item_click((key, cx) => { const r = byPath.get(key); if (!r) return; if (r.dir) this.toggle(st, key, cx); else this.open(st, key, cx); })
-      .on_item_secondary_click((key) => { this.menuFor = key; });
+    return div().id("t3-files-tree").size_full().track_focus(this.treeHandle)
+      .on_mouse_down("left", () => this.treeHandle.focus())
+      .on_key_down((e, cx) => {
+        const at = st.focus ? rows.findIndex((r) => r.path === st.focus) : rows.findIndex((r) => r.path === st.file);
+        const k = treeKey(e.keystroke, rows, at);
+        if (!k) return;
+        if (k.at !== undefined) { st.focus = rows[k.at].path; revealRow(this, `t3-files-tree-${st.id}`, st.focus); }
+        else { st.focus = (k.toggle ?? k.pick).path; act(k.toggle ?? k.pick, cx); }
+        cx.stop_propagation();
+        cx.notify();
+      })
+      .child(treeList(this, `t3-files-tree-${st.id}`, rows, draw).size_full());
   }
 
   // Search results: the name, then its folder dimmed, matched letters bright; at most 200, and how many more.
@@ -476,53 +520,20 @@ export default class Files extends View {
     };
     const draw = (i) => {
       const r = results[i], cut = r.path.lastIndexOf("/") + 1, dir = r.path.slice(0, Math.max(0, cut - 1));
-      return h_flex().id(`found-${i}`).h(ROW).px(8).gap(6).items_center().rounded(6).text_size(12).font_family(MONO).overflow_hidden().whitespace_nowrap()
-        .when(i === st.at, (el) => el.bg(t.selected))
+      return h_flex().id(`found-${i}`).h(TREE_ROW).mx(2).px(6.4).gap(4.8).items_center().rounded(6).text_size(12).overflow_hidden().whitespace_nowrap()
+        .when(i === st.at, (el) => el.bg(t.foreground + "1f"))
         .on_hover((on, cx) => { if (on && st.at !== i) { st.at = i; cx.notify(); } })
         .on_click((_e, cx) => this.pick(st, r.path, cx))
         .on_mouse_down("right", () => { this.menuFor = r.path; })
-        .child(image(`${MOD}/${fileIcon(r.path)}`).size(14).flex_none())
+        .child(image(`${MOD}/${fileIcon(r.path)}`).size(16).flex_none())
         .child(h_flex().flex_none().children(pieces(r.path.slice(cut), cut, r.ranges, t.foreground)))
         .when(Boolean(dir), (el) => el.child(h_flex().min_w(0).overflow_hidden().children(pieces(dir, 0, r.ranges, t.dim))));
     };
     const shownAll = !st.more && st.total <= results.length;
     return v_flex().size_full().min_h(0)
-      .child(div().flex_1().min_h(0).child(scrollList(this, "t3-files-found", { count: results.length, row: ROW, at: st.at, draw, wheeled: (keep) => { st.at = keep; } }).size_full()))
+      .child(div().flex_1().min_h(0).child(scrollList(this, "t3-files-found", { count: results.length, row: TREE_ROW, at: st.at, draw, wheeled: (keep) => { st.at = keep; } }).size_full()))
       .when(!shownAll, (el) => el.child(div().flex_none().px(8).py(6).text_size(11).text_color(t.dim).truncate()
         .child(`${results.length} of ${count(st.total)}${st.more ? "+" : ""} matches · type more to narrow`)));
   }
 
-  // A row's menu, where it was pressed: T3's menu measures (shared with t3-menu), closed by a press beside it or Escape.
-  menuView(st, t) {
-    const m = this.menu, items = this.menuItems(st, m.path), w = 220, h = items.length * 28 + 8;
-    const size = this.size ?? { width: w, height: h };
-    const x = Math.max(4, Math.min(m.x, size.width - w - 4)), y = Math.max(4, Math.min(m.y, size.height - h - 4));
-    const close = (cx) => { this.menu = null; cx.notify(); };
-    const choose = (it, cx) => { close(cx); it.run(cx); };
-    return div().id("t3-files-menu-backdrop").absolute().inset_0()
-      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); close(cx); })
-      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); close(cx); })
-      .child(v_flex().id("t3-files-menu").absolute().left(x).top(y).w(w).p(4).rounded(8).border(1).border_color(t.border).bg(t.popover).shadow_lg().text_size(14)
-        .track_focus(this.handle)
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_key_down((e, cx) => {
-          if (e.key === "escape") return close(cx);
-          if (e.key === "enter") { const it = items[m.at]; if (it) choose(it, cx); return; }
-          const to = step(e, m.at, items.length);
-          if (to >= 0) { m.at = to; cx.notify(); }
-        })
-        .children(items.map((it, i) => h_flex().id(`t3-files-mi-${i}`).h(28).px(8).gap(8).rounded(4).items_center()
-          .when(i === m.at, (el) => el.bg(t.selected))
-          .on_hover((on, cx) => { const to = on ? i : m.at === i ? -1 : m.at; if (to !== m.at) { m.at = to; cx.notify(); } })
-          .on_click((_e, cx) => choose(it, cx))
-          .child(svg(`${MOD}/icons/${it.icon}.svg`).size(16).mx(-2).flex_none().text_color(t.muted))
-          .child(div().flex_1().min_w(0).truncate().child(it.label))
-          .when(Boolean(it.hint), (el) => el.child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it.hint))))));
-  }
-}
-
-// As Review's FileStatus: the letter in its status's color, on a tenth of it; T3's sm Badge.
-function letter(mark) {
-  const color = FILE_STATUS[mark] ?? FILE_STATUS.M;
-  return div().h(16).min_w(16).px(3).flex_none().flex().items_center().justify_center().rounded(4).font_family(MONO).font_medium().text_size(10).text_color(color).bg(color + "1a").child(mark);
 }

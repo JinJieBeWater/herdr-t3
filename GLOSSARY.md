@@ -90,8 +90,12 @@ _Avoid_: task、script
 _Avoid_: diff、changes、评审窗格
 
 **space 面板**：
-窗口右侧唯一的面板，页面有 Files 和 Review，同时只显示一页，内容跟随当前 space；开没开、在哪一页、放没放大，按 space 各记一份。
+窗口右侧唯一的面板，页面有 Files 和 Review，同时只显示一页，内容跟随当前 space；开没开、在哪一页、放没放大，按 space 各记一份。两页共用一套框架：顶部工具栏，其下内容在左、导航列在右。
 _Avoid_: 侧边面板、panel 栏
+
+**导航列**：
+space 面板一页里内容右边的那一列：列头加文件树。两页同宽，各有自己的开关。
+_Avoid_: aside、侧栏、文件栏
 
 **Files**：
 space 面板里只读浏览 space 文件夹的那一页。

@@ -8,7 +8,7 @@ import { shared, setShared } from "herdr";
 import { scrollList } from "./list.js";
 import { git, readReview, readPicks, readRefs, argPage } from "./review-git.js";
 import { hoverRow, subOpened, subLeft } from "./submenu.js";
-import { PANE, LU, MONO, COMPACT, MODEL_ROW, hover, iconButton, pickMark, searchField, popover, toPane, subState, subAt } from "./controls.js";
+import { PANE, LU, COMPACT, MODEL_ROW, hover, iconButton, pickMark, searchField, popover, toPane, subState, subAt } from "./controls.js";
 
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
 const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
@@ -106,7 +106,7 @@ function ask(view, page, cx, { analyze = false, base = undefined, stays = false 
 }
 
 // Another page of this diff (‹ ›): its base keeps the commits, and it has no `analyze`.
-export function showPage(view, page, cx) {
+export function openReviewPage(view, page, cx) {
   view.closePopup(cx);
   view.handle.focus();
   setShared(PANE, { space: view.space, root: view.root, page, base: view.base, n: Math.max(Date.now(), view.handled + 1) });
@@ -177,11 +177,11 @@ export function scopeHeader(view, t) {
   const s = scopeOf(view), list = diffCommits(view), at = s.sha ? list.findIndex(c => c.sha === s.sha) : -1;
   // A commit opened as its own diff, or no longer listed (as after an amend), has nowhere to step.
   const steps = s.sha && view.page !== view.base && at >= 0;
-  const go = (id, icon, label, c) => iconButton(t, id, icon, label, (cx) => showPage(view, `/commit/${c.sha}`, cx), { disabled: !c, size: 24 });
+  const go = (id, icon, label, c) => iconButton(t, id, icon, label, (cx) => openReviewPage(view, `/commit/${c.sha}`, cx), { disabled: !c });
   return h_flex().id("review-scope-row").min_w(0).gap(12).items_center()
     .child(scopeButton(view, t, s))
     .when(Boolean(s.sha), el => el.child(h_flex().flex_none().gap(2).items_center()
-      .child(div().id("review-sha").mr(4).font_family(MONO).text_size(12).text_color(t.dim).child(s.sha.slice(0, 7)))
+      .child(div().id("review-sha").mr(4).text_size(12).text_color(t.dim).child(s.sha.slice(0, 7)))
       .when(steps, el => el
         .child(go("commit-older", `${LU}/chevron-left.svg`, "Older commit", list[at - 1]))
         .child(go("commit-newer", `${LU}/chevron-right.svg`, "Newer commit", list[at + 1])))))

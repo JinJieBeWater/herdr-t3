@@ -1,9 +1,6 @@
 // What the Files page knows, apart from drawing it: git's answers parsed, the search filter, sort order and file kinds.
 // check-files.cjs loads this alone.
 
-// As Review's FILE_STATUS: a change's letter in its status's color.
-export const FILE_STATUS = { A: "#22c55e", D: "#ef4444", M: "#f59e0b", R: "#3b82f6" };
-
 export const RANKED = 1000; // a search ranks at most this many matches; past it, the first ones as found
 
 /** `a/b`: either may be "" (the space's folder, or a path from it). */
@@ -79,23 +76,15 @@ export function markIgnored(ignored, rel, entries, found) {
 }
 
 /**
- * The tree as rows, top to bottom: each open folder's entries under it, a deleted file where it was (after the files there),
- * and everything under an ignored folder ignored too.
+ * A folder's entries as file-tree.js's treeRows takes them: a deleted file where it was (after the files there), and
+ * everything under an ignored folder ignored too.
  */
-export function treeRows({ entries, expanded, ignored, marks }) {
-  const out = [];
-  const walk = (rel, depth, dim) => {
-    const list = entries.get(rel) ?? [], names = new Set(list.map((e) => e.name));
-    const gone = [...marks].filter(([p, l]) => l === "D" && parentOf(p) === rel && !names.has(nameOf(p))).map(([p]) => ({ name: nameOf(p), dir: false, gone: true }));
-    for (const e of [...list, ...gone]) {
-      const path = join(rel, e.name), dimmed = dim || ignored.has(path);
-      out.push({ path, name: e.name, dir: e.dir, gone: Boolean(e.gone), depth, ignored: dimmed });
-      if (e.dir && expanded.has(path)) walk(path, depth + 1, dimmed);
-    }
-  };
-  walk("", 0, false);
-  return out;
-}
+export const folderEntries = ({ entries, ignored, marks }) => (rel) => {
+  const list = entries.get(rel) ?? [], names = new Set(list.map((e) => e.name));
+  const gone = [...marks].filter(([p, l]) => l === "D" && parentOf(p) === rel && !names.has(nameOf(p))).map(([p]) => ({ name: nameOf(p), dir: false, gone: true }));
+  const dim = Boolean(rel) && [...ancestors(rel), rel].some((p) => ignored.has(p));
+  return [...list, ...gone].map((e) => ({ name: e.name, dir: e.dir, gone: Boolean(e.gone), ignored: dim || ignored.has(join(rel, e.name)) }));
+};
 
 // A search's terms: every one must be in the path, case aside.
 export const terms = (query) => query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -162,6 +151,9 @@ export function readProblem(error) {
   if (e.includes("UTF-8")) return "This is a binary file, so there's no text to show.";
   return "This file can't be read.";
 }
+
+// Can't be read is a failure, the error bar's, to retry; too large, binary, gone or not UTF-8 is what the file is.
+export const failedRead = (problem) => /can't be read/.test(problem);
 
 // A request's answer is used only if no newer one of its kind was made for the same space since (a file picked after it,
 // another refresh): a started exec runs to its end however things moved meanwhile.

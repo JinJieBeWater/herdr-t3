@@ -2,6 +2,8 @@ import { step, menuJump } from "./list.js";
 import { settingsBack, submitModel } from "./settings.js";
 import { FOLDS, foldAll } from "./diff.js";
 import { scopeRows, scopeList, scopeBack, pickScopeRow, baseList } from "./scope.js";
+import { treeKey, revealRow } from "./file-tree.js";
+import { TREE, toggleDir, pickGroup } from "./files.js";
 
 export function reviewKey(view, e, cx) {
   // Typing a model name isn't a shortcut; Escape closes the panel. An open submenu has the keyboard.
@@ -64,6 +66,18 @@ export function reviewKey(view, e, cx) {
   }
   // The status has no keys of its own, and what's under it is out of reach while it's up.
   if (view.popup && e.keystroke !== "escape") return;
+  // The file tree's keys, as T3's: the ring moves, ↵ shows its file or group, or opens its folder; ←/→ fold.
+  const rows = view.treeShown && !view.switching ? view.treeOf?.rows : null;
+  const k = rows && treeKey(e.keystroke, rows, rows.findIndex(r => r.path === (view.focusPath ?? view.current)));
+  if (k) {
+    const row = k.toggle ?? k.pick;
+    if (k.at !== undefined) { view.focusPath = rows[k.at].path; revealRow(view, TREE, view.focusPath); }
+    else if (row.group && k.pick) { view.focusPath = row.path; pickGroup(view, row, cx); }
+    else if (row.dir) { view.focusPath = row.path; toggleDir(view, row.path, cx); }
+    else if (!row.missing) { view.focusPath = row.path; view.select(row.path, cx); }
+    cx.stop_propagation(); cx.notify();
+    return;
+  }
   const actions = {
     escape: () => view.closePopup(cx),
     j: () => view.step(1, cx), k: () => view.step(-1, cx),

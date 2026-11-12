@@ -22,5 +22,5 @@ Inbox 的卡片只代表一个 agent 或一个窗格。Review 不再是窗格，
 - 一个 mod 副本服务所有 space：Review 和 Files 按 space id 记各自的状态（Review 的页、Files 的展开和选中文件）。
 - Review 的位置改用 space 的 folder，不再跟焦点窗格的 cwd。
 - Review 的 `Open in`（窗格或标签）设置项删除。
-- 面板默认和标签区一样宽，可以拖；窄时 Review 按原有规则改用页签和 unified diff。
+- 面板默认和标签区一样宽，可以拖；窄时 Review 按原有规则改用页签和 unified diff。（已由 [0013](0013-space-panel-pages-share-one-frame.md) 取代：两页共用一套框架，Review 不再按宽度变形。）
 - 单独发布的 herdr-pulls-review 也改成面板：在 Herdr 自带布局里，把 `review` 块加进它的 `panel-body`。

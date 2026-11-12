@@ -9,7 +9,8 @@ export const PANE = "review";
 const PREFS = `${PANE}.prefs`;
 export const pref = (key) => shared(PREFS)?.[key];
 export const setPref = (key, value) => setShared(PREFS, { ...shared(PREFS), [key]: value });
-export const MONO = "JetBrains Mono";
+// The code's font, the window's terminal font: only the diff's code and hunk headers are in it.
+export const mono = () => /** @type {string} */ (settings().font_family);
 
 // Herdr scales what a script sets by its zoom, but reports sizes and positions scaled already: they come back divided by it,
 // and a path, painted unscaled, goes out multiplied by it.
@@ -25,9 +26,9 @@ export const FADED = 0.65, DISABLED = 0.3;
 
 export const MODEL_ROW = 28; // T3's select and combobox rows, with no gap between them
 
-// Responsive widths, the app's: the sidebar from WIDE (its `lg`; narrower, the groups are tabs over the diff), split from
-// SPLIT_MIN of diff (its MIN_SPLIT_WIDTH_PX; narrower, unified, the choice kept). Under COMPACT the header's text buttons are icons.
-export const WIDE = 1024, SPLIT_MIN = 640, COMPACT = 640;
+// Responsive widths, the app's: split from SPLIT_MIN of diff (its MIN_SPLIT_WIDTH_PX; narrower, unified, the choice kept).
+// Under COMPACT the header's text buttons are icons.
+export const SPLIT_MIN = 640, COMPACT = 640;
 
 // Lucide's icons, the layout's one set; the catppuccin file icons in icons/cat/ are file-icons.js's.
 export const LU = `mods/${PANE}/icons`;
@@ -91,11 +92,12 @@ export function checkMark(t, state) {
 }
 
 // The pane's buttons, text or icon, share one 24px height so a toolbar's controls line up.
-// As the app's ActionButton: bordered, faded until hovered (`btn-action`); `primary` filled as the layout's, in `solid`; `note` dim words after the label.
+// As T3's xs ghost button (docs/adr/0013): no border, the hover's tone behind it; `primary` filled as the layout's, in `solid`
+// (a popup's own action, never the toolbar's); `note` dim words after the label.
 export function button(t, id, label, action, { color, icon, after, primary, note } = /** @type {{ color?: any, icon?: any, after?: any, primary?: boolean, note?: any }} */ ({})) {
-  // As T3's xs button: 7 in past its border.
-  return h_flex().id(id).h(24).px(7).gap(4).flex_none().items_center().rounded(8).text_size(12).font_medium().border_1()
-    .when(!primary, el => el.border_color(t.border).text_color(color ?? t.foreground).opacity(0.75).hover(s => s.opacity(1).bg(hover(t))))
+  // As T3's xs button: 8 in.
+  return h_flex().id(id).h(24).px(8).gap(4).flex_none().items_center().rounded(8).text_size(12).font_medium()
+    .when(!primary, el => el.text_color(color ?? t.foreground).hover(s => s.bg(hover(t))))
     .when(Boolean(primary), el => el.border_color(t.solid).bg(t.solid).text_color(t.solid_foreground).hover(s => s.opacity(0.9)))
     .role("button").on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); action(cx); })
     .when(Boolean(icon), el => el.child(svg(icon).size(14).flex_none()))
@@ -104,27 +106,19 @@ export function button(t, id, label, action, { color, icon, after, primary, note
     .when(Boolean(after), el => el.child(svg(after).size(14).flex_none()));
 }
 
-// As T3's icon-sm in DiffPanel's header (`size` 24: its icon-xs, beside an xs button), faded until hovered as the app's
-// ActionIconButton; `active` (its popup open) on `selected`.
-export function iconButton(t, id, icon, label, action, { color, disabled, active, size = 28, press } = /** @type {{ color?: any, disabled?: any, active?: any, size?: number, press?: any }} */ ({})) {
-  return div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(color ?? t.foreground)
+// As T3's icon-xs ghost button, as nav-column.js's ghostButton: `muted` until hovered; `active` (its popup open) on `selected`.
+export function iconButton(t, id, icon, label, action, { color, disabled, active, size = 24, press } = /** @type {{ color?: any, disabled?: any, active?: any, size?: number, press?: any }} */ ({})) {
+  return div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(color ?? (active ? t.foreground : t.muted))
     .when(Boolean(disabled), el => el.opacity(DISABLED))
-    .when(!disabled, el => el.opacity(active ? 1 : FADED).when(Boolean(active), el => el.bg(t.selected)).hover(s => s.opacity(1).bg(hover(t))))
+    .when(!disabled, el => el.when(Boolean(active), el => el.bg(t.selected)).hover(s => s.bg(hover(t)).text_color(color ?? t.foreground)))
     .role("button").accessibility_label(label)
     .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); press?.(e); }).on_click((_e, cx) => { cx.stop_propagation(); if (!disabled) action(cx); })
     .child(svg(icon).size(14));
 }
 
-// As T3's icon-xs, faded until hovered as the app's ActionIconButton, then on the translucent hover tone, which
-// stacks over a hovered row's. Handlers and icon are the caller's.
-export function caretButton(t, id) {
-  return div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(8)
-    .opacity(FADED).hover(s => s.opacity(1).bg(hover(t)));
-}
-
 // As the app's DiffStats, each only when there are any, measured as T3's DiffStatLabel.
 export function diffStats(t, added, deleted) {
-  return h_flex().flex_none().gap(4).font_family(MONO)
+  return h_flex().flex_none().gap(4)
     .when(added > 0, el => el.child(div().text_color(t.ansi2).child(`+${added.toLocaleString()}`)))
     .when(deleted > 0, el => el.child(div().text_color(t.ansi1).child(`-${deleted.toLocaleString()}`)));
 }
