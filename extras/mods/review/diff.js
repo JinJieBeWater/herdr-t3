@@ -7,6 +7,7 @@ import { colors } from "./review-load.js";
 import { LU, mono, zoom, isLight, checkMark, diffStats, popover } from "./controls.js";
 import { fileStatus } from "./files.js";
 import { emptyState } from "./panel-states.js";
+import { holdWidth } from "./nav-column.js";
 
 // The runs measured for a character's width, and a wide one's: long enough that rounding the whole to a pixel doesn't matter.
 const MEASURED = "0".repeat(100), MEASURED_WIDE = "中".repeat(100);
@@ -15,15 +16,6 @@ const MEASURED = "0".repeat(100), MEASURED_WIDE = "中".repeat(100);
 const measureRun = (id, text, set) => div().id(id).absolute().top(0).left(0).opacity(0).font_family(mono()).text_size(12).whitespace_nowrap()
   .on_size_change((size, cx) => { if (size.width > 0) { set(size.width / zoom() / text.length); cx.notify(); } })
   .child(text);
-// Wrapped lines are cut again for a width once it has held this long (ms): a panel dragged changes it every frame, and cutting
-// the rows in view anew each time, as new text for Herdr to lay out, was most of a step (76ms against 27 unwrapped).
-const WRAP_SETTLE = 150;
-/** The width lines wrap at (`wrapView`) follows the diff's: at once the first time, else once it holds WRAP_SETTLE. */
-function settleWrap(view, cx) {
-  if (view.wrapView == null) { view.wrapView = view.view; return; }
-  const run = view.wrapRun = (view.wrapRun ?? 0) + 1;
-  cx.timer.after(WRAP_SETTLE, (cx) => { if (run === view.wrapRun && view.wrapView !== view.view) { view.wrapView = view.view; cx.notify(); } });
-}
 // How long a sideways scroll's bars stay after it stops (ms).
 const BARS_LINGER = 1000;
 
@@ -142,7 +134,9 @@ export function diffView(view, t) {
     .child(div().id("review-diff-area").flex_1().min_h(0).overflow_hidden().relative().text_size(12)
       .on_size_change((size, cx) => {
         view.diffHeight = size.height / zoom();
-        if (Math.abs(size.width / zoom() - view.view) >= 1) { view.view = size.width / zoom(); settleWrap(view, cx); cx.notify(); }
+        // Wrapped lines are cut again only once the width holds (view.wrapHold): a panel dragged changes it every frame, and
+        // cutting the rows in view anew each time, as new text for Herdr to lay out, was most of a step (76ms against 27 unwrapped).
+        if (Math.abs(size.width / zoom() - view.view) >= 1) { view.view = size.width / zoom(); holdWidth(view.wrapHold, view.view, (ms, f) => cx.timer.after(ms, f)); cx.notify(); }
       })
       // Code scrolls sideways by the wheel: split, each side under the pointer; the full-width rows under either.
       // Headers and notes stay put, and the list keeps the vertical.

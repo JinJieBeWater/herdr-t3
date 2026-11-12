@@ -550,20 +550,18 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(drawn.has("tree-f-c.ts"));
   pane.focusPath = null;
   // The reviewed box leads the row, after the chevron's slot and before the icon (asserted on the row in shared/check-file-tree.cjs).
-  // A file row's right-click opens the panel's file menu where it was pressed (file-menu.js): Review's items, Open in Files
-  // while the panel has Files, Mark reviewed last; a group's row has none.
+  // A file row's right-click opens the panel's file menu where it was pressed (file-menu.js): Review's items, Mark reviewed
+  // last, nothing that opens it in Files (ADR 0015); a group's row has none.
   handlers.get("tree-g-k.on_mouse_down")?.();
   assert.equal(pane.menuFor ?? null, null, "a group's row has no menu");
   handlers.get("tree-f-a.ts.on_mouse_down")();
   handlers.get("review-pane.on_mouse_down")({ local_position: { x: 300, y: 100 } }, cx); drawn.clear(); pane.render(cx);
-  assert.ok(drawn.has("file-menu") && ["copy-path", "copy-relative", "reveal", "open", "open-files", "review"].every(id => drawn.has(`file-menu-${id}`)) && !drawn.has("file-menu-open-review"));
+  assert.ok(drawn.has("file-menu") && ["copy-path", "copy-relative", "reveal", "open", "review"].every(id => drawn.has(`file-menu-${id}`)) && !drawn.has("file-menu-open-review") && !drawn.has("file-menu-open-files"));
   press("file-menu-review");
   assert.ok(pane.fileAt("a.ts").reviewed && !pane.menu && !drawn.has("file-menu"));
+  // Nor does the toolbar, though the panel has Files and a file is in front.
+  assert.ok(pane.current && drawn.has("review-nav-toggle") && !drawn.has("review-open-files"));
   pane.setReviewed(pane.fileAt("a.ts"), false, cx);
-  // Open in Files, from the toolbar or the menu: the file, from the repository's top, for the Files page, which shows.
-  calls.length = 0; press("review-open-files");
-  assert.equal(sharedStore.get("t3-files.reveal").file, pane.current);
-  assert.deepEqual(plain(calls.filter(([name]) => name === "layout.select")), [["layout.select", { stack: "panel-body", child: "files" }]]);
   // A file in a folded folder or group, shown from elsewhere, opens what holds it.
   pane.flipped.add("group:k"); pane.select("c.ts", cx, { scroll: false });
   assert.ok(!pane.flipped.has("group:k"));
@@ -924,20 +922,20 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.view = 1000; drawn.clear(); pane.render(cx);
   assert.ok(pane.itemList.some(item => item.kind === "pair"));
   {
-    // Lines, under Diff in the settings (t3.wrap, shared with Files; Wrap unless set to Scroll): a long line takes as many rows as it runs
+    // Lines, under Diff in the settings (the page's own localStorage lines.wrap; Wrap unless set to Scroll): a long line takes as many rows as it runs
     // to at the diff's width, again when the width changes, and nothing scrolls sideways. The character's width is measured
     // once, from a known run of text.
     const hunk = pane.review.files[0].hunks[0], kept = hunk.rows[2], long = hunk.rows[2] = { ...kept, columns: undefined, tokens: [["x".repeat(300)]] }; // new tokens, so not the old row's measure
-    assert.ok(sharedStore.get("t3.wrap") === undefined && pane.wrapCols, "wrapped by default");
+    assert.ok(local.get("lines.wrap") !== "false" && pane.wrapCols, "wrapped by default");
     pane.popupClosedAt = 0; press("settings");
     assert.ok(drawn.has("lines-scroll") && drawn.has("lines-wrap") && styles["lines-scroll"].accessibility_label === "Lines: Scroll");
     press("lines-scroll");
-    assert.equal(sharedStore.get("t3.wrap"), false);
+    assert.ok(local.get("lines.wrap") === "false" && sharedStore.get("t3.wrap") === undefined, "Files' choice untouched");
     drawn.clear(); pane.render(cx);
     assert.equal(pane.wrapCols, null, "scrolled");
     press("lines-wrap"); pane.closePopup(cx);
-    assert.equal(sharedStore.get("t3.wrap"), true);
-    assert.equal(pref("wrap"), undefined, "not Review's own any more");
+    assert.equal(local.get("lines.wrap"), "true");
+    assert.equal(pref("wrap"), undefined, "not in review.prefs");
     drawn.clear(); pane.render(cx);
     assert.ok(drawn.has("review-char"));
     handlers.get("review-char.on_size_change")({ width: 800, height: 16 }, cx);
@@ -952,7 +950,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     setPref("split", true);
     assert.equal(sizeAt(1000), 20 + Math.ceil(300 / wrapColumns(1000, 8).pair) * 20, "split, each half wraps on its own, a pair as its longer side");
     assert.ok(pane.sideMax(0) === 0 && pane.sideMax(1) === 0);
-    // Dragged, a width that keeps changing keeps the lines as they were cut, and cuts them again once it has held 150ms:
+    // Dragged, a width that keeps changing keeps the lines as they were cut, and cuts them again once it has held (nav-column.js holdWidth):
     // cutting the rows in view anew at each step was most of a step (76ms against 27 unwrapped, the floor 19).
     {
       setPref("split", false); timers.length = 0;
@@ -967,10 +965,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
       area({ width: 900, height: 600 }, cx);
       timers.splice(0).forEach(f => f(cx));
       assert.equal(longSize(), rows(900), "cut at the width it held");
-      delete pane.wrapView; setPref("split", true);
+      pane.wrapHold = {}; setPref("split", true);
     }
     pane.popupClosedAt = 0; press("settings"); press("lines-scroll"); pane.closePopup(cx);
-    assert.equal(sharedStore.get("t3.wrap"), false);
+    assert.equal(local.get("lines.wrap"), "false");
     assert.equal(sizeAt(1000), 40);
     hunk.rows[2] = kept; pane.version++; drawn.clear(); pane.render(cx);
   }
@@ -1202,21 +1200,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual([opened, pane.base, baseEntry().base], [["/worktree"], "/worktree", "/worktree"]);
   delete pane.open; pane.page = base; pane.base = base; pane.width = 500;
   sharedStore.delete("review");
-  // The Files page's `Review ↗`: that file, once; not another space's, nor one from before this review started.
+  // Files asks nothing of Review (ADR 0015): a request left in the retired `review.reveal` picks no file and opens no page.
   {
-    const selected = []; pane.select = (path) => selected.push(path);
-    const reveal = (extra) => { sharedStore.set("review.reveal", { space: "s1", file: "c.ts", n: Date.now() + 100, ...extra }); draw(); };
-    reveal({ space: "s2" }); reveal({ n: 1 }); await settled();
-    assert.deepEqual(selected, []);
-    reveal({}); await settled(); draw(); await settled();
-    assert.deepEqual(plain(selected), ["c.ts"], "once");
-    // A file the page shown doesn't have: the uncommitted changes' page, then the file if it's there.
-    const opened = []; pane.open = (page) => { opened.push(page); pane.page = page; };
-    reveal({ file: "new.ts", n: Date.now() + 200 });
-    assert.deepEqual([opened, pane.base], [["/worktree"], "/worktree"]);
-    draw();
-    assert.deepEqual(opened, ["/worktree"], "not there either: no further");
-    delete pane.open; delete pane.select; pane.page = base; pane.base = base; sharedStore.delete("review.reveal");
+    const selected = [], opened = []; pane.select = (path) => selected.push(path); pane.open = (page) => opened.push(page);
+    sharedStore.set("review.reveal", { space: "s1", file: "new.ts", n: Date.now() + 100 }); draw(); await settled(); draw();
+    assert.deepEqual([selected, opened], [[], []]);
+    delete pane.open; delete pane.select; sharedStore.delete("review.reveal");
   }
   // One popup at a time: a press on another's button closes the open one (a press outside it) and opens its own at once;
   // a press on the open one's own button only closes it.
@@ -1622,15 +1611,38 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // A pane of its own on /repo's /branch/fix, its daemon `api` until a test swaps the scope's.
   const paneOf = async (extra = {}) => { const made = panelOf(extra); await wait(); return made; };
   {
-    // A Lines choice made before it was the layout's goes along to t3.wrap, unless one's there already; Review keeps none.
-    const was = sharedStore.get("t3.wrap");
-    sharedStore.delete("t3.wrap"); setPref("wrap", false);
+    // The Lines choice is the page's own (lines.wrap): its first start takes the shared t3.wrap, else one made in Review before
+    // that (review.prefs, which then keeps none); once it has its own, neither moves it.
+    const was = sharedStore.get("t3.wrap"), mine = local.get("lines.wrap");
+    local.delete("lines.wrap"); sharedStore.delete("t3.wrap"); setPref("wrap", false);
     await paneOf();
-    assert.ok(sharedStore.get("t3.wrap") === false && pref("wrap") === undefined);
-    sharedStore.set("t3.wrap", true); setPref("wrap", false);
+    assert.ok(local.get("lines.wrap") === "false" && pref("wrap") === undefined);
+    local.delete("lines.wrap"); sharedStore.set("t3.wrap", true); setPref("wrap", false);
     await paneOf();
-    assert.ok(sharedStore.get("t3.wrap") === true && pref("wrap") === undefined, "the layout's choice wins");
-    sharedStore.set("t3.wrap", was);
+    assert.ok(local.get("lines.wrap") === "true" && pref("wrap") === undefined, "the layout's choice wins");
+    sharedStore.set("t3.wrap", false);
+    await paneOf();
+    assert.equal(local.get("lines.wrap"), "true", "its own, once set");
+    sharedStore.set("t3.wrap", was); mine == null ? local.delete("lines.wrap") : local.set("lines.wrap", mine);
+  }
+  {
+    // A group's files in Files' order, whatever the daemon's: in each folder its folders first, then by name, case aside, numbers
+    // as numbers; a subgroup's after its group's own. The tree, the diff, its reads and the keys all go by it.
+    const own = ["c.ts", "src/z.ts", "a10.ts", "B.ts", "src/lib/x.ts", "a9.ts"], sub = ["t/b.ts", "t/a.ts"];
+    const groups = [{ key: "s", label: "S", category: "core", critical: false, missing: ["a1.ts"], notes: {}, files: own,
+      children: [{ key: "t", label: "T", category: "tests", critical: false, missing: [], notes: {}, files: sub, children: [] }] }];
+    const { p, scope } = await paneOf({ review: async () => ({ ...review, files: [...own, ...sub].map(f => file(f)), groups }) });
+    const order = ["src/lib/x.ts", "src/z.ts", "a9.ts", "a10.ts", "B.ts", "c.ts", "t/a.ts", "t/b.ts"];
+    assert.deepEqual(plain(groupFiles(p.group())), order);
+    const kids = scope.reviewEntries(p.group()), leaves = [], walk = (d) => kids.get(d).forEach(e => e.dir ? walk(e.path) : leaves.push(e.path));
+    walk("");
+    assert.deepEqual(plain(leaves), order.toSpliced(2, 0, "a1.ts"), "the tree's, a file gone from the diff in its place");
+    assert.deepEqual(plain(p.items().filter(i => i.kind === "file").map(i => i.key)), order.map(f => `f:${f}`), "the diff's");
+    for (const f of p.review.files) delete f.hunks;
+    p.visible = null;
+    assert.deepEqual(plain(p.rowsWanted()), order, "its reads'");
+    p.current = order[0]; p.step(1, cx); p.step(1, cx);
+    assert.equal(p.current, order[2], "the keys'");
   }
   {
     // After a rows read that fails, Retry asks for its files again, and they leave "Loading…".
@@ -2005,5 +2017,5 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     p.review = null; drawn.clear(); p.render(cx);
     assert.ok(texts.get("review-loading-text") === "Loading the review…" && styles["review-loading"].role === "status");
   }
-  console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; the files in the panel's navigation column, the groups as the tree's top rows (none without an analysis), its switch and no breakpoint, the file in front its one selected row, moved by keys; the row menu and Open in Files; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom; one review per space, none on another machine, a file revealed from Files, the scope button and its menu, a commit's sha and steps, wrapped lines, the shared loading, empty and error states.");
+  console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; the files in the panel's navigation column, the groups as the tree's top rows (none without an analysis), its switch and no breakpoint, the file in front its one selected row, moved by keys; the row menu, none of it opening Files; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom; one review per space, none on another machine, nothing asked of it by Files, the scope button and its menu, a commit's sha and steps, wrapped lines, the shared loading, empty and error states.");
 })();

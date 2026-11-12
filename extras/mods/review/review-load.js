@@ -2,6 +2,7 @@ import { exec, theme, watchFolder } from "herdr";
 import { review } from "./daemon.js";
 import { clipRows } from "./rows.js";
 import { TREE } from "./files.js";
+import { pathEntries, sortEntries } from "./file-tree.js";
 import { pref } from "./controls.js";
 
 // How long a read may take before the pane says it didn't answer and offers Retry; its answer still counts if it comes.
@@ -182,7 +183,18 @@ export function pollReview(view, cx) {
   });
 }
 
+// Paths in the order the file tree shows them: in each folder its folders first, then its files, by name as Files sorts them.
+function treeOrder(paths) {
+  const kids = pathEntries(paths.map(path => ({ path }))), out = [];
+  const walk = (dir) => { for (const e of sortEntries(kids.get(dir))) e.dir ? walk(e.path) : out.push(e.path); };
+  walk("");
+  return out;
+}
+
 export function applyReview(view, r) {
+  // Each group's files once per read in the tree's order, which the diff, its reads and the keys follow (rows.js groupFiles).
+  const order = (g) => { g.files = treeOrder(g.files); g.children.forEach(order); };
+  r.groups.forEach(order);
   // Noisy and reviewed files start collapsed, the first time each version of them shows.
   for (const file of r.files) {
     if (view.seen.has(file.sha)) continue;

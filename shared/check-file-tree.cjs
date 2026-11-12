@@ -6,15 +6,26 @@ const vm = require("node:vm");
 
 const src = fs.readFileSync(path.join(__dirname, "file-tree.js"), "utf8")
   .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.tree = { treeRows, pathEntries, rowAt, treeKey };";
+  + "\nglobalThis.tree = { treeRows, pathEntries, rowAt, treeKey, naturalCompare, sortEntries };";
 // The row as drawn: each element a tag and what it holds, in order.
 const el = (tag) => { const node = { tag, kids: [] }; const p = new Proxy(node, { get: (t, k) => k in t ? t[k] : k === "child" ? (c) => (t.kids.push(c), p)
   : k === "when" ? (c, f) => (c ? f(p) : p) : () => p }); return p; };
 const context = vm.createContext({ div: () => el("div"), svg: () => el("svg"), image: () => el("icon"), h_flex: () => el("row"), fileIcon: () => "", folderIcon: () => "" });
 vm.runInContext(src.replace("globalThis.tree = { treeRows,", "globalThis.tree = { treeRow, treeRows,"), context);
-const { treeRows, pathEntries, rowAt, treeKey, treeRow } = context.tree;
+const { treeRows, pathEntries, rowAt, treeKey, treeRow, naturalCompare, sortEntries } = context.tree;
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const shape = (rows) => plain(rows).map((r) => `${"  ".repeat(r.depth)}${r.dir ? (r.open ? "v " : "> ") : ""}${r.name}`);
+
+// The two pages use the same conventional order, including uppercase root files and numeric suffixes.
+assert.deepEqual(plain(["file10", "File2", "b", "file1", "A", "file02"].sort(naturalCompare)), ["A", "b", "file1", "File2", "file02", "file10"]);
+const entries = [{ name: "README.md", dir: false }, { name: "mods", dir: true }, { name: "docs", dir: true },
+  { name: "AGENTS.md", dir: false }, { name: "file10", dir: false }, { name: "file2", dir: false }];
+assert.deepEqual(plain(sortEntries(entries)).map(e => e.name), ["docs", "mods", "AGENTS.md", "file2", "file10", "README.md"]);
+assert.equal(sortEntries(entries)[0], entries[2], "sorting preserves each entry's metadata and identity");
+const many = Array.from({ length: 12000 }, (_, i) => ({ name: `f${12000 - i}`, dir: i % 7 === 0 }));
+const sorted = sortEntries(many);
+assert.equal(sorted.length, many.length);
+assert.ok(sorted.findIndex(e => !e.dir) > 0 && sorted.slice(0, sorted.findIndex(e => !e.dir)).every(e => e.dir));
 
 // Review's paths, in the diff's order: folders where their first path comes, a chain of lone folders one row.
 const kids = pathEntries(["packages/cli/src/a.ts", "README.md", "packages/cli/src/daemon/b.ts", "gone/c.ts"].map((p) => ({ path: p, missing: p.startsWith("gone") })));

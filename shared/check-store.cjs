@@ -6,13 +6,13 @@ const vm = require("node:vm");
 
 const state = {}, local = new Map();
 const src = fs.readFileSync(path.join(__dirname, "store.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.store = { KEY, migrate, migrateLocal, wrapLines, setWrapLines };";
+  + "\nglobalThis.store = { KEY, migrate, migrateLocal, migratePagePrefs, wrapLines, setWrapLines };";
 const context = vm.createContext({
   shared: (k) => state[k] ?? null, setShared: (k, v) => { state[k] = v; },
   localStorage: { getItem: (k) => local.get(k) ?? null, setItem: (k, v) => local.set(k, v), removeItem: (k) => local.delete(k) },
 });
 vm.runInContext(src, context);
-const { KEY, migrate, migrateLocal, wrapLines, setWrapLines } = context.store;
+const { KEY, migrate, migrateLocal, migratePagePrefs, wrapLines, setWrapLines } = context.store;
 
 Object.assign(state, { "agents.pins": ["a", "b"], "t3-actions": { list: [{ id: "x" }], last: "x" }, "t3-inbox.notice": { live: true }, "space.icons": { k: "i" }, "t3-home.space": "h1" });
 state[KEY.home] = "h2";
@@ -33,10 +33,30 @@ local.set("working-open", "true"); local.set("open", "false"); local.set("settle
 migrateLocal([["working-open", "working.open"], ["open", "settled.open"]]);
 assert.deepEqual([local.get("working.open"), local.get("settled.open"), local.has("working-open"), local.has("open")], ["true", "true", false, false], "localStorage alike: moved, the new one kept, the old gone");
 
-// Long lines wrap until someone picks Scroll, on either page.
+// Each page inherits the old choice once, then keeps its own even if the other page changes.
 assert.equal(wrapLines(), true);
-setWrapLines(false); assert.ok(state[KEY.wrap] === false && wrapLines() === false);
+Object.assign(state, { "t3.wrap": false, "t3.navWidth": 320, "review.reveal": { file: "a" }, "t3-files.reveal": { file: "b" } });
+migratePagePrefs();
+assert.equal(wrapLines(), false);
+assert.equal(local.get("nav.width"), "320");
 setWrapLines(true); assert.equal(wrapLines(), true);
+migratePagePrefs();
+assert.equal(wrapLines(), true, "a migrated page never reads the old shared setting again");
+const other = new Map(), otherScope = vm.createContext({
+  shared: (k) => state[k] ?? null, setShared: (k, v) => { state[k] = v; },
+  localStorage: { getItem: (k) => other.get(k) ?? null, setItem: (k, v) => other.set(k, String(v)), removeItem: (k) => other.delete(k) },
+});
+vm.runInContext(src, otherScope);
+otherScope.store.migratePagePrefs();
+assert.equal(otherScope.store.wrapLines(), false, "the other page independently inherits the old Scroll choice");
+otherScope.store.setWrapLines(true);
+setWrapLines(false);
+assert.equal(otherScope.store.wrapLines(), true, "one page's choice cannot change the other");
+assert.equal(state["t3.wrap"], false, "the old shared choice is only an upgrade seed");
+assert.deepEqual([state["review.reveal"], state["t3-files.reveal"]], [null, null], "retired cross-page requests are discarded");
+local.clear(); delete state["t3.wrap"]; state["review.prefs"] = { wrap: false };
+migratePagePrefs();
+assert.equal(wrapLines(), false, "a choice from before the common wrap setting also survives");
 
 for (const k of Object.values(KEY)) assert.match(k, /^(t3|t3-[a-z-]+)\.[a-z][A-Za-z]*$/, `${k}: <mod>.<name> or t3.<name>, lowerCamel`);
 console.log("ok: store moves old names once, keeps what's worth keeping, and names every key by the rule.");

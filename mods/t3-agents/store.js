@@ -5,15 +5,23 @@ import { shared, setShared } from "herdr";
 // Every shared key the layout's mods keep data under: `<mod>.<name>` when one mod writes it, `t3.<name>` when several do or it
 // is the layout's own. Code names a key only through here.
 export const KEY = {
-  settings: "t3.settings", pins: "t3.pins", notice: "t3.notice", focus: "t3.focus", spaceIcons: "t3.spaceIcons", agentOrder: "t3.agentOrder", panels: "t3.panels", navWidth: "t3.navWidth", wrap: "t3.wrap", filesReveal: "t3-files.reveal",
+  settings: "t3.settings", pins: "t3.pins", notice: "t3.notice", focus: "t3.focus", spaceIcons: "t3.spaceIcons", agentOrder: "t3.agentOrder", panels: "t3.panels",
   home: "t3-tabs.home", undo: "t3-tabs.undo", unsettled: "t3-tabs.unsettled", compact: "t3-tabs.compact", recent: "t3-tabs.recent",
   inboxRows: "t3-inbox.rows", agentsRows: "t3-agents.rows", actions: "t3-actions.actions", menuChain: "t3-menu.chain",
 };
 
-// Long lines in Files' editor and Review's diff: wrapped at the page's width unless set to scroll, one choice for both pages.
-export const wrapLines = () => shared(KEY.wrap) !== false;
+// Each page keeps its own line mode; copies of this module run in each mod's localStorage.
+export const wrapLines = () => localStorage.getItem("lines.wrap") !== "false";
 /** @param {boolean} on */
-export const setWrapLines = (on) => setShared(KEY.wrap, on);
+export const setWrapLines = (on) => localStorage.setItem("lines.wrap", String(on));
+
+/** Seed each page's preferences once; old shared values stay until every installed page has had a chance to start. */
+export function migratePagePrefs() {
+  const wrap = shared("t3.wrap") ?? shared("review.prefs")?.wrap, width = shared("t3.navWidth");
+  if (localStorage.getItem("lines.wrap") === null && typeof wrap === "boolean") localStorage.setItem("lines.wrap", String(wrap));
+  if (localStorage.getItem("nav.width") === null && width != null) localStorage.setItem("nav.width", String(width));
+  for (const key of ["review.reveal", "t3-files.reveal"]) if (shared(key) != null) setShared(key, null);
+}
 
 // Old name, new name, and whether the value goes along (a cache or a passing value doesn't: the old key only goes).
 // shortcut: entries stay until every install has updated once; drop them then.

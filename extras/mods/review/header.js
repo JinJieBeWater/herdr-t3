@@ -2,9 +2,7 @@ import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { LU, COMPACT, button, iconButton, popover } from "./controls.js";
 import { scopeHeader } from "./scope.js";
-import { navToggle, ghostButton, setNavOpen } from "./nav-column.js";
-import { panelState } from "./panel.js";
-import { openInFiles } from "./files.js";
+import { navToggle, setNavOpen } from "./nav-column.js";
 
 // As the app's describeProgress, but the file's name only: the agent's paths run long, often through its own scratch folder.
 function progressText(progress) {
@@ -74,7 +72,6 @@ export function header(view, t, head) {
       .children(head.buttons.map(b => b.text
         ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], note: b.note })
         : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active })))
-      // The file in front, in the Files page, while the panel has it; last, the file tree's switch, greyed with no files to list.
-      .when(Boolean(view.review && view.current) && panelState().pages.includes("files"), el => el.child(ghostButton(t, "mods/review", "review-open-files", "files", "Open in Files", (cx) => openInFiles(view, view.current, cx))))
+      // Last, the file tree's switch, greyed with no files to list.
       .child(navToggle(t, "mods/review", "review-nav-toggle", view.navOpen, (cx) => { view.panel.navOpen = !view.navOpen; setNavOpen(view.panel.navOpen); cx.notify(); }, !view.review || view.navEmpty())));
 }

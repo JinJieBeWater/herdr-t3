@@ -13,6 +13,17 @@ const CLEAR = "#00000000";
 // A change's letter in its status's color, as T3's FileStatus.
 export const STATUS = { A: "#22c55e", D: "#ef4444", M: "#f59e0b", R: "#3b82f6", C: "#3b82f6" };
 
+// Names as people read them, case aside, digit runs by value. Keys are made once per entry: regexes per comparison exceed
+// Herdr's script budget on a folder of 12k entries. shortcut: digit runs past 16 digits compare as text; pad more if needed.
+const sortKey = (name) => name.toLowerCase().replace(/\d+/g, (d) => d.padStart(16, "0"));
+const keyed = (x, y, a, b) => x < y ? -1 : x > y ? 1 : a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+export const naturalCompare = (a, b) => keyed(sortKey(a), sortKey(b), a, b);
+/** Folders before files, each by its natural name. */
+export function sortEntries(entries) {
+  return entries.map((e) => ({ e, k: sortKey(e.name) }))
+    .sort((p, q) => Number(q.e.dir) - Number(p.e.dir) || keyed(p.k, q.k, p.e.name, q.e.name)).map((p) => p.e);
+}
+
 /**
  * The tree as rows, top to bottom. `childrenOf(folder)` gives a folder's entries in order ({ name, dir, path? } and anything
  * else, kept on the row; "" is the top); `isOpen(path)` whether a folder shows them. An open folder holding just one

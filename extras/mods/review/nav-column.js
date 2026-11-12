@@ -1,18 +1,17 @@
 // The space panel's navigation column, one for the Files and Review pages (docs/adr/0013): right of the content, ruled off
 // on its left, its left edge dragged, a 40 head over what it lists. As T3's FileExplorerPane: 256 to start, 160 at least,
-// at most 560 and never leaving the content less than 256. Both pages share one width (`t3.navWidth`); each page keeps
-// whether its column is open in its own localStorage (`nav.open`). scripts/sync.sh copies this to both mods.
+// at most 560 and never leaving the content less than 256. Each page keeps its width (`nav.width`) and whether its column
+// is open (`nav.open`) in its own localStorage. scripts/sync.sh copies this to both mods.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { shared, setShared, settings } from "herdr";
-import { KEY } from "./store.js";
+import { settings } from "herdr";
 
 export const NAV = 256, NAV_MIN = 160, NAV_MAX = 560, CONTENT_MIN = 256;
 
 /** How wide the column may be in a page `body` wide: [least, most]. */
 export const navRange = (body) => [NAV_MIN, Math.max(NAV_MIN, Math.min(NAV_MAX, body - CONTENT_MIN))];
-/** The column's width in a page `body` wide: the shared one, kept within navRange. */
-export function navWidth(body, kept = shared(KEY.navWidth)) {
+/** The column's width in a page `body` wide: that page's own, kept within navRange. */
+export function navWidth(body, kept = localStorage.getItem("nav.width")) {
   const [least, most] = navRange(body);
   return Math.min(most, Math.max(least, Number(kept) || NAV));
 }
@@ -21,25 +20,34 @@ export function navWidth(body, kept = shared(KEY.navWidth)) {
 export const navOpen = () => localStorage.getItem("nav.open") !== "false";
 export const setNavOpen = (open) => localStorage.setItem("nav.open", String(open));
 
+/** Follow the first width at once, then keep it until the room has held its latest width for 300ms.
+ * Each page owns `hold`; `after(ms, f)` schedules `f(cx)` without retaining a render's context. */
+export function holdWidth(hold, width, after) {
+  if (hold.at == null) { hold.at = width; return; }
+  hold.want = width;
+  const run = hold.run = (hold.run ?? 0) + 1;
+  after(300, (cx) => { if (run === hold.run && hold.at !== hold.want) { hold.at = hold.want; cx.notify(); } });
+}
+
 // The column's edge being dragged, on this page (each mod has its own copy): the pointer's x and the width it started from,
 // and the width it's at now.
 let drag = null;
 
 /**
  * The page's `content`, and right of it, while `open`, the column: `head` in its 40 head, `list` under it. `id` names it;
- * `body` is the page's width. Its left edge drags, and the width it lands at is the one both pages show.
+ * `body` is the page's width. Its left edge drags, and the width it lands at stays on this page.
  */
 /** @param {any} t @param {string} id @param {number} body @param {{ content: any, head: any, list: any, open: boolean }} parts */
 export function withNav(t, id, body, { content, head, list, open }) {
   if (!open) return div().id(`${id}-solo`).size_full().min_w(0).child(content);
   const [least, most] = navRange(body), z = Number(settings()?.zoom) || 1, mine = drag?.id === id;
   const width = mine ? Math.min(most, Math.max(least, drag.width)) : navWidth(body);
-  // Written once, on release: a shared value draws every mod again. A pointer leaving the page lets go there.
+  // Written once, on release. A pointer leaving the page lets go there.
   const end = (cx) => {
     if (drag?.id !== id) return;
     const to = Math.round(width);
     drag = null;
-    if (to !== Math.round(navWidth(body))) setShared(KEY.navWidth, to);
+    if (to !== Math.round(navWidth(body))) localStorage.setItem("nav.width", String(to));
     cx.notify();
   };
   // Not Herdr's resizable group: it keeps its panels' sizes under its id and scales them with the page, so a resizing panel

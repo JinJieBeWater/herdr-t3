@@ -11,12 +11,11 @@ export const MENU_W = 220, MENU_ROW = 28;
 
 /**
  * The items, in order, for a row on `page` ("files" or "review"): a folder (`dir`) has none that open it; `remote`, on another
- * machine, none that run here; `agent` is the space's agent to mention, if any. Open in Review is for a file Review has
- * (`changed`), Open in Files for a file while the panel has Files (`files`); Mark reviewed or unreviewed (`reviewed`) is
- * Review's own. Each is `{ id, label, icon }`; the page runs it.
+ * machine, none that run here; `agent` is the space's agent to mention, if any. Mark reviewed or unreviewed (`reviewed`)
+ * is Review's own. Each is `{ id, label, icon }`; the page runs it.
  */
-/** @param {{ page: string, dir?: boolean, remote?: boolean, platform?: string, agent?: any, changed?: boolean, files?: boolean, reviewed?: boolean }} row */
-export function fileMenuItems({ page, dir = false, remote = false, platform, agent = null, changed = false, files = false, reviewed = false }) {
+/** @param {{ page: string, dir?: boolean, remote?: boolean, platform?: string, agent?: any, reviewed?: boolean }} row */
+export function fileMenuItems({ page, dir = false, remote = false, platform, agent = null, reviewed = false }) {
   const mac = platform === "macos";
   return [
     { id: "copy-path", label: "Copy path", icon: "copy" },
@@ -24,8 +23,6 @@ export function fileMenuItems({ page, dir = false, remote = false, platform, age
     agent && { id: "mention", label: "Mention in agent", icon: "at-sign" },
     !remote && mac && { id: "reveal", label: "Reveal in Finder", icon: "folder-open" },
     !remote && !dir && (mac || platform === "linux") && { id: "open", label: "Open in default app", icon: "external-link" },
-    page === "files" && !dir && changed && { id: "open-review", label: "Open in Review", icon: "file-diff" },
-    page === "review" && !dir && files && { id: "open-files", label: "Open in Files", icon: "files" },
     page === "review" && { id: reviewed ? "unreview" : "review", label: reviewed ? "Mark unreviewed" : "Mark reviewed", icon: "square-check" },
   ].filter(Boolean);
 }

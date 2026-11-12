@@ -11,6 +11,6 @@
 
 ## Consequences
 
-- 状态记在共享状态 `t3.panels`，按 space id。由能看到面板变化的那份副本在绘制时同步：平时是标签栏的 `t3-tabs`；放大时标签栏隐藏，换成面板头 `t3-chrome`。放大和关闭在操作时当场写入，所以从放大状态回来的标签栏读到的记录已和面板一致。
+- 状态记在共享状态 `t3.panels`，按 space id。由始终显示的 `t3-tabs` 的 `keys` 浮动块在绘制时同步；放大面板时它仍显示。面板头 `t3-chrome` 读取状态并发出切页、放大和关闭动作。
 - Home 也是 space：回 Home 时面板按 Home 自己的记录显示，默认关着。
 - 单独发布的 herdr-pulls-review 用在 Herdr 自带布局里，那里由自带的 `tabs` 按 space 记，不受影响。

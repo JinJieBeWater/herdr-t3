@@ -6,16 +6,16 @@ import { v_flex, h_flex, InputState, Input, Editor, EditorState, TextView } from
 import { spaces, nextCommand, exec, readTextFile, watchFolder, theme, settings, shared, setShared, appHome, window } from "herdr";
 import * as fs from "fs/promises";
 import uFuzzy from "./vendor/ufuzzy.js";
-import { panelState, showPage, hidePanel } from "./panel.js";
+import { panelState, hidePanel } from "./panel.js";
 import { step, scrollList } from "./list.js";
 import { fileIcon } from "./file-icons.js";
 import { TREE_ROW, treeRows, rowAt, treeKey, treeList, treeRow, revealRow } from "./file-tree.js";
-import { withNav, navToggle, foldAllButton, ghostButton, navOpen, setNavOpen } from "./nav-column.js";
+import { withNav, navToggle, foldAllButton, ghostButton, navOpen, setNavOpen, holdWidth } from "./nav-column.js";
 import { fileMenuItems, fileMenuView, agentFor, runCommon } from "./file-menu.js";
-import { KEY, wrapLines, setWrapLines } from "./store.js";
+import { migratePagePrefs, wrapLines, setWrapLines } from "./store.js";
 import { loadingState, emptyState, errorBar } from "./panel-states.js";
 import { LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, terms, narrows,
-  filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket, holdWidth } from "./model.js";
+  filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket } from "./model.js";
 
 const MOD = "mods/t3-files";
 const RESULTS = 200, REMOTE_IMAGE = 512 * 1024, TEXT_MAX = 1024 * 1024;
@@ -40,6 +40,7 @@ function blank(sp) {
 
 export default class Files extends View {
   init(_props, cx) {
+    migratePagePrefs();
     this.states = new Map();
     this.uf = new (/** @type {any} */ (uFuzzy))();
     this.treeHandle = cx.focus_handle();
@@ -48,11 +49,9 @@ export default class Files extends View {
     this.search.on("submit", (_e, cx) => { const st = this.current(); const r = st?.results?.[st.at]; if (r) this.pick(st, r.path, cx); });
     this.handle = cx.focus_handle();
     this.navOpen = navOpen();
-    // The width the code is laid out at, behind its room while that moves (codeView, model.js holdWidth).
+    // The width the code is laid out at, behind its room while that moves (codeView, nav-column.js holdWidth).
     /** @type {{ at?: number, want?: number, run?: number }} */
     this.codeHold = {};
-    // An Open in Files this young when the page starts is the press that opened it; an older one was already shown.
-    this.revealed = Date.now() - 10000;
     this.cached = new Set();
     cx.spawn(async () => { await exec("rm", ["-rf", `${appHome()}/${CACHE}`]).catch(() => null); });
     cx.timer.every(REMOTE_EVERY, (cx) => this.poll(cx));
@@ -347,31 +346,12 @@ export default class Files extends View {
     cx.notify();
   }
 
-  // A row's menu: file-menu.js's items, Open in Review here.
+  // A row's menu: file-menu.js's items.
   menuItems(st, path) {
     const abs = join(st.root, path), agent = agentFor(st.id), platform = window()?.platform, dir = Boolean(this.rows(st).find((r) => r.path === path)?.dir);
-    return fileMenuItems({ page: "files", dir, remote: Boolean(st.on), platform, agent, changed: this.reviewable(st, path) }).map((it) => ({ ...it,
+    return fileMenuItems({ page: "files", dir, remote: Boolean(st.on), platform, agent }).map((it) => ({ ...it,
       hint: it.id === "copy-path" ? st.on ?? "" : it.id === "mention" ? agent.program?.name ?? "" : "",
-      run: (cx) => { if (it.id === "open-review") this.openInReview(st, path); else runCommon(it.id, { abs, rel: path, agent, platform }, cx); } }));
-  }
-
-  // A change Review shows: here, in Git, with the panel having Review.
-  reviewable(st, path) { return Boolean(path && !st.on && st.git && st.marks.has(path) && panelState().pages.includes("review")); }
-
-  // Review, on this file: `review.reveal` (its path from the Git top) for it to go to, then its page.
-  openInReview(st, path) {
-    setShared("review.reveal", { space: st.id, file: st.git.prefix + path, n: Date.now() });
-    showPage("review");
-  }
-
-  // Review's Open in Files (`t3-files.reveal`, its path from the Git top): this page shows, the file opens and the tree goes to
-  // it. Once Git is known, just after this draw; an ask from before this copy started was already shown.
-  follow(st, cx) {
-    const ask = shared(KEY.filesReveal);
-    if (ask?.space !== st.id || !(ask.n > this.revealed) || st.git === undefined) return;
-    this.revealed = ask.n;
-    const prefix = st.git?.prefix ?? "", path = ask.file.startsWith(prefix) ? ask.file.slice(prefix.length) : null;
-    if (path) cx.timer.after(0, (cx) => { this.open(st, path, cx); this.reveal(st, path, cx); });
+      run: (cx) => runCommon(it.id, { abs, rel: path, agent, platform }, cx) }));
   }
 
   rows(st) { return st.rows ??= treeRows(folderEntries(st), (p) => st.expanded.has(p)); }
@@ -380,8 +360,7 @@ export default class Files extends View {
     const t = theme(), sp = spaces().find((s) => s.active);
     if (!sp) return div().id("t3-files").size_full();
     const st = this.stateFor(sp, cx);
-    this.follow(st, cx);
-    // Lines changed here or on Review: the editor made again, just after this draw, as an editor can't be made in one.
+    // Lines changed: the editor made again, just after this draw, as an editor can't be made in one.
     const v = st.view;
     if (v?.code && v.wrap !== wrapLines()) cx.timer.after(0, (cx) => {
       if (st.view !== v || !v.code || v.wrap === wrapLines()) return;
@@ -415,10 +394,9 @@ export default class Files extends View {
   }
 
   // The page's toolbar, across it, there with no file too: where the file is (the folder's name alone without one), Preview
-  // or Code for Markdown, Review for a change, and the tree's switch.
+  // or Code for Markdown, Wrap for code, and the tree's switch.
   toolbar(st, t) {
     const md = kindOf(st.file ?? "") === "markdown", code = shared(MARKDOWN) === "code";
-    const review = this.reviewable(st, st.file);
     const parts = st.file?.split("/") ?? [];
     const crumb = (label, path, last) => div().id(`crumb-${path}`).flex_none().px(4).rounded(4).text_color(last ? t.foreground : t.muted)
       .when(!last, (el) => el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => this.reveal(st, path, cx)))
@@ -435,9 +413,8 @@ export default class Files extends View {
         .when(md, (el) => el.child(h_flex().flex_none().gap(2).child(tab("Preview", !code, "preview")).child(tab("Code", code, "code"))))
         // The page's buttons 4 apart, as Review's.
         .child(h_flex().flex_none().gap(4).items_center()
-          // Wrap or scroll long lines, the choice Review's settings show too.
+          // Wrap or scroll long lines, this page's own choice.
           .when(Boolean(st.view?.code), (el) => el.child(ghostButton(t, MOD, "t3-files-wrap", "text-wrap", wrapLines() ? "Scroll long lines" : "Wrap long lines", (cx) => { setWrapLines(!wrapLines()); cx.notify(); }, { on: wrapLines() })))
-          .when(review, (el) => el.child(ghostButton(t, MOD, "t3-files-review", "file-diff", "Open in Review", () => this.openInReview(st, st.file))))
           .child(navToggle(t, MOD, "t3-files-nav-toggle", this.navOpen, (cx) => { this.navOpen = !this.navOpen; setNavOpen(this.navOpen); cx.notify(); })));
   }
 
@@ -452,7 +429,7 @@ export default class Files extends View {
           : v.problem ? emptyState(t, "t3-files-problem", `${MOD}/icons/file-text.svg`, nameOf(st.file), v.problem)
           : v.image ? div().size_full().p(16).flex().items_center().justify_center().child(image(v.image).max_w_full().max_h_full())
           : md && !code ? div().id("t3-files-md").size_full().overflow_y_scrollbar().px(24).py(16).child(TextView.markdown(`t3-files-md-${st.id}-${st.file}`, v.text).selectable(true).scrollable(false).text_size(14))
-          // Laid out at the width its room last held (model.js holdWidth), cut off or short of it while the room moves.
+          // Laid out at the width its room last held (nav-column.js holdWidth), cut off or short of it while the room moves.
           : v.code ? this.codeView(v.code)
           : div());
   }

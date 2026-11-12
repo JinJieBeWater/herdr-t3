@@ -1,14 +1,12 @@
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { treeRows, pathEntries, treeList, treeRow, revealRow, statusBadge } from "./file-tree.js";
+import { treeRows, pathEntries, sortEntries, treeList, treeRow, revealRow, statusBadge } from "./file-tree.js";
 import { foldAllButton } from "./nav-column.js";
 import { PANE, checkMark } from "./controls.js";
 import { groupFiles } from "./rows.js";
 import { categoryIcon, criticalMark } from "./groups.js";
 import { fileMenuItems, agentFor, runCommon } from "./file-menu.js";
-import { KEY } from "./store.js";
-import { showPage, panelState } from "./panel.js";
-import { spaces, setShared, window as appWindow } from "herdr";
+import { spaces, window as appWindow } from "herdr";
 
 export const TREE = "review-files";
 
@@ -86,7 +84,8 @@ export function reviewEntries(top) {
   if (!top) return kids;
   const files = (at, g) => {
     const own = pathEntries([...g.files.map(path => ({ path })), ...g.missing.map(path => ({ path, missing: true }))]);
-    for (const [dir, list] of own) kids.set(at && dir ? `${at}/${dir}` : at || dir, list.map(e => e.dir ? { ...e, path: at ? `${at}/${e.path}` : e.path, real: e.path, owner: g } : e));
+    // Files were ordered on read; only missing paths still need merging into that order.
+    for (const [dir, list] of own) kids.set(at && dir ? `${at}/${dir}` : at || dir, (g.missing.length ? sortEntries(list) : list).map(e => e.dir ? { ...e, path: at ? `${at}/${e.path}` : e.path, real: e.path, owner: g } : e));
   };
   const group = (g, parent, at) => {
     kids.get(parent === top ? "" : `group:${parent.key}`).push({ name: g.label, dir: true, path: at, group: g, parent, flat: false });
@@ -143,19 +142,12 @@ export function menuItems(view, target) {
   const rel = folder && abs.startsWith(`${folder}/`) ? abs.slice(folder.length + 1) : target.path;
   const files = target.files.map(path => view.fileAt(path)).filter(Boolean), reviewed = files.length > 0 && files.every(f => f.reviewed);
   const agent = agentFor(view.space), platform = appWindow()?.platform;
-  return fileMenuItems({ page: "review", dir: target.dir, platform, agent, files: panelState().pages.includes("files"), reviewed }).map(it => ({ ...it,
+  return fileMenuItems({ page: "review", dir: target.dir, platform, agent, reviewed }).map(it => ({ ...it,
     hint: it.id === "mention" ? agent.program?.name ?? "" : "",
     run: (cx) => {
-      if (it.id === "open-files") openInFiles(view, target.path, cx);
-      else if (it.id === "review" || it.id === "unreview") view.setReviewed(files, it.id === "review", cx);
+      if (it.id === "review" || it.id === "unreview") view.setReviewed(files, it.id === "review", cx);
       else runCommon(it.id, { abs, rel, agent, platform }, cx);
     } }));
-}
-
-// The Files page, on this file: `t3-files.reveal` (its path from the repository's top) for it to open and go to, then its page.
-export function openInFiles(view, path, _cx) {
-  setShared(KEY.filesReveal, { space: view.space, file: path, n: Date.now() });
-  showPage("files");
 }
 
 // The tree's folders and groups down to a file, opened: a jump to it shows it wherever it is.

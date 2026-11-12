@@ -1,7 +1,7 @@
 // A pulls.review review, the `review` page of the window's space panel (docs/adr/0011): groups (the AI analysis, else
 // rule-based), each group's files and their diffs, reviewed marks, one commit at a time. One copy serves every space and
 // shows the active one's review. The pulls-review mod's "herdr" mode and the header's scope menu ask for a page through shared(PANE)
-// `{ space, root, page, base?, n, analyze }`; the Files page asks for a file through `review.reveal` `{ space, file, n }`.
+// `{ space, root, page, base?, n, analyze }`. The Files page asks nothing of it (docs/adr/0015).
 // Everything comes from the jin.review daemon, which listens on this machine only: a remote space has no review.
 
 import { View, div, svg } from "gpui-kit";
@@ -23,23 +23,23 @@ import { withNav, navOpen } from "./nav-column.js";
 import { setReviewed, toggleFull, headerPress, diffView, hbars, foldMenu } from "./diff.js";
 import { analysisStatus, statusPanel, head, header } from "./header.js";
 import { reviewKey } from "./keys.js";
-import { KEY, wrapLines, setWrapLines } from "./store.js";
+import { wrapLines, migratePagePrefs } from "./store.js";
 
 // A request this young when its space's review starts is the click that opened the panel; an older one was already shown.
 const FRESH = 10000;
 // Its own writes, until mods/review was a pane in a tab: nothing reads them now.
 const RETIRED = [`${PANE}.titles`, `${PANE}.program`];
-// `wrap` went to the layout's KEY.wrap, shared with Files: init takes a choice made here along first.
+// `wrap` is the page's own lines.wrap now: migratePagePrefs takes a choice made here along before it goes.
 const GONE = ["openIn", "fileList", "groupNav", "wrap"];
 // After a click or a key picks a file, the list is still scrolling to it this long: the file at its top isn't the one in front yet.
 const PICKED = 600;
 
 export default class ReviewPanel extends View {
   init(_props, cx) {
+    migratePagePrefs();
     for (const key of RETIRED) if (shared(key) != null) setShared(key, null);
     // Settings gone since (where a review opened; the files as a list): dropped from what's kept.
     const prefs = shared(`${PANE}.prefs`);
-    if (typeof prefs?.wrap === "boolean" && shared(KEY.wrap) == null) setWrapLines(prefs.wrap);
     if (prefs && GONE.some(k => k in prefs)) setShared(`${PANE}.prefs`, Object.fromEntries(Object.entries(prefs).filter(([k]) => !GONE.includes(k))));
     // Each space's review, by space id, for this run; what each shows is kept in review.shown.
     this.panel = this; this.bySpace = new Map();
@@ -49,8 +49,6 @@ export default class ReviewPanel extends View {
     this.height = 600; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0;
     // A character's width in the code's font, measured once (diff.js), for where wrapped lines break; every space's review shares it.
     this.charWidth = null; this.wideWidth = null;
-    // The width wrapped lines are cut at, a moment behind a width that's moving (diff.js settleWrap); each space its own.
-    this.wrapView = null; this.wrapRun = 0;
     // The model field searches the agent's catalog; Enter picks the model it names exactly, else the text as typed.
     this.modelInput = InputState.new({ placeholder: "Search or type a model" });
     // The row lit on a settings page and in the fold menu, by keys or the pointer; Enter on one picks it.
@@ -139,7 +137,9 @@ export default class ReviewPanel extends View {
   begin(space) {
     const was = shared(`${PANE}.shown`)?.[space];
     this.space = space; this.root = was?.root ?? null; this.page = was?.page ?? null; this.base = was?.base ?? this.page;
-    this.handled = this.revealed = Date.now() - FRESH; this.noRepo = false;
+    this.handled = Date.now() - FRESH; this.noRepo = false;
+    // The width wrapped lines are cut at (`at`), a moment behind a width that's moving (nav-column.js holdWidth).
+    this.wrapHold = {};
     // The page a count's click asked to analyze, until its first read.
     this.analyzeFor = null; this.baseCommits = null;
     this.review = null; this.error = null; this.version = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
@@ -265,8 +265,8 @@ export default class ReviewPanel extends View {
   items() {
     // Wrapped, lines break at the columns the diff's width holds, of the characters' measured widths (diff.js), once known.
     const char = this.charWidth ?? CHAR, wideChar = this.wideWidth ?? 2 * char, wide = wideChar / char;
-    // At the width it last held (diff.js settleWrap), so a drag doesn't cut every row in view at each step.
-    const wrap = wrapLines() ? wrapColumns(this.wrapView ?? this.view, char, wideChar) : null;
+    // At the width it last held (diff.js), so a drag doesn't cut every row in view at each step.
+    const wrap = wrapLines() ? wrapColumns(this.wrapHold.at ?? this.view, char, wideChar) : null;
     const split = this.splitShown(), group = this.group(), id = `${this.version}:${this.groupKey}:${split}:${Math.round(this.view / 40)}:${wrap ? `${wrap.row}:${wrap.pair}` : ""}:${char}:${wide}`;
     if (id !== this.itemsId) {
       // Kept only once all of it is built: a throw part way would leave the list and its lookups out of step, never rebuilt.
@@ -405,16 +405,6 @@ export default class ReviewPanel extends View {
       this.open(request.page, cx);
       if (again) this.load(cx);
     }
-    // The Files page's `Review ↗`: that file, on the uncommitted changes' page when the page shown doesn't have it.
-    const reveal = shared(`${PANE}.reveal`);
-    if (reveal?.space === this.space && reveal.n > this.revealed && this.root && !this.loading && !this.switching) {
-      if (this.review && this.fileAt(reveal.file)) {
-        this.revealed = reveal.n;
-        // Just after this draw, as a scroll's settling is timed.
-        cx.timer.after(0, (cx) => { if (this.fileAt(reveal.file)) this.select(reveal.file, cx); });
-      } else if (this.page !== "/worktree") { this.base = "/worktree"; this.baseCommits = null; this.open("/worktree", cx); }
-      else if (this.review || this.error) this.revealed = reveal.n;
-    }
     this.publish();
   }
 
@@ -450,9 +440,9 @@ export default class ReviewPanel extends View {
     if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;
     // Set again by the submenu drawn, if one is.
     this.subRect = null;
-    // The settings and fold menus hang 4 under their 24 buttons, right-aligned with them: past the 8 inset, the tree's switch
-    // and Open in Files when it's there (header.js), each 24 and 4 apart.
-    const right = 8 + 28 + (this.review && this.current && panelState().pages.includes("files") ? 28 : 0);
+    // The settings and fold menus hang 4 under their 24 buttons, right-aligned with them: past the 8 inset and the tree's
+    // switch (header.js), 24 and 4 apart.
+    const right = 8 + 28;
     return v_flex().id("review-pane").relative().size_full().min_h(0).text_color(t.foreground).text_size(12)
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .on_mouse_down("left", () => this.handle.focus())

@@ -11,19 +11,159 @@ const load = (file) => fs.readFileSync(path.join(__dirname, file), "utf8")
   .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (async function|function|const) /gm, "$1 ").replace(/^export \{[\s\S]*?\};?\s*$/m, "");
 const context = vm.createContext({});
 vm.runInContext([load("vendor/ufuzzy.js"), load("file-icons-data.js"), load("file-icons.js"), load("file-tree.js"), load("model.js"),
-  "globalThis.m = { holdWidth, CODE_SETTLE, join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, naturalCompare, sortEntries, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket };"].join("\n"), context);
+  "globalThis.m = { join, uFuzzy, fileIcon, folderIcon, FILE_NAMES, FILE_EXTENSIONS, FOLDER_NAMES, LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, treeRows, terms, narrows, filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket };"].join("\n"), context);
 const m = context.m;
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
+// A fake `herdr` element tree, and finding in it.
+function element(...made) {
+  const node = { key: undefined, items: [], handlers: {}, calls: {}, made };
+  const proxy = new Proxy(node, { get(target, key) {
+    if (key in target) return target[key];
+    return (...args) => {
+      if (key === "when") { if (args[0]) args[1](proxy); }
+      else if (key === "child") node.items.push(args[0]);
+      else if (key === "children") node.items.push(...args[0]);
+      else if (key === "id") node.key = args[0];
+      else if (String(key).startsWith("on_")) node.handlers[typeof args[0] === "string" ? `${key}:${args[0]}` : key] = args.at(-1);
+      else node.calls[key] = args;
+      return proxy;
+    };
+  } });
+  return proxy;
+}
+const walk = (node, out = []) => { if (node && typeof node === "object" && node.items) { out.push(node); node.items.forEach((c) => walk(c, out)); } return out; };
+const find = (root, id) => walk(root).find((n) => n.key === id) ?? null;
+const labels = (root) => walk(root).map((n) => n.calls.accessibility_label?.[0]).filter(Boolean);
+const space = (id, folder, active = false, machine = null) => ({ id, folder, machine, active, tabs: [] });
+
+// The page, started in a fake `herdr`: the panel on `page` with Review installed too, every folder holding a.js (changed) and
+// b.js. Each folder is in Git but `/n…`. `w` is the world: what ran, what's watched, the editors made, reads held back.
+function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
+  const w = { spaces, windowActive: true, ran: [], read: [], watchers: [], made: [], hold: null, held: [], stall: null, stalled: [], files: ["a.js", "b.js"], notified: 0 };
+  const shared = { "t3.wrap": false, "t3.navWidth": 300 }, wrote = [], store = new Map(), timers = [], everies = [], failed = [];
+  const commands = [];
+  let wake = null, running = null;
+  const exec = async (cmd, args, o = {}) => {
+    const line = [cmd, ...args].join(" "), cwd = o.cwd ?? (cmd === "sh" ? args[3] : "") ?? "";
+    w.ran.push({ line, cwd, on: o.on ?? null });
+    if (w.stall?.(line)) await new Promise((r) => w.stalled.push(r));
+    if (line.includes("rev-parse")) return cwd.startsWith("/n") ? { code: 128, stdout: "" } : { code: 0, stdout: `${cwd}\n\n` };
+    if (cmd === "pwd") return { code: 0, stdout: `${cwd}\n` };
+    if (line.includes(" status ")) return { code: 0, stdout: "1 .M N... 100644 100644 100644 h1 h2 a.js\0" };
+    if (line.includes("ls-files")) return { code: 0, stdout: w.files.map((f) => `${f}\0`).join("") };
+    if (cmd === "sh" && args[1] === m.LIST) return { code: 0, stdout: cwd.endsWith("/src") ? "d\0d\0" : "f\0a.js\0f\0b.js\0" };
+    if (cmd === "sh" && args[1] === m.PROBE) return { code: 0, stdout: "12 0\n" };
+    return { code: 0, stdout: "" };
+  };
+  const task = () => ({ cancelled: false, done: false, cancel() { this.cancelled = true; }, is_done() { return this.done || this.cancelled; } });
+  // As Herdr's: cancelling a task stops nothing already awaited (a watch, an exec); it only says it's done.
+  const cx = {
+    notify() { w.notified++; }, stop_propagation() {}, write_to_clipboard() {}, focus_handle: () => ({ focus() {}, is_focused: () => false }),
+    spawn(f) {
+      const t = task();
+      Promise.resolve().then(() => { running = t; try { return f(cx); } finally { running = null; } }).then(() => { t.done = true; }, (e) => failed.push(e));
+      return t;
+    },
+    sleep: async () => {},
+    timer: { every(ms, f) { everies.push([ms, f]); return task(); }, after(ms, f) { timers.push([ms, f]); return task(); } },
+  };
+  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); if (failed.length) throw failed[0]; };
+  const fire = async (ms) => { for (const [at, f] of timers.splice(0)) if (at <= ms) f(cx); else timers.push([at, f]); await settle(); };
+  // A second of Herdr's clock: what runs on the page's repeating timers, hidden or not.
+  const tick = async () => { for (const [, f] of everies) f(cx); await settle(); await fire(0); };
+  const body = { id: "panel-body", active: page, children: [{ id: "files" }, { id: "review" }] };
+  const layout = { id: "root", children: [{ id: "work" }, { id: "panel", children: [body] }] };
+  const ctx = vm.createContext({
+    View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element,
+    Input: { new: element }, Editor: { new: element }, TextView: { markdown: element },
+    InputState: { new: () => { let v = ""; return { on() {}, value: () => v, set_value(x) { v = x; } }; } },
+    EditorState: { new: (o) => { const e = { wrap: o.soft_wrap, text: o.value, released: false, release() { this.released = true; return true; } }; w.made.push(e); return e; } },
+    spaces: () => w.spaces, agents: () => [], layout: () => layout,
+    theme: () => ({}), settings: () => ({ zoom: 1, font_family: "mono" }), window: () => ({ active: w.windowActive, platform: "macos" }), appHome: () => "/tmp/none",
+    shared: (k) => shared[k], setShared: (k, v) => { wrote.push(k); shared[k] = v; },
+    run() {}, notify() {}, exec,
+    readTextFile: async (p) => { w.read.push(p); return w.hold && p.startsWith(w.hold) ? new Promise((r) => w.held.push(() => r("held\n"))) : "const a = 1;\n"; },
+    watchFolder: (p) => new Promise((resolve, reject) => w.watchers.push({ path: p, task: running, resolve, reject })),
+    nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise((r) => { wake = r; }),
+    fs: { unlink: async () => {}, mkdir: async () => {}, writeFile: async () => {} },
+    localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
+    Date, Promise, Math, Number, String, Boolean, Map, Set, Object, Array, JSON, RegExp, Error, Uint8Array,
+  });
+  const files = ["vendor/ufuzzy.js", "store.js", "list.js", "panel.js", "file-icons-data.js", "file-icons.js", "file-tree.js", "nav-column.js", "file-menu.js", "panel-states.js", "model.js", "main.js"];
+  vm.runInContext(files.map(load).join("\n").replace("export default class", "globalThis.Mod = class"), ctx);
+  const send = (c) => { if (wake) { const x = wake; wake = null; x(c); } else commands.push(c); };
+  const view = new ctx.Mod();
+  view.init({}, cx);
+  const show = (p) => { body.active = p; };
+  const activate = (id) => { w.spaces = w.spaces.map((s) => ({ ...s, active: s.id === id })); };
+  return { view, cx, w, settle, fire, tick, send, shared, wrote, store, show, activate };
+}
+
+async function page() {
+  const { view, cx, settle, fire, send, shared, wrote, store } = makePage();
+  // Its own choices start from the ones both pages used to share; after that, they're this page's.
+  assert.equal(store.get("lines.wrap"), "false", "the old shared wrap is this page's first");
+  assert.equal(store.get("nav.width"), "300", "the old shared width is this page's first");
+  let root = view.render(cx);
+  await settle();
+  root = view.render(cx);
+  assert.ok(find(root, "row-a.js") && find(root, "row-b.js"), "the folder's files in the tree");
+
+  // A file Review also has opens here alone: no Open in Review in the toolbar or the menu, nothing asked of Review.
+  send("open:a.js");
+  await settle();
+  root = view.render(cx);
+  assert.ok(find(root, "t3-files-code"), "the file shows");
+  assert.equal(find(root, "t3-files-review"), null, "no Open in Review button");
+  assert.ok(!labels(root).includes("Open in Review"));
+  find(root, "row-a.js").handlers["on_mouse_down:right"]();
+  root.handlers["on_mouse_down:right"]({ local_position: { x: 10, y: 10 } }, cx);
+  root = view.render(cx);
+  const items = walk(find(root, "file-menu")).map((n) => n.key).filter((k) => k?.startsWith("file-menu-"));
+  assert.ok(items.includes("file-menu-copy-path"), "the row's menu opens");
+  assert.ok(!items.some((k) => /open-review|open-files/.test(k)), `no cross-page items: ${items}`);
+  find(root, "file-menu-backdrop").handlers["on_mouse_down:left"]({}, cx);
+
+  // Review's old ask to show a file here is left alone.
+  shared["t3-files.reveal"] = { space: "s1", file: "b.js", n: Date.now() + 60000 };
+  view.render(cx);
+  await fire(0);
+  root = view.render(cx);
+  assert.ok(find(root, "crumb-a.js") && !find(root, "crumb-b.js"), "still on a.js");
+
+  // Wrap is this page's: the button writes nothing both pages share.
+  find(root, "t3-files-wrap").handlers.on_click({}, cx);
+  assert.equal(store.get("lines.wrap"), "true");
+  assert.equal(shared["t3.wrap"], false, "the old shared wrap is left as it was");
+  root = view.render(cx);
+  await fire(0);
+  assert.equal(view.current().view.code.wrap, true, "the editor made again, wrapped");
+
+  // The code keeps the width it was laid out at while its room moves, cut off; the new one once it holds 300 ms.
+  const code = () => find(view.render(cx), "t3-files-code");
+  const editorWidth = () => code().items[0].calls.w?.[0];
+  assert.ok(code().calls.overflow_hidden, "cut off, not scrolled");
+  code().handlers.on_size_change({ width: 600, height: 400 }, cx);
+  assert.equal(editorWidth(), 600, "the first width at once");
+  code().handlers.on_size_change({ width: 640, height: 400 }, cx);
+  assert.equal(editorWidth(), 600, "held while it moves");
+  await fire(299);
+  assert.equal(editorWidth(), 600);
+  await fire(300);
+  assert.equal(editorWidth(), 640, "the room held: its width");
+
+  // Search and the keyboard's command still work; neither page wrote a request to the other.
+  send("search:b");
+  await settle();
+  root = view.render(cx);
+  assert.ok(find(root, "found-0"), "search finds it");
+  assert.deepEqual(wrote.filter((k) => /reveal/.test(k)), [], "no cross-page request");
+}
+
 (async () => {
-  // Natural order, folders first.
-  assert.deepEqual(plain(["file10", "File2", "b", "file1", "A", "file02"].sort(m.naturalCompare)), ["A", "b", "file1", "File2", "file02", "file10"]);
-  assert.deepEqual(plain(m.sortEntries([{ name: "z", dir: false }, { name: "a10", dir: false }, { name: "a9", dir: false }, { name: "y", dir: true }])).map((e) => e.name), ["y", "a9", "a10", "z"]);
-  const many = Array.from({ length: 20000 }, (_, i) => ({ name: `file-${(i * 7919) % 20000}.js`, dir: false }));
-  const began = Date.now();
-  const sorted = m.sortEntries(many);
-  assert.ok(Date.now() - began < 300, "20k entries sort fast (Herdr interrupts a long run)");
-  assert.equal(sorted[2].name, "file-2.js");
+  // A listing in the tree's order: folders first, then names as people read them (shared/check-file-tree.cjs has the order).
+  assert.deepEqual(plain(m.parseListing("f\0file10\0f\0file2\0")).map((e) => e.name), ["file2", "file10"]);
   assert.deepEqual(plain(m.parseListing("f\0b.txt\0d\0src\0f\0a b.md\0")), [{ name: "src", dir: true }, { name: "a b.md", dir: false }, { name: "b.txt", dir: false }]);
   assert.deepEqual(plain(m.ancestors("a/b/c.js")), ["a", "a/b"]);
   assert.deepEqual([m.join("", "a"), m.join("a", ""), m.join("/r/", "a"), m.join("/", "a")], ["a", "a", "/r/a", "/a"]);
@@ -147,20 +287,6 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     fs.rmSync(path.join(dir, ".git"), { recursive: true });
     assert.deepEqual(search("pkg"), ["node_modules/pkg/i.js"], "outside Git: find");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-  // The code is laid out at the width it last held: its room changing every frame (the panel dragged) would wrap the whole file
-  // again each time, ~500 ms a step for a 60 KB file. The first width at once; then one once the room holds CODE_SETTLE ms.
-  {
-    const timers = [], after = (ms, f) => timers.push([ms, f]), cx = { n: 0, notify() { this.n++; } }, hold = {};
-    m.holdWidth(hold, 600, after);
-    assert.deepEqual([hold.at, timers.length], [600, 0], "the first width at once");
-    m.holdWidth(hold, 610, after); m.holdWidth(hold, 640, after);
-    assert.equal(hold.at, 600, "held while it moves");
-    assert.ok(timers.every(([ms]) => ms === m.CODE_SETTLE));
-    timers.splice(0).forEach(([, f]) => f(cx));
-    assert.deepEqual([hold.at, cx.n], [640, 1], "the last width, once: the earlier timer is stale");
-    m.holdWidth(hold, 640, after);
-    timers.splice(0).forEach(([, f]) => f(cx));
-    assert.equal(cx.n, 1, "the same width draws nothing again");
-  }
+  await page();
   console.log("t3-files checks passed");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -1,5 +1,7 @@
 # space 面板的两页共用一套框架
 
+双向跨页操作和共用导航列宽度已由 [0015](0015-panel-pages-stay-independent.md) 取代；共用框架和视觉实现保留。
+
 修订 [0011](0011-one-space-panel.md) 里“窄时 Review 按原有规则改用页签和 unified diff”这一条，以及“Review 的组侧栏和文件栏也移到 diff 右边”的两列做法。
 
 Files 和 Review 是同一个 space 面板的两页，但头部、导航列、树行、菜单、空态各写各的：Files 的头是两条各跟一列的列头，Review 是一条 chrome 底的整页头；Files 常驻一列树，Review 窄时没有导航列、宽时有组侧栏和文件栏两列；选中、行高、圆角、字体、控件样式都不同（截图见 [space-panel-consistency](../research/space-panel-consistency.md)）。切页时整页在跳。

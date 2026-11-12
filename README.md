@@ -24,7 +24,7 @@ I'd worked this way in T3 Code: what's running stays out of sight, what needs me
 - **Slim tabs and framed panes**, in T3 Code's look.
 - **Other machines**: their spaces grouped by machine, their Inbox cards marked. In Lists, hover an Agents row to see its machine's name.
 - **Files**: the space's folder, read-only, in a panel at the window's right: the tree at its outer edge, the file you pick beside it. It stays put as you switch tabs and follows you to another space.
-- **Review** (optional): what's left to review in the worktree, on the same panel's other page.
+- **Review** (optional): what's left to review in the worktree, on the same panel's other page. Files and Review keep their own files, reading positions, line wrapping and tree widths; switching pages restores each one.
 
 Each in detail: [the guide](docs/user/guide.md).
 

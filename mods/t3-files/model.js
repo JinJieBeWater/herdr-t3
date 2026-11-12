@@ -1,5 +1,6 @@
 // What the Files page knows, apart from drawing it: git's answers parsed, the search filter, sort order and file kinds.
 // check-files.cjs loads this alone.
+import { sortEntries } from "./file-tree.js";
 
 export const RANKED = 1000; // a search ranks at most this many matches; past it, the first ones as found
 
@@ -21,19 +22,7 @@ export const PROBE = 's=$(wc -c < "$1") || exit 1; h=$(head -c 8192 "$1" | wc -c
 // aside, 1000 at most. The query goes as an argument, never into the script.
 export const REMOTE_SEARCH = `if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git ls-files -co --exclude-standard -z | tr '\\0' '\\n'; else find . -name .git -prune -o -type f -print | sed 's|^\\./||'; fi | awk 'BEGIN { n = split(tolower(ARGV[1]), t, " "); ARGV[1] = "" } { p = tolower($0); for (i = 1; i <= n; i++) if (!index(p, t[i])) next; print; if (++c >= ${RANKED}) exit }' "$1"`;
 
-// Names as people read them: folders first, then by name, a run of digits by its value (`file2` before `file10`), case
-// aside. There's no Intl here, and localeCompare doesn't count digits. Each name's key is made once: a folder of 12k entries
-// compared with regexes per pair runs past what Herdr lets a script do at once.
-// shortcut: digit runs past 16 digits compare as text; pad more if such names ever matter.
-const sortKey = (name) => name.toLowerCase().replace(/\d+/g, (d) => d.padStart(16, "0"));
-const keyed = (x, y, a, b) => x < y ? -1 : x > y ? 1 : a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
-export const naturalCompare = (a, b) => keyed(sortKey(a), sortKey(b), a, b);
-export function sortEntries(entries) {
-  return entries.map((e) => ({ e, k: sortKey(e.name) }))
-    .sort((p, q) => Number(q.e.dir) - Number(p.e.dir) || keyed(p.k, q.k, p.e.name, q.e.name)).map((p) => p.e);
-}
-
-// The listing script's output: a kind (d or f) and a name, each ended by NUL.
+// The listing script's output: a kind (d or f) and a name, each ended by NUL; in file-tree.js's order.
 export function parseListing(stdout) {
   const fields = stdout.split("\0"), out = [];
   for (let i = 0; i + 1 < fields.length; i += 2) out.push({ name: fields[i + 1], dir: fields[i] === "d" });
@@ -161,16 +150,4 @@ export function ticket(st, kind) {
   st.tickets ??= {};
   const n = st.tickets[kind] = (st.tickets[kind] ?? 0) + 1;
   return () => st.tickets[kind] === n;
-}
-
-// The code's room changes every frame while the panel is dragged, and the editor wraps the whole file again for each width
-// it's laid out at: ~500 ms a step for a 60 KB file (19 with lines scrolled). So it's laid out at the width it last held.
-export const CODE_SETTLE = 300;
-/** `hold.at`, the width the code is laid out at, follows its room `width`: at once the first time, else once the room has held
- * CODE_SETTLE ms. `after(ms, f)` runs `f(cx)` later (cx.timer.after). */
-export function holdWidth(hold, width, after) {
-  if (hold.at == null) { hold.at = width; return; }
-  hold.want = width;
-  const run = hold.run = (hold.run ?? 0) + 1;
-  after(CODE_SETTLE, (cx) => { if (run === hold.run && hold.at !== hold.want) { hold.at = hold.want; cx.notify(); } });
 }
