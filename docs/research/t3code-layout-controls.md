@@ -57,3 +57,5 @@
 Herdr 已有右侧 space 面板的 `open/page/wide` 状态、恢复上次页面和按 space 保存的能力；其归属是 space，T3 此处按 thread 取状态。[shared/panel.js](/Users/jinjiebewater/my/personal/projects/herdr-t3/shared/panel.js:8) · [保存和恢复](/Users/jinjiebewater/my/personal/projects/herdr-t3/shared/panel.js:44)。本轮没有决定新的详情入口在 Herdr 应承载哪些内容。
 
 结论来自指定源码快照及用户截图，没有打开 T3 Code 窗口执行真实点击，也没有验收窄窗、焦点、拖动或动画的实际表现。没有产品实现改动、删除项或运行时验证需求。
+
+同日后续：详情卡右键配置、标签增删、关闭语义、焦点和拖宽见[交互补充](t3code-layout-interactions.md)；第二张 Herdr 截图的对照与接入建议见[布局接入研究](t3code-layout-adaptation.md)，附[可点击示意](show-me-layout-controls.html)。

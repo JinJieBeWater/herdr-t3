@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Herdr · T3 详情与工具面板交互示意</title>
+<style>
+  :root{color-scheme:dark;--chrome:#181825;--card:#1e1e2e;--raised:#313244;--border:#363648;--fg:#cdd6f4;--muted:#9399b2;--focus:#89b4fa;--green:#a6e3a1}
+  *{box-sizing:border-box}body{margin:0;background:#11111b;color:var(--fg);font:13px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1944px;margin:auto;padding:28px 32px 36px}h1{font-size:23px;font-weight:600;margin:0 0 4px}p{color:var(--muted);margin:4px 0 16px}button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;border-radius:8px}button:hover,button[aria-pressed=true],button[aria-selected=true]{background:var(--raised)}button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}button:disabled{color:var(--muted);cursor:default}svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}[hidden]{display:none!important}
+  .now{display:flex;align-items:center;gap:16px;margin:20px 0;color:var(--muted);font-size:12px}.old-controls{display:flex;align-items:center;gap:14px;background:var(--chrome);padding:10px 14px;border-radius:12px}.old-action{border:1px solid var(--border);border-radius:8px;color:var(--muted);padding:1px 8px;font-size:12px}.old-action span{border-left:1px solid var(--border);margin-left:8px;padding-left:8px}
+  .window{height:620px;min-height:420px;display:flex;overflow:hidden;border:1px solid var(--border);border-radius:16px;background:var(--chrome)}.sidebar{width:256px;flex:none;padding:14px 12px;color:var(--muted)}.brand{height:32px;color:var(--fg);display:flex;align-items:center;gap:8px;margin-bottom:22px}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px}.side-label{font-size:11px;margin:12px 8px 6px}.side-item{padding:7px 8px;border-radius:8px}.side-item.active{background:#242436;color:var(--fg)}.workspace{flex:1;min-width:0;display:flex;flex-direction:column}.titlebar{height:40px;display:flex;align-items:center;gap:4px;padding:0 12px 0 4px;flex:none}.crumb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px}.controls{display:flex;align-items:center;gap:4px}.icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center}.columns{display:flex;flex:1;min-height:0;padding:0 8px 8px 0;gap:8px}.work{position:relative;flex:1;min-width:0;display:flex;flex-direction:column}.work-head{height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;padding-left:10px;color:var(--muted);font-size:11px}.local-controls{height:28px}.terminal{flex:1;min-height:0;padding:20px 20px;border-radius:8px;background:var(--card);font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}.terminal:focus{outline:none}.prompt{color:var(--green)}.dim{color:var(--muted)}
+  .details{position:absolute;z-index:3;right:12px;top:40px;width:280px;max-height:calc(100% - 52px);overflow:auto;background:#232334;border:1px solid var(--border);border-radius:16px;padding:12px;box-shadow:0 14px 40px #0009;display:flex;flex-direction:column;gap:8px}.row{display:flex;align-items:center;min-height:28px;gap:8px;padding:0 6px}.machine-label{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.open-in{display:flex;align-items:center;gap:8px;flex:1;text-align:left;padding:0 6px;height:28px}.open-in svg{color:#89b4fa}.action-line{position:relative}.split{display:flex;width:100%;height:28px;border:1px solid var(--border);border-radius:8px}.run{display:flex;align-items:center;gap:8px;flex:1;text-align:left;padding:0 6px}.arrow{width:28px;border-left:1px solid var(--border);border-radius:0 8px 8px 0}.action-menu{position:relative;background:#2b2b3f;border:1px solid var(--border);border-radius:8px;margin-top:4px;padding:4px}.action-menu button{width:100%;text-align:left;padding:4px 8px;border-radius:4px}
+  .panel{width:540px;max-width:60%;flex:none;min-width:0;display:flex;flex-direction:column;border-radius:8px;background:var(--card);overflow:hidden}.panel-tabs{height:28px;display:flex;align-items:center;gap:4px;padding:0 6px;background:var(--chrome)}.tab{height:24px;padding:0 8px;border-radius:6px;font-size:12px}.panel-bar{height:40px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--border);font-size:12px}.panel-content{padding:20px;overflow:auto;flex:1;font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}.file-tree{margin-top:22px;color:var(--muted)}.window.maximized .panel{width:100%;max-width:none;flex:1}.window.maximized .work{display:none}.status{margin-top:12px;min-height:22px;color:var(--muted);font-size:12px}.status strong{color:var(--fg);font-weight:500}.hint{display:flex;gap:24px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}kbd{font:11px ui-monospace,monospace;border:1px solid var(--border);border-radius:4px;padding:1px 4px}.footnote{font-size:12px;max-width:1000px;margin-top:18px}
+  @media(max-width:900px){main{padding:20px 12px}.sidebar{width:180px}.panel{width:45%;max-width:60%}.terminal{padding:14px}.now{align-items:flex-start;flex-wrap:wrap}}
+  #sheet-controls{margin-left:auto}
+  @media(max-width:620px){h1{font-size:20px}.sidebar{display:none}.columns{padding-left:8px}.panel{width:100%;max-width:100%;position:absolute;inset:40px 0 0;z-index:2;border-radius:0}.workspace{position:relative}.window{height:580px}.titlebar{padding-left:12px}.details{z-index:4;right:4px;max-width:calc(100% - 8px)}.now{gap:8px}}
+</style>
+<svg hidden><defs>
+  <symbol id="details-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></symbol>
+  <symbol id="panel-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol>
+  <symbol id="max-icon" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></symbol>
+  <symbol id="laptop-icon" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="13" rx="2"/><path d="m4 16-2 5h20l-2-5"/></symbol>
+  <symbol id="folder-icon" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="finder-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m13 3-3 11h4v7M7 9v1M17 9v1M7 15c2 3 8 3 10 0"/></symbol>
+  <symbol id="bug-icon" viewBox="0 0 24 24"><path d="M12 20v-9M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4zM14.12 3.88 16 2M21 21a4 4 0 0 0-3.81-4M21 5a4 4 0 0 1-3.55 3.97M22 13h-4M3 21a4 4 0 0 1 3.81-4M3 5a4 4 0 0 0 3.55 3.97M6 13H2m6-11 1.88 1.88M9 7.13V6a3 3 0 1 1 6 0v1.13"/></symbol>
+</defs></svg>
+<main>
+  <h1>两个入口，各管一件事</h1>
+  <p>详情只在点击时弹出，不占终端宽度。卡片保留机器／目录、Open in、现有 Actions 三行。这里是讨论用示意，不执行命令。</p>
+  <div class="now"><span>当前右上角</span><div class="old-controls"><div class="old-action">♧ 旁路审计 <span>⌄</span></div><svg aria-hidden="true"><use href="#panel-icon"/></svg></div><span>建议：Actions 移入详情卡，顶栏保留两个布局开关。</span></div>
+  <div class="window" id="demo">
+    <aside class="sidebar"><div class="brand">◉ &nbsp;Herdr</div><div class="side-label">INBOX</div><div class="side-item active"><span class="dot"></span>布局研究</div><div class="side-item">Files 与 Review</div><div class="side-label">WORKING</div><div class="side-item">herdr-t3</div></aside>
+    <section class="workspace">
+      <header class="titlebar"><div class="crumb">herdr-t3 &nbsp; / &nbsp; 布局研究</div><div class="controls" id="root-controls"><button class="icon" id="details-toggle" title="显示 / 收起详情 · ⌘⇧B" aria-label="详情" aria-controls="details" aria-pressed="false"><svg><use href="#details-icon"/></svg></button><button class="icon" id="maximize-toggle" hidden title="放大 / 恢复工具面板" aria-label="放大工具面板" aria-pressed="false"><svg><use href="#max-icon"/></svg></button><button class="icon" id="panel-toggle" title="显示 / 隐藏工具面板 · ⌘⌥B" aria-label="工具面板" aria-controls="panel" aria-pressed="false"><svg><use href="#panel-icon"/></svg></button></div></header>
+      <div class="columns">
+        <section class="work" id="work"><div class="work-head"><span>布局研究</span><div class="controls local-controls" id="local-controls"></div></div><div class="terminal" id="terminal" tabindex="0"><span class="dim">~/my/personal/projects/herdr-t3 · main</span>
+
+<span class="prompt">❯</span> 研究 T3 的详情与工具面板交互
+
+右上角的详情按钮，按需弹出三个已有入口：
+机器与目录、Open in，以及现有的 Actions。
+
+工具面板展开时，详情按钮留在主工作区右上角。
+Files 和 Review 继续共用右侧的 space 面板。
+
+<span class="dim">这里代表正在使用的终端内容。</span>
+<span class="prompt">❯</span> <span aria-hidden="true">▍</span></div>
+          <aside class="details" id="details" aria-label="详情卡" hidden>
+            <div class="row" id="machine-row"><svg><use href="#laptop-icon"/></svg><span class="machine-label" title="JinJieBeWater 的 MacBook">JinJieBeWater 的 MacBook</span><button class="icon" id="workspace-folder" aria-label="当前目录" title="~/my/personal/projects/herdr-t3"><svg><use href="#folder-icon"/></svg></button><button class="icon" id="machine-menu" aria-label="机器与目录">⌄</button></div>
+            <div class="row" id="open-in-row"><button class="open-in" id="open-in"><svg><use href="#finder-icon"/></svg>Open in Finder</button><button class="icon" id="open-in-menu" aria-label="选择打开方式">⌄</button></div>
+            <div class="action-line"><div class="split"><button class="run" id="run-action"><svg><use href="#bug-icon"/></svg>旁路审计</button><button class="arrow" id="actions-toggle" aria-label="选择 Actions" aria-expanded="false" aria-controls="actions-menu">⌄</button></div><div class="action-menu" id="actions-menu" role="group" aria-label="Actions 示例" hidden><button id="pick-action">运行旁路审计</button><button id="edit-action">编辑 Actions…</button></div></div>
+          </aside>
+        </section>
+        <aside class="panel" id="panel" aria-label="space 面板" hidden><div class="panel-tabs" role="tablist" aria-label="工具页面"><button class="tab" id="files-tab" role="tab" aria-selected="true">Files</button><button class="tab" id="review-tab" role="tab" aria-selected="false">Review</button><div class="controls" id="sheet-controls"></div></div><div class="panel-bar" id="panel-bar">herdr-t3 / README.md</div><div class="panel-content" id="panel-content"></div></aside>
+      </div>
+    </section>
+  </div>
+  <div class="status" id="status" aria-live="polite"></div>
+  <div class="hint"><span>点击两个图标，试试展开与收起</span><span>工具面板可放大、恢复、切页</span><span><kbd>Esc</kbd> 先收起 Actions，再收起详情浮层</span></div>
+  <p class="footnote">所有宽度下，详情默认收起，点击才弹出；不预留常驻位置，不改变终端尺寸。复用现有 Actions 的运行／下拉／编辑能力。Files / Review 仍在工具面板里，尚未修改实际布局。</p>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  // 只记本次页面打开期间的示意状态。
+  const state = { panel: false, maximized: false, popup: false, menu: false, page: 'files', notice: '' };
+  const detailsButton = $('details-toggle');
+  function render() {
+    $('demo').classList.toggle('maximized', state.maximized);
+    $('panel').hidden = !state.panel;
+    $('work').inert = state.maximized;
+    const target = state.panel ? (matchMedia('(max-width:620px)').matches ? $('sheet-controls') : $('local-controls')) : $('root-controls');
+    if (detailsButton.parentElement !== target) target.prepend(detailsButton);
+    $('maximize-toggle').hidden = !state.panel;
+    $('maximize-toggle').setAttribute('aria-pressed', String(state.maximized));
+    $('maximize-toggle').setAttribute('aria-label', state.maximized ? '恢复工具面板' : '放大工具面板');
+    $('panel-toggle').setAttribute('aria-pressed', String(state.panel));
+    const shown = !state.maximized && state.popup;
+    $('details').hidden = !shown;
+    detailsButton.setAttribute('aria-pressed', String(shown));
+    $('actions-menu').hidden = !state.menu || !shown;
+    $('actions-toggle').setAttribute('aria-expanded', String(state.menu && shown));
+    for (const page of ['files', 'review']) $(page + '-tab').setAttribute('aria-selected', String(state.page === page));
+    $('panel-bar').textContent = state.page === 'files' ? 'herdr-t3 / README.md' : 'Review · 当前 space 的变更';
+    $('panel-content').textContent = state.page === 'files' ? '# Herdr T3\n\n让人同时开着很多 agent，\n只看需要他的那几个。\n\nREADME.md\nRECIPE.md\nshared/\nmods/' : 'Review\n\n当前 space 的待评审内容\n\n切到 Files，再切回来；\n隐藏面板后重新打开，仍然回到这页。';
+    $('status').textContent = state.notice || (state.maximized ? '工具面板占满工作区域；恢复后回到并排。' : state.panel ? '详情按钮留在主工作区，窗口右上角负责工具面板的放大与开关。' : '点击左侧图标弹出详情，不占终端位置。');
+  }
+  function togglePanel() {
+    state.maximized = false; state.popup = false;
+    state.panel = !state.panel; state.menu = false; state.notice = ''; render();
+    if (!state.panel) $('terminal').focus({preventScroll:true});
+  }
+  detailsButton.onclick = () => { state.popup = !state.popup; state.menu = false; state.notice = ''; render(); };
+  $('panel-toggle').onclick = togglePanel;
+  $('maximize-toggle').onclick = () => { state.maximized = !state.maximized; state.popup = false; state.menu = false; state.notice = ''; render(); };
+  $('actions-toggle').onclick = () => { state.menu = !state.menu; render(); };
+  for (const id of ['run-action', 'pick-action']) $(id).onclick = () => { state.menu = false; state.notice = '示意：运行「旁路审计」。真实命令没有执行。'; render(); };
+  $('edit-action').onclick = () => { state.menu = false; state.notice = '示意：在现有 Actions 编辑器里编辑；本页不修改动作配置。'; render(); };
+  for (const page of ['files', 'review']) $(page + '-tab').onclick = () => { state.page = page; state.notice = ''; render(); };
+  for (const id of ['workspace-folder', 'machine-menu', 'open-in', 'open-in-menu']) $(id).onclick = () => { state.notice = '示意：' + ($(id).getAttribute('aria-label') || $(id).textContent.trim()); render(); };
+  document.addEventListener('pointerdown', event => {
+    if ($('details').contains(event.target) || detailsButton.contains(event.target)) return;
+    if (state.popup || state.menu) { state.popup = false; state.menu = false; render(); }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (state.menu) { state.menu = false; render(); $('actions-toggle').focus(); }
+    else if (state.popup) { state.popup = false; render(); detailsButton.focus(); }
+    else return;
+    event.preventDefault(); event.stopPropagation();
+  });
+  matchMedia('(max-width:620px)').addEventListener('change', render);
+  render();
+</script>
+</html>
