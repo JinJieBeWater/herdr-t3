@@ -14,6 +14,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 - With Inbox, the tabs at the top right hug their names, evenly spaced and flush against Actions; hovering one turns its icon into the ×. They show no status mark there, so the slot after each name that holds one in Lists is gone.
 - With Inbox, the tabs at the top right line up against Actions: short of room, the ones nearest it stay whole and the far end fades out, instead of the last tab being cut off against Actions. In Lists too, the end of the tab bar that's cut now fades out.
 - The wheel over the tab bar now only scrolls the tabs, up and down as sideways, instead of switching to the next or previous tab; click a tab to go to it.
+- `scripts/update.sh` stops, changing nothing, when the layout names a mod that isn't in this checkout or the app, and says which. Installed anyway, Herdr would start on its own layout the next time it opens, as if this one were gone.
 - The server icon in the sidebar footer is gone. Add a machine from Herdr's Settings.
 - In a narrow sidebar, Herdr's name at the top left goes and its mark stays, instead of showing `Her…`.
 - Hiding the sidebar, its toggle now stands where Herdr's mark was, instead of a few pixels to the right.

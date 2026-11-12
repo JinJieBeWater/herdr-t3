@@ -15,6 +15,10 @@ for tool in jq rsync; do command -v "$tool" >/dev/null || { echo "update needs $
 for f in "$layout" "$keys"; do
   [ ! -e "$f" ] || jq empty "$f" || { echo "not valid JSON, nothing changed: $f" >&2; exit 1; }
 done
+# Herdr App starts on its own layout when this one names a mod it doesn't have, so don't install one that would.
+missing=$(jq -r '[.. | objects | .mod? | strings | select(startswith("frame-") | not)] | unique[]' "$src/layouts/herdr-t3.json" \
+  | while read -r m; do [ -d "$src/mods/$m" ] || [ -d "$app/mods/$m" ] || echo "$m"; done)
+[ -z "$missing" ] || { echo "the layout names mods that aren't here, nothing changed:" $missing >&2; exit 1; }
 
 mkdir -p "$app/mods" "$app/layouts"
 # One mod at a time: other t3-* folders in the app (yours, a test's) are left alone.

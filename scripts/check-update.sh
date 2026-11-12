@@ -16,6 +16,11 @@ jq --argjson review "$review" '.theme = "win98" | (.. | objects | .focus? | obje
   | (.. | objects | select(.id? == "tabs-row") | .children) |= (. + [$review])' "$src/layouts/herdr-t3.json" > "$app/layouts/herdr-t3.json"
 
 # Stops first: the mods stay as they were.
+# A mod the layout names that's neither here nor in the app: Herdr would start on its own layout instead.
+if HERDR_APP_HOME="$app" "$src/scripts/update.sh" 2>/dev/null; then echo "FAIL check-update: a missing mod didn't stop it"; exit 1; fi
+ok test ! -e "$app/mods/t3-home"
+mkdir "$app/mods/workspace-status"
+
 cp "$app/keys.json" "$app/keys.good"
 echo '{' > "$app/keys.json"
 if HERDR_APP_HOME="$app" "$src/scripts/update.sh" 2>/dev/null; then echo "FAIL check-update: broken keys.json didn't stop it"; exit 1; fi
