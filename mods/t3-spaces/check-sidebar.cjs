@@ -1210,6 +1210,19 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(list.map(s => s.id), ["ma", "a1", "a2", "mb", "b1", "b2", "x"]);
   }
   {
+    // Another machine's space opened between this computer's: the model goes this computer's first, then each machine's,
+    // as the rows are drawn, so space.next and ctrl-N don't hop machines.
+    const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces");
+    for (const s of list) view.shown.add(s.id);
+    list.splice(1, 0, list.splice(2, 1)[0]);
+    assert.deepEqual(list.map(s => s.id), ["s0", "s2", "s1"]);
+    for (let i = 0; i < 2; i++) {
+      view.ordered();
+      for (const [name, a] of o.calls.splice(0)) if (name === "space.move") list.splice(a.index - 1, 0, list.splice(list.findIndex(s => s.id === a.id), 1)[0]);
+    }
+    assert.deepEqual(list.map(s => s.id), ["s0", "s1", "s2"]);
+  }
+  {
     // A worktree away from its checkout: the model moves to the rows' order, so space keys go down the list.
     const o = fixture(256), list = o.spaces(), view = o.load("t3-spaces");
     list[2].machine = null;

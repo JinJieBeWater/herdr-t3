@@ -7,7 +7,7 @@ Each part in more detail than the [README](../../README.md).
 ## Features
 
 - **Two sidebars, one key apart** (`cmd-shift-b`): Inbox organizes by attention and Lists by project; `cmd-]` and `cmd-[` walk either one. Settle, Snooze hiding a working agent, and landing on Home when the agent in view is closed are Inbox's; in Lists, closing it goes back to the tab you were on before. The tab bar differs too.
-  - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their repo, checkout open or not; grouped by machine once there's more than one.
+  - Spaces: repo, branch and ahead/behind only when they're unusual; worktrees folded under their repo, checkout open or not; grouped by machine once there's more than one, and `ctrl-1…9` and the next-space keys follow the list as drawn.
   - Agents: grouped by space or by priority, pins, sub-agents nested under their parent.
   - Inbox: T3-style Settle. Agents that need you stay up top as cards, one waiting on you first; finished ones are settled by hand into a quiet list and come back on new work. Busy agents fold into a Working shelf. Snooze hides any agent that doesn't need you until a time you pick.
 - **One name everywhere**: Inbox cards, the agents list, tabs and pane headers name a terminal the same way: its Pi session while Pi runs in it, then a tab you named, then a telling terminal title, else the program. Two Pis in one tab read as their own sessions; lazygit started where Pi was reads as lazygit, not the old session.

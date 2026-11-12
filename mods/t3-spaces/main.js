@@ -197,7 +197,9 @@ export default class Spaces extends View {
     }
     // space.next/prev and ctrl-N follow the model, so it keeps the rows' order, folded rows included: folding moves nothing. A row with no space isn't in it.
     // Simulate the batch so later indexes include earlier moves. An attempted write can lose a sync conflict: let its echo settle before retrying.
-    const real = out.filter((r) => !r.head);
+    // By machine too, as grouped() draws them: this computer's, then each machine's by name. sort() keeps the order within one.
+    const machine = (r) => r.w.machine ?? "";
+    const real = out.filter((r) => !r.head).sort((a, b) => machine(a) < machine(b) ? -1 : machine(a) > machine(b) ? 1 : 0);
     const order = sp.map(w => w.id);
     const target = real.map(r => r.w.id);
     const key = JSON.stringify([order, target, machines()]);
