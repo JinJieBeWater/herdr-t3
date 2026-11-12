@@ -4,6 +4,8 @@
 
 方法：`gh` 只读 API（commit 列表、文件 patch、compare、releases）+ `git ls-remote --tags` + 按 commit/tag 取单文件原文。**没有安装、运行或回放任何旧版 Pi**：版本判断全部是源码包含关系，不是旧版实测。
 
+整屏清除与逐行清理各自的旧架构用途、为何在新全屏实现中重叠，见 [两层清理的来源](pi-double-clear-origin.md)。
+
 ## 0. 结论
 
 1. **直接引入提交**：[`73414d08b94d7db46d3fa66582c8fe3b02dabf72`](https://github.com/earendil-works/pi/commit/73414d08b94d7db46d3fa66582c8fe3b02dabf72)，`fix(tui): optimize alternate-screen image and layout redraws`，Armin Ronacher，作者时间 2026-08-02 20:10:44，提交时间 20:13:32。本次未查到关联 PR（`commits/{sha}/pulls` 返回空），不能据此还原额外的 PR 讨论或审查过程。
