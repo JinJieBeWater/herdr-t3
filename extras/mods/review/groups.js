@@ -61,7 +61,7 @@ export function groupSidebar(view, t) {
     rows.push(groupRow(g, 0, g));
     if (open(g, 0)) for (const child of g.children) rows.push(groupRow(child, 1, g));
   }
-  return v_flex().id("review-sidebar").size_full().border_r(1).border_color(t.border)
+  return v_flex().id("review-sidebar").size_full().border_l(1).border_color(t.border)
     .child(v_flex().id("review-sidebar-rows").flex_1().min_h(0).p(8).gap(4).overflow_y_scrollbar().children(rows));
 }
 

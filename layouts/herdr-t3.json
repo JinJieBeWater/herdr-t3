@@ -164,6 +164,29 @@
       ],
       "background": "chrome",
       "resizable": false
+    },
+    {
+      "id": "panel",
+      "type": "column",
+      "hidden": true,
+      "size": { "weight": 1 },
+      "min": 480,
+      "padding": [0, 8],
+      "children": [
+        { "id": "panel-head", "type": "block", "size": { "px": 40 }, "window_drag": true, "content": { "mod": "t3-chrome", "props": { "part": "panel" } } },
+        {
+          "id": "panel-body",
+          "type": "stack",
+          "active": "files",
+          "background": "background",
+          "radius": 8,
+          "children": [
+            { "id": "files", "type": "block", "content": { "mod": "t3-files" } }
+          ]
+        },
+        { "id": "panel-bottom-inset", "type": "row", "size": { "px": 8 }, "children": [] }
+      ],
+      "background": "chrome"
     }
   ],
   "background": "canvas",

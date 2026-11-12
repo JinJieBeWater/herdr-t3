@@ -71,7 +71,7 @@ function load(...files) {
   const mod = new context.Mod(); mod.init({}, cx); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const parts = ["store.js", "name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "menu.js", "main.js"].map((f) => path.join(__dirname, f));
+const parts = ["store.js", "name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "menu.js", "sidebar.js", "main.js"].map((f) => path.join(__dirname, f));
 const header = load(...parts);
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);
@@ -153,21 +153,34 @@ for (const word of ["working", "blocked", "done"]) {
 }
 delete sharedValues["review-pane.status"];
 
-// A settled agent's done dot goes in both sidebar modes.
+// A put-away agent's done dot goes in both sidebar modes; with the Inbox chosen, its header says it's put away, as its row does.
 props = { pane: "p2" }; pane.status = "done"; header.hovered = false;
 const dots = () => header.render().items.length;
+const svgs = (node, out = []) => { if (node && typeof node === "object") { if (typeof node.svg === "string") out.push(node.svg); node.items.forEach((c) => svgs(c, out)); } return out; };
+const mark = () => { const m = find(header.render(), "ph-mark-p2"); return m && [...svgs(m).map((s) => path.basename(s)), ...texts(m)].join(" "); };
 const shown = dots();
 terms[0].labels.settled = "1:1";
 assert.equal(dots(), shown - 1, "Lists hide a settled done dot too");
+assert.equal(mark(), null, "and say nothing of it: Lists have no Settled");
 delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60000);
 assert.equal(dots(), shown - 1, "Lists hide a snoozed done dot too");
+assert.equal(mark(), null);
 delete terms[0].labels.snoozed; terms[0].labels.settled = "1:1";
 sidebar.children[0].active = "inbox";
-assert.equal(dots(), shown - 1);
-delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 60000);
-assert.equal(dots(), shown - 1, "snoozed too");
+assert.equal(mark(), "check.svg", "settled: Settle's check in place of the dot");
+pane.status = "idle";
+assert.equal(mark(), "check.svg", "idle and settled alike");
+pane.status = "done";
+delete terms[0].labels.settled; terms[0].labels.snoozed = String(Date.now() + 3 * 3600000 - 1000);
+assert.equal(mark(), "alarm-clock.svg 3h", "snoozed: the Inbox row's clock and time left");
+assert.equal(header.napping, true, "its time left is kept counting down");
+pane.status = "working";
+assert.equal(mark(), "spinner.svg", "at work, it says so first");
+assert.ok(!svgs(header.render()).some((s) => s.endsWith("alarm-clock.svg")), "and only that");
+pane.status = "done";
 terms[0].labels.snoozed = String(Date.now() - 1);
-assert.equal(dots(), shown, "woken, it is news again");
+assert.equal(mark(), "", "woken, it is news again: the dot");
+assert.equal(header.napping, false);
 delete terms[0].labels.snoozed;
 // A hidden Inbox doesn't clear the label, so the label alone can't say: a turn ended since it was settled is news.
 terms[0].labels.settled = "1:1"; terms[0].turn = 2;

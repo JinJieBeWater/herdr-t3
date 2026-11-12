@@ -6,6 +6,11 @@ import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
 import { initSettings, settingsView } from "./settings.js";
 import { KEY } from "./store.js";
+import { panelState, showPage, hidePanel, toggleWide } from "./panel.js";
+
+// The space panel's pages (docs/adr/0011), as its stack has them: a page the layout lacks has no tab.
+// Review wears pulls.review's own mark, as the Review bar does: a review, not a git command. In its colors, so an image.
+const PAGES = { files: ["Files", "folder-tree"], review: ["Review", "pulls-review", true] };
 
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
@@ -15,7 +20,7 @@ export default class WorkspaceChrome extends View {
   init(_props, cx) {
     if (props()?.view === "settings") return initSettings(this, cx);
     stopsInit(this, cx);
-    if (!props()?.footer) {
+    if (!props()?.footer && !props()?.part) {
       this.alignLights(cx);
       // The brand copy stays alive with the sidebar hidden; no redraw is needed until a zoom actually changes the file.
       cx.timer.every(250, cx => this.alignLights(cx));
@@ -54,6 +59,7 @@ export default class WorkspaceChrome extends View {
     if (props()?.view === "settings") return settingsView(this);
     const t = theme();
     const lit = (id, color = t.dim) => (this.hot === id ? t.foreground : color);
+    if (props()?.part === "panel") return this.panelHead(t, lit);
     if (props()?.footer) {
       // As T3's footer: a row of 32px icon buttons, and at its end, once Herdr has downloaded an update, its restart.
       const ready = updates().app.ready;
@@ -126,5 +132,40 @@ export default class WorkspaceChrome extends View {
         // It goes with the sidebar, before the pointer can report leaving it.
         .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
         .child(svg("mods/t3-chrome/icons/panel-left.svg").size(16)), 8), { action: "layout.toggle:sidebar", below: true })));
+  }
+
+  // The space panel's top: its pages as T3's panel tabs (24px, 12px words), then widen and close as 24px icon buttons.
+  // The rest of the row drags the window, as the tab bar does.
+  panelHead(t, lit) {
+    const s = panelState(), space = spaces().find(p => p.active);
+    // Review's run for this space, marked as a tab's agent is: what was news in a pane's card before (docs/adr/0011).
+    const word = space && shared("review.status")?.[space.id];
+    const mark = word === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
+      : word === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
+      : word === "done" ? div().size(6).flex_none().rounded_full().bg(t.done) : null;
+    const own = (el) => el.on_mouse_down("left", (_e, cx) => cx.stop_propagation());
+    const page = (id) => {
+      const [label, icon, colored] = PAGES[id] ?? [id, "folder-tree"], on = s.page === id, key = `page-${id}`;
+      return stop(this, t, key, own(h_flex().id(key).h(24).pl(6).pr(8).gap(6).flex_none().items_center().rounded(6).text_size(12)
+        .bg(on ? t.selected : t.chrome).text_color(on || this.hot === key ? t.foreground : t.muted)
+        .when(!on, el => el.hover(st => st.bg(t.hover))).on_hover(glow(this, key))
+        .role("tab").accessibility_label(label)
+        .on_click(() => showPage(id))
+        // A colored mark waits at 70% until its tab is shown or hovered, as the brand bar's Herdr mark.
+        .child(colored ? image(`mods/t3-chrome/icons/${icon}.svg`).size(14).flex_none().opacity(on || this.hot === key ? 1 : 0.7)
+          : svg(`mods/t3-chrome/icons/${icon}.svg`).size(14).flex_none())
+        .child(label)
+        .when(id === "review" && mark != null, el => el.child(mark))), 6);
+    };
+    const button = (id, icon, label, action, key) => tip(this, t, id, label, stop(this, t, id, own(div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(8)
+      .text_color(lit(id)).hover(st => st.bg(t.hover)).on_hover(glow(this, id))
+      .role("button").accessibility_label(label)
+      .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })
+      .child(svg(`mods/t3-chrome/icons/${icon}.svg`).size(14))), 8), { action: key, below: true });
+    return focusRoot(this, h_flex().id("panel-head").size_full().bg(t.chrome).gap(4).items_center()
+      .children(s.pages.map(page))
+      .child(div().flex_1())
+      .child(button("panel-wide", s.wide ? "minimize-2" : "maximize-2", s.wide ? "Restore panel" : "Expand panel", toggleWide))
+      .child(button("panel-close", "x", "Close panel", hidePanel, s.page === "files" ? "t3-tabs.files" : undefined)));
   }
 }

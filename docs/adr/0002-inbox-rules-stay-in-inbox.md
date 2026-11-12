@@ -4,7 +4,7 @@ Inbox 按注意力组织，Lists 按项目组织，两者是对等的工作方�
 
 - **Settle**：按钮、拖动、`cmd-shift-s` 和面包屑标题的菜单（它的 Snooze 也一样只在 Inbox 下）。在 Lists 里，这个键什么都不做。
 - **回 Home**：收起或关闭当前查看的 agent 后回到 Home（[0004](0004-putting-away-lands-on-home.md)）。在 Lists 里关闭它，和关闭其他标签一样，回到这个 space 上一次看的标签。
-- **Snooze 藏起 working**：在 Lists、标签、窗格标题和 Go to 里，已 Settle 或 Snooze 的 agent 只去掉 done 圆点，工作中照样转圈。侧栏开关的计数也按所选模式计算。
+- **Snooze 藏起 working**：在 Lists、标签、窗格标题和 Go to 里，已 Settle 或 Snooze 的 agent 只去掉 done 圆点，工作中照样转圈。选了 Inbox 时，窗格标题还在那里标出它已收起（Settle 的勾，或闹钟加剩余时间）：分屏里它和工作中的 agent 并排，标记是 Inbox 收纳区的同一套。侧栏开关的计数也按所选模式计算。
 - **空间筛选**：只有 Inbox 下，带进视野的 agent 才会放宽筛选。在 Lists 里切换 agent 不会改动它。
 - **标签栏**：显示 Inbox 时，以当前 agent 为主角：左边是它的面包屑，右边只放它家族的其他标签和不含 agent 的标签，不显示状态标记（[0010](0010-inbox-tab-bar-follows-the-agent.md)）；显示 Lists 时全部标签带标记显示。上/下一个标签和 `cmd-1…9` 按这些标签的顺序走。zoom 中的标签展开成各个窗格是共享的，两种模式都有。
 

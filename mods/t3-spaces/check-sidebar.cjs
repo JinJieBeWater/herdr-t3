@@ -1499,6 +1499,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.splice(0), [["layout.resize", { id: "tabs-end", px: 34 }]], "once per change");
   f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
   assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"], "the window's buttons stay last");
+  // With the space panel, its toggle before them; unless the Review bar draws it with its counts (`toggle`), as one control.
+  f.slots.panel = { id: "panel", hidden: true, children: [{ id: "panel-body", active: "files", children: [{ id: "files" }] }] };
+  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-panel-toggle", "tip-minimize", "tip-maximize", "tip-close-window"]);
+  f.slots.review = { id: "review-bar", content: { mod: "pulls-review", props: { block: "review-bar", toggle: true } } };
+  assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"]);
+  delete f.slots.panel; delete f.slots.review;
   fire(find(end.render(cx), "close-window"), "on_hover", true, cx);
   assert.equal(find(end.render(cx), "close-window").style.text_color, f.theme().foreground, "the window's close lights as the others do: it's no tab's ×");
   fire(find(end.render(cx), "close-window"), "on_hover", false, cx);

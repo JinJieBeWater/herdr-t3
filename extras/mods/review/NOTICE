@@ -1,2 +1,3 @@
 logo.svg is pulls.review's favicon (https://github.com/antfu/pulls.review), MIT License, Copyright (c) 2021-PRESENT Anthony Fu.
-The other icons in icons/, apart from icons/cat/, are from Lucide (https://lucide.dev), ISC License, Copyright (c) Lucide Contributors.
+icons/cat/: Catppuccin VSCode Icons (https://github.com/catppuccin/vscode-icons), MIT License, see icons/cat/LICENSE.
+The other icons in icons/ are from Lucide (https://lucide.dev), ISC License, Copyright (c) Lucide Contributors.

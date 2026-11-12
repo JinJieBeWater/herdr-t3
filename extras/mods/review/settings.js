@@ -149,10 +149,6 @@ export function settingsPanel(view, t) {
     choiceRow(t, "Groups", [["groups-tabs", "Tabs", pref("groupNav") !== "sidebar"], ["groups-sidebar", "Sidebar", pref("groupNav") === "sidebar", view.width < WIDE]], (id, cx) => {
       setPref("groupNav", id === "groups-sidebar" ? "sidebar" : "tabs"); cx.notify();
     }),
-    // Read by mods/pulls-review on the next open: a pane beside the agent, or a tab of its own.
-    choiceRow(t, "Open in", [["open-pane", "Pane", pref("openIn") !== "tab"], ["open-tab", "Tab", pref("openIn") === "tab"]], (id, cx) => {
-      setPref("openIn", id === "open-tab" ? "tab" : "pane"); cx.notify();
-    }),
     rule(),
     label("AI"),
     Switch.new("auto-analyze").checked(autoAnalyze).accessibility_label("Analyze automatically")

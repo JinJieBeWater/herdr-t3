@@ -30,18 +30,22 @@ fi
 [ ! -d "$app/mods/t3-theme-export" ] || rsync -a --delete $gen "$src/extras/mods/t3-theme-export/" "$app/mods/t3-theme-export/"
 for t in "$src"/extras/themes/*.json; do [ ! -f "$app/themes/$(basename "$t")" ] || cp "$t" "$app/themes/"; done
 
-# The theme picker, stack switches, your focus ring color and the Review and theme-export blocks you added live in the installed layout; keep them across updates.
-# A block's id must stay unique: a duplicate crashes Herdr App.
+# The theme picker, stack switches, your focus ring color and the Review bar and theme-export blocks you added live in the installed layout; keep them across updates.
+# The Review bar goes right before the bar's end and draws the panel's toggle as its last part (`toggle`), so its counts and the way into the panel are one control.
+# With the Review extra installed, its review is a page of the space panel: the `review` block goes in `panel-body`.
+# A block's id must stay unique: a duplicate crashes Herdr App, so a Review bar still named `review`, as its README once had it, becomes `review-bar`.
 old=$(cat "$layout" 2>/dev/null || echo '{}')
-jq --argjson old "$old" '[$old | .. | objects | .focus? | objects | .color][0] as $c
+extra=$([ -d "$app/mods/pulls-review" ] && echo true || echo false)
+jq --argjson old "$old" --argjson extra "$extra" '[$old | .. | objects | .focus? | objects | .color][0] as $c
   | ([$old | .. | objects | select((.id | strings) and .active) | {(.id): .active}] | add // {}) as $active
-  | ([$old | .. | objects | select(.content?.mod? == "pulls-review")][0]) as $review
+  | ([$old | .. | objects | select(.content?.mod? == "pulls-review")][0] | if .id? == "review" then .id = "review-bar" | .content.props.block = "review-bar" else . end | if . then .content.props.toggle = true else . end) as $review
   | ([$old | .. | objects | select(.content?.mod? == "t3-theme-export")][0]) as $export
   | (if $old.theme then .theme = $old.theme else . end)
   | (.. | objects | select((.id | strings) and $active[.id])) |= (.active = $active[.id])
   | (.. | objects | .focus? | objects | .color) |= ($c // .)
-  | (if $review then (.. | objects | select(.id? == "tabs-row") | .children) |= (.[0:1] + [$review] + .[1:]) else . end)
-  | (if $export then (.. | objects | select(.id? == "work") | .children) |= (. + [$export]) else . end)' "$src/layouts/herdr-t3.json" > "$layout.tmp"
+  | (if $review then (.. | objects | select(.id? == "tabs-row") | .children) |= ((map(.id) | index("tabs-end")) as $i | .[0:$i] + [$review] + .[$i:]) else . end)
+  | (if $export then (.. | objects | select(.id? == "work") | .children) |= (. + [$export]) else . end)
+  | (if $extra then (.. | objects | select(.id? == "panel-body") | .children) |= (. + [{ id: "review", type: "block", content: { mod: "review" } }]) else . end)' "$src/layouts/herdr-t3.json" > "$layout.tmp"
 mv "$layout.tmp" "$layout"
 cp "$src/layouts/herdr-t3.svg" "$app/layouts/"
 

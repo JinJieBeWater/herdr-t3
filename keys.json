@@ -1,6 +1,7 @@
 {
   "layout:herdr-t3": {
     "cmd-shift-b": "t3-tabs.sidebar",
+    "cmd-shift-e": "t3-tabs.files",
     "cmd-shift-s": "t3-tabs.settle",
     "cmd-p": "mod.open:t3-picker",
     "cmd-]": "t3-tabs.next",

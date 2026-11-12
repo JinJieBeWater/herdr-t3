@@ -1,11 +1,13 @@
-// A pulls.review review drawn in a pane, beside the agent that wrote the change: groups (the AI
-// analysis, else rule-based), each group's files and their diffs, reviewed marks, one commit at
-// a time. Opened by the pulls-review mod in "herdr" mode with props `{ root, page, n, analyze }`;
-// later opens in the same space arrive through shared(PANE). Everything comes from the jin.review daemon.
+// A pulls.review review, the `review` page of the window's space panel (docs/adr/0011): groups (the AI analysis, else
+// rule-based), each group's files and their diffs, reviewed marks, one commit at a time. One copy serves every space and
+// shows the active one's review. The pulls-review mod's "herdr" mode asks for a page through shared(PANE)
+// `{ space, root, page, base?, n, analyze }`; the Files page asks for a file through `review.reveal` `{ space, file, n }`.
+// Everything comes from the jin.review daemon, which listens on this machine only: a remote space has no review.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, InputState } from "gpui-base";
-import { focused, panes, props, setShared, shared, spaces, theme, window as appWindow } from "herdr";
+import { exec, setShared, shared, spaces, theme, window as appWindow } from "herdr";
+import { panelState } from "./panel.js";
 import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, LOOKAHEAD } from "./rows.js";
 import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
 import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
@@ -19,58 +21,99 @@ import { reviewKey } from "./keys.js";
 
 // As the app's group aside beside the diffs at `lg`: a fifth of the row, at least 280, at most half.
 const ASIDE_MIN = 280, ASIDE_MAX_RATIO = 0.5;
+// A request this young when its space's review starts is the click that opened the panel; an older one was already shown.
+const FRESH = 10000;
+// Its own writes, until mods/review was a pane in a tab: nothing reads them now.
+const RETIRED = [`${PANE}.titles`, `${PANE}.program`];
 
-export default class ReviewPane extends View {
+export default class ReviewPanel extends View {
   init(_props, cx) {
-    const p = props() ?? {};
-    // The page a count's click asked to analyze, until its first read. Props outlive a restart, where a stale ask mustn't start a paid run.
-    this.analyzeFor = p.analyze === true && localStorage.getItem("tab") === null ? p.page : null;
-    this.tab = localStorage.getItem("tab") ?? focused()?.tab;
-    localStorage.setItem("tab", this.tab ?? "");
-    this.root = localStorage.getItem("root") ?? p.root;
-    this.page = localStorage.getItem("page") ?? p.page;
-    this.base = localStorage.getItem("base") ?? this.page;
-    this.handled = Number(localStorage.getItem("handled") ?? p.n ?? 0);
+    for (const key of RETIRED) if (shared(key) != null) setShared(key, null);
+    if (pref("openIn") !== undefined) { const { openIn: _, ...prefs } = shared(`${PANE}.prefs`); setShared(`${PANE}.prefs`, prefs); }
+    // Each space's review, by space id, for this run; what each shows is kept in review.shown.
+    this.panel = this; this.bySpace = new Map();
     // The one popup open over the diff, if any: "settings", "status" or "fold".
     this.popup = null; this.closedPopup = null; this.popupClosedAt = 0;
     this.agents = null; this.shared = null; this.settingsError = null;
-    this.height = 600; this.headerHidden = false; this.scrolledDownBy = 0; this.baseCommits = null;
+    this.height = 600; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0;
     // The model field searches the agent's catalog; Enter picks the model it names exactly, else the text as typed.
     this.modelInput = InputState.new({ placeholder: "Search or type a model" });
     // The row lit on a settings page and in the fold menu, by keys or the pointer; Enter on one picks it.
     this.pageAt = -1; this.foldAt = -1;
-    this.modelInput.on("change", (_e, cx) => { this.pageAt = -1; cx.notify(); });
-    this.modelInput.on("submit", (_e, cx) => submitModel(this, cx));
+    // The inputs are the panel's; what they act on is the space shown.
+    this.modelInput.on("change", (_e, cx) => { const s = this.shown(); if (s) s.pageAt = -1; cx.notify(); });
+    this.modelInput.on("submit", (_e, cx) => { const s = this.shown(); if (s) submitModel(s, cx); });
     // The commit list's search, and the row lit in it.
     this.commitSearch = InputState.new({ placeholder: "Search commits" });
     this.commitAt = 0;
-    this.commitSearch.on("change", (_e, cx) => { this.commitAt = 0; this.scrollTop = { ...this.scrollTop, "commit-list": 0 }; cx.notify(); });
-    this.commitSearch.on("submit", (_e, cx) => { const row = this.commitRows()[this.commitAt]; if (row) showPage(this, row.page, cx); });
+    this.commitSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.commitAt = 0; s.scrollTop = { ...s.scrollTop, "commit-list": 0 }; cx.notify(); });
+    this.commitSearch.on("submit", (_e, cx) => { const s = this.shown(), row = s?.commitRows()[s.commitAt]; if (row) showPage(s, row.page, cx); });
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
-    this.review = null; this.error = null; this.version = 0; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
-    this.startingUntil = 0; this.loading = null; this.loadId = 0;
-    this.marks = 0; this.marking = 0;
-    this.collapsed = new Set(); this.full = new Map(); this.parts = new Map(); this.seen = new Set(); this.folded = new Set();
     this.handle = cx.focus_handle();
-    this.scroll = VirtualListScrollHandle.new();
-    this.barsOn = false; this.barsRun = 0;
-    // A menu can create this pane: start I/O in the pane's own callback so closing the menu can't cancel its answer.
-    cx.timer.after(0, (cx) => this.load(cx));
-    // While a run goes the pane follows it; otherwise the folder watch and a slow timer catch new diffs.
-    cx.timer.every(1500, (cx) => { if (this.analyzing()) this.poll(cx); });
-    // Unseen, the slow timer and the watch only note a read is due; it follows within a second of the pane being seen again.
-    // Hidden panes keep their timers, and a run's poll goes on: tabs show its state.
-    cx.timer.every(15000, (cx) => this.refresh(cx));
-    cx.timer.every(1000, (cx) => { if (this.dirty && this.onScreen()) this.load(cx); });
+    // While a run goes the review follows it; otherwise the folder watch and a slow timer catch new diffs.
+    // Every space's: the tab bar's Review bar and the panel head show how each space's run goes.
+    const each = (f) => { for (const s of this.bySpace.values()) f(s); };
+    cx.timer.every(1500, (cx) => each(s => { if (s.analyzing()) s.poll(cx); }));
+    // Unseen, the slow timer and the watch only note a read is due; it follows within a second of the review being seen again.
+    cx.timer.every(15000, (cx) => each(s => s.refresh(cx)));
+    cx.timer.every(1000, (cx) => each(s => { if (s.dirty && s.onScreen()) s.load(cx); }));
     // Scrolling redraws only the list. What the rest shows of where it is - the aside's group, the files and groups in view,
     // as the app's scroll spy marks them - is checked here and redrawn when it moved.
     // Off screen, what the list shows can't move: nothing to measure.
-    cx.timer.every(150, (cx) => { if (!this.onScreen()) return; const spied = this.spied(); if (spied !== this.lastSpied) { this.lastSpied = spied; cx.notify(); } });
+    cx.timer.every(150, (cx) => { const s = this.shown(); if (!s?.onScreen()) return; const spied = s.spied(); if (spied !== s.lastSpied) { s.lastSpied = spied; cx.notify(); } });
   }
 
-  remember() {
-    for (const [key, value] of Object.entries({ root: this.root, page: this.page, base: this.base, handled: String(this.handled) })) localStorage.setItem(key, value);
+  // The active space's review, if it has one yet.
+  shown() { return this.panel.bySpace.get(spaces().find(s => s.active)?.id) ?? null; }
+
+  /**
+   * A space's review, made the first time it shows. It inherits the panel (Object.create), so the methods and helpers that
+   * take `view` work on it unchanged, while what it writes - and what its reads write when they answer, after the space has
+   * changed - stays its own.
+   */
+  spaceReview(space, cx) {
+    const panel = this.panel;
+    let s = panel.bySpace.get(space.id);
+    if (s) return s;
+    s = Object.create(panel);
+    s.begin(space.id);
+    panel.bySpace.set(space.id, s);
+    // Its list's scroll and its first read on its own timer: neither can start while drawing (gpui-kit.d.ts). A request in
+    // that draw has started a read already.
+    cx.timer.after(0, (cx) => {
+      s.scroll = VirtualListScrollHandle.new();
+      if (!s.root) s.start(space, cx); else if (!s.loading && !s.review) s.load(cx);
+      cx.notify();
+    });
+    return s;
+  }
+
+  // A space's review's own state, at its start: what review.shown says it showed, and requests from before it ignored.
+  begin(space) {
+    const was = shared(`${PANE}.shown`)?.[space];
+    this.space = space; this.root = was?.root ?? null; this.page = was?.page ?? null; this.base = was?.base ?? this.page;
+    this.handled = this.revealed = Date.now() - FRESH; this.noRepo = false;
+    // The page a count's click asked to analyze, until its first read.
+    this.analyzeFor = null; this.headerHidden = false; this.scrolledDownBy = 0; this.baseCommits = null;
+    this.review = null; this.error = null; this.version = 0; this.sideWidth = [0, 0, 0]; this.shift = [0, 0, 0];
+    this.startingUntil = 0; this.loading = null; this.loadId = 0; this.marks = 0; this.marking = 0;
+    this.collapsed = new Set(); this.full = new Map(); this.parts = new Map(); this.seen = new Set(); this.folded = new Set();
+    this.scroll = null; this.barsOn = false; this.barsRun = 0;
+  }
+
+  // Nothing shown in this space yet: its folder's repository, on its uncommitted changes if there are any. A clean
+  // worktree waits for a pick in the Review bar.
+  start(space, cx) {
+    cx.spawn(async (cx) => {
+      const git = (args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd: space.folder || undefined }).catch(() => null);
+      const top = await git(["rev-parse", "--show-toplevel"]);
+      if (this.root || top?.code !== 0) { this.noRepo = !this.root; return cx.notify(); }
+      this.root = top.stdout.trim();
+      const status = await git(["status", "--porcelain"]);
+      if (!this.page && status?.stdout.trim()) { this.page = this.base = "/worktree"; this.load(cx); }
+      cx.notify();
+    });
   }
 
   open(page, cx) {
@@ -78,15 +121,19 @@ export default class ReviewPane extends View {
     // The old page stays on screen, dimmed and inert, until the new one's read replaces it: apply() then resets what belonged to it.
     this.page = page; this.switching = Boolean(this.review); this.error = null; this.analyzeError = null; this.startingUntil = 0; this.headerHidden = false;
     this.wasRunning = false; this.news = null;
-    this.remember(); this.version++;
+    this.version++;
     this.load(cx);
   }
 
   // No review shown, or none yet: what belonged to the last one goes with it.
   forget() { this.review = null; this.switching = false; this.groupKey = null; this.current = null; this.full.clear(); this.parts.clear(); this.shift = [0, 0, 0]; }
 
-  // The window active and this pane's tab the one shown.
-  onScreen() { return appWindow()?.active !== false && spaces().some(s => s.active && s.tabs.some(c => c.id === this.tab && c.active)); }
+  // The window active, this review's space the active one, and the panel open on its review page.
+  onScreen() {
+    if (appWindow()?.active === false || !spaces().some(s => s.active && s.id === this.space)) return false;
+    const p = panelState();
+    return p.open && p.page === PANE;
+  }
 
   refresh(cx) { if (this.onScreen()) this.load(cx); else this.dirty = true; }
 
@@ -103,31 +150,28 @@ export default class ReviewPane extends View {
   // A run going, as the app's from the click: the daemon answers before the worktree server has started it, and a read until then finds none.
   analyzing() { return (!this.switching && this.review?.analysis.state === "running") || Date.now() < this.startingUntil; }
 
-  // What its tab and pane header show (t3's name.js), as the word an agent would report: a run going, then how it ended
-  // until the tab is looked at. In the pane, the button keeps a failure.
-  // shortcut: a pane starts only when shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until its tab is shown.
+  // What the Review bar and the panel head's Review tab show, as the word an agent would report: a run going, then how it
+  // ended until this review is looked at. In the review, the button keeps a failure.
+  // shortcut: the panel's review page starts only when first shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until the page is shown.
   report() {
     const a = this.switching ? null : this.review?.analysis, real = a?.state === "running";
-    if (!panes().some(p => p.mod === PANE && p.tab === this.tab)) return;
     if (this.wasRunning && !real) this.news = this.analyzeError ?? a?.error ? "blocked" : "done";
     this.wasRunning = real;
     if (this.analyzing() || this.onScreen()) this.news = null;
     this.keep("status", this.analyzing() ? "working" : this.news ?? null);
   }
 
-  // This tab's entry in a value shared by tab, none with no value. Every write redraws every mod: only a change, and tabs
-  // without a review pane drop out.
+  // This space's entry in a value shared by space, none with no value. Every write redraws every mod: only a change, and
+  // spaces gone (or the tabs these were keyed by before) drop out.
   keep(name, value) {
-    const key = `${PANE}.${name}`, mine = panes().filter(p => p.mod === PANE), all = shared(key) ?? {};
-    if (!mine.some(p => p.tab === this.tab)) return;
-    const live = Object.entries(all).filter(([tab]) => tab !== this.tab && mine.some(p => p.tab === tab));
-    if (JSON.stringify(all[this.tab] ?? null) === JSON.stringify(value) && live.length === Object.keys(all).length - (this.tab in all ? 1 : 0)) return;
-    setShared(key, Object.fromEntries(value ? [...live, [this.tab, value]] : live));
+    const key = `${PANE}.${name}`, all = shared(key) ?? {}, ids = new Set(spaces().map(s => s.id));
+    const live = Object.entries(all).filter(([id]) => id !== this.space && ids.has(id));
+    if (JSON.stringify(all[this.space] ?? null) === JSON.stringify(value) && live.length === Object.keys(all).length - (this.space in all ? 1 : 0)) return;
+    setShared(key, Object.fromEntries(value ? [...live, [this.space, value]] : live));
   }
 
-  // What this tab's pane shows, for the Review bar to light its count and find the repository: Herdr gives a mod pane no
-  // folder, and a tab of its own has no terminal to borrow one from.
-  publish() { this.keep("shown", { root: this.root, page: this.page, base: this.base }); }
+  // What this space's review shows: for the Review bar to light its count, and to show it again after a restart.
+  publish() { if (this.page) this.keep("shown", { root: this.root, page: this.page, base: this.base }); }
 
   diffCommits() { return diffCommits(this); }
 
@@ -270,31 +314,30 @@ export default class ReviewPane extends View {
     return this.paths.get(path);
   }
 
+  // The active space's review; a sentence where there is none to show.
   render(cx) {
-    const t = theme();
-    // Herdr doesn't tell a mod pane its tab, and a tab opened for it may not have the focus yet when it starts: a pane
-    // whose tab holds no review pane takes the one review pane's tab no other has claimed.
-    const mine = panes().filter(p => p.mod === PANE), titles = shared(`${PANE}.titles`) ?? {};
-    if (!mine.some(p => p.tab === this.tab)) {
-      const free = mine.filter(p => !(p.tab in titles));
-      if (free.length === 1) { this.tab = free[0].tab; localStorage.setItem("tab", this.tab); }
-    }
-    // The name pane headers and tabs give this pane (t3's name.js), rather than the folder's; here, not in init, which a reload skips.
-    // A tab of its own, unnamed, reads as this pane too (t3-tabs).
-    this.keep("titles", this.page ? pageLabel(this.page, this.switching ? null : this.review) : "review");
-    // Its icon in pane headers and tabs (t3's name.js), pulls.review's own logo. In a tab of its own it has a card in t3-inbox,
-    // whose Settle closes it: its marks and analysis are the daemon's, so that loses nothing.
-    if (shared(`${PANE}.program`)?.icon !== `mods/${PANE}/icons/logo.svg` || shared(`${PANE}.program`).inbox !== true) setShared(`${PANE}.program`, { icon: `mods/${PANE}/icons/logo.svg`, tint: false, name: "Review", inbox: true });
+    const t = theme(), space = spaces().find(s => s.active);
+    const note = (text) => v_flex().id("review-note").size_full().items_center().justify_center().p(24).bg(t.background).text_color(t.dim).text_size(12).child(text);
+    if (!space) return note("");
+    if (space.machine) return note(`Review reads repositories on this machine only, and this space is on ${space.machine}.`);
+    const s = this.spaceReview(space, cx);
+    s.follow(cx);
+    if (!s.scroll) return note("");
+    if (!s.page) return note(s.noRepo ? "This space's folder isn't in a git repository." : s.root ? "Nothing uncommitted here. Pick a diff to review in the Review bar." : "");
+    return s.draw(cx);
+  }
+
+  // What others ask of this space's review, and what it tells them.
+  follow(cx) {
     this.report();
-    // A later open in this tab: another page, maybe another worktree.
+    // An open from the Review bar or the review's own commit switch: another page, maybe another worktree.
     const request = shared(PANE);
-    if (request && request.tab === this.tab && request.n > this.handled) {
+    if (request && request.space === this.space && request.n > this.handled) {
       this.handled = request.n;
       if (request.root !== this.root) { this.root = request.root; this.watching = null; this.seen.clear(); this.collapsed.clear(); this.page = null; this.forget(); }
       // With a base, the header's switch picking another page of the same diff: its commits stay.
       this.base = request.base ?? request.page;
       if (!request.base) this.baseCommits = null;
-      this.remember();
       // Only the bar's counts ask for an analysis, so anything else takes back an ask not yet read.
       this.analyzeFor = request.analyze === true ? request.page : null;
       // The page already shown has no read coming to act on the ask.
@@ -302,7 +345,21 @@ export default class ReviewPane extends View {
       this.open(request.page, cx);
       if (again) this.load(cx);
     }
+    // The Files page's `Review ↗`: that file, on the uncommitted changes' page when the page shown doesn't have it.
+    const reveal = shared(`${PANE}.reveal`);
+    if (reveal?.space === this.space && reveal.n > this.revealed && this.root && !this.loading && !this.switching) {
+      if (this.review && this.fileAt(reveal.file)) {
+        this.revealed = reveal.n;
+        // Just after this draw, as a scroll's settling is timed.
+        cx.timer.after(0, (cx) => { if (this.fileAt(reveal.file)) this.select(reveal.file, cx); });
+      } else if (this.page !== "/worktree") { this.base = "/worktree"; this.baseCommits = null; this.open("/worktree", cx); }
+      else if (this.review || this.error) this.revealed = reveal.n;
+    }
     this.publish();
+  }
+
+  draw(cx) {
+    const t = theme();
     if (JSON.stringify(colors(t)) !== this.colorsKey) {
       this.colorsKey = JSON.stringify(colors(t));
       if (this.review) {
@@ -334,9 +391,10 @@ export default class ReviewPane extends View {
       .when(!sidebar && !hidden, el => el.child(groupTabs(this, t)))
       .when(Boolean(group) && (!wide || group.children.length > 0) && this.atTop(), el => el.child(groupHeader(this, t, group)))
       .child(!wide ? div().flex_1().min_h(0).child(diffView(this, t))
-        : h_resizable("review-aside-width").flex_1().min_h(0)
-          .child(resizable_panel().size(Math.max(ASIDE_MIN, Math.round(row / 5))).size_range(ASIDE_MIN, Math.max(ASIDE_MIN, Math.round(row * ASIDE_MAX_RATIO))).child(aside(this, t)))
-          .child(resizable_panel().child(diffView(this, t))));
+        // Navigation at the panel's outer edge, the diff by the tabs (ADR 0011): the aside right of the diff.
+        : h_resizable("review-aside-right").flex_1().min_h(0)
+          .child(resizable_panel().child(diffView(this, t)))
+          .child(resizable_panel().size(Math.max(ASIDE_MIN, Math.round(row / 5))).size_range(ASIDE_MIN, Math.max(ASIDE_MIN, Math.round(row * ASIDE_MAX_RATIO))).child(aside(this, t))));
     // Its run over, nothing else closes the panel: the next run would bring it back, or the next press only close it unseen.
     const { running, error } = analysisStatus(this);
     if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;
@@ -356,10 +414,10 @@ export default class ReviewPane extends View {
         ? div().flex_1().py(48).when(!this.error, el => el.child(h_flex().gap(8).items_center().justify_center().text_color(t.dim).role("status")
           .child(svg("mods/workspace-chrome/spinner.svg").size(14).flex_none().text_color(t.working).spin(900)).child("Loading the review…")))
         // The divider drags; Herdr keeps the width under the group's id (renamed when the default changes, to take it).
-        // As the app's group sidebar: w-64, at least 192, at most 40% of the page.
-        : sidebar ? h_resizable("review-sidebar-width").flex_1().min_h(0)
-          .child(resizable_panel().size(256).size_range(192, Math.max(192, Math.round(this.width * 0.4))).child(groupSidebar(this, t)))
+        // As the app's group sidebar, on the other side: w-64, at least 192, at most 40% of the page.
+        : sidebar ? h_resizable("review-sidebar-right").flex_1().min_h(0)
           .child(resizable_panel().child(column()))
+          .child(resizable_panel().size(256).size_range(192, Math.max(192, Math.round(this.width * 0.4))).child(groupSidebar(this, t)))
         : div().flex_1().min_h(0).child(column())).when(Boolean(this.switching), el => el.opacity(DISABLED)))
       // Built only while open: render runs on every live change, and a catalog runs to hundreds of rows.
       // Each 4 under its button (T3's sideOffset) in the 40 header: 38 under the 28s, 36 under the 24 switch.

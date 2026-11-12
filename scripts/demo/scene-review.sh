@@ -1,5 +1,5 @@
-# The Review scene, sourced by `stage.sh scene review`: a real multi-file pull request on pulls.review, in a tab of its
-# own, with its AI analysis (by pi, through jin.review's daemon) and agents still at work around it.
+# The Review scene, sourced by `stage.sh scene review`: a real multi-file pull request on pulls.review, on the space
+# panel's review page, with its AI analysis (by pi, through jin.review's daemon) and agents still at work around it.
 clear_stage
 # One column of diff, so the cover's crop reads larger.
 unified() { jq '."review.prefs".split = false' "$A/shared.json" > "$A/shared.json.new" && mv "$A/shared.json.new" "$A/shared.json"; layout review; }
@@ -15,7 +15,6 @@ fake pulls.review "Docs for --analyze" claude working
 fake herdr-t3 "Fold the tab bar's controls at 768px" codex working
 fake herdling "Notarize the release build" claude blocked
 focus "$agent"
-sp=$(printf '%s\n' "$spaces" | sed -n 's/^pulls.review //p')
 
 # Analyzed before it opens, so the pane starts on the analysis' first group (at most 10 minutes; a run already saved is kept).
 page=/branch/$branch
@@ -24,6 +23,7 @@ daemon() { curl -s "http://127.0.0.1:$port/api/review/$1" -H "Cookie: pulls_sess
 daemon analyze >/dev/null; sleep 3
 for _ in $(seq 300); do daemon status | jq -e '.running | not' >/dev/null && break; sleep 2; done
 
-demo herdr-app do tab.new "$(jq -nc --arg s "$sp" --arg r "$root" --arg p "$page" --argjson n "$(date +%s)000" '{space: $s, mod: "review", props: {root: $r, page: $p, n: $n}}')" >/dev/null
+# As `mod.open:pulls-review` does: the focused agent's worktree, clean, so its branch's page.
+demo herdr-app do mod.open '{"name":"pulls-review"}' >/dev/null
 sleep 6
 shoot_active "$D/review.png"

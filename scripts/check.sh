@@ -14,6 +14,12 @@ for s in shared/*.js; do
   done
 done
 
+# What scripts/vendor.sh bundles has to run in a mod: no npm or Node imports and none of what Herdr's runtime lacks.
+for f in $(find mods extras/mods -path '*/vendor/*.js'); do
+  grep -nE "(^|[^.])\b(import|from) *[\"'][^./]|require\(|\bprocess\.|\bBuffer\b|\bset(Timeout|Interval)\b|\bWorker\b|WebAssembly|__dirname" "$f" \
+    && { echo "FAIL $f uses what a mod can't (above): bundle it differently in scripts/vendor.sh"; fail=1; }
+done
+
 # The options live here, not in each mod's jsconfig.json: that file is gpui-shell's, gitignored and written fresh by
 # `herdr-app check` with defaults that fail these mods. These are the ones its notes explain, plus skipLibCheck, which a
 # jsconfig.json implies.

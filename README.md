@@ -23,7 +23,8 @@ I'd worked this way in T3 Code: what's running stays out of sight, what needs me
 - **Actions**: T3 Code's run button for your own commands, in a new tab or a split.
 - **Slim tabs and framed panes**, in T3 Code's look.
 - **Other machines**: their spaces grouped by machine, their Inbox cards marked. In Lists, hover an Agents row to see its machine's name.
-- **Review** (optional): what's left to review in the worktree, in a pane beside the agent.
+- **Files**: the space's folder, read-only, in a panel at the window's right: the tree at its outer edge, the file you pick beside it. It stays put as you switch tabs and follows you to another space.
+- **Review** (optional): what's left to review in the worktree, on the same panel's other page.
 
 Each in detail: [the guide](docs/user/guide.md).
 
@@ -52,6 +53,7 @@ Dragging, sweeping across rows, pins and the rest: [Everyday use](docs/user/guid
 | `cmd-p` | Go to any pane |
 | `cmd-shift-h` | Go Home |
 | `cmd-shift-,` | The layout's settings |
+| `cmd-shift-e` | Open Files, or close the panel showing it |
 | `cmd-t` | New tab here; at Home, pick the space first |
 
 All of them: [Keys](docs/user/guide.md#keys).
@@ -72,13 +74,14 @@ It overwrites the layout and its mods and merges `keys.json`; your pins, settled
 - `t3-tabs`: `hc get` before closing a terminal, to see whether a program is running in it. `hc label` when `cmd-shift-s` settles or brings back an agent, and to give back an unread done (`herdr.seen`) or a Woke mark (`snoozed`) that Herdr cleared when it showed a tab you didn't pick, and `hc label <agent> snoozed=` when a failed turn or new work in view ends a snooze.
 - `t3-agents`: `hc label <agent> snoozed=` when pinning a snoozed agent ends its snooze.
 - `t3-chrome`: on macOS, when the zoom changes, it rewrites the window button position in the installed `layouts/herdr-t3.json`, so the buttons stay on the brand bar's middle line.
+- `t3-files`, read-only, where the space is (on its machine): `git rev-parse`, `git status`, `git check-ignore` and `git ls-files` (with `--no-optional-locks`, so nothing is written under `.git`), `sh` to list a folder or, on another machine, to check a file's size and search paths, `find` outside Git, `base64` for another machine's images. It copies images it shows into `cache/t3-files/` and deletes them when it stops. Right-click: Reveal in Finder and Open in default app run `open` (`xdg-open` on Linux); Mention in agent pastes into the agent's terminal through the clipboard, then puts your clipboard back.
 - `t3-spaces`, `t3-agents`, `t3-inbox`, `t3-new-menu`, `t3-picker`: for each space's icon, `git rev-parse --show-toplevel`, `sh` file tests and `base64` where the space is (on its machine); a found icon is copied into `cache/t3-icons/`.
 
 No network requests.
 
 ## Extras (optional)
 
-- **pulls.review**: a Review bar and a review pane.
+- **pulls.review**: a Review bar and the panel's Review page.
 - **Theme export for Pi**: Pi's colors follow Herdr's.
 - **Themes**: Catppuccin and T3 Code, light and dark.
 
@@ -86,7 +89,7 @@ How to add them: [the extras](docs/user/extras.md).
 
 ## Credits and license
 
-`t3-chrome`, `t3-spaces`, `t3-agents`, `t3-tabs`, `t3-pane`, `t3-new-menu`, `t3-picker` and the layout start from Herdr App's shipped `workspace-chrome`, `spaces`, `agents`, `tabs`, `pane`, `new-menu`, `picker` and `main`. Settle follows T3 Code's design. The Catppuccin themes use the [Catppuccin](https://github.com/catppuccin/catppuccin) palette (MIT License, Copyright (c) 2021 Catppuccin); the T3 Code themes take [T3 Code](https://github.com/pingdotgg/t3code)'s default colors (MIT License, Copyright (c) 2026 T3 Tools Inc.). Icons are [Lucide](https://lucide.dev)'s (ISC License, Copyright (c) Lucide Contributors). Apache-2.0, as Herdr App.
+`t3-chrome`, `t3-spaces`, `t3-agents`, `t3-tabs`, `t3-pane`, `t3-new-menu`, `t3-picker` and the layout start from Herdr App's shipped `workspace-chrome`, `spaces`, `agents`, `tabs`, `pane`, `new-menu`, `picker` and `main`. Settle follows T3 Code's design. The Catppuccin themes use the [Catppuccin](https://github.com/catppuccin/catppuccin) palette (MIT License, Copyright (c) 2021 Catppuccin); the T3 Code themes take [T3 Code](https://github.com/pingdotgg/t3code)'s default colors (MIT License, Copyright (c) 2026 T3 Tools Inc.). Icons are [Lucide](https://lucide.dev)'s (ISC License, Copyright (c) Lucide Contributors); file and folder icons in Files and Review are [Catppuccin's VS Code icons](https://github.com/catppuccin/vscode-icons) (MIT License, Copyright (c) 2023 Catppuccin, Copyright (c) 2023 thang-nm). Files ranks search results with [uFuzzy](https://github.com/leeoniya/uFuzzy) (MIT License, Copyright (c) 2022 Leon Sorokin). Apache-2.0, as Herdr App.
 
 ## More
 

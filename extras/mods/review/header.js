@@ -1,4 +1,5 @@
 import { div, svg } from "gpui-kit";
+import { layout, run, settings } from "herdr";
 import { h_flex } from "gpui-base";
 import { LU, MONO, COMPACT, button, iconButton, popover } from "./controls.js";
 import { donut } from "./groups.js";
@@ -59,11 +60,28 @@ export function head(view) {
   return { parts, buttons };
 }
 
+// A Review bar in view, which has read the repositories and draws the menu of what else to review (`pulls-review.pick`):
+// none, or hidden (Herdr T3's widened panel hides the tab bar), and it can't hear.
+function barShown(node) {
+  if (!node || node.hidden) return false;
+  return node.content?.mod === "pulls-review" || (node.children ?? []).some(barShown);
+}
+
+// What else to review in this repository, a commit or another branch: the Review bar's menu, hung 4 under this button.
+function pickButton(view, t) {
+  if (!view.root || !barShown(layout())) return null;
+  return iconButton(t, "review-pick", "mods/review/icons/git-branch.svg", "Change what to review", () => {
+    const b = view.pickBox, gap = 4 * (Number(settings()?.zoom) || 1);
+    run(`pulls-review.pick:${b ? Math.round(b.x) : 0},${b ? Math.round(b.y + b.height + gap) : 0},${view.root}`);
+  }, { press: (e) => { view.pickBox = e.bounds; } });
+}
+
 export function header(view, t, head) {
   // Narrow, the counts and the commit switch give way and the buttons never.
-  const commits = commitSwitch(view, t);
+  const commits = commitSwitch(view, t), pick = pickButton(view, t);
   // As T3's DiffPanel header; the counts as its DiffStatLabel.
   return h_flex().id("review-header").h(40).flex_none().px(16).gap(8).items_center().overflow_hidden().border_b(1).border_color(t.border).bg(t.chrome)
+    .when(Boolean(pick), el => el.child(pick))
     .when(Boolean(commits), el => el.child(commits))
     .when(head.parts.length > 0, el => el.child(h_flex().min_w(0).gap(4).items_center().text_size(11).font_family(MONO)
       .children(head.parts.map(p => h_flex().min_w(0).gap(4).items_center().text_color(t[p.color] ?? t.dim)

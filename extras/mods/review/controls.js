@@ -28,8 +28,8 @@ export const MODEL_ROW = 28; // T3's select and combobox rows, with no gap betwe
 // SPLIT_MIN of diff (its MIN_SPLIT_WIDTH_PX; narrower, unified, the choice kept). Under COMPACT the header's text buttons are icons.
 export const WIDE = 1024, SPLIT_MIN = 640, COMPACT = 640;
 
-// Lucide's icons (lucide/), the layout's one set, and the catppuccin file icons (cat/), as the app draws them.
-export const LU = `mods/${PANE}/icons`, CAT = `mods/${PANE}/icons/cat`;
+// Lucide's icons, the layout's one set; the catppuccin file icons in icons/cat/ are file-icons.js's.
+export const LU = `mods/${PANE}/icons`;
 
 // A list's pick mark, as T3's MenuRadioItemIndicator, its slot kept so the rows line up.
 export function pickMark(t, on) { return div().w(14).flex_none().text_color(t.accent).when(on, el => el.child(svg("mods/review/icons/check.svg").size(14))); }
@@ -77,12 +77,12 @@ export function button(t, id, label, action, { color, icon, after, primary, note
 
 // As T3's icon-sm in DiffPanel's header (`size` 24: its icon-xs, beside an xs button), faded until hovered as the app's
 // ActionIconButton; `active` (its popup open) on `selected`.
-export function iconButton(t, id, icon, label, action, { color, disabled, active, size = 28 } = /** @type {{ color?: any, disabled?: any, active?: any, size?: number }} */ ({})) {
+export function iconButton(t, id, icon, label, action, { color, disabled, active, size = 28, press } = /** @type {{ color?: any, disabled?: any, active?: any, size?: number, press?: any }} */ ({})) {
   return div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(color ?? t.foreground)
     .when(Boolean(disabled), el => el.opacity(DISABLED))
     .when(!disabled, el => el.opacity(active ? 1 : FADED).when(Boolean(active), el => el.bg(t.selected)).hover(s => s.opacity(1).bg(hover(t))))
     .role("button").accessibility_label(label)
-    .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); if (!disabled) action(cx); })
+    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); press?.(e); }).on_click((_e, cx) => { cx.stop_propagation(); if (!disabled) action(cx); })
     .child(svg(icon).size(14));
 }
 

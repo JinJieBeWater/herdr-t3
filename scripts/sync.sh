@@ -19,7 +19,7 @@ share details mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-tabs extras/mods
 share motion mods/t3-inbox mods/t3-agents mods/t3-spaces
 share focus mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home mods/t3-new-menu mods/t3-picker extras/mods/pulls-review
 share list mods/t3-chrome mods/t3-inbox mods/t3-agents mods/t3-pane mods/t3-actions mods/t3-menu mods/t3-new-menu mods/t3-picker extras/mods/pulls-review extras/mods/review
-share zoom mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-picker extras/mods/pulls-review
+share zoom mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-picker
 share sidebar mods/t3-chrome mods/t3-home mods/t3-tabs mods/t3-spaces mods/t3-agents mods/t3-inbox mods/t3-pane mods/t3-menu
 share layout-settings mods/t3-chrome mods/t3-tabs mods/t3-inbox
 share snooze-presets mods/t3-inbox mods/t3-menu
@@ -27,6 +27,11 @@ share store mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrom
 share labels mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
 share pins mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
 share menu mods/t3-menu mods/t3-inbox mods/t3-agents mods/t3-spaces mods/t3-tabs mods/t3-pane
+share panel mods/t3-chrome mods/t3-tabs mods/t3-files extras/mods/pulls-review extras/mods/review
+share file-icons mods/t3-files extras/mods/review
+share file-icons-data mods/t3-files extras/mods/review
+# file-icons.js's SVGs (scripts/vendor.sh makes them): each mod draws only its own.
+for d in mods/t3-files extras/mods/review; do rsync -a --delete "$src/shared/icons/cat/" "$src/$d/icons/cat/"; done
 
 # mod.json stays per repo: here the layout places it ("none"), alone it docks left.
 rsync -a --delete $gen --exclude mod.json "$src/mods/t3-inbox/" "$inbox/mods/t3-inbox/"

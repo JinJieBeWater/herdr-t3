@@ -1,11 +1,12 @@
 // pulls.review in Herdr. In a bar it is the Review bar (bar.js), sized to fit its block; opened as an overlay it opens a
-// review (open.js), or with props.menu the logo's menu. A review in "herdr" mode draws in the review mod's pane.
+// review (open.js), or with props.menu the logo's menu. A review in "herdr" mode draws in the review page of the window's
+// panel (the review mod).
 // Bound in keys.json, `mod.open:pulls-review` reviews the focused pane's worktree.
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { props, run, settings, setShared, shared, theme } from "herdr";
-import { watchReview, reviewBar, reviewMenu, initReviewMenu, menuClosed } from "./bar.js";
+import { props, run, settings, setShared, shared, theme, nextCommand } from "herdr";
+import { watchReview, reviewBar, reviewMenu, initReviewMenu, menuClosed, pickCommand } from "./bar.js";
 import { launch } from "./open.js";
 import { stopsInit, stopsEnd, focusRoot } from "./focus.js";
 
@@ -15,12 +16,14 @@ export default class PullsReview extends View {
     if (p.menu === "review") initReviewMenu(this);
     else if (p.overlay) cx.spawn(() => launch(p));
     else {
-      // A review pane starts only when shown and shared outlives the app, so a run's word from before a restart would stay
-      // until its tab is seen. The bar, always shown, drops it; a pane still running says so again at its next poll (1.5s).
+      // The panel's review page starts only when first shown and shared outlives the app, so a run's word from before a restart
+      // would stay until that page is seen. The bar, always shown, drops it; a review still running says so again at its next poll (1.5s).
       const status = Object.entries(shared("review.status") ?? {}), left = status.filter(([, word]) => word !== "working");
       if (left.length < status.length) setShared("review.status", Object.fromEntries(left));
       watchReview(this, cx);
       stopsInit(this, cx);
+      // The Review page's header asks here for the menu of what else to review: the bar has read the repository.
+      cx.spawn(async () => { for (;;) { const c = await nextCommand(); if (c.startsWith("pick:")) await pickCommand(this, c); } });
     }
   }
 

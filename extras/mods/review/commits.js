@@ -26,7 +26,7 @@ function shownCommit(view) { return view.page?.startsWith("/commit/") && view.pa
 export function showPage(view, page, cx) {
   view.closePopup(cx);
   view.handle.focus();
-  setShared(PANE, { tab: view.tab, root: view.root, page, base: view.base, n: Math.max(Date.now(), view.handled + 1) });
+  setShared(PANE, { space: view.space, root: view.root, page, base: view.base, n: Math.max(Date.now(), view.handled + 1) });
   cx.notify();
 }
 

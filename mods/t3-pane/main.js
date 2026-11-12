@@ -53,6 +53,12 @@ function kidMark(t, st) {
     .when(st === "idle", el => el.child(div().size(6).flex_none().rounded_full().border(1.5).border_color(t.idle ?? t.dim)));
 }
 
+// Time left on a snooze, as the Inbox's row says it: 10m, 3h, 2d.
+function left(ms, now) {
+  const m = Math.max(1, Math.ceil((ms - now) / 60000));
+  return m < 60 ? `${m}m` : m < 1440 ? `${Math.ceil(m / 60)}h` : `${Math.ceil(m / 1440)}d`;
+}
+
 function folder(cwd) {
   if (!cwd) return "";
   const h = home();
@@ -79,6 +85,8 @@ export default class Pane extends View {
     }
     this.hovered = false;
     stopsInit(this, cx);
+    // A snooze's time left counts down, and its end brings the done back.
+    this.napWatch = cx.timer.every(30000, (cx) => { if (this.napping) cx.notify(); });
   }
 
   async close() {
@@ -86,7 +94,7 @@ export default class Pane extends View {
       for (const w of [this.clock, this.detailsWait, this.detailsFade, this.detailsWatch]) w?.cancel();
       setShared(KIDS_CLOSED, Date.now());
     }
-    else stopsEnd(this);
+    else { stopsEnd(this); this.napWatch?.cancel(); }
   }
 
   // The sub-agents' list, as the layout's other menus: 28px rows, stepped in by level. A pick peeks that one and closes it.
@@ -241,7 +249,8 @@ export default class Pane extends View {
     // With the Inbox the bar's breadcrumb names the agent in view: an agent's pane shown alone (its tab's only one, or zoomed)
     // doesn't say it again. Split, the names tell the panes apart.
     const alone = p.zoomed || panes().filter((q) => q.tab === p.tab).length === 1;
-    const crumbed = alone && sidebarParts(layout()).stack?.active === "inbox" && agents().some((a) => a.address === p.terminal);
+    const inbox = sidebarParts(layout()).stack?.active === "inbox";
+    const crumbed = alone && inbox && agents().some((a) => a.address === p.terminal);
     const name = crumbed || (!p.mod && pic && named === p.program?.name) ? "" : named;
     // Split, the panes beside the focused one recede, as T3's split terminals do, with no ring: their icon, name and folder a
     // step down, back up while hovered. Its status mark (what needs the person) and its buttons stay as they are.
@@ -250,9 +259,15 @@ export default class Pane extends View {
     const all = terminals();
     const kids = subAgents(agents(), all)(p.terminal);
     const st = p.mod ? modStatus(p) : treeStatus(ownStatus(p.status, p.terminal, all), kids);
+    // Put away, it's no news (no done dot, in either mode). With the Inbox chosen the header says so, as its Inbox row does
+    // (docs/adr/0002): a snooze with its clock and time left, else Settle's check. At work or needing the person, that shows first.
+    const k = p.terminal && all.find((x) => x.address === p.terminal);
+    const away = !p.mod && st !== "working" && st !== "blocked" && notNews(k, p.status, kids);
+    const now = Date.now(), nap = away && Number(k.labels?.snoozed) > now ? Number(k.labels.snoozed) : 0;
+    this.napping = inbox && nap > 0;
     const pane = p.pane;
     // A mark takes the last button's 24px, so it, the × and the tab bar's + share one column: this header's pr(2), the frame's 2 and the block's 8 are the bar's 12.
-    const slot = (mark) => div().w(24).flex_none().flex().items_center().justify_center().child(mark);
+    const slot = (mark) => div().min_w(24).flex_none().flex().items_center().justify_center().child(mark);
     // The buttons show with the keyboard on the header or one of them, as they do hovered: the header's the stop that gets there.
     const head = `pane-head-${pane}`, tools = ["r", "d", "z", "x"].map((k) => `ph-${k}-${pane}`);
     // The rounded frame paints the background; rectangular child fills would cover its corners.
@@ -284,6 +299,10 @@ export default class Pane extends View {
       .when(st === "working", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Working", svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))))
       // The same marks as the agents list and tabs.
       .when(st === "blocked", el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Needs you", div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().accessibility_label("Needs you").child("!")))))
-      .when(st === "done" && !notNews(all.find(k => k.address === p.terminal), p.status, kids), el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(6).flex_none().rounded_full().bg(t.done))))), 8));
+      .when(inbox && away, el => el.child(slot(nap
+        ? tipMark(this, t, `ph-mark-${pane}`, "Snoozed", h_flex().gap(4).items_center().text_size(12).text_color(t.accent)
+          .child(svg("mods/t3-pane/icons/alarm-clock.svg").size(12).flex_none().text_color(t.accent)).child(left(nap, now)))
+        : tipMark(this, t, `ph-mark-${pane}`, "Settled", svg("mods/t3-pane/icons/check.svg").size(14).flex_none().text_color(t.dim)))))
+      .when(st === "done" && !away, el => el.child(slot(tipMark(this, t, `ph-mark-${pane}`, "Done", div().size(6).flex_none().rounded_full().bg(t.done))))), 8));
   }
 }

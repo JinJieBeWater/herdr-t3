@@ -12,7 +12,7 @@
   - Inbox：T3 式 Settle。需要你的 agent 以卡片留在上方；结束的由你手动 Settle 进底部的安静列表，有新工作时自动回来。工作中的 agent 折叠进 Working 收纳区。Snooze 把任何不需要你的 agent 藏到你选的时间。
 - **各处同一个名字**：Inbox 卡片、agents 列表、标签和窗格标题用同一条规则给终端取名：Pi 在跑时用 Pi 会话名，其次是你命名过的标签，再其次是有意义的终端标题，最后是程序名。同一个标签里的两个 Pi 各自显示自己的会话名；Pi 退出后在原处启动的 lazygit 显示为 lazygit，不沿用旧会话名。
 - **各处同一套状态标记**：工作中转圈，blocked 或这一轮失败时显示 `!`，done 显示圆点。已 Settle 或 Snooze 的 agent 在各处都不再显示 done 圆点，Lists 也一样；只有 Inbox 会藏起工作中的 Snooze agent，其他地方照样转圈。显示 Inbox 时，标签上不显示任何标记：什么需要你由侧栏来说。
-- **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）；分屏时，你不在的窗格标题栏变暗，同 T3。有子 agent 的 agent 在这里显示子 agent 数量，有需要你的就显示需要你的个数；点开只列出这个 agent 的子 agent，每个一行：程序图标、名字、已工作多久或在等什么，最右是它自己的状态，标记同 Agents；嵌套的缩进。悬停显示详情，选一个就 peek 它。Inbox 里就靠它打开子 agent。zoom 一个分屏的标签，标签栏会展开它的各个窗格，每个一段：点一段就改 zoom 它，点 `⧉` 还原分屏。
+- **窄标签、带框窗格**：24px 标签，照 T3 的面板标签；圆角窗格带 28px 标题栏（名字、目录、状态；悬停时出现分屏、缩放、关闭）；分屏时，你不在的窗格标题栏变暗，同 T3。选了 Inbox 时，收起的 agent 也在这里标出：已 Settle 显示勾，Snooze 中显示闹钟和剩余时间。有子 agent 的 agent 在这里显示子 agent 数量，有需要你的就显示需要你的个数；点开只列出这个 agent 的子 agent，每个一行：程序图标、名字、已工作多久或在等什么，最右是它自己的状态，标记同 Agents；嵌套的缩进。悬停显示详情，选一个就 peek 它。Inbox 里就靠它打开子 agent。zoom 一个分屏的标签，标签栏会展开它的各个窗格，每个一段：点一段就改 zoom 它，点 `⧉` 还原分屏。
 - **Inbox 下的标签栏**：以你正在看的 agent 为主角，也就是 Inbox 亮着的卡片。左边是它的 space、是子 agent 时的父级和它的名字；点 space 去这里的空标签，已有就切过去、没有才新建，这时标签栏右边不再有 `+`；点名字或 `⌄` 打开这个 agent 的菜单：Pin、Snooze、Settle，和卡片上一样，标签里只有它时还有 Rename。右键名字或父级打开那个 agent 的菜单，和 T3 一样；右键 space 打开 space 的菜单。这里只写你正在看的 agent：同一标签里的其他 agent 用它的卡片或窗格去。右边分开放：它的子 agent 的标签，再是不含 agent 的标签。焦点在程序上时 agent 留在那里但不亮；从标签栏进入工具标签时它变暗，点它回去。点左边的 space 或按 `cmd-t` 开始新的事之后只有 space，直到你再看某个 agent。这个 agent 的窗格单独显示时，标题里不再写标签栏已经写了的名字。
 - **新建**：标签栏的 `+` 直接在当前 space 开终端标签（显示 Inbox 时由标签栏左边的 space 承担，先去已有的空标签）；侧栏的 New tab（Lists 和 Inbox 都有）先选 space。侧栏的 New space 在机器多于一台时先问建在哪台；`cmd-n` 不问，直接用当前 space 的机器。不选 agent：在终端里启动。
 - **Home**：Settle 或 Snooze 当前查看的 agent 后，回到一个安静的固定位置，不再跳到下一张卡片，下一步看什么由你决定。想继续跳到下一张，或者把 Home 换成终端或别的 mod，见下面的设置。用这里的按钮或 `cmd-]`、`cmd-p`、`cmd-t` 决定下一步，Undo 能带回刚才的 agent。`cmd-shift-h` 或侧栏左上角的 Herdr logo 可随时进入。它不占 space 序号。它只放一样东西（页面、终端或 mod），没有窗格标题栏：不能 split 也不能关，agent 也不会留在里面。侧栏显示时，空的标签栏会收起，Home 占满高度。
@@ -23,12 +23,14 @@
 - **项目图标**：space 显示其仓库的 favicon（在它所在的机器上查找），没有时显示 T3 配色的首字母图标。
 - **右键菜单**：代表 agent、space、仓库、机器、标签或窗格的东西，右键都打开它的菜单，在哪里右键都是同一份。agent 的（Inbox 卡片、Agents 行、标签栏里的名字）：Pin、Settle、Snooze 或 Wake（只在 Inbox 下有）、标签里只有它时的 Rename、Copy address、Send back 回父级、Close。space 的（Spaces 或 Agents 里的行、标签栏、Inbox 的筛选）：New tab、Rename、Copy path、New worktree 和 Open worktree、Remove worktree、Close。Spaces 里仓库那一行暗行：Open、Copy path。机器标题：New space here、Connect。标签的：New tab、Rename、Close。窗格的（终端、窗格标题栏）：Split、Zoom、Copy address、Send right-clicks to pane、Close pane。当下做不了的不列出来。
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 和右键菜单的 Close 在有程序运行时先询问，没有程序运行时直接关闭。
-- **Review**（可选，[见扩展](extras.zh-CN.md#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后打开：每个 space 一个，可以是分屏或独立标签，已经开着就跳过去。切换 commit 在窗格自己的顶栏。它的窗格标题（显示 Lists 时还有标签）用布局的状态标记显示分析进度，在 Inbox 里也有一张卡片。
+- **space 面板**：窗口右侧和侧栏一样高的面板，页面有 Files，装了 Review 扩展时还有 Review，同时只显示一页。切换标签时它不动，内容跟着当前 space。标签栏右端的按钮（和侧栏开关左右对称）打开面板，停在上次的页面，再按就关闭（装了 Review 扩展时，它是 Review 栏的最后一段）；`cmd-shift-e` 打开面板并切到 Files，面板正显示 Files 时关闭它。它的顶栏有各页的页签、`⤢`（放大盖住标签区，再按还原）和 `×`（关闭）。拖它的边缘可以调宽度，一开始和标签区一样宽。
+- **Files**：只读浏览当前 space 的文件夹，本机或其他机器上的都可以。右边的文件树边展开边读取，Git 忽略的项变暗，改动的文件用 Review 的颜色标 A、M、D 或 R；折叠的文件夹里有改动时带一个点。选一个文件，左边显示内容：代码带语法着色，Markdown 默认显示预览（也可以看源码，会记住上次的选择），图片直接显示。文件树上方的 Search files 按路径找任何文件，没展开的文件夹也算：输入几个词，每个词都要出现在路径里；↑/↓、Enter 和 Esc 可用。点文件上方路径里的文件夹，会在树里定位到它。改动过的文件有一个 `Review ↗` 按钮，在 Review 里打开它。在某一行右键可以复制路径或相对路径、在这个 space 的 agent 里提及它（输进它的输入框，不按回车）、在 Finder 里显示或用默认应用打开（后两项只限本机）。文件有变化时会自己更新。
+- **Review**（可选，[见扩展](extras.zh-CN.md#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在面板的 Review 页打开。每个 space 各有自己的评审，页面显示当前 space 的。切换 commit 在页面自己的顶栏。diff 在左，分组和文件在右。Review 栏最后一段是面板按钮，分析进度用布局的状态标记显示在它后面和面板的 Review 页签上；这个页签用的是 pulls.review 的 logo。页面顶栏最左边的分支按钮可以改选一个提交或另一个分支来评审。其他机器上的 space 没有 Review。
 
 ## 日常用法
 
 - **侧栏**：侧栏右上角的按钮（或 `cmd-shift-b`）在 Lists 和 Inbox 之间切换；旁边那个按钮隐藏侧栏。
-- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s`（隐藏侧栏时也能用，Lists 里不起作用）Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。你自己取回的 agent（点撤销箭头、拖出 Settled 或按 `cmd-shift-s`）排到 Active 顶部。点 `Undo` 则放回原位。接着按 `cmd-]` 打开最上面的卡片，可以逐张处理。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。Review 有自己的卡片，分析时在 Working，结束后回到 Active：从任何地方点它都能回去，Settle 就是关闭并回到打开它之前的地方（从 Review 栏可以重开，已审标记和分析结果都还在）。
+- **Inbox**：鼠标移到已结束的卡片上，点 `✓ Settle` 收起；有新工作时它会自己回来，也可以点那一行的撤销箭头拿回来。`cmd-shift-s`（隐藏侧栏时也能用，Lists 里不起作用）Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。你自己取回的 agent（点撤销箭头、拖出 Settled 或按 `cmd-shift-s`）排到 Active 顶部。点 `Undo` 则放回原位。接着按 `cmd-]` 打开最上面的卡片，可以逐张处理。卡片和行可以像 T3 一样拖动：移动 6px 即拿起；`Pinned` 和 `Active` 标签展开，拿起的行标出松开后的动作（Pin、Unpin、Settle、Un-settle），列表在落点让出位置。Pinned 保留你排的顺序，Active 和 Settled 按各自的排序。按 Esc 或从侧栏左右两侧拖出放回原处，从上下边缘拖出则按标记落下；Working 卡片拿不起来。按住卡片的 `✓ Settle`（或已 Settle 行的撤销箭头）划过多行，可以一次 Settle（或取回）整段。和 Agents 列表共用同一份置顶。
 - **设置**：侧栏底部的 sliders 按钮或 `cmd-shift-,` 打开布局自己的设置，样子和 Herdr 的设置一样。改动立即生效，更新后也保留。
   - **After putting away**：Home（默认），或 Next card：Settle、Snooze、拖走或划走当前查看的 agent 后打开下一张卡片，没有下一张就回 Home。关闭 agent 的标签仍回 Home。
   - **Home shows**：Default 是三个按钮的页面；Terminal 是主目录下的 shell；也可以选你自己的 mod。`~/.config/herdr-app/mods` 里 `mod.json` 写了 `"home": true` 的 mod 才会出现在选项里。选了立即替换。在 Home 的终端里起 agent，这个 space 会原地变成普通 space，按目录命名，画面不动；下次回 Home 会新建一个 Home。
@@ -45,6 +47,7 @@
 | `cmd-shift-s` | `t3-tabs.settle` | Settle 当前查看的 agent 并回到 Home，已 Settle 的则取回。选中 Inbox 时能用，显示或隐藏都一样；Lists 里不起作用。忙着的不动，置顶的会取消置顶 |
 | `cmd-shift-h` | `t3-tabs.home` | 回到 Home |
 | `cmd-shift-,` | `t3-tabs.settings` | 打开布局的设置 |
+| `cmd-shift-e` | `t3-tabs.files` | 打开面板并切到 Files；已在显示 Files 就关闭面板 |
 | `cmd-t`、`ctrl-alt-c` | `t3-tabs.new` | 在当前位置新建标签；在 Home 时打开新建菜单，先选 space |
 | `ctrl-1…9`、`ctrl-alt-shift-1…9` | `t3-tabs.space:<n>` | 第 n 个 space，不算 Home |
 | `cmd-alt-]` / `cmd-alt-[`、`ctrl-alt-shift-]` / `ctrl-alt-shift-[` | `t3-tabs.space-next` / `t3-tabs.space-prev` | 下一个或上一个 space，跳过 Home |
@@ -59,7 +62,7 @@
 
 其他标签、space 和窗格操作沿用 Herdr 自己的快捷键。Inbox 里的置顶和拖动用鼠标；Clear 和其他按钮一样能用键盘。
 
-键盘操作：用 Herdr 的 `pane.go` 移到侧栏列表后，Tab 能走遍窗口里的所有控件，包括 Review 栏的计数段和 logo，Enter 或 Space 和点击效果相同。在新建菜单和跳转里，Tab 还能走到底部按钮（New space、`← Spaces`、New tab）。
+键盘操作：用 Herdr 的 `pane.go` 移到侧栏列表后，Tab 能走遍窗口里的所有控件，包括 Review 栏的计数段和面板按钮，Enter 或 Space 和点击效果相同。在新建菜单和跳转里，Tab 还能走到底部按钮（New space、`← Spaces`、New tab）。
 
 ## 更新
 
@@ -73,7 +76,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 
 - 覆盖：`mods/t3-*` 和 `layouts/herdr-t3.*`（并删掉已移除的文件），以及你已安装的 Review、主题导出扩展和附带主题。没安装的扩展不会被装上。
 - 合并 `keys.json`：仓库的按键写进你的 `layout:herdr-t3` 分区和弹窗的 `mod:…` 分区，相同的键被替换，并逐条打印被替换的，方便你改回去；其他按键和分区不动。你的分区里有、仓库没有的键也会打印出来：旧键（比如 `"cmd-shift-a": "t3-tabs.view"`）可以删掉。
-- 会保留：置顶、折叠、排序、布局的设置、Settled 收纳区和已 Settle 的 agent（存在 `data/`、`shared.json` 和终端标签里），以及你的动作；已安装布局里的主题、当前选中的侧栏、聚焦边框颜色、Review 和主题导出的块。
+- 会保留：置顶、折叠、排序、布局的设置、Settled 收纳区和已 Settle 的 agent（存在 `data/`、`shared.json` 和终端标签里），以及你的动作；已安装布局里的主题、当前选中的侧栏、聚焦边框颜色、面板的 Review 页、Review 栏和主题导出的块。
 - 会丢掉：你对被覆盖文件的其他修改，需要重新改。Settle 后跳到下一张卡片现在是一项设置，不用再改文件。
 - 如果首次安装时因为重名改过名字，脚本并不知道：它会装上原来的名字，你可以让布局改回指向自己那份，或者删掉那份。
 - 改了什么、一些键的效果有什么变化：见[更新日志](../../CHANGELOG.zh-CN.md)。从 Focus 改名为 Inbox 之前的版本升级（`t3-focus` → `t3-inbox`）时，先把 `data/t3-focus` 改名为 `data/t3-inbox`（卡片顺序和收纳区状态），再删掉 `mods/t3-focus`。
@@ -82,5 +85,9 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 
 - Home 是一个单独的 space：切到其他布局、执行 `herdr-app ls` 或从另一台机器看时，会看到它。
 - 你给 Home 改了名后，同一 Herdr core 的另一个窗口认不出它，会再建一个 Home。
-- 其他机器上的 space 没有 Review 栏。
+- 其他机器上的 space 没有 Review 栏，也没有 Review 页。
+- 其他机器上的 Files：变化最多 10 秒后才显示，超过 512 KB 的图片不预览。
+- Files 只预览 1 MB 以内的文本，只给常见语言着色（JavaScript 和 TypeScript、JSON、YAML、Rust、Go、Python、shell、CSS、C 和 C++、Java、Kotlin、Ruby、PHP、SQL、Lua、GraphQL、Makefile）；TOML、HTML、Swift 等显示为纯文本。
+- Files 只按路径搜索，不搜内容，也不含 Git 忽略的文件；不在 Git 里时最多搜 20 万个文件。
+- 用 `⤤` 把面板放大盖住标签栏时，`cmd-shift-e` 不起作用：用面板的 `×` 关闭，或再按 `⤤` 收回。
 - 这次启动 Herdr 后 Inbox 还没显示过时，侧栏隐藏期间它不更新卡片顺序，`cmd-]` 和 `cmd-[` 可能按旧顺序走。`cmd-shift-s` 照常能 Settle。

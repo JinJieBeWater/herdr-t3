@@ -1,12 +1,12 @@
 // Where a review opens, and opening it: `open` in this folder's config.json picks the fork's daemon (in a Herdr pane, the
 // installed app or the browser) or the official CLI.
 
-import { spaces, panes, focused, exec, hc, window, notify, closeOverlay, run, shared, setShared, appHome, readTextFile } from "herdr";
-import { argPage, changedFiles, git, reviewLocation, spaceReview } from "./bar.js";
-import { focusPane } from "./zoom.js";
+import { spaces, exec, hc, window, notify, closeOverlay, shared, setShared, appHome, readTextFile } from "herdr";
+import { argPage, changedFiles, git, reviewLocation } from "./bar.js";
+import { showPage } from "./panel.js";
 
 // `open` in this folder's config.json, which the person creates; none means "herdr" (see mods/README.md):
-// "herdr":    the fork's daemon, drawn in a pane beside the agent (the review mod).
+// "herdr":    the fork's daemon, drawn in the review page of the window's panel (the review mod).
 // "pwa":      the fork's `jin.review -d --pwa`, in the installed jin.review app.
 // "browser":  the fork's `jin.review -d`, one background server for every repo, in the browser.
 // "official": the `pulls.review` CLI. Each worktree gets its own server, kept running by herdr-core.
@@ -66,25 +66,15 @@ async function official(root, args, page) {
   await openUrl(origin + (page ?? await pageFor(root, args)));
 }
 
-// One review pane per space: an open one, in any of its tabs, is focused and told the new page. With none, per the pane's
-// "Open in" setting, a tab of its own or a split off the focused pane. `analyze` reaches the pane either way.
+// A space's review is the `review` page of the window's one panel (docs/adr/0011): the request names the space, and the
+// panel shows that page. `analyze` reaches the review with the request.
 function herdr(root, page, analyze, space) {
-  // The space changed while this read: its review would land in the new space's pane.
+  // The space changed while this read: its review would land in the new space's.
   if (activeSpace() !== space) return;
   if (page === "/") throw new Error("Nothing to review on the default branch: pick a diff in the Review bar.");
-  // The pane takes only a number past the last it handled: past the last sent, as its own switch's, though the clock go back.
-  const n = Math.max(Date.now(), (shared(PANE)?.n ?? 0) + 1), open = spaceReview(), wanted = { root, page, n, analyze: Boolean(analyze) };
-  if (open) {
-    setShared(PANE, { tab: open.tab, ...wanted });
-    focusPane(open.pane);
-    return;
-  }
-  // A new pane starts from its props' number: kept here, for no pane to take.
-  setShared(PANE, { tab: null, n });
-  if (shared(`${PANE}.prefs`)?.openIn === "tab") return run("tab.new", { mod: PANE, props: wanted });
-  // With an agent block focused there is no focused pane: split the agent's own.
-  const f = focused(), from = f?.pane ?? panes().find(p => p.terminal === f?.agent)?.pane;
-  run("pane.split", { direction: "right", ...(from ? { pane: from } : {}), mod: PANE, props: wanted });
+  // The review takes only a number past the last it handled: past the last sent, as its own switch's, though the clock go back.
+  setShared(PANE, { space, root, page, n: Math.max(Date.now(), (shared(PANE)?.n ?? 0) + 1), analyze: Boolean(analyze) });
+  if (!showPage(PANE)) throw new Error("This layout's panel has no review page: add the review block to its panel-body stack.");
 }
 
 // Opens a review: `{ root, args, page, analyze }` from the Review bar for one diff (analyzed by AI in the fork), its menu's

@@ -9,6 +9,12 @@
 ## 2026-11-11
 
 - 显示 Inbox 时，Settle 或 Snooze 一个和工作中的 agent 分屏在同一标签里的 agent，它会离开分屏，拆到同一 space 下自己的标签，分屏里只留在工作的。它回来时（有新工作、到点醒来、需要你、你点了 Undo，或它的 agent 退回 shell），会合回原来的分屏，放在最右。你正在看的那个，等你离开后再搬；你正看着时它回来，会带你一起回到它的分屏。
+- 显示 Inbox 时，已 Settle 或 Snooze 的 agent 在窗格标题栏的状态标记处标出：Settle 的勾，或闹钟加剩余时间。和工作中的 agent 分屏时，一眼看出哪个已收起。
+
+- 新增 Files：在窗口右侧新的面板里只读浏览当前 space 的文件夹，本机或其他机器都可以。用标签栏右端的面板按钮（和侧栏开关左右对称）或 `cmd-shift-e` 打开。右边的文件树把 Git 忽略的项变暗，改动的文件标 A、M、D 或 R；选一个文件在左边阅读，带语法着色、Markdown 预览或直接显示图片。Search files 按路径找任何文件。在某一行右键可以复制路径、在这个 space 的 agent 里提及它，或在 Finder 里显示。详见[使用指南](docs/user/guide.zh-CN.md#功能)。
+- 整个窗口只有这一个面板：和侧栏一样高，切换标签时不动，内容跟着当前 space。顶栏有各页的页签、`⤢`（放大盖住标签区）和 `×`（关闭）。
+- Review 搬进了这个面板，作为 Files 旁边的第二页，不再是标签里的窗格：没有 Review 窗格、标签和 Inbox 卡片了，`Open in` 设置也删掉了。点 Review 栏的计数会打开面板并切到 Review，显示那个 space 的评审；每个 space 各记各的。diff 现在在左边，分组和文件在右边。Review 栏和面板按钮合成了一个控件，放在动作控件后面：`7 uncommitted │ ↑34 │ ▯▮`，面板按钮在最后，分析状态跟在它后面。pulls.review 的 logo 挪到了面板的 Review 页签上；原来 logo 打开的选提交或分支的菜单，改从 Review 页顶栏最左边的分支按钮打开。一个 space 既没有未提交的改动、也没选过 diff 时，页面会提示去 Review 栏选一段。装了这个扩展时，`scripts/update.sh` 会自己加上这一页，并把 id 为 `review` 的 Review 栏块改名为 `review-bar`。
+
 - 代表 agent、space、仓库、机器、标签或窗格的东西，右键都打开它的菜单，在哪里右键都是同一份。新增右键的有：Inbox 卡片和 settled、snoozed 行，Agents 的 agent 行和子 agent 行，Spaces 里仓库那一行暗行（Open、Copy path），机器标题（New space here、Connect），以及 Inbox 筛选里的 space。agent 菜单依次是 Pin、Settle、Snooze（已 Snooze 时是 Wake；Lists 下只有 Pin），然后是 Rename、Copy address、Send back，最后是 Close。space 菜单多了 New tab 和 Copy path。菜单项照 T3 分组，组之间有分隔线，当下做不了的不列出来。看着别的 agent 时从菜单 Settle 一个 agent，你会留在原处。标签栏里右键父级或变暗的标题，打开的是那个 agent 的菜单，不再是它窗格的菜单。Herdr 自带的主题和快捷键菜单在这里没有入口，已移除。
 - 从标签栏菜单置顶 agent 现在也会结束它的 Snooze，和从 agents 列表置顶一样。背后是置顶、终端标签和各项存储都改成各自只经一处读写。你的置顶、Home、动作和 Inbox 收纳区的展开状态，会在布局第一次启动时自动迁到新的名字下，不需要做什么。
 - 显示 Inbox 时，右上角的标签按名字收紧，间距均匀，贴着 Actions；悬停时图标变成 ×。这里不显示状态标记，所以 Lists 里每个名字后面放标记的那一格去掉了。

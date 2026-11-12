@@ -100,11 +100,13 @@ SWIFT
   [ $full -ge 3 ] || { echo "the demo window is $w wide, not full width: widen it before a shot" >&2; exit 1; }
 }
 
-# The layout, plus the stagehand and t3-theme-export (for pi-herdr-theme) in 0px blocks; `layout review` adds the Review bar, as its README says.
+# The layout, plus the stagehand and t3-theme-export (for pi-herdr-theme) in 0px blocks, and the Review extra's page in the
+# space panel, as update.sh adds it; `layout review` adds the Review bar, as its README says.
 layout() {
   jq --arg r "${1-}" '(.. | objects | select(.id? == "work-bottom-inset") | .children) += [{ "id": "stage", "type": "block", "size": { "px": 0 }, "content": { "mod": "demo-stage" } }]
     | (.. | objects | select(.id? == "work") | .children) += [{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }]
-    | if $r == "review" then (.. | objects | select(.id? == "tabs-row") | .children) |= (.[0:1] + [{ "id": "review", "type": "block", "size": { "px": 0 }, "window_drag": true, "content": { "mod": "pulls-review", "props": { "block": "review" } } }] + .[1:]) else . end' \
+    | (.. | objects | select(.id? == "panel-body") | .children) += [{ "id": "review", "type": "block", "content": { "mod": "review" } }]
+    | if $r == "review" then (.. | objects | select(.id? == "tabs-row") | .children) |= ((map(.id) | index("tabs-end")) as $i | .[0:$i] + [{ "id": "review-bar", "type": "block", "size": { "px": 0 }, "window_drag": true, "content": { "mod": "pulls-review", "props": { "block": "review-bar", "toggle": true } } }] + .[$i:]) else . end' \
     "$src/layouts/herdr-t3.json" > "$A/layouts/herdr-t3.json"
 }
 
@@ -126,7 +128,7 @@ EOF
     { "id": "dev", "name": "Dev server", "command": "npm run dev", "icon": "play", "place": "tab" },
     { "id": "lint", "name": "Lint", "command": "npm run lint", "icon": "lint", "place": "down" }
   ] },
-  "review.prefs": { "autoAnalyze": true, "fileList": "tree", "split": true, "openIn": "tab" }
+  "review.prefs": { "autoAnalyze": true, "fileList": "tree", "split": true }
 }
 EOF
 }

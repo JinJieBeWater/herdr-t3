@@ -2,21 +2,13 @@ import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
 import { fileRows } from "./rows.js";
 import { scrollList } from "./list.js";
-import { LU, CAT, MONO, FADED, hover, pref, isLight, checkMark, diffStats } from "./controls.js";
+import { PANE, LU, MONO, FADED, hover, pref, isLight, checkMark, diffStats } from "./controls.js";
+import { fileIcon, folderIcon } from "./file-icons.js";
 import { groupStats, categoryIcon, criticalMark, donut } from "./groups.js";
 
 // As the app's FileStatus: a letter in its status's color (success, error, warning, blue at 500).
 const FILE_STATUS = { added: ["A", "#22c55e"], removed: ["D", "#ef4444"], modified: ["M", "#f59e0b"], renamed: ["R", "#3b82f6"], copied: ["C", "#3b82f6"] };
-// As @antfu/design's file and folder icons (catppuccin, in cat/): the first matching rule wins, else the plain file.
-const FILE_ICONS = [[/\.vue$/, "vue"], [/\.tsx$/, "typescript-react"], [/\.jsx$/, "javascript-react"], [/\.d\.[cm]?ts$/, "typescript-def"],
-  [/\.[cm]?ts$/, "typescript"], [/\.[cm]?js$/, "javascript"], [/\.json5?$/, "json"], [/\.ya?ml$/, "yaml"], [/\.toml$/, "toml"], [/\.md$/, "markdown"],
-  [/\.html?$/, "html"], [/\.(?:css|postcss)$/, "css"], [/\.s[ac]ss$/, "sass"], [/\.svg$/, "svg"], [/\.(?:png|jpe?g|gif|webp|avif|ico)$/, "image"],
-  [/\.(?:woff2?|ttf|otf|eot)$/, "font"], [/package\.json$/, "npm"], [/\.(?:test|spec)\.[cm]?[jt]sx?$/, "typescript-test"]];
-const fileIcon = (path) => FILE_ICONS.find(([match]) => /** @type {RegExp} */ (match).test(path))?.[1] ?? "file";
-const FOLDER_ICONS = { src: "folder-src", dist: "folder-dist", node_modules: "folder-node", test: "folder-tests", tests: "folder-tests", public: "folder-public",
-  components: "folder-components", utils: "folder-utils", config: "folder-config", assets: "folder-images", scripts: "folder-scripts", styles: "folder-styles", lib: "folder-lib" };
-// A chain of folders (`packages/cli/src`) is named by its last. Always closed, as the app's FileTree draws them.
-const folderIcon = (name) => FOLDER_ICONS[name.split("/").pop().toLowerCase()] ?? "folder";
+// File and folder icons are the Files page's (file-icons.js, catppuccin). Folders always closed, as the app's FileTree draws them.
 
 /**
  * As the app's group aside at `lg`, beside the diffs: for a subgroup or a group without subgroups, its header (a subgroup's
@@ -57,7 +49,7 @@ function fileTree(view, t, g) {
   const path = (row, struck) => {
     const parts = row.name.split("/"), name = parts.pop();
     return h_flex().flex_1().min_w(0).items_center().font_family(MONO)
-      .child(image(`${CAT}/${fileIcon(row.path)}.svg`).w(14).h(14).mr(8).flex_none().opacity(FADED))
+      .child(image(`mods/${PANE}/${fileIcon(row.path)}`).w(14).h(14).mr(8).flex_none().opacity(FADED))
       .when(parts.length > 0, el => el.child(div().min_w(0).flex_shrink(100).truncate().when(struck, el => el.line_through()).when(pref("fileList") === "list", el => el.opacity(0.4)).child(`${parts.join("/")}/`)))
       .child(div().min_w(0).flex_shrink_1().truncate().when(struck, el => el.line_through()).child(name));
   };
@@ -77,7 +69,7 @@ function fileTree(view, t, g) {
       const state = !done ? "none" : done === files.length ? "all" : "some";
       return base.id(`tree-d-${row.key}`)
         .child(checkbox(`tree-dcheck-${row.key}`, state, `${row.name}: ${done} of ${files.length} reviewed`, (cx) => view.setReviewed(files, state !== "all", cx)))
-        .child(image(`${CAT}/${folderIcon(row.name)}.svg`).w(14).h(14).flex_none().opacity(FADED))
+        .child(image(`mods/${PANE}/${folderIcon(row.name)}`).w(14).h(14).flex_none().opacity(FADED))
         .child(div().min_w(0).truncate().font_family(MONO).text_size(11).opacity(FADED).child(row.name));
     }
     if (row.type === "missing")

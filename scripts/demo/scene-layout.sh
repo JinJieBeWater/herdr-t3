@@ -1,6 +1,6 @@
 # The layout scene, sourced by `stage.sh scene layout`: the whole window, for herdr-t3's cover. Five of the author's
 # open-source repos as spaces, fourteen agents working out of sight, the cards that need the person, three settled, and
-# in view one tab: a real pi on a pull request, and beside it the review pane with its AI analysis.
+# in view one tab: a real pi on a pull request, and beside it the space panel's review with its AI analysis.
 clear_stage
 # The Settled shelf open, so its rows show, and the Review bar in the layout.
 open_shelf() { for f in "$A"/data/t3-inbox/store-*.json; do jq '{open: "true"}' "$f" > "$f.new" && mv "$f.new" "$f"; done; layout review; }
@@ -46,10 +46,7 @@ daemon analyze >/dev/null; sleep 3
 for _ in $(seq 300); do daemon status | jq -e '.running | not' >/dev/null && break; sleep 2; done
 
 first_turn "$pi"; focus "$pi"
-r=$(demo herdr-app do pane.split "$(jq -nc --arg r "$root" --arg p "$page" --argjson n "$(date +%s)000" '{direction: "right", mod: "review", props: {root: $r, page: $p, n: $n}}')")
-# The review wider than pi's half, so its analysis has room. A split's panes are its tab's layout nodes.
-size() { demo herdr-app do layout.resize "$(jq -nc --arg p "$1" --argjson w "$2" '{id: $p, weight: $w}')" >/dev/null; }
-size "$(echo "$r" | jq -r .pane)" 0.6
-size "$(demo herdr-app ls | jq -r --arg t "$pi" '.spaces[].tabs[].terminals[]? | select(.terminal == $t) | .pane')" 0.4
+# The review on the space panel, as `mod.open:pulls-review` opens it: pi's worktree, clean, so its branch's page.
+demo herdr-app do mod.open '{"name":"pulls-review"}' >/dev/null
 sleep 3; focus "$pi"; sleep 5
 shoot_active "$D/layout.png"

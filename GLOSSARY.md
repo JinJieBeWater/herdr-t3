@@ -38,7 +38,7 @@ _Avoid_: Focus（旧名）、通知
 _Avoid_: 列表模式
 
 **卡片**：
-Inbox 上方代表一个 agent 或一个 Review 的条目。
+Inbox 上方代表一个 agent 的条目（或一个声明了 `inbox: true` 的 mod pane）。
 
 **收纳区**：
 Inbox 底部可折叠的分组：Working、Snoozed、Settled。
@@ -86,5 +86,13 @@ _Avoid_: picker（mod 名）、Search（Inbox 里的入口名）
 _Avoid_: task、script
 
 **Review**：
-一个 space 的待评审内容，以及显示它的评审窗格；Review 栏是它在标签栏里的入口。
-_Avoid_: diff、changes
+一个 space 的待评审内容，以及显示它的 space 面板 Review 页；Review 栏是它在标签栏里的入口。
+_Avoid_: diff、changes、评审窗格
+
+**space 面板**：
+窗口右侧唯一的面板，页面有 Files 和 Review，同时只显示一页，内容跟随当前 space。
+_Avoid_: 侧边面板、panel 栏
+
+**Files**：
+space 面板里只读浏览 space 文件夹的那一页。
+_Avoid_: 文件浏览器、file explorer

@@ -1,5 +1,5 @@
 // Preloaded by check.sh into every mod check: while a mod's render() runs, the cx it was given refuses what Herdr refuses
-// there (gpui-kit.d.ts: notify, new, focus_handle; InputState.new), so a check fails where Herdr would keep the view's last
+// there (gpui-kit.d.ts: notify, new, focus_handle; InputState.new, VirtualListScrollHandle.new), so a check fails where Herdr would keep the view's last
 // frame and show "This view could not be re-rendered". A check's fake cx doesn't know it's drawing; this does.
 // It finds each mod as the checks load it: a bundle run in a vm context that sets `Mod`.
 const vm = require("node:vm");
@@ -14,9 +14,9 @@ function guard(ctx) {
     const refuse = (what) => () => { throw new Error(`${what} is not allowed during the 'render' phase`); };
     const saved = {};
     for (const k of ["notify", "new", "focus_handle"]) if (typeof cx[k] === "function") { saved[k] = cx[k]; cx[k] = refuse(`cx.${k}()`); }
-    const input = ctx.InputState, inputNew = input?.new;
-    if (inputNew) input.new = refuse("InputState.new()");
-    try { return render.call(this, cx, ...rest); } finally { Object.assign(cx, saved); if (inputNew) input.new = inputNew; }
+    const made = ["InputState", "VirtualListScrollHandle"].map(k => [k, ctx[k], ctx[k]?.new]).filter(([, , make]) => make);
+    for (const [k, owner] of made) owner.new = refuse(`${k}.new()`);
+    try { return render.call(this, cx, ...rest); } finally { Object.assign(cx, saved); for (const [, owner, make] of made) owner.new = make; }
   };
 }
 

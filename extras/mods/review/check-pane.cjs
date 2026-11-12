@@ -18,6 +18,9 @@ const load = (file, env) => {
     .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
   const context = vm.createContext(env);
   vm.runInContext(src, context, { filename: file });
+  // A virtual list draws its rows once the frame is laid out, after the whole render: what reads where it is scrolled
+  // while rendering - the aside left of it before, right of it now - sees the last frame's range.
+  if (context.Mod) { const render = context.Mod.prototype.render; context.Mod.prototype.render = function (cx) { const el = render.call(this, cx); lists.splice(0).forEach(f => f()); return el; }; }
   return context;
 };
 // Values made in another realm compare unequal to this one's: compare them as JSON.
@@ -163,7 +166,7 @@ assert.equal(pageLabel("/compare/origin/main...other", review), "other vs origin
 // main.js: every state's render and every item kind, without a window.
 // Elements record their ids and handlers (`id.on_name`), so a test can press one and see what the next render draws.
 // They keep their words and styles too.
-const drawn = new Set(), handlers = new Map(), texts = new Map(), styles = {};
+const lists = [], drawn = new Set(), handlers = new Map(), texts = new Map(), styles = {};
 const element = (named = null) => {
   let id = named;
   const el = new Proxy(function () {}, { get: (_t, key) => key === "when" ? function (c, f) { if (c) f(this); return this; }
@@ -174,9 +177,10 @@ const element = (named = null) => {
   return el;
 };
 const press = (id) => { handlers.get(`${id}.on_click`)({}, cx); drawn.clear(); pane.render(cx); };
-const store = new Map(), sharedStore = new Map();
+const sharedStore = new Map();
 const pref = (key) => sharedStore.get("review.prefs")?.[key], setPref = (key, value) => sharedStore.set("review.prefs", { ...sharedStore.get("review.prefs"), [key]: value });
-let shownTab = "b", windowActive = true;
+// The page the panel shows, and the space that is active: s1 and s2 here, r1 on another machine.
+let pageShown = "review", windowActive = true, activeSpace = "s1", barIn = false, workHidden = false;
 const calls = [], bodies = [], routes = [], puts = [], browsed = [], notes = [];
 let daemonSettings = { locale: "zh-CN", llm: { provider: "local-agent", agent: "pi", agentModel: "my/model" } };
 // A save reads the daemon's settings, then writes them back.
@@ -194,12 +198,12 @@ const env = {
   // Paths build into nothing here; painting one is an element like any other.
   PathBuilder: (() => { const chain = new Proxy({}, { get: () => () => chain }); return { stroke: () => chain, fill: () => chain }; })(),
   window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search commits" ? commitField : field },
-  v_virtual_list: (_id, count, sizes, _key, render) => { assert.equal(sizes.length, count); render({ start: 0, end: count }).forEach(Boolean); return element(); },
+  v_virtual_list: (_id, count, sizes, _key, render) => { assert.equal(sizes.length, count); lists.push(() => render({ start: 0, end: count }).forEach(Boolean)); return element(); },
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => calls.push(["scroll", i]) }) },
   TextView: { markdown: element },
-  panes: () => [{ pane: "p9", mod: "review", tab: "b", zoomed: false }], focused: () => ({ tab: "b" }),
-  spaces: () => [{ active: true, tabs: [{ id: shownTab, active: true }] }],
-  props: () => ({ root: "/repo", page: "/branch/fix", n: 1 }),
+  spaces: () => [["s1", "/repo"], ["s2", "/other"], ["r1", "/srv", "kvm"]].map(([id, folder, machine = null]) => ({ id, folder, machine, active: id === activeSpace, tabs: [] })),
+  // Herdr T3's layout: the panel open, on the page shown.
+  layout: () => ({ id: "root", children: [{ id: "work", hidden: workHidden, children: barIn ? [{ id: "review-bar", content: { mod: "pulls-review" } }] : [] }, { id: "panel", children: [{ id: "panel-body", active: pageShown, children: [{ id: "files" }, { id: "review" }] }] }] }),
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
   run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
@@ -221,24 +225,24 @@ const env = {
       ? [{ name: "claude", label: "Claude Code", version: "1", models: [{ id: "sonnet", name: "Sonnet" }] }, { name: "pi", label: "Pi", version: "2", models: [] }]
       : daemonSettings;
   },
-  localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
 };
-const mainScope = load("main.js", env), pane = new mainScope.Mod();
+// The panel; `pane` is the review of the space shown, once it has started.
+const mainScope = load("main.js", env), panel = new mainScope.Mod();
+let pane;
 // Every icon the pane names is on disk: a missing svg draws nothing, and its button shows blank.
 const mainSource = source("main.js");
 const icons = [
   ...[...mainSource.matchAll(/mods\/\$\{PANE\}\/([a-z/-]+)\.svg/g)].map(m => m[1]),
   ...[...mainSource.matchAll(/\$\{LU\}\/([a-z0-9-]+)\.svg/g)].map(m => `icons/${m[1]}`),
   ...Object.values(vm.runInContext("CATEGORY", mainScope)).map(([icon]) => `icons/${icon}`),
-  ...vm.runInContext("FILE_ICONS", mainScope).map(([, name]) => `icons/cat/${name}`),
-  ...Object.values(vm.runInContext("FOLDER_ICONS", mainScope)).map(name => `icons/cat/${name}`),
-  "icons/cat/file", "icons/cat/folder", "icons/chevron-up", "icons/chevron-down", "icons/chevron-right",
+  "icons/chevron-up", "icons/chevron-down", "icons/chevron-right",
   ...vm.runInContext("FOLDS", mainScope).map(({ icon }) => `icons/${icon}`),
 ];
 for (const icon of icons) assert.ok(fs.existsSync(path.join(__dirname, `${icon}.svg`)), `icon on disk: ${icon}`);
-// File and folder icons by @antfu/design's rules, first match winning as there; a folder chain by its last name.
-assert.deepEqual(["a/b.vue", "x.test.ts", "package.json", "Makefile"].map(path => vm.runInContext(`fileIcon(${JSON.stringify(path)})`, mainScope)), ["vue", "typescript", "json", "file"]);
-assert.deepEqual(["packages/cli/src", "docs"].map(name => vm.runInContext(`folderIcon(${JSON.stringify(name)})`, mainScope)), ["folder-src", "folder"]);
+// File and folder icons are the Files page's (file-icons.js, checked with t3-files); here, that what the review draws is on disk.
+for (const icon of ["a/b.vue", "x.test.ts", "package.json", "Makefile", "noext"].map(p => vm.runInContext(`fileIcon(${JSON.stringify(p)})`, mainScope))
+  .concat(["packages/cli/src", "whatever"].map(n => vm.runInContext(`folderIcon(${JSON.stringify(n)})`, mainScope)))) assert.ok(fs.existsSync(path.join(__dirname, icon)), `icon on disk: ${icon}`);
+assert.equal(vm.runInContext('fileIcon("a/b.vue")', mainScope), "icons/cat/vue.svg");
 // A category icon is grey until lit, as the app's saturate-0: its hue's luminance.
 assert.equal(vm.runInContext('grey("#ff0000")', mainScope), "#363636");
 // A run's progress names the files it reads, not their paths.
@@ -265,23 +269,27 @@ const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_hand
 const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
 (async () => {
   {
-    // A menu creates the pane before closing itself. I/O started in that init belongs to the menu and loses its answer;
-    // the pane's callbacks run in its own context after the menu closes.
-    let inMenu = true;
-    const pending = [], own = new Map();
+    // A space's review starts its first read on its own timer, not in the render that made it: a render's cx is gone by
+    // the time an answer comes (gpui-kit.d.ts). With nothing asked of it, it shows what review.shown says it showed.
+    const pending = [];
     const ownCx = { ...cx, spawn: f => f(ownCx), timer: { every() {}, after: (ms, f) => pending.push([ms, f]) } };
-    const scope = load("main.js", { ...env,
-      localStorage: { getItem: k => own.get(k) ?? null, setItem: (k, v) => own.set(k, v) },
-      review: () => inMenu ? new Promise(() => {}) : Promise.resolve(structuredClone(review)),
-    });
+    const scope = load("main.js", { ...env, review: () => Promise.resolve(structuredClone(review)) });
+    sharedStore.set("review.shown", { s1: { root: "/repo", page: "/branch/fix", base: "/branch/fix" } });
     const opened = new scope.Mod();
-    opened.init({}, ownCx);
-    inMenu = false;
+    opened.init({}, ownCx); opened.render(ownCx);
+    assert.ok(!opened.shown().loading, "no read while drawing");
     for (const [ms, f] of pending.splice(0)) if (ms === 0) f(ownCx);
     await new Promise(setImmediate);
-    assert.ok(opened.review && !opened.loading && !opened.error, "closing the menu must leave its new review loaded");
+    assert.ok(opened.shown().review && !opened.shown().loading && !opened.shown().error && opened.shown().page === "/branch/fix");
+    sharedStore.delete("review.shown");
   }
-  pane.init({}, cx);
+  // What the review wrote as a pane in a tab, and its setting for where the next opened: gone at its start.
+  sharedStore.set("review.titles", { b: "fix" }); sharedStore.set("review.program", { name: "Review" }); setPref("openIn", "tab");
+  panel.init({}, cx);
+  assert.ok(sharedStore.get("review.titles") === null && sharedStore.get("review.program") === null && !("openIn" in sharedStore.get("review.prefs")));
+  // The Review bar's count opened the panel: the request it left is for this space, and new.
+  sharedStore.set("review", { space: "s1", root: "/repo", page: "/branch/fix", n: Date.now() });
+  panel.render(cx); pane = panel.shown();
   // Later panes bind the same stand-in.
   const commitEvents = { ...commitField.events };
   // As the app, which never starts an AI run by itself: analyzing on a count's click is off until turned on.
@@ -296,12 +304,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.render(cx);
   assert.equal(bodies.length, 1);
   assert.ok(pane.review.files.every(f => f.hunks));
-  // Its pane header, and a tab of its own, say what it reviews.
-  assert.deepEqual(plain(sharedStore.get("review.titles")), { b: "fix vs origin/main" });
-  assert.equal(sharedStore.get("review.program").inbox, true, "asks for its card in t3-inbox: a pane that loses nothing when it closes");
-  assert.equal(sharedStore.get("review.program").name, "Review");
-  // The Review bar reads which repository it shows from here; no change, no write: every write redraws every mod.
-  assert.equal(sharedStore.get("review.shown").b.root, "/repo");
+  // The Review bar reads which repository it shows from here, by space; no change, no write: every write redraws every mod.
+  assert.equal(sharedStore.get("review.shown").s1.root, "/repo");
   const published = sharedStore.get("review.shown"); pane.render(cx);
   assert.equal(sharedStore.get("review.shown"), published);
   // Polling a run asks for no rows and keeps the ones it has.
@@ -353,11 +357,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.key({ keystroke: "escape" }, cx);
   assert.ok(pane.popup !== "status");
   pane.review.analysis = { state: "current", agent: true }; pane.render(cx);
-  // Its tab and pane header show the word an agent would: a run from the click, then how it ended until the tab is looked at.
-  const word = () => sharedStore.get("review.status")?.b ?? null;
+  // The Review bar and the panel head show the word an agent would, by space: a run from the click, then how it ended until
+  // the space's review is looked at.
+  const word = () => sharedStore.get("review.status")?.s1 ?? null;
   const ended = (analysis) => { pane.review.analysis = { state: "running", agent: true }; pane.report(); pane.review.analysis = { agent: true, ...analysis }; pane.report(); };
   const finished = { state: "current" }, failed = { state: "current", error: "boom" };
-  shownTab = "other"; pane.startingUntil = Date.now() + 1000; pane.review.analysis = { state: "current", agent: true }; pane.report();
+  pageShown = "files"; pane.startingUntil = Date.now() + 1000; pane.review.analysis = { state: "current", agent: true }; pane.report();
   assert.equal(word(), "working", "from the click, before the run exists");
   sharedStore.delete("review.status"); pane.report();
   assert.equal(word(), "working", "the Review bar dropped it at its start: a run still going says so again");
@@ -367,32 +372,38 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(word(), "done");
   const written = sharedStore.get("review.status"); pane.report();
   assert.equal(sharedStore.get("review.status"), written, "no change, no write: every write redraws every mod");
-  shownTab = "b"; pane.render(cx);
-  assert.equal(word(), null, "looking at the tab reads it");
-  shownTab = "other"; ended(failed);
+  pageShown = "review"; pane.render(cx);
+  assert.equal(word(), null, "looking at the review reads it");
+  pageShown = "files"; ended(failed);
   assert.equal(word(), "blocked");
   ended(finished);
   assert.equal(word(), "done", "the next run's end replaces it");
-  shownTab = "b"; ended(failed);
+  pageShown = "review"; ended(failed);
   assert.equal(word(), null, "ended in view, there's no news");
   assert.equal(analyzeButton().text, "Analysis failed", "and the pane's button keeps the failure");
   windowActive = false; ended(finished);
-  assert.equal(word(), "done", "the tab shown, the window behind: nobody saw it end");
+  assert.equal(word(), "done", "the review shown, the window behind: nobody saw it end");
+  windowActive = true; activeSpace = "s2"; ended(finished);
+  assert.equal(word(), "done", "the panel on the review page, another space's: nobody saw it end");
+  activeSpace = "s1"; windowActive = false;
   windowActive = true; pane.report();
   assert.equal(word(), null, "back at the window, it's read");
-  // Tabs without a review pane drop out; a second pane's word stays, and writing yours doesn't reorder it into a loop.
-  const onePane = mainScope.panes;
-  mainScope.panes = () => [{ pane: "p9", mod: "review", tab: "b" }, { pane: "p8", mod: "review", tab: "c" }];
-  sharedStore.set("review.status", { gone: "working", c: "working" }); pane.report();
-  assert.deepEqual(plain(sharedStore.get("review.status")), { c: "working" });
+  // Spaces gone, and the tabs words were kept by before, drop out; another space's word stays, and writing yours doesn't
+  // reorder it into a loop.
+  sharedStore.set("review.status", { gone: "working", s2: "working" }); pane.report();
+  assert.deepEqual(plain(sharedStore.get("review.status")), { s2: "working" });
   const kept = sharedStore.get("review.status"); pane.report();
   assert.equal(sharedStore.get("review.status"), kept);
-  mainScope.panes = onePane; sharedStore.delete("review.status");
+  sharedStore.delete("review.status");
   pane.review.analysis = { state: "current", agent: true }; pane.report();
   // Wide, as the app at `lg`: the groups as tabs by default, and beside the diffs an aside with the files of the group at
   // the list's top; the group with subgroups heads the row. The settings choose the sidebar instead, kept.
   drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("group-tab-g") && !drawn.has("review-sidebar") && drawn.has("review-aside") && drawn.has("group-header"));
+  // In the panel the content is on the left and what navigates it on the right, at the window's edge (ADR 0011): elements
+  // are made in the order they're placed.
+  const before = (a, b) => [...drawn].indexOf(a) < [...drawn].indexOf(b);
+  assert.ok(before("review-diff-area", "review-aside"), "the aside right of the diff");
   assert.ok(drawn.has("tree-f-a.ts") && !drawn.has("tree-f-c.ts") && !drawn.has("aside-parent"));
   const subAt = pane.itemList.findIndex(item => item.key === "g:k");
   pane.visible = { start: subAt + 1, end: subAt + 3 }; drawn.clear(); pane.render(cx);
@@ -405,14 +416,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   press("credit-fork");
   assert.deepEqual(plain(browsed), [["open", ["https://github.com/JinJieBeWater/pulls.review"]]]);
   assert.equal(sharedStore.get("review.prefs").groupNav, "sidebar");
-  press("open-tab");
-  assert.equal(sharedStore.get("review.prefs").openIn, "tab");
-  press("open-pane");
-  assert.equal(sharedStore.get("review.prefs").openIn, "pane");
+  // Where a review opens isn't a setting: it's the panel's page.
+  assert.ok(!drawn.has("open-tab") && !drawn.has("open-pane"));
   pane.closePopup(cx); pane.popupClosedAt = 0; drawn.clear(); pane.render(cx);
   // The sidebar, as the app's: groups only; a group's row shows it; only a group with subgroups has a caret, which hides
   // and shows them.
   assert.ok(drawn.has("review-sidebar") && !drawn.has("group-tab-g") && drawn.has("review-aside") && !drawn.has("side-f-a.ts"));
+  assert.ok(before("review-diff-area", "review-sidebar") && before("review-aside", "review-sidebar") && styles["review-sidebar"].border_l === 1, "the sidebar at the right end, ruled off on its left");
   assert.ok(drawn.has("side-g-1-k") && drawn.has("side-fold-g"));
   assert.ok(!drawn.has("side-fold-k"), "a subgroup has no caret");
   press("side-fold-g");
@@ -427,7 +437,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(notified, 1);
   // Off screen, it doesn't measure.
   const spied = pane.spied; let measured = 0; pane.spied = () => { measured++; return spied.call(pane); };
-  shownTab = "other"; spy(spyCx); shownTab = "b";
+  pageShown = "files"; spy(spyCx); pageShown = "review";
   assert.equal(measured, 0);
   spy(spyCx);
   assert.equal(measured, 1, "on screen again, it does");
@@ -638,7 +648,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // A run starts only on a count's click: `analyze` in the request, Analyze automatically on, a page with no analysis.
   const ask = async (extra, page = pane.page) => {
     routes.length = 0;
-    sharedStore.set("review", { tab: "b", root: "/repo", page, n: pane.handled + 1, ...extra });
+    sharedStore.set("review", { space: "s1", root: "/repo", page, n: pane.handled + 1, ...extra });
     pane.render(cx); await new Promise(setImmediate);
     return routes.filter(r => r === "/api/review/analyze").length;
   };
@@ -673,23 +683,30 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(await ask({}), 0);
   assert.equal(pane.analyzeFor, null);
   review.analysis = { state: "outdated", agent: true };
-  // A new pane's props carry the ask; after a restart they're stale, and the pane's own storage says so.
+  // A space's review starts on the request that opened the panel, ask and all; after a restart that request is stale, and
+  // it shows what review.shown says instead.
   {
-    const opened = (stored, props) => {
-      const own = new Map(stored);
-      const made = new (load("main.js", { ...env, props: () => props, localStorage: { getItem: (k) => own.get(k) ?? null, setItem: (k, v) => own.set(k, v) } }).Mod)();
-      made.init({}, cx);
-      return made;
+    const saved = sharedStore.get("review"), shown = sharedStore.get("review.shown");
+    const opened = (request) => {
+      sharedStore.set("review", request); sharedStore.set("review.shown", { s1: { root: "/repo", page: "/worktree", base: "/worktree" } });
+      const made = new (load("main.js", { ...env }).Mod)();
+      made.init({}, cx); made.render(cx);
+      return made.shown();
     };
     review.analysis = { state: "none", agent: true };
     routes.length = 0;
-    opened([], { root: "/repo", page: "/branch/fix", n: 1 }); await new Promise(setImmediate);
-    assert.ok(!routes.includes("/api/review/analyze"), "props that don't ask");
-    opened([["tab", "b"]], { root: "/repo", page: "/branch/fix", n: 1, analyze: true }); await new Promise(setImmediate);
-    assert.ok(!routes.includes("/api/review/analyze"), "restarted: its stale props start no run");
-    opened([], { root: "/repo", page: "/branch/fix", n: 1, analyze: true }); await new Promise(setImmediate);
+    opened({ space: "s1", root: "/repo", page: "/branch/fix", n: Date.now() }); await new Promise(setImmediate);
+    assert.ok(!routes.includes("/api/review/analyze"), "a request that doesn't ask");
+    const stale = opened({ space: "s1", root: "/repo", page: "/branch/fix", n: Date.now() - 60000, analyze: true }); await new Promise(setImmediate);
+    assert.ok(!routes.includes("/api/review/analyze"), "restarted: its stale request starts no run");
+    assert.equal(stale.page, "/worktree", "and the page shown before the restart comes back");
+    const other = opened({ space: "s2", root: "/repo", page: "/branch/fix", n: Date.now(), analyze: true }); await new Promise(setImmediate);
+    assert.ok(!routes.includes("/api/review/analyze") && other.page === "/worktree", "another space's request");
+    const clicked = opened({ space: "s1", root: "/repo", page: "/branch/fix", n: Date.now(), analyze: true }); await new Promise(setImmediate);
     assert.equal(routes.filter(r => r === "/api/review/analyze").length, 1, "a count's click opened it");
+    assert.equal(clicked.page, "/branch/fix");
     review.analysis = { state: "outdated", agent: true };
+    sharedStore.set("review", saved); sharedStore.set("review.shown", shown);
   }
   // The settings panel closes on a press outside it or Escape; the gear's own press, which is outside too, doesn't reopen it.
   handlers.get("review-settings-panel.on_mouse_down_out")({}, cx);
@@ -711,8 +728,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pref("split"), false);
   pane.closePopup(cx); pane.popupClosedAt = 0;
   // Every pane reads the shared preferences where it uses them: a new one starts from them, and a choice in one holds in all at once.
-  const second = new (load("main.js", { ...env }).Mod)();
-  second.init({}, cx); await new Promise(setImmediate);
+  const secondPanel = new (load("main.js", { ...env }).Mod)();
+  secondPanel.init({}, cx); secondPanel.render(cx); await new Promise(setImmediate);
+  const second = secondPanel.shown();
   second.view = 1000; second.width = 1200;
   assert.ok(!second.splitShown() && second.sidebarShown());
   setPref("split", true);
@@ -724,13 +742,34 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   second.load(cx); await new Promise(setImmediate);
   assert.ok(!routes.includes("/api/review/analyze"));
   setPref("autoAnalyze", true); review.analysis = { state: "outdated", agent: true }; review.head = { sha: "h2" };
-  // Opened in a new tab that hasn't the focus yet, a pane takes the review pane's tab nobody claimed, and names it.
-  const own = new Map(), third = new (load("main.js", { ...env, focused: () => ({ tab: "a" }),
-    panes: () => [{ pane: "p9", mod: "review", tab: "b" }, { pane: "p8", mod: "review", tab: "c" }],
-    localStorage: { getItem: (k) => own.get(k) ?? null, setItem: (k, v) => own.set(k, v) } }).Mod)();
-  third.init({}, cx); third.render(cx);
-  assert.equal(third.tab, "c");
-  assert.deepEqual(Object.keys(sharedStore.get("review.titles")).sort(), ["b", "c"]);
+  // Each space its own review: another space shown starts its own, from its folder, and the first keeps all it had.
+  // A clean worktree there waits for a pick in the Review bar; a request for the first space doesn't reach it.
+  {
+    const git = [], firstReview = pane.review, firstPage = pane.page;
+    mainScope.exec = async (cmd, args, options) => { git.push([args.at(-1), options.cwd]); return args.includes("--show-toplevel") ? { code: 0, stdout: "/other\n" } : { code: 0, stdout: "" }; };
+    activeSpace = "s2"; drawn.clear(); panel.render(cx); await new Promise(setImmediate); await new Promise(setImmediate);
+    const s2 = panel.shown();
+    assert.ok(s2 !== pane && s2.root === "/other" && !s2.page && !s2.review);
+    assert.deepEqual(plain(git), [["--show-toplevel", "/other"], ["--porcelain", "/other"]]);
+    drawn.clear(); panel.render(cx);
+    assert.ok(drawn.has("review-note") && !drawn.has("review-pane"));
+    sharedStore.set("review", { space: "s1", root: "/repo", page: "/worktree", n: Date.now() + 1 }); panel.render(cx);
+    assert.equal(s2.page, null, "the first space's request");
+    sharedStore.set("review", { space: "s2", root: "/other", page: "/worktree", n: Date.now() + 2 }); panel.render(cx); await new Promise(setImmediate);
+    assert.ok(s2.page === "/worktree" && s2.review && sharedStore.get("review.shown").s2.root === "/other");
+    // With uncommitted files, a space's review starts on them.
+    activeSpace = "s1"; mainScope.exec = async (_cmd, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : { code: 0, stdout: " M a.ts\n" };
+    panel.bySpace.delete("s1"); const was = sharedStore.get("review.shown"); sharedStore.set("review.shown", {});
+    panel.render(cx); await new Promise(setImmediate); await new Promise(setImmediate);
+    assert.equal(panel.shown().page, "/worktree");
+    // A space on another machine has no review: jin.review listens on this one only.
+    activeSpace = "r1"; drawn.clear(); panel.render(cx);
+    assert.ok(drawn.has("review-note") && !panel.bySpace.has("r1"));
+    activeSpace = "s1"; panel.bySpace.set("s1", pane); sharedStore.set("review.shown", was); mainScope.exec = env.exec;
+    sharedStore.set("review", { space: "s1", root: "/repo", page: firstPage, n: pane.handled });
+    drawn.clear(); panel.render(cx);
+    assert.ok(panel.shown() === pane && pane.review === firstReview && pane.page === firstPage && drawn.has("review-pane"));
+  }
   // Responsive: narrower than SPLIT_MIN the diff is unified, the split choice kept; back, split again.
   setPref("split", true); pane.view = 600; drawn.clear(); pane.render(cx);
   assert.ok(!pane.itemList.some(item => item.kind === "pair") && pref("split"));
@@ -751,6 +790,15 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // Wide, the header stays.
   scroll(-400); pane.width = 1200; drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("review-header"));
+  // What else to review is the Review bar's menu, asked for under the header's button; with no bar in view to hear, no button.
+  assert.ok(!drawn.has("review-pick"));
+  barIn = true; drawn.clear(); pane.render(cx);
+  handlers.get("review-pick.on_mouse_down")({ position: { x: 1210, y: 60 }, bounds: { x: 1200, y: 46, width: 28, height: 28 } }, cx);
+  calls.length = 0; press("review-pick");
+  assert.deepEqual(calls, [["pulls-review.pick:1200,78,/repo", undefined]]);
+  workHidden = true; drawn.clear(); pane.render(cx);
+  assert.ok(!drawn.has("review-pick"), "the panel widened over the tab bar hides the bar");
+  barIn = workHidden = false;
   pane.width = 900; scroll(10);
   // The group's header shows only at the list's top, as the app's scrolls away with the diffs.
   pane.visible = { start: 2, end: 5 }; drawn.clear(); pane.render(cx);
@@ -781,7 +829,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.width = 500; drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("analyze"));
   // The bar reads what the pane shows, for its count; the commits are the pane's own now.
-  const base = pane.page, baseEntry = () => sharedStore.get("review.shown").b;
+  const base = pane.page, baseEntry = () => sharedStore.get("review.shown").s1;
   assert.deepEqual(plain(baseEntry()), { root: "/repo", page: base, base });
   const settled = () => new Promise(setImmediate);
   const draw = () => { drawn.clear(); pane.render(cx); };
@@ -879,11 +927,27 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // A later open replaces the diff, and its base.
   const opened = [];
   pane.open = (page) => { opened.push(page); pane.page = page; };
-  sharedStore.set("review", { tab: "b", root: "/repo", page: "/worktree", n: pane.handled + 1 });
+  sharedStore.set("review", { space: "s1", root: "/repo", page: "/worktree", n: pane.handled + 1 });
   draw();
   assert.deepEqual([opened, pane.base, baseEntry().base], [["/worktree"], "/worktree", "/worktree"]);
   delete pane.open; pane.page = base; pane.base = base; pane.width = 500;
   sharedStore.delete("review");
+  // The Files page's `Review ↗`: that file, once; not another space's, nor one from before this review started.
+  {
+    const selected = []; pane.select = (path) => selected.push(path);
+    const reveal = (extra) => { sharedStore.set("review.reveal", { space: "s1", file: "c.ts", n: Date.now() + 100, ...extra }); draw(); };
+    reveal({ space: "s2" }); reveal({ n: 1 }); await settled();
+    assert.deepEqual(selected, []);
+    reveal({}); await settled(); draw(); await settled();
+    assert.deepEqual(plain(selected), ["c.ts"], "once");
+    // A file the page shown doesn't have: the uncommitted changes' page, then the file if it's there.
+    const opened = []; pane.open = (page) => { opened.push(page); pane.page = page; };
+    reveal({ file: "new.ts", n: Date.now() + 200 });
+    assert.deepEqual([opened, pane.base], [["/worktree"], "/worktree"]);
+    draw();
+    assert.deepEqual(opened, ["/worktree"], "not there either: no further");
+    delete pane.open; delete pane.select; pane.page = base; pane.base = base; sharedStore.delete("review.reveal");
+  }
   // One popup at a time: a press on another's button closes the open one (a press outside it) and opens its own at once;
   // a press on the open one's own button only closes it.
   pane.popupClosedAt = 0; press("settings");
@@ -891,9 +955,8 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(pane.popup, "fold");
   handlers.get("review-fold-menu.on_mouse_down_out")({}, cx); press("fold-menu");
   assert.equal(pane.popup, null);
-  // The pane's own header names the diff, not the repo; this one counts reviewed files beside a donut.
+  // The review's own header counts reviewed files beside a donut.
   pane.render(cx);
-  assert.equal(sharedStore.get("review.titles").b, "fix vs origin/main");
   assert.equal(pane.head().parts.find(p => p.donut !== undefined).text, `${pane.review.files.filter(f => f.reviewed).length}/${pane.review.files.length}`);
   assert.ok(pane.head().buttons.find(b => b.id === "analyze").icon);
   // Wide again, the sidebar instead of the tabs.
@@ -1055,17 +1118,17 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual(plain(routes), ["/api/review"]);
   // No daemon to ask: a run shown as going ends as failed, so the polls and their tries at starting the daemon stop.
   mainScope.review = () => Promise.reject(new Error("daemon down"));
-  pane.review.analysis = { state: "running", agent: true }; shownTab = "other"; pane.report();
+  pane.review.analysis = { state: "running", agent: true }; pageShown = "files"; pane.report();
   every[1500][0](cx); await settle();
   assert.ok(!pane.analyzing() && analyzeButton().label === "Analysis failed" && word() === "blocked");
-  mainScope.review = daemon; shownTab = "b";
+  mainScope.review = daemon; pageShown = "review";
   pane.load(cx); await settle();
   assert.ok(!pane.error, "and the next read that answers says how it is");
   // Unseen - another tab shown, or the window inactive - the slow timer doesn't read; seen again, one read follows.
   const slow = every[15000][0], wake = every[1000][0];
-  routes.length = 0; shownTab = "other";
+  routes.length = 0; pageShown = "files";
   slow(cx); slow(cx); wake(cx); await settle();
-  shownTab = "b"; windowActive = false; wake(cx); await settle();
+  pageShown = "review"; windowActive = false; wake(cx); await settle();
   assert.deepEqual(plain(routes), []);
   windowActive = true; wake(cx); await settle(); wake(cx); await settle();
   assert.deepEqual(plain(routes), ["/api/review"]);
@@ -1115,11 +1178,11 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   refuse(new Error("no agent")); await settle();
   assert.equal(pane.analyzeError, null);
   // Leaving a page mid-run isn't that run finishing.
-  shownTab = "other"; pane.apply({ ...pane.review, analysis: { state: "running", agent: true } }); pane.report();
+  pageShown = "files"; pane.apply({ ...pane.review, analysis: { state: "running", agent: true } }); pane.report();
   assert.equal(word(), "working");
   pane.open("/commit/c2", cx); pane.report();
   assert.equal(word(), null);
-  await settle(); shownTab = "b";
+  await settle(); pageShown = "review";
   mainScope.review = daemon; pane.open(home, cx); await settle();
   // Back to a page seen: the same files have the same shas, and its rows went with it, so they're asked for again.
   const wait = async () => { for (let i = 0; i < 6; i++) await new Promise(setImmediate); };
@@ -1170,16 +1233,25 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.render(new Proxy(cx, { get: (c, key) => { assert.ok(rendering, `a render's cx used after it: ${String(key)}`); return c[key]; } }));
   rendering = false; handlers.get("retry.on_click")({}, cx); await wait();
   assert.ok(!pane.loading && !pane.error);
+  // A panel of its own, its review started on what review.shown says for s1, the request pending taken as already shown.
+  const panelOf = (extra = {}, shown = { root: "/repo", page: "/branch/fix", base: "/branch/fix" }) => {
+    const was = sharedStore.get("review.shown");
+    sharedStore.set("review.shown", { s1: shown });
+    const scope = load("main.js", { ...env, ...extra }), view = new scope.Mod();
+    view.init({}, cx);
+    const p = view.spaceReview({ id: "s1", folder: "/repo", machine: null }, cx);
+    p.handled = sharedStore.get("review")?.n ?? 0;
+    sharedStore.set("review.shown", was);
+    return { p, scope };
+  };
   // Reopened on one commit's page, which lists only itself: the switch's list is read from its base, with each read, so a new
   // commit reaches it.
-  const reopened = new Map([["tab", "b"], ["root", "/repo"], ["page", "/commit/c2"], ["base", "/branch/fix"], ["handled", "99"]]);
   const baseReads = [], baseCommits = [...review.commits];
-  const freshScope = load("main.js", { ...env, localStorage: { getItem: (k) => reopened.get(k) ?? null, setItem: (k, v) => reopened.set(k, v) },
-    review: async (_root, _route, body) => {
-      if (body.page === "/branch/fix") baseReads.push(body.rows);
-      return { ...review, files: [], commits: body.page === "/branch/fix" ? baseCommits : [review.commits[1]] };
-    } }), fresh = new freshScope.Mod();
-  fresh.init({}, cx); await wait(); fresh.render(cx); await wait(); fresh.load(cx); await wait(); fresh.render(cx);
+  const { p: fresh, scope: freshScope } = panelOf({ review: async (_root, _route, body) => {
+    if (body.page === "/branch/fix") baseReads.push(body.rows);
+    return { ...review, files: [], commits: body.page === "/branch/fix" ? baseCommits : [review.commits[1]] };
+  } }, { root: "/repo", page: "/commit/c2", base: "/branch/fix" });
+  await wait(); fresh.render(cx); await wait(); fresh.load(cx); await wait(); fresh.render(cx);
   assert.equal(fresh.diffCommits().length, 2);
   assert.deepEqual(plain(baseReads), [[], []], "without rows");
   baseCommits.push({ sha: "c3", subject: "three" });
@@ -1200,26 +1272,26 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual(plain(baseReads), [[]], "a refresh reads the base");
   // A daemon too old for `firstRows` ignores it: drawing the first group asks for its rows, once.
   const oldReads = [];
-  const older = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, review: async (_root, route, body) => {
+  const { p: older } = panelOf({ review: async (_root, route, body) => {
     const asked = body.rows ?? body.files;
     oldReads.push(asked);
     const files = review.files.map(({ hunks, ...f }) => asked.includes(f.path) ? { ...f, hunks } : { ...f });
     return route === "/api/review/rows" ? { files: files.filter(f => f.hunks) } : { ...review, files };
-  } }).Mod)();
-  older.init({}, cx); await wait(); older.render(cx); await wait(); older.render(cx); await wait();
+  } });
+  await wait(); older.render(cx); await wait(); older.render(cx); await wait();
   assert.deepEqual(plain(oldReads), [[], ["a.ts", "b.png", "c.ts"]]);
   // A watched change reads the diff only if it touches it: Git's HEAD or refs, or a file Git doesn't ignore (macOS reports
   // those too). The next batch waits a second, so at most one change read a second.
   let batch, watches = 0; const checked = [], watchReads = [];
-  const watcher = new (load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} },
+  const { p: watcher } = panelOf({
     watchFolder: () => { watches++; return new Promise(r => { batch = r; }); },
     exec: async (_cmd, args) => {
       const paths = args.slice(3), ignored = paths.filter(p => p.includes("node_modules"));
       checked.push(paths);
       return { code: ignored.length ? 0 : 1, stdout: ignored.join("\n") };
     },
-    review: async (_root, route) => { watchReads.push(route); return { ...review, files: [] }; } }).Mod)();
-  watcher.init({}, cx); await wait();
+    review: async (_root, route) => { watchReads.push(route); return { ...review, files: [] }; } });
+  await wait();
   const changed = async (paths) => {
     watchReads.length = 0; timers.length = 0; const before = watches;
     batch(paths); await wait();
@@ -1245,7 +1317,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // its top. Meanwhile the read asks for the new page's first group, and the title and header don't read the old review.
   let next;
   mainScope.review = (root, route, body) => route === "/api/review" ? (bodies.push(body), new Promise(r => { next = r; })) : daemon(root, route, body);
-  shownTab = "b"; pane.width = 1200; await drawAll();
+  pageShown = "review"; pane.width = 1200; await drawAll();
   const old = pane.review, marked = pane.marks, split = pref("split");
   pane.current = old.files[0].path; pane.full.clear(); calls.length = 0; pane.shift = [0, 40, 300];
   pane.open("/commit/c2", cx);
@@ -1254,7 +1326,6 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(bodies.at(-1).firstRows, true);
   drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("review-diff-area") && drawn.has("settings") && !drawn.has("analyze"), "the old list, without its counts and analysis");
-  assert.equal(sharedStore.get("review.titles").b, "c2");
   pane.setReviewed(old.files[0], !old.files[0].reviewed, cx); pane.toggleFull(old.files[0], cx); pane.headerPress(old.files[0], 0, cx);
   pane.key({ keystroke: "s" }, cx); pane.key({ keystroke: "j" }, cx);
   assert.ok(pane.marks === marked && !pane.full.size && pref("split") === split && pane.current === old.files[0].path, "inert");
@@ -1268,12 +1339,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(pane.review === null && pane.error === "gone" && !pane.switching);
   mainScope.review = daemon;
   // A pane of its own on /repo's /branch/fix, its daemon `api` until a test swaps the scope's.
-  const paneOf = async (extra = {}) => {
-    const scope = load("main.js", { ...env, localStorage: { getItem: (k) => k === "handled" ? "99" : null, setItem() {} }, ...extra });
-    const p = new scope.Mod();
-    p.init({}, cx); await wait();
-    return { p, scope };
-  };
+  const paneOf = async (extra = {}) => { const made = panelOf(extra); await wait(); return made; };
   {
     // After a rows read that fails, Retry asks for its files again, and they leave "Loading…".
     const { p, scope } = await paneOf();
@@ -1597,5 +1663,5 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     drawn.clear(); p.render(cx);
     assert.equal(texts.get("review-empty"), "No changes in this range");
   }
-  console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom.");
+  console.log("ok: pairs, items, notes and heights; the pane renders every analysis state, unified and split; rows only for the group shown, kept across polls; groups as tabs or a sidebar, the aside's files following the list, as a tree or a list; the fold menu; analysis settings and auto analyze; reads that don't undo marks or carry over to another diff; no zoom; one review per space, none on another machine, a file revealed from Files, the Review bar's menu from the header.");
 })();
