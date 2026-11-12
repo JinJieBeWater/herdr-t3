@@ -26,6 +26,7 @@ import { appHome, exec, nextCommand, notify, openOverlay, readTextFile, setShare
 import { SCENES } from "./scenes.js";
 import { VERSION, imageAns, convert, decodeBmp, imageGrid } from "./ascii-art.js";
 import { enter, focusRoot, stop, stopsEnd, stopsInit } from "./focus.js";
+import { button as drawButton, radiusOf } from "./button.js";
 
 const MOD = "asciicn-wallpaper", KEY = `${MOD}.scene`;
 const BUILT_IN = SCENES.map((s) => ({ ...s, base: `mods/${MOD}/scenes/${s.id}` }));
@@ -404,13 +405,8 @@ export default class Wallpaper extends View {
     const picture = div().id(`wallpaper-${scene.id}`).absolute().bottom((this.height - h) / 2).left(`${scene.focus * 100}%`).ml(-scene.focus * w).w(w).h(h)
       .children(scene.tiles.map((l) => svg(`${scene.base}/${l.file}`).absolute().left(l.x0 * unit).top(l.y0 * unit)
         .w((l.x1 - l.x0) * unit).h((l.y1 - l.y0) * unit).text_color(t[l.tint]).opacity(l.opacity)));
-    // As T3's xs icon button: 24, icon 14, radius 6.
-    const button = (id, icon, label, act) => stop(this, t, id, div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(6)
-      .text_color(this.hot === id ? t.foreground : t.dim).hover((s) => s.bg(t.hover))
-      .on_hover((on, cx) => { this.hot = on ? id : this.hot === id ? null : this.hot; cx.notify(); })
-      .role("button").accessibility_label(label)
-      .on_click((_e, cx) => act(cx))
-      .child(svg(`mods/${MOD}/icons/${icon}.svg`).size(14)));
+    const button = (id, icon, label, act) => stop(this, t, id, drawButton(t, id, { icon: `mods/${MOD}/icons/${icon}.svg`, label, hot: this.hot === id, act })
+      .on_hover((on, cx) => { this.hot = on ? id : this.hot === id ? null : this.hot; cx.notify(); }), radiusOf("xs"));
     const go = (by) => () => setShared(KEY, all[(i + by + all.length) % all.length].id);
     const imported = scene.id.startsWith("file:");
     const switcher = h_flex().id("wallpaper-switcher").absolute().right(12).bottom(12).p(4).gap(4).items_center()
@@ -431,12 +427,9 @@ export default class Wallpaper extends View {
       .when(this.guide && !this.draft, (el) => el.child(this.guideCard(t))));
   }
 
+  // A card's full-width rows: T3's compact button, 28 with 12px words, to fit its 300 width.
   action(t, id, label, act, disabled = false, primary = false) {
-    return stop(this, t, id, div().id(id).h(28).px(10).flex().flex_none().items_center().justify_center().rounded(6).text_size(12)
-      .text_color(primary ? t.accent_foreground : t.foreground).border_1().border_color(primary ? t.accent : t.border)
-      .bg(primary ? t.accent : t.raised).opacity(disabled ? 0.5 : 1)
-      .hover(s => s.bg(disabled ? t.raised : primary ? t.accent : t.hover))
-      .role("button").accessibility_label(label).on_click((_e, cx) => { if (!disabled) act(cx); }).child(label));
+    return stop(this, t, id, drawButton(t, id, { variant: primary ? "primary" : "outline", size: "compact", text: label, act, disabled }), radiusOf("compact"));
   }
 
   // T3's popover, 16px inset; three small visual choices fit its 300px width without a separate settings page.
@@ -468,10 +461,9 @@ export default class Wallpaper extends View {
       .rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(12).text_color(t.muted)
       .child(h_flex().items_center().justify_between()
         .child(div().text_size(13).font_semibold().text_color(t.foreground).child("Add a wallpaper"))
-        // As T3's 20px icon button: radius 4, icon 12.
-        .child(stop(this, t, "wallpaper-guide-close", div().id("wallpaper-guide-close").size(20).flex().items_center().justify_center().rounded(4).text_color(t.dim)
-          .hover((s) => s.bg(t.hover).text_color(t.foreground)).role("button").accessibility_label("Close")
-          .on_click((_e, cx) => { this.guide = false; this.studioGuide = false; cx.notify(); }).child(svg(`mods/${MOD}/icons/x.svg`).size(12)), 4)))
+        .child(stop(this, t, "wallpaper-guide-close", drawButton(t, "wallpaper-guide-close", { icon: `mods/${MOD}/icons/x.svg`, label: "Close", size: "micro", surface: "card",
+          hot: this.hot === "wallpaper-guide-close", act: (cx) => { this.guide = false; this.studioGuide = false; cx.notify(); } })
+          .on_hover((on, cx) => { this.hot = on ? "wallpaper-guide-close" : this.hot === "wallpaper-guide-close" ? null : this.hot; cx.notify(); }), radiusOf("micro"))))
       .child(div().child("Turn your image into character art, in your theme's colours."))
       .when(platform !== "windows", el => el
         .child(this.action(t, "wallpaper-choose", this.opening ? "Opening…" : "Choose image…", choose(false), this.opening, true))

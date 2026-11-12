@@ -9,6 +9,8 @@ function bundle(dir, file = "main.js", seen = new Set()) {
   if (seen.has(file)) return "";
   seen.add(file);
   const src = fs.readFileSync(path.join(dir, file), "utf8");
+  // Keep the helper's private tint separate from project.js's exported tint.
+  if (file === "button.js") return "const { button, radiusOf } = (() => {\n" + src.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") + "\nreturn { button, radiusOf }; })();";
   const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map((m) => bundle(dir, m[1], seen)).join("\n");
   return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 }
@@ -667,6 +669,17 @@ test("only a list with nothing in it says so, as T3's", () => {
   assert.deepEqual(said(f), ["Nothing in Two yet"], "a filter that leaves nothing names its space");
   f.mod.scope = ["s2", "gone"]; f.render();
   assert.deepEqual(said(f), ["Nothing in Two yet"]);
+});
+
+test("the top tools and scope trigger use shared chrome button sizes and on state", () => {
+  const f = fixture(); f.render();
+  for (const id of ["inbox-scope", "inbox-new-space", "inbox-new-tab"]) {
+    const b = find(f.tree, id);
+    assert.deepEqual([b.style.h[0], b.style.w[0], b.style.rounded[0]], [28, 28, 8]);
+  }
+  f.context.theme = () => ({ foreground: "#eeeeee", selected: "#333333" });
+  f.mod.scopeOpen = true; f.render();
+  assert.equal(find(f.tree, "inbox-scope").style.bg[0], "#333333", "the open scope is pressed");
 });
 
 test("the space filter's menu measures as T3's, its search text inside the button's left edge", () => {
@@ -1920,6 +1933,11 @@ test("the Custom dialog's calendar lets days gone by be seen but not picked, and
   assert.equal(find(tree, "day-2026-11-14").handlers.on_click, undefined);
   assert.ok(find(tree, "day-2026-11-15").handlers.on_click, "today can");
   assert.ok(texts(find(tree, "custom-calendar")).includes("November 2026"));
+  assert.deepEqual([find(tree, "month-on").style.h[0], find(tree, "month-on").style.w[0]], [32, 32]);
+  assert.equal(find(tree, "custom-submit").style.border_1, undefined, "the primary button has no border");
+  const hover = element();
+  find(tree, "custom-cancel").style.hover[0](hover);
+  assert.equal(hover.style.opacity[0], 0.9);
   find(tree, "day-2026-11-20").handlers.on_click({}, f.cx);
   assert.deepEqual([d.date.getDate(), d.calendarOpen], [20, false]);
   d.calendarOpen = true; tree = d.render(f.cx);

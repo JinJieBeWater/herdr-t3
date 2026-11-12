@@ -9,6 +9,7 @@ function source(file, seen = new Set(file === "main.js" ? ["rows.js", "daemon.js
   if (seen.has(file)) return "";
   seen.add(file);
   const src = fs.readFileSync(path.join(__dirname, file), "utf8");
+  if (file === "button.js") return "const drawButton = (() => {\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export /gm, "") + "\nreturn button;\n})();";
   const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map(m => source(m[1], seen)).join("\n");
   return needs + "\n" + src;
 }
@@ -504,7 +505,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   {
     const files = pane.review.files;
     pane.review.files = []; delete styles["review-nav-toggle"]; drawn.clear(); pane.render(cx);
-    assert.ok(!drawn.has("review-nav") && styles["review-nav-toggle"].opacity === 0.3);
+    assert.ok(!drawn.has("review-nav") && styles["review-nav-toggle"].opacity === 0.64);
     pane.review.files = files; drawn.clear(); pane.render(cx);
   }
   // The scroll spy redraws once what the list shows moved, and not again until it moves.
@@ -910,7 +911,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     activeSpace = "r1"; delete styles["review-nav-toggle"]; drawn.clear(); panel.render(cx);
     assert.ok(drawn.has("review-note") && texts.get("review-empty-title") === "Not on this computer" && !panel.bySpace.has("r1"), "the empty state: icon, title, hint");
     // With no review, the toolbar stays: the page's name, and the tree's switch greyed.
-    assert.ok(drawn.has("review-header") && texts.get("review-title") === "Review" && styles["review-nav-toggle"].opacity === 0.3);
+    assert.ok(drawn.has("review-header") && texts.get("review-title") === "Review" && styles["review-nav-toggle"].opacity === 0.64);
     activeSpace = "s1"; panel.bySpace.set("s1", pane); sharedStore.set("review.shown", was); mainScope.exec = env.exec;
     sharedStore.set("review", { space: "s1", root: "/repo", page: firstPage, n: pane.handled });
     drawn.clear(); panel.render(cx);
@@ -1020,9 +1021,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // As T3's DiffPanel header: the scope as an xs button, then what it compares, head → base; narrow, only the base.
   pane.width = 1200; draw();
   assert.equal(texts.get("review-scope-label"), "Changes");
-  assert.ok(styles["review-scope"].h === 24 && styles["review-scope"].min_w === 0 && styles["review-scope-label"].truncate);
+  assert.ok(styles["review-scope"].h === 24 && styles["review-scope"].min_w === 0 && styles["review-scope"].flex_shrink === 1 && styles["review-scope-label"].truncate);
   // A ghost button, as the toolbar's others (docs/adr/0013): no fill of its own over the toolbar's, only hovered or open.
   assert.equal(styles["review-scope"].bg, undefined);
+  assert.equal(styles["review-scope"].text_color, "#eeeeee", "what it shows, in foreground: a plain button, as T3's ghost");
+  handlers.get("review-scope.on_hover")(true, cx); draw();
+  assert.equal(styles["review-scope"].text_color, "#eeeeee", "hover brightens the scope and its icon");
+  handlers.get("review-scope.on_hover")(false, cx); draw();
   assert.deepEqual([texts.get("review-ref-head"), texts.get("review-ref-base")], ["fix", "origin/main"]);
   assert.ok(!drawn.has("commit-older") && !drawn.has("review-sha"), "the whole diff: no sha, nothing to step");
   pane.width = 500; draw();
@@ -1031,6 +1036,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // The menu: Changes, Uncommitted, Outgoing and Incoming with their counts, read on opening; then Commits.
   press("review-scope");
   assert.ok(pane.popup === "scope" && drawn.has("review-scope-menu"));
+  assert.equal(styles["review-scope"].bg, "#eeeeee1f", "open: a card-surface selected tint");
   await settled(); await settled(); draw();
   assert.ok(!gitCalls.some(args => args.some(a => /^(fetch|add|commit|checkout|reset|push)$/.test(a)) && !args.includes("-N")), "only reads");
   assert.deepEqual(["scope-changes", "scope-uncommitted", "scope-push", "scope-pull"].map(id => texts.get(`${id}-detail`)), ["2 ahead of main", "1 file", "↑2", "↓0"]);
@@ -1101,12 +1107,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual([texts.get("review-scope-label"), texts.get("review-sha")], ["one", "c1"]);
   assert.ok(styles["review-counts"].flex_none && styles["review-scope"].min_w === 0, "a long subject truncates, the counts hold");
   assert.ok(!drawn.has("review-ref-head"), "a commit compares nothing");
-  press("commit-older");
+  assert.equal(handlers.get("commit-older.on_click"), undefined, "disabled: no click handler");
   assert.equal(pane.page, "/commit/c1", "nothing older");
   press("commit-newer"); await settled(); draw();
   assert.deepEqual([pane.page, pane.base, texts.get("review-scope-label")], ["/commit/c2", base, "two"]);
   assert.equal(pane.diffCommits().length, 2, "on one commit's page, still the diff's list");
-  press("commit-newer"); await settled();
+  handlers.delete("commit-newer.on_click"); draw();
+  assert.equal(handlers.get("commit-newer.on_click"), undefined, "the last commit has no newer click handler");
   assert.equal(pane.page, "/commit/c2", "nothing newer");
   // A commit gone from the list, as after an amend: its sha, nowhere to step.
   pane.baseCommits = review.commits; pane.page = "/commit/abcdef123456"; draw();
@@ -1472,6 +1479,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(asked.length, 1);
   tick(); drawn.clear(); pane.render(cx);
   assert.ok(pane.error && drawn.has("review-error-retry") && texts.get("review-error-text") === pane.error && !pane.loading, "the error bar, under the toolbar, with Retry");
+  handlers.get("review-error-retry.on_hover")(true, cx); drawn.clear(); pane.render(cx);
+  assert.equal(styles["review-error-retry"].text_color, "#eeeeee", "Retry brightens on hover through the shared helper");
+  handlers.get("review-error-retry.on_hover")(false, cx);
   const late = await daemon("/repo", "/api/review", { page: there, rows: [] });
   answer({ ...late, title: "late" }); await wait();
   assert.ok(pane.review.title === "late" && !pane.error);

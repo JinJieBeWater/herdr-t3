@@ -13,6 +13,7 @@ import { stop, within } from "./focus.js";
 import { MOTION, foldArrow } from "./motion.js";
 import { pin } from "./pins.js";
 import { openMenu } from "./menu.js";
+import { button, radiusOf } from "./button.js";
 
 // T3's one-line row and shelf or folder header, its folders 8 apart and its list's 1px between items (gap-px).
 const ROW = 36, HEAD = 32, HEAD_GAP = 8;
@@ -124,35 +125,23 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
     return [r, ...stuck.map((s, j) => sub({ t: s.t, depth: 1, lines: [j === stuck.length - 1 ? "└" : "├"] }))];
   };
 
-  // A button's icon and text brighten together: a hover style reaches the text but not the svg, so it's state,
-  // as in the inbox. Inside a hovered row a button's own hover fill doesn't show, so this is the cue.
+  // A fold's animated svg and its count brighten together.
   const lit = (id) => (view.hot === id ? t.foreground : t.dim);
   // As the shipped agents list: a parent's fold arrow, and folded, the count. Dim: the row's status
   // carries any hidden child's urgency.
   const fold = (a, subs, ghost) => {
     const open = !view.isFolded(a.address), id = `fold-${a.address}`, color = ghost ? t.dim : lit(id);
-    const base = div()
-      .h(20).min_w(20).flex_none()
-      .px(6)
-      .flex()
-      .items_center()
-      .justify_center()
-      .rounded(4)
-      .text_size(11)
-      .gap(4)
-      .text_color(color)
+    const label = open ? "Collapse sub-agents" : "Expand sub-agents";
+    const base = button(t, ghost ? undefined : id, { size: "micro", wide: true, surface: "row", label, hot: !ghost && view.hot === id }).min_w(20)
       .when(!open, (el) => el.child(String(subs.length)))
       .child(foldArrow("t3-agents", ghost ? null : `${id}-arrow`, open, 12, color));
     if (ghost) return base;
-    return tip(view, t, id, open ? "Collapse sub-agents" : "Expand sub-agents", stop(view, t, id, base
-      .id(id)
-      // As T3's row controls, hover only lights it: no ground.
-      .role("button").accessibility_label(open ? "Collapse sub-agents" : "Expand sub-agents")
+    return tip(view, t, id, label, stop(view, t, id, base
       .on_hover(glow(view, id))
       .on_click((_e, cx) => {
         cx.stop_propagation();
         view.toggleFold(a.address, cx);
-      }), 4));
+      }), radiusOf("micro")));
   };
 
   // A row's detail is what the agent is on, as the inbox, tabs and pane headers name it.
@@ -184,18 +173,15 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
     const more = detail.get(a.address);
     const st = shownStatus(a), on = viewing(a);
     const isPinned = view.pins.includes(a.address);
-    const pinId = `pin-${a.address}`, rowId = `ag-${a.address}`;
+    const pinId = `pin-${a.address}`, rowId = `ag-${a.address}`, iconId = `agent-fold-${a.address}`;
     // Hovered, or with the keyboard on the row or inside it.
     const offer = !ghost && (view.hovered === a.address || within(view, [rowId, pinId, `fold-${a.address}`]));
     // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, a working one fainter still.
     const leads = on || offer || st === "blocked" || st === "done";
     // Over the time's slot on hover, as in the shipped list; the two cross-fade, as T3's corner. Faded out it's no button.
-    const pinButton = () => div().id(pinId)
-      .size(24).flex_none().flex().items_center().justify_center()
-      .rounded(6)
+    const pinButton = () => button(t, pinId, { icon: `mods/t3-agents/icons/${isPinned ? "pin-off" : "pin"}.svg`, label: isPinned ? "Unpin" : "Pin", surface: "row", hot: view.hot === pinId })
       .opacity(offer ? 1 : 0).transition("opacity", MOTION)
-      .when(offer, (el) => stop(view, t, pinId, el.role("button")
-        .accessibility_label(isPinned ? "Unpin" : "Pin")
+      .when(offer, (el) => stop(view, t, pinId, el
         .on_hover(glow(view, pinId))
         .on_click((_e, cx) => {
           cx.stop_propagation();
@@ -206,8 +192,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
           if (isPinned) run(`t3-tabs.unpin:${a.address}`);
           else pin(a.address);
           cx.notify();
-        }), 6))
-      .child(svg(`mods/t3-agents/icons/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
+        }), radiusOf()));
     // A row leads with what the agent is on; an automatic tab number says nothing.
     // Without a space header above (priority, pinned) the space follows, dim, and gives way first.
     const full = byPriority || isPinned;
@@ -216,7 +201,8 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
     // Its sub-agents' word, when it isn't its own, is marked as theirs.
     const fromKid = st !== "idle" && st !== own(a);
     const when = view.since(a);
-    const lead = h_flex().size(16).flex_none().items_center().justify_center().when(Boolean(pic), el => el.child(pic));
+    const lead = (subs.length ? button(t, ghost ? undefined : iconId, { size: "tiny", surface: "row", label: view.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents", hot: !ghost && view.hot === iconId })
+      : h_flex().size(16).flex_none().items_center().justify_center()).when(Boolean(pic), el => el.child(pic));
     const time = div().flex_none().text_size(12).text_color(t.dim).opacity(offer ? 0 : 1).transition("opacity", MOTION).when(Boolean(when), el => el.child(duration(now - when)));
     const base = h_flex()
       .relative()
@@ -229,8 +215,8 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
       .gap(10)
       .opacity(st === "working" && !on && !offer ? 0.7 : 1)
       .when(on, (el) => el.bg(t.selected))
-      .child(ghost ? lead : lead.id(`agent-fold-${a.address}`)
-        .when(subs.length > 0, el => el.role("button").accessibility_label(view.isFolded(a.address) ? "Expand sub-agents" : "Collapse sub-agents").on_click((_e, cx) => {
+      .child(ghost ? lead : lead.id(iconId)
+        .when(subs.length > 0, el => el.on_click((_e, cx) => {
           cx.stop_propagation();
           view.toggleFold(a.address, cx);
         })))

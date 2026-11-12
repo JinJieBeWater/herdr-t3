@@ -9,6 +9,7 @@ import { scrollList } from "./list.js";
 import { git, readReview, readPicks, readRefs, argPage } from "./review-git.js";
 import { hoverRow, subOpened, subLeft } from "./submenu.js";
 import { PANE, LU, COMPACT, MODEL_ROW, hover, iconButton, pickMark, searchField, popover, toPane, subState, subAt } from "./controls.js";
+import { button as drawButton } from "./button.js";
 
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
 const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
@@ -168,9 +169,8 @@ export function openScope(view, cx) {
 // As the toolbar's xs ghost buttons (docs/adr/0013), its words truncating, a chevron at 70%: no fill of its own over the
 // toolbar's, only hovered or while its menu is open.
 function scopeButton(view, t, s) {
-  return h_flex().id("review-scope").h(24).min_w(0).px(7).gap(4).items_center().rounded(8).text_size(12).font_medium().text_color(t.foreground)
-    .when(view.popup === "scope", el => el.bg(t.selected)).hover(el => el.bg(hover(t)))
-    .role("button").accessibility_label(`Diff scope: ${s.label}`)
+  return drawButton(t, "review-scope", { variant: "plain", wide: true, label: `Diff scope: ${s.label}`, surface: "card", on: view.popup === "scope", hot: view.hot === "review-scope" }).min_w(0).flex_shrink(1)
+    .on_hover((on, cx) => { view.hot = on ? "review-scope" : null; cx.notify(); })
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); view.togglePopup("scope", cx); })
     .child(div().id("review-scope-label").min_w(0).truncate().child(s.label))
     .child(svg(`${LU}/chevron-down.svg`).size(14).flex_none().opacity(0.7));
@@ -181,7 +181,7 @@ export function scopeHeader(view, t) {
   const s = scopeOf(view), list = diffCommits(view), at = s.sha ? list.findIndex(c => c.sha === s.sha) : -1;
   // A commit opened as its own diff, or no longer listed (as after an amend), has nowhere to step.
   const steps = s.sha && view.page !== view.base && at >= 0;
-  const go = (id, icon, label, c) => iconButton(t, id, icon, label, (cx) => openReviewPage(view, `/commit/${c.sha}`, cx), { disabled: !c });
+  const go = (id, icon, label, c) => iconButton(view, t, id, icon, label, (cx) => openReviewPage(view, `/commit/${c.sha}`, cx), { disabled: !c });
   return h_flex().id("review-scope-row").min_w(0).gap(12).items_center()
     .child(scopeButton(view, t, s))
     .when(Boolean(s.sha), el => el.child(h_flex().flex_none().gap(2).items_center()
@@ -203,9 +203,8 @@ export function scopeHeader(view, t) {
 // As T3's ComboboxTrigger there: a ghost-muted xs button, 36 to 192 wide, the ref truncating, a chevron at 70%. Its press
 // notes where it is, for the popup to hang under it.
 function baseButton(view, t, s) {
-  return h_flex().id("review-base").h(24).min_w(36).max_w(192).flex_none().px(7).gap(4).items_center().rounded(8)
-    .when(view.popup === "base", el => el.bg(t.selected)).hover(el => el.bg(hover(t)).text_color(t.foreground))
-    .role("button").accessibility_label(`Change comparison target. Currently ${s.base}`)
+  return drawButton(t, "review-base", { wide: true, label: `Change comparison target. Currently ${s.base}`, surface: "card", on: view.popup === "base", hot: view.hot === "review-base" }).min_w(36).max_w(192)
+    .on_hover((on, cx) => { view.hot = on ? "review-base" : null; cx.notify(); })
     .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); view.baseX = toPane(view, e).bounds?.x ?? null; })
     .on_click((_e, cx) => { cx.stop_propagation(); view.togglePopup("base", cx); })
     .child(div().id("review-ref-base").min_w(0).truncate().child(s.base))

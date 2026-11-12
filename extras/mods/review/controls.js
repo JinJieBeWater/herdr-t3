@@ -2,6 +2,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Input } from "gpui-base";
 import { settings, setShared, shared } from "herdr";
 import { subPlace } from "./submenu.js";
+import { button as drawButton } from "./button.js";
 
 export const PANE = "review";
 
@@ -94,29 +95,21 @@ export function checkMark(t, state) {
     .when(state === "some" || state === "changed", el => el.child(svg("mods/review/icons/minus.svg").size(12)));
 }
 
-// The pane's buttons, text or icon, share one 24px height so a toolbar's controls line up.
-// As T3's xs ghost button (docs/adr/0013): no border, the hover's tone behind it; `primary` filled as the layout's, in `solid`
-// (a popup's own action, never the toolbar's); `note` dim words after the label.
-export function button(t, id, label, action, { color, icon, after, primary, note } = /** @type {{ color?: any, icon?: any, after?: any, primary?: boolean, note?: any }} */ ({})) {
-  // As T3's xs button: 8 in.
-  return h_flex().id(id).h(24).px(8).gap(4).flex_none().items_center().rounded(8).text_size(12).font_medium()
-    .when(!primary, el => el.text_color(color ?? t.foreground).hover(s => s.bg(hover(t))))
-    .when(Boolean(primary), el => el.border_color(t.solid).bg(t.solid).text_color(t.solid_foreground).hover(s => s.opacity(0.9)))
-    .role("button").on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); action(cx); })
-    .when(Boolean(icon), el => el.child(svg(icon).size(14).flex_none()))
-    .child(label)
+// The pane's xs buttons; `note` stays dim after the label.
+export function button(view, t, id, label, action, { color, icon, after, primary, note } = /** @type {{ color?: any, icon?: any, after?: any, primary?: boolean, note?: any }} */ ({})) {
+  return drawButton(t, id, { variant: primary ? "primary" : "plain", text: label, icon, color, surface: "card", hot: view.hot === id })
+    .on_hover((on, cx) => { view.hot = on ? id : null; cx.notify(); })
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click((_e, cx) => { cx.stop_propagation(); action(cx); })
     .when(Boolean(note), el => el.child(div().opacity(FADED).child(note)))
     .when(Boolean(after), el => el.child(svg(after).size(14).flex_none()));
 }
 
-// As T3's icon-xs ghost button, as nav-column.js's ghostButton: `muted` until hovered; `active` (its popup open) on `selected`.
-export function iconButton(t, id, icon, label, action, { color, disabled, active, size = 24, press } = /** @type {{ color?: any, disabled?: any, active?: any, size?: number, press?: any }} */ ({})) {
-  return div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(color ?? (active ? t.foreground : t.muted))
-    .when(Boolean(disabled), el => el.opacity(DISABLED))
-    .when(!disabled, el => el.when(Boolean(active), el => el.bg(t.selected)).hover(s => s.bg(hover(t)).text_color(color ?? t.foreground)))
-    .role("button").accessibility_label(label)
-    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); press?.(e); }).on_click((_e, cx) => { cx.stop_propagation(); if (!disabled) action(cx); })
-    .child(svg(icon).size(14));
+// The pane's icon buttons, on while their popup is open.
+export function iconButton(view, t, id, icon, label, action, { color, disabled, active, press } = /** @type {{ color?: any, disabled?: any, active?: any, press?: any }} */ ({})) {
+  return drawButton(t, id, { icon, label, color, disabled, on: active, surface: "card", hot: view.hot === id })
+    .when(!disabled, el => el.on_hover((on, cx) => { view.hot = on ? id : null; cx.notify(); }))
+    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); press?.(e); })
+    .when(!disabled, el => el.on_click((_e, cx) => { cx.stop_propagation(); action(cx); }));
 }
 
 // As the app's DiffStats, each only when there are any, measured as T3's DiffStatLabel.

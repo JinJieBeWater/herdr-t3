@@ -46,7 +46,7 @@ const env = {
   focused: () => ({ tab: "b", cwd: "/repo" }), panes: () => [], spaces: () => [{ active: true, folder: "/space" }],
   nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise(() => {}),
 };
-const source = ["store.js", "tip.js", "focus.js", "list.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["button.js", "store.js", "tip.js", "focus.js", "list.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 const cx = { notify() {}, stop_propagation() {}, spawn: (fn) => jobs.push(fn), focus_handle: () => ({ focus() {} }), timer: { every: () => ({ cancel() {} }), after: (_ms, f) => (f(cx), { cancel() {} }) } };
 const load = (props = {}) => {
@@ -137,12 +137,19 @@ assert.deepEqual(plain(overlays.at(-1).props), { actions: "edit", id: "a" });
 fields.length = 0;
 const edit = load({ actions: "edit", id: "a" });
 assert.equal(edit.render().style.opacity, undefined, "its contents are there from the first frame");
+assert.equal(find(edit.render(), "action-save").hoverStyle.opacity, 0.9);
+assert.equal(find(edit.render(), "action-delete").style.bg, theme.raised);
+assert.equal(find(edit.render(), "action-close").hoverStyle.bg, theme.foreground + "12", "a dialog's ghost uses a card tint");
 fields[1].text = "bun run dev";
 fire(find(edit.render(), "action-save"), "on_click");
 assert.equal(state["t3-actions.actions"].list[0].command, "bun run dev");
 fields.length = 0;
 const add = load({ actions: "edit", id: null });
-fire(find(add.render(), "action-save"), "on_click");
+const disabledSave = find(add.render(), "action-save");
+assert.equal(disabledSave.handlers.on_click, undefined, "disabled Save has no click");
+assert.equal(disabledSave.style.opacity, 0.64);
+assert.equal(disabledSave.style.bg, theme.solid, "disabled primary keeps its fill");
+assert.deepEqual(disabledSave.hoverStyle, {}, "disabled Save has no hover");
 assert.equal(state["t3-actions.actions"].list.length, 2, "no name or command, nothing saved");
 fields[0].text = "Lint"; fields[1].text = "bun lint";
 fire(find(add.render(), "action-save"), "on_click");

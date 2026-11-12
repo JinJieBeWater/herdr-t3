@@ -67,6 +67,8 @@ function load(...files) {
   const src = files.map((f) => fs.readFileSync(f, "utf8")).join("\n")
     .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ").replace("export default class", "globalThis.Mod = class");
   const context = vm.createContext({ ...env });
+  // Load the real synced helper, including the alias main.js imports.
+  vm.runInContext("(() => {\n" + fs.readFileSync(path.join(__dirname, "button.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") + "\nglobalThis.drawButton = button; globalThis.radiusOf = radiusOf;\n})();", context);
   vm.runInContext(src, context, { filename: files.at(-1) });
   const mod = new context.Mod(); mod.init({}, cx); return mod;
 }

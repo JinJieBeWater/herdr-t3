@@ -30,7 +30,7 @@ export function statusPanel(view, t) {
       .child(div().min_w(0).child(progressText(view.review.analysis.progress)))))
     .when(Boolean(error), el => el.child(div().text_color(t.ansi1).child(error)))
     .when(!running, el => el.child(h_flex().justify_end()
-      .child(button(t, "rerun", "Re-run", (cx) => { view.closePopup(cx); view.analyze(cx, true); }, { primary: true, icon: `${LU}/rotate-cw.svg` }))));
+      .child(button(view, t, "rerun", "Re-run", (cx) => { view.closePopup(cx); view.analyze(cx, true); }, { primary: true, icon: `${LU}/rotate-cw.svg` }))));
 }
 
 // What the header shows: a title, the page, colored parts (theme color names) and buttons.
@@ -70,8 +70,8 @@ export function header(view, t, head) {
     .child(div().flex_1())
     .child(h_flex().flex_none().gap(4).items_center()
       .children(head.buttons.map(b => b.text
-        ? button(t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], note: b.note })
-        : iconButton(t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active })))
+        ? button(view, t, b.id, b.text, b.run, { after: b.after, icon: b.lead, color: t[b.color], note: b.note })
+        : iconButton(view, t, b.id, b.icon, b.label, b.run, { color: t[b.color], disabled: b.disabled, active: b.active })))
       // Last, the file tree's switch, greyed with no files to list.
-      .child(navToggle(t, "mods/review", "review-nav-toggle", view.navOpen, (cx) => { view.panel.navOpen = !view.navOpen; setNavOpen(view.panel.navOpen); cx.notify(); }, !view.review || view.navEmpty())));
+      .child(navToggle(t, "mods/review", "review-nav-toggle", view.navOpen, (cx) => { view.panel.navOpen = !view.navOpen; setNavOpen(view.panel.navOpen); cx.notify(); }, !view.review || view.navEmpty(), view)));
 }

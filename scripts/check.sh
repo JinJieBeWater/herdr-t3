@@ -36,6 +36,12 @@ for p in $(grep -rhoE --include='*.js' --exclude=gpui-kit.d.ts 'mods/(t3-[a-z-]+
   [ -f "$p" ] || [ -f "extras/$p" ] || { echo "FAIL no such icon: $p"; fail=1; }
 done
 
+# accent is the focus ring's and emphasis's color, never a button's fill (docs/internals/t3-tokens.md「按钮」): its foreground
+# only goes on the few non-buttons filled with it, listed here.
+for f in $(grep -rlE --include='*.js' --exclude=gpui-kit.d.ts 'accent_foreground' shared mods extras/mods); do
+  case $f in extras/mods/review/controls.js) ;; *) echo "FAIL $f uses accent_foreground: a button takes shared/button.js's colors"; fail=1 ;; esac
+done
+
 # Herdr closes an open dialog or popup on a key bound to tab.close or pane.close; ours are bound to t3-tabs, so each mod that
 # opens as one needs its own `mod:` section, or cmd-w closes the tab behind it. `mod: MOD` is the file's own folder.
 for f in $(grep -rlE --include='*.js' --exclude=gpui-kit.d.ts 'openOverlay|mod\.open' mods extras/mods); do

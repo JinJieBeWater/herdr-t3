@@ -17,7 +17,9 @@ function element() {
   return p;
 }
 const find = (n, id) => !n || typeof n !== "object" ? null : n.key === id ? n : n.items.map(x => find(x, id)).find(Boolean);
-const source = fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
+// The real button.js (sync.sh's copy), as main.js imports it.
+const source = fs.readFileSync(path.join(__dirname, "button.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "")
+  + "\nconst drawButton = button;\n" + fs.readFileSync(path.join(__dirname, "main.js"), "utf8")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class");
 const files = new Map(), calls = [], overlays = [], messages = [], state = {};
 let pick = "/photos/Coast.png", failDelete = false, holdWrite = null;

@@ -13,6 +13,7 @@ import { agentEntries, agentStatus, STACK, RANK, SECTION } from "./rows.js";
 import { sidebarParts } from "./sidebar.js";
 import { KEY, migrateLocal } from "./store.js";
 import { pinList, setPinned } from "./pins.js";
+import { button, radiusOf } from "./button.js";
 const SORTS = [
   { id: "priority", label: "Priority", icon: "clock" },
   { id: "grouped", label: "Grouped by space", icon: "layers" },
@@ -268,12 +269,7 @@ export default class Agents extends View {
             .justify_between()
             .child(div().text_size(12).font_medium().text_color(t.muted).child("Agents"))
             .child(
-              tip(this, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", div()
-                .id("ag-sort")
-                .size(28).flex_none().flex().items_center().justify_center().rounded(8)
-                .role("button").accessibility_label("Sort agents")
-                .text_color(this.hot === "ag-sort" ? t.foreground : t.dim)
-                .hover((s) => s.bg(t.hover))
+              tip(this, t, "ag-sort", `Sort agents: ${sort.label}`, stop(this, t, "ag-sort", button(t, "ag-sort", { icon: `mods/t3-agents/icons/${sort.icon}.svg`, label: "Sort agents", size: "sm", hot: this.hot === "ag-sort" })
                 .on_hover(glow(this, "ag-sort"))
                 .on_mouse_down("left", (e) => { pressed(this); this.sortFrom = e.bounds; })
                 .on_click((_e, cx) => {
@@ -284,8 +280,7 @@ export default class Agents extends View {
                   this.sortFrom = null;
                   openOverlay({ mod: "t3-agents", kind: "popup", width: SORT_WIDTH, height: 140, ...(b ? { at: { x: b.x + b.width - SORT_WIDTH * z, y: b.y + b.height + 4 * z } } : {}), props: { sortMenu: true } });
                   cx.notify();
-                })
-                .child(svg(`mods/t3-agents/icons/${sort.icon}.svg`).size(16)), 8)),
+                }), radiusOf("sm"))),
             ),
       )
       .when(list.length === 0, (el) =>

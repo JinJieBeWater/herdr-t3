@@ -14,6 +14,7 @@ import { openMenu } from "./menu.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
 import { KEY } from "./store.js";
+import { button, radiusOf } from "./button.js";
 
 // How long a checkout being opened may take to show up before it's asked for again.
 const OPENING = 5000;
@@ -281,10 +282,9 @@ export default class Spaces extends View {
         // T3's folder sizes: a 24px + with a 14px icon (icon-xs) and a 12px chevron, in the heading buttons' two columns, 50 and
         // 22px from the sidebar's edge. The -2 sits on the group: on the chevron's own box it threw the whole group past the edge.
         .child(h_flex().flex_none().mr(-2).gap(10).items_center()
-          .when(connected, el => el.child(tip(this, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, div().id(`machine-add-${id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8)
-            .text_color(this.hot === `machine-add-${id}` ? t.foreground : t.dim).on_hover(glow(this, `machine-add-${id}`))
-            .role("button").accessibility_label("New space here")
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child(svg("mods/t3-spaces/icons/plus.svg").size(14)), 8),
+          .when(connected, el => el.child(tip(this, t, `machine-add-${id}`, "New space here", stop(this, t, `machine-add-${id}`, button(t, `machine-add-${id}`, { icon: "mods/t3-spaces/icons/plus.svg", label: "New space here", surface: "row", hot: this.hot === `machine-add-${id}` })
+            .on_hover(glow(this, `machine-add-${id}`))
+            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }), radiusOf()),
             // The key makes a space on the current space's machine: it names this + only on that one.
             { action: (spaces().find(s => s.active)?.machine ?? null) === m ? "space.new" : null })))
           // An indicator, not a button: the whole row folds, so it lights with the row and has no label of its own.
@@ -339,17 +339,14 @@ export default class Spaces extends View {
   foldButton(t, id, repo, hiding, ghost) {
     const folded = this.foldedRepos.has(repo), lit = this.hot === id ? t.foreground : t.dim;
     const label = folded ? "Expand worktrees" : "Collapse worktrees";
-    const el = div().h(20).min_w(20).mr(-8).px(6).gap(4).flex_none().flex().items_center().justify_center().rounded(4)
-      // raised: the row under it already shows hover or selected.
-      .text_size(11).text_color(lit)
+    const el = button(t, ghost ? undefined : id, { size: "micro", wide: true, surface: "row", label, hot: !ghost && this.hot === id }).min_w(20).mr(-8)
       .when(folded && hiding > 0, el => el.child(String(hiding)))
       .child(foldArrow("t3-spaces", ghost ? null : id, !folded, 12, lit));
-    return ghost ? el : tip(this, t, id, label, stop(this, t, id, el.id(id)
-      .role("button").accessibility_label(label)
+    return ghost ? el : tip(this, t, id, label, stop(this, t, id, el
       .on_hover(glow(this, id))
       // Pressing it neither selects nor drags the space.
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(repo, cx); }), 4));
+      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleRepo(repo, cx); }), radiusOf("micro")));
   }
 
   // Once, however often it's pressed: the new space takes a moment to show.
@@ -552,8 +549,8 @@ export default class Spaces extends View {
     if (d?.moved) d.drawn = true;
     this.landed = null;
     const asks = props()?.newMenu && machines().length > 1;
-    const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(28).flex_none().flex().items_center().justify_center().rounded(8).text_color(this.hot === id ? t.foreground : t.dim).on_hover(glow(this, id)).on_mouse_down("left", () => pressed(this)).role("button").accessibility_label(label).hover(s => s.bg(t.hover))
-      .on_click(fn).child(svg(`mods/t3-spaces/icons/${icon}.svg`).size(16)), 8), more);
+    const tool = (id, label, icon, fn, more) => tip(this, t, id, label, stop(this, t, id, button(t, id, { icon: `mods/t3-spaces/icons/${icon}.svg`, label, size: "sm", hot: this.hot === id })
+      .on_hover(glow(this, id)).on_mouse_down("left", () => pressed(this)).on_click(fn), radiusOf("sm")), more);
     return focusRoot(this, v_flex().size_full().min_h(0).bg(t.chrome).text_size(14)
       .when(this.dragFocus, el => el.track_focus(this.dragKeys).on_key_down((e, cx) => {
         if (e.keystroke !== "escape" || !this.dragFocus) return;

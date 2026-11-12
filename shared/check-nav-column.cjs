@@ -5,18 +5,20 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const store = new Map();
-const src = fs.readFileSync(path.join(__dirname, "nav-column.js"), "utf8")
+const src = "const drawButton = (() => {\n" + fs.readFileSync(path.join(__dirname, "button.js"), "utf8")
+  .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export /gm, "") + "\nreturn button;\n})();\n" + fs.readFileSync(path.join(__dirname, "nav-column.js"), "utf8")
   .replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
-  + "\nglobalThis.nav = { navRange, navWidth, navOpen, setNavOpen, withNav, holdWidth };";
+  + "\nglobalThis.nav = { navRange, navWidth, navOpen, setNavOpen, withNav, holdWidth, ghostButton };";
 // Elements that keep their handlers and widths: a fake page to drag the column's edge in.
 const made = [];
 const element = () => {
-  const el = { on: {}, ids: [] };
+  const el = { on: {}, ids: [], style: {} };
   made.push(el);
   return new Proxy(el, { get: (target, key) => key in target ? target[key] : (...args) => {
     if (key === "id") target.ids.push(args[0]);
     if (key === "w") target.w = args[0];
-    if (key === "on_mouse_move" || key === "on_hover") target.on[key] = args[0];
+    if (["text_color", "opacity", "bg"].includes(key)) target.style[key] = args[0];
+    if (key === "on_mouse_move" || key === "on_hover" || key === "on_click") target.on[key] = args[0];
     if (key === "on_mouse_down" || key === "on_mouse_up") target.on[key] = args[1];
     if (key === "when") return args[0] ? args[1](proxy(target)) : proxy(target);
     return proxy(target);
@@ -31,7 +33,24 @@ const context = vm.createContext({ KEY: { navWidth: "t3.navWidth" }, shared: (k)
   div: make, h_flex: make, v_flex: make, svg: make,
   localStorage: { getItem: (k) => store.get(`local:${k}`) ?? null, setItem: (k, v) => { sets.push([k, String(v)]); store.set(`local:${k}`, String(v)); } } });
 vm.runInContext(src, context);
-const { navRange, navWidth, navOpen, setNavOpen, withNav, holdWidth } = context.nav;
+const { navRange, navWidth, navOpen, setNavOpen, withNav, holdWidth, ghostButton } = context.nav;
+
+{
+  const t = { foreground: "#ffffff", dim: "#888888" }, view = {};
+  let clicks = 0;
+  const cx = { notify() {}, stop_propagation() {} };
+  const draw = (disabled = false) => ghostButton(t, "mods/review", "toggle", "folder-tree", "Tree", () => clicks++, { view, disabled });
+  const live = draw();
+  assert.equal(live.style.text_color, t.dim);
+  live.on.on_hover(true, cx);
+  assert.equal(draw().style.text_color, t.foreground, "the real helper brightens the hovered icon");
+  live.on.on_click({}, cx);
+  const disabled = draw(true);
+  assert.equal(disabled.style.opacity, 0.64);
+  assert.equal(disabled.on.on_click, undefined, "disabled has no click handler");
+  assert.equal(disabled.on.on_hover, undefined, "disabled has no hover tracking");
+  assert.equal(clicks, 1);
+}
 
 assert.deepEqual([...navRange(1200)], [160, 560], "wide: 560 at most");
 assert.deepEqual([...navRange(681)], [160, 425], "the content keeps 256");

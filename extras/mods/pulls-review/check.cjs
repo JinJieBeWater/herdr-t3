@@ -54,7 +54,7 @@ const env = {
   // Herdr T3's layout: the space panel, its pages Files and Review.
   layout: () => ({ id: "root", children: [{ id: "work" }, { id: "panel", hidden: true, children: [{ id: "panel-body", active: "files", children: [{ id: "files" }, { id: "review" }] }] }] }),
 };
-const source = ["store.js", "details.js", "tip.js", "list.js", "focus.js", "panel.js", "review-git.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["button.js", "store.js", "details.js", "tip.js", "list.js", "focus.js", "panel.js", "review-git.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
 const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
@@ -112,11 +112,11 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(bar.render(), "tip-review-pick").style.content), ["Change what to review"], "its card shows on hover");
   fire(find(drawn, "review-pick"), "on_hover", false, cx);
   fire(find(drawn, "tip-over-review-pick"), "on_hover", false, cx);
-  // No color: here it means an agent's state. Quiet: dim and regular weight, the number with its words; hovered, foreground on the fill.
+  // No color: here it means an agent's state. Shared xs buttons are dim and medium weight; hovered, foreground on the fill.
   const colorOf = id => find(bar.render(), id).style.text_color;
   const counted = ["review-changes", "review-open", "review-ahead", "review-behind"];
   assert.deepEqual(counted.map(colorOf), counted.map(() => theme.dim));
-  for (const id of counted) assert.ok(find(bar.render(), id).style.font_medium === undefined && !find(bar.render(), id).items.flatMap(walk).some(n => n.style.text_color || n.style.font_medium !== undefined), `${id}: nothing inside sets its own color or weight`);
+  for (const id of counted) assert.ok(find(bar.render(), id).style.font_medium !== undefined && !find(bar.render(), id).items.flatMap(walk).some(n => n.style.text_color || n.style.font_medium !== undefined), `${id}: the shared button sets the weight, nothing inside sets its own color or weight`);
   for (const id of counted) assert.deepEqual(plain(find(bar.render(), id).hoverStyle), { bg: theme.hover }, id);
   fire(find(drawn, "review-open"), "on_hover", true, cx);
   assert.equal(colorOf("review-open"), theme.foreground, "hovered, lit");
@@ -324,7 +324,7 @@ const load = (props = {}, setup = record) => {
   // The space's review lights the count of the diff it shows, whichever of its commits it's on.
   const pane = (page, base = "/branch/feat", space = "s") => { state["review.shown"] = { [space]: { root: "/repo", page, base } }; };
   // The diff shown: lit, foreground on the hover's fill.
-  const isLit = (id) => find(bar.render(), id).style.bg === theme.hover && find(bar.render(), id).style.text_color === theme.foreground;
+  const isLit = (id) => find(bar.render(), id).style.bg === theme.selected && find(bar.render(), id).style.text_color === theme.foreground;
   pane("/branch/feat"); show(r);
   let lit = bar.render();
   assert.ok(isLit("review-open"));
@@ -611,7 +611,7 @@ const load = (props = {}, setup = record) => {
   for (const [word, label] of [["working", "running"], ["done", "done"], ["blocked", "failed"]]) {
     state["review.status"] = { s: word };
     const [first, second] = toggleOf().items;
-    assert.ok(toggleOf().items.length === 2 && second.source === "mods/pulls-review/icons/panel-right.svg" && first.source !== second.source && toggleOf().style.px === 6 && toggleOf().style.w === undefined, word);
+    assert.ok(toggleOf().items.length === 2 && second.source === "mods/pulls-review/icons/panel-right.svg" && first.source !== second.source && toggleOf().style.px === 8 && toggleOf().style.gap === 4 && toggleOf().style.w === undefined, word);
     assert.ok(!walk(toggleOf()).some(n => n.style?.absolute !== undefined), `${word}: in the flow, not a badge`);
     assert.equal(toggleOf().style.accessibility_label, `Show panel, analysis ${label}`);
   }

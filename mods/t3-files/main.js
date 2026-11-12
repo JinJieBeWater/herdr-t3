@@ -424,8 +424,8 @@ export default class Files extends View {
       })
       .child(this.toolbar(st, t))
       // What failed, under the toolbar: the folder's listing, or the file's read. Retry asks again.
-      .when(Boolean(st.error), (el) => el.child(errorBar(t, "t3-files-error", st.error, (cx) => cx.spawn(async (cx) => this.refresh(st, cx)))))
-      .when(Boolean(!st.error && st.view?.failed), (el) => el.child(errorBar(t, "t3-files-error", st.view.problem, (cx) => this.open(st, st.file, cx))))
+      .when(Boolean(st.error), (el) => el.child(errorBar(t, "t3-files-error", st.error, (cx) => cx.spawn(async (cx) => this.refresh(st, cx)), this)))
+      .when(Boolean(!st.error && st.view?.failed), (el) => el.child(errorBar(t, "t3-files-error", st.view.problem, (cx) => this.open(st, st.file, cx), this)))
       .child(div().flex_1().min_h(0).child(withNav(t, "t3-files", width, { content: this.content(st, t), head: this.searchHead(st, t), list: st.results ? this.found(st, t) : this.tree(st, t), open: this.navOpen })))
       .when(Boolean(this.menu), (el) => el.child(fileMenuView(this, t, MOD, this.menuItems(st, this.menu.path), this.handle, this.size ?? { width: 800, height: 600 })));
   }
@@ -451,8 +451,8 @@ export default class Files extends View {
         // The page's buttons 4 apart, as Review's.
         .child(h_flex().flex_none().gap(4).items_center()
           // Wrap or scroll long lines, this page's own choice.
-          .when(Boolean(st.view?.code), (el) => el.child(ghostButton(t, MOD, "t3-files-wrap", "text-wrap", wrapLines() ? "Scroll long lines" : "Wrap long lines", (cx) => { setWrapLines(!wrapLines()); cx.notify(); }, { on: wrapLines() })))
-          .child(navToggle(t, MOD, "t3-files-nav-toggle", this.navOpen, (cx) => { this.navOpen = !this.navOpen; setNavOpen(this.navOpen); cx.notify(); })));
+          .when(Boolean(st.view?.code), (el) => el.child(ghostButton(t, MOD, "t3-files-wrap", "text-wrap", wrapLines() ? "Scroll long lines" : "Wrap long lines", (cx) => { setWrapLines(!wrapLines()); cx.notify(); }, { on: wrapLines(), view: this })))
+          .child(navToggle(t, MOD, "t3-files-nav-toggle", this.navOpen, (cx) => { this.navOpen = !this.navOpen; setNavOpen(this.navOpen); cx.notify(); }, false, this)));
   }
 
   // The file: Preview or Code for Markdown, the code, an image or why there's none; with no file, a quiet line.
@@ -497,7 +497,7 @@ export default class Files extends View {
       })
       .child(svg(`${MOD}/icons/search.svg`).size(16).flex_none().text_color(t.dim))
       .child(Input.new(this.search).flex_1().h(28).text_size(12).text_color(t.foreground))
-      .child(foldAllButton(t, MOD, "t3-files-fold-all", st.expanded.size === 0, (cx) => this.foldAll(st, cx)));
+      .child(foldAllButton(t, MOD, "t3-files-fold-all", st.expanded.size === 0, (cx) => this.foldAll(st, cx), this));
   }
 
   // Collapse all while any folder is open; else open every folder, Git-ignored ones aside, EXPAND_MAX at most.

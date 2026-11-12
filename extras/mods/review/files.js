@@ -23,7 +23,7 @@ export function navHead(view, t) {
     .when(dirs.length > 0, el => el.child(foldAllButton(t, `mods/${PANE}`, "review-fold-all", folded, (cx) => {
       for (const path of dirs) setOpen(view, path, folded);
       cx.notify();
-    })));
+    }, view)));
 }
 
 /**

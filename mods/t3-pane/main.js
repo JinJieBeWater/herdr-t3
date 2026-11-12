@@ -19,6 +19,7 @@ import { menuJump, scrollList } from "./list.js";
 import { sidebarParts } from "./sidebar.js";
 import { KEY } from "./store.js";
 import { openMenu } from "./menu.js";
+import { button as drawButton, radiusOf } from "./button.js";
 
 // The list as the layout's other menus (the sort menu, the right-click menu): 4 around 28px rows.
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
@@ -176,11 +177,9 @@ export default class Pane extends View {
     const id = `ph-kids-${pane}`, n = rows.length, stuck = rows.filter((r) => r.st === "blocked").length;
     const total = plural(n, "sub-agent", "sub-agents"), text = stuck ? `${stuck} need${stuck === 1 ? "s" : ""} you` : plural(n, "agent", "agents");
     const label = stuck ? `${total}, ${text}` : total;
-    const color = stuck ? t.blocked : this.hot === id ? t.foreground : t.dim;
-    // T3's META_ACTION: 24 high, 6 in, 4 apart, radius 6, 12px medium; the arrow is a select's 14.
-    return tip(this, t, id, label, stop(this, t, id, h_flex().id(id).h(24).px(6).gap(4).flex_none().items_center().rounded(6)
-      .text_size(12).font_medium().text_color(color).hover((s) => s.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
+    return tip(this, t, id, label, stop(this, t, id, drawButton(t, id, {
+      text, label, surface: "card", color: stuck ? t.blocked : undefined, hot: this.hot === id })
+      .on_hover(glow(this, id))
       .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); pressed(this); this.kidsFrom = e.bounds; })
       .on_click((_e, cx) => {
         cx.stop_propagation();
@@ -193,8 +192,7 @@ export default class Pane extends View {
           ...(b ? { at: { x: b.x + b.width - KIDS_WIDTH * z, y: b.y + b.height + 4 * z } } : {}), props: { kids: terminal } });
         cx.notify();
       })
-      .child(div().child(text))
-      .child(svg("mods/t3-pane/icons/chevron-down.svg").size(14).flex_none().text_color(color)), 8));
+      .child(svg("mods/t3-pane/icons/chevron-down.svg").size(14).flex_none()), radiusOf("xs")));
   }
 
   // What shows on hover also watches where the pointer is: its leave can be dropped (tip.js).
@@ -219,22 +217,14 @@ export default class Pane extends View {
   }
 
   button(t, id, icon, label, action, key) {
-    return tip(this, t, id, label, stop(this, t, id, div()
-      .id(id)
-      .size(24).flex_none().flex().items_center().justify_center()
-      .rounded(8)
-      // Its icon brightens by state: a hover style reaches text but not an svg, as in the inbox.
-      .text_color(this.hot === id ? t.foreground : t.dim)
-      .role("button").accessibility_label(label)
-      .hover((s) => s.bg(t.hover))
+    return tip(this, t, id, label, stop(this, t, id, drawButton(t, id, { icon, label, surface: "card", hot: this.hot === id })
       .on_hover(glow(this, id))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();
         action();
         cx.notify();
-      })
-      .child(svg(icon).size(14)), 8), { action: key });
+      }), radiusOf("xs")), { action: key });
   }
 
   render() {

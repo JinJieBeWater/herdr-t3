@@ -16,6 +16,7 @@ import { stop, pressed, justClosed } from "./focus.js";
 import { KEY } from "./store.js";
 import { git, argPage, readReview, readPicks } from "./review-git.js";
 import { panelState, togglePanel } from "./panel.js";
+import { button, radiusOf } from "./button.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -306,16 +307,16 @@ export function reviewBar(view, t, stopPress) {
   const isShown = (args) => here?.base === argPage(args, r.branch);
   // The accessibility label says what each count compares, which the short label can't. No color: here it means an agent's state.
   // The count leads; what it counts stays quiet beside it.
-  // As T3's ghost xs buttons: 24, 8 in, no outline. Quiet: dim and regular, lit (foreground) hovered or while its diff is the one
+  // As T3's ghost xs buttons: 24, 8 in, no outline. Quiet: dim and medium, lit (foreground) hovered or while its diff is the one
   // shown; a hover style can't brighten the icon, so the hover is view.hot. Its label is the name's first part. Compact, the label
   // gives back the words the count lost, `· merged?` included.
-  const item = ([id, count, noun, icon, name, args, arrow = ""]) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], stop(view, t, id, h_flex().id(id).h(24).px(8).gap(4).flex_none().items_center().rounded(8)
-    .text_size(12).text_color(isShown(args) || view.hot === id ? t.foreground : t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover))
+  const item = ([id, count, noun, icon, name, args, arrow = ""]) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], stop(view, t, id, button(t, id, {
+    text: compact ? count : arrow + count, icon: compact ? `mods/${MOD}/icons/${icon}.svg` : undefined,
+    label: isShown(args) ? `${name}, shown` : name, hot: view.hot === id, on: isShown(args),
+  })
     .on_hover(glow(view, id))
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
-    .when(compact, el => el.child(svg(`mods/${MOD}/icons/${icon}.svg`).size(14).flex_none()))
-    .child(compact ? count : arrow + count)
-    .when(Boolean(noun) && !compact, el => el.child(noun)), 8), { below: true });
+    .when(Boolean(noun) && !compact, el => el.child(noun)), radiusOf("xs")), { below: true });
   const segments = [
     r.changed > 0 && ["review-changes", String(r.changed), "uncommitted", "file-diff", `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"]],
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
@@ -339,12 +340,11 @@ export function reviewBar(view, t, stopPress) {
     .children(segments.map(s => item(/** @type {any} */ (s))))
     // Stays with no counts: on a clean default branch it's the only way in.
     // With the analysis's mark after the logo, it grows to hold both.
-    .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", h_flex().id("review-pick").h(24).flex_none().items_center().justify_center().rounded(8)
-      .when(!mark, el => el.w(24)).when(Boolean(mark), el => el.px(6).gap(5))
-      .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label(pickLabel)
+    .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", button(t, "review-pick", { label: pickLabel, hot: view.hot === "review-pick", wide: Boolean(mark) })
+      .on_hover(glow(view, "review-pick"))
       .on_mouse_down("left", press).on_click(openMenu)
       // As T3's icon-xs. image, not svg: svg would draw the logo in one tint.
-      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 8), { below: true }));
+      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()).when(Boolean(mark), el => el.child(mark)), radiusOf("xs")), { below: true }));
 }
 
 // The space panel's toggle, Herdr T3's whole bar: a 24 ghost icon button, as t3-tabs' panel-toggle. The panel on the page last
@@ -353,10 +353,9 @@ export function reviewBar(view, t, stopPress) {
 function panelButton(view, t, word, shown) {
   const open = panelState().open, mark = open ? null : shown, state = mark && { working: "running", done: "done", blocked: "failed" }[word];
   const label = (open ? "Hide panel" : "Show panel") + (state ? `, analysis ${state}` : "");
-  return tip(view, t, "review-panel", label, stop(view, t, "review-panel", h_flex().id("review-panel").h(24).flex_none().items_center().justify_center().rounded(8)
-    .when(!mark, el => el.w(24)).when(Boolean(mark), el => el.px(6).gap(5).child(mark))
-    .text_color(open || view.hot === "review-panel" ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(glow(view, "review-panel"))
-    .role("button").accessibility_label(label)
+  return tip(view, t, "review-panel", label, stop(view, t, "review-panel", button(t, "review-panel", { label, hot: view.hot === "review-panel", on: open, wide: Boolean(mark) })
+    .when(Boolean(mark), el => el.child(mark))
+    .on_hover(glow(view, "review-panel"))
     .on_click((_e, cx) => { view.hot = null; togglePanel(); cx.notify(); })
-    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()), 8), { action: "t3-tabs.panel", below: true });
+    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()), radiusOf("xs")), { action: "t3-tabs.panel", below: true });
 }

@@ -91,7 +91,8 @@ function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
     Date, Promise, Math, Number, String, Boolean, Map, Set, Object, Array, JSON, RegExp, Error, Uint8Array,
   });
   const files = ["vendor/ufuzzy.js", "store.js", "list.js", "panel.js", "file-icons-data.js", "file-icons.js", "file-tree.js", "nav-column.js", "file-menu.js", "panel-states.js", "model.js", "main.js"];
-  vm.runInContext(files.map(load).join("\n").replace("export default class", "globalThis.Mod = class"), ctx);
+  const buttons = "const drawButton = (() => {\n" + load("button.js") + "\nreturn button;\n})();\n";
+  vm.runInContext((buttons + files.map(load).join("\n")).replace("export default class", "globalThis.Mod = class"), ctx);
   const send = (c) => { if (wake) { const x = wake; wake = null; x(c); } else commands.push(c); };
   const view = new ctx.Mod();
   view.init({}, cx);

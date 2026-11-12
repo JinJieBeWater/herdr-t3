@@ -16,6 +16,7 @@ import { pinList, pin, unpin, putBack } from "./pins.js";
 import { writeLabel } from "./labels.js";
 import { openMenu } from "./menu.js";
 import { panelState, togglePanel, syncPanel, restorePanel } from "./panel.js";
+import { button as drawButton, radiusOf } from "./button.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 // The tab bar's row, as layouts/herdr-t3.json has it.
@@ -86,8 +87,6 @@ function fairCap(wants, room) {
 // it too before drawing, so it never draws a frame behind; tracking twice a frame changes nothing (check-navigation.cjs).
 let brain = null;
 const nav = () => brain ??= navigation();
-
-const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
 const leadOf = (mine) => mine.find(p => p.status != null) ?? mine.find(p => p.focused) ?? mine[0];
@@ -285,18 +284,17 @@ export default class Tabs extends View {
   }
 
   // With the sidebar hidden, its toggle also says how the agents are doing, with the sidebar's own marks.
-  // Idle agents aren't counted: nothing to look at.
+  // Idle agents aren't counted: nothing to look at. The counts are 12, the tab bar's, in the 28px button's 14.
   sidebarToggle(t, stopPress, live, st) {
     const counts = ["blocked", "working", "done"].map(s => [s, live.filter(a => st(a) === s).length]).filter(([, n]) => n > 0);
     const words = { blocked: "needing you", working: "working", done: "done" };
     const summary = counts.map(([s, n]) => `${n} ${words[s]}`).join(" · ");
-    return tip(this, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", h_flex().id("sidebar-toggle").h(28).px(6).mr(8).gap(8).flex_none().items_center().rounded(8)
-      .text_size(12).text_color(lit(this, "sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
-      .role("button").accessibility_label(summary ? `Show sidebar, ${summary}` : "Show sidebar")
+    return tip(this, t, "sidebar-toggle", "Show sidebar", stop(this, t, "sidebar-toggle", drawButton(t, "sidebar-toggle", {
+      size: "sm", wide: counts.length > 0, icon: "mods/t3-tabs/icons/panel-left.svg", label: summary ? `Show sidebar, ${summary}` : "Show sidebar", hot: this.hot === "sidebar-toggle" })
+      .mr(8).on_hover(glow(this, "sidebar-toggle"))
       // It goes when the sidebar shows, before the pointer can report leaving it.
       .on_mouse_down("left", stopPress).on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-      .child(svg("mods/t3-tabs/icons/panel-left.svg").size(16).flex_none())
-      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_color(t.muted).child(String(n))))), 8), { action: "layout.toggle:sidebar", below: true });
+      .children(counts.map(([s, n]) => h_flex().id(`agents-${s}`).gap(4).items_center().child(mark(t, s)).child(div().text_size(12).text_color(t.muted).child(String(n))))), radiusOf("sm")), { action: "layout.toggle:sidebar", below: true });
   }
 
   // With props.block, sizes that block to `size`: layout.resize, which Herdr keeps with the layout's clicks.
@@ -352,9 +350,11 @@ export default class Tabs extends View {
     }
     const stopPress = (_e, cx) => cx.stop_propagation();
     // 24 as T3's tab bar +; the window's own buttons 28, as its titlebar controls.
-    const button = (id, glyph, label, action, key, size = 24) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
-      .on_mouse_down("left", stopPress).on_click(action).child(glyph), 8), { action: key, below: true });
+    /** @param {"xs" | "sm"} [size] */
+    const button = (id, icon, label, action, key, size = "xs", glyph = undefined) => tip(this, t, id, label, stop(this, t, id,
+      drawButton(t, id, { icon, label, size, hot: this.hot === id, on: id === "panel-toggle" && panelState().open })
+        .on_hover(glow(this, id)).on_mouse_down("left", stopPress).on_click(action)
+        .when(Boolean(glyph), el => el.child(glyph)), radiusOf(size)), { action: key, below: true });
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
     // Its last control's box ends 12 from the window's edge, over the pane headers' last button, so its icon stands as far in
@@ -366,14 +366,14 @@ export default class Tabs extends View {
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
       .child(h_flex().id("tabs-end").flex_none().pl(endShown && reviewToggle(layout()) ? 6 : 0).pr(w?.buttons ? 2 : endShown ? 12 : reviewToggle(layout()) ? 10 : 0).gap(4).items_center().on_size_change((size) => this.fit(size))
         // With the Inbox, the breadcrumb's space is the way to a new tab.
-        .when(newTabShown, el => el.child(button("tab-new", svg("mods/t3-tabs/icons/plus.svg").size(14), "New tab", () => newTab(spaces().find(s => s.active)), "t3-tabs.new")))
+        .when(newTabShown, el => el.child(button("tab-new", "mods/t3-tabs/icons/plus.svg", "New tab", () => newTab(spaces().find(s => s.active)), "t3-tabs.new")))
         // The space panel's toggle, last before the window's buttons, over where it opens: the sidebar's panel-left, mirrored.
         // It opens on the page last shown; the panel's head picks the page. Lit while open.
-        .when(toggleShown, el => el.child(button("panel-toggle", svg("mods/t3-tabs/icons/panel-right.svg").size(14).when(panelState().open, g => g.text_color(t.foreground)),
+        .when(toggleShown, el => el.child(button("panel-toggle", "mods/t3-tabs/icons/panel-right.svg",
           panelState().open ? "Hide panel" : "Show panel", () => togglePanel(), "t3-tabs.panel")))
-        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
-          .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))
-          .child(button("close-window", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-close.svg").size(16) : svg("mods/t3-tabs/icons/x.svg").size(16), "Close window", () => run("window.close"), undefined, 28)))));
+        .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? "mods/t3-tabs/icons/win-min.svg" : undefined, "Minimize", () => run("window.minimize"), undefined, "sm", w.platform === "windows" ? undefined : "−"))
+          .child(button("maximize", w.platform === "windows" ? `mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg` : undefined, w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, "sm", w.platform === "windows" ? undefined : "□"))
+          .child(button("close-window", w.platform === "windows" ? "mods/t3-tabs/icons/win-close.svg" : "mods/t3-tabs/icons/x.svg", "Close window", () => run("window.close"), undefined, "sm")))));
     const space = spaces().find(p => p.active);
     // At Home, none: the brand bar's lit mark tells where this is.
     const { tabs: shown, context: ctx } = this.navigation.frame(!props()?.part), inbox = inboxShown();
@@ -449,12 +449,12 @@ export default class Tabs extends View {
           .opacity(cardShown ? 1 : 0).top(cardShown ? 0 : -4).transition("opacity", cardFade).transition("top", cardFade)
           .child(status ? `${name} · ${WORDS[status]}` : name)));
       // Its label waits longer than a card's 150ms, so a straight click never meets it. Its key closes the active tab only.
-      const close = tip(this, t, closeId, "Close tab", div().id(closeId).size(16).flex_none().flex().items_center().justify_center().rounded(4).hover(s => s.bg(t.raised)).on_hover(glow(this, closeId))
-        .role("button").accessibility_label(`Close ${name}`)
+      const close = tip(this, t, closeId, "Close tab", drawButton(t, closeId, {
+        size: "tiny", surface: "tab", icon: over ? "mods/t3-tabs/icons/x.svg" : undefined, label: `Close ${name}`, hot: over })
+        .on_hover(glow(this, closeId))
         .on_mouse_down("left", stopPress).on_click((_e, cx) => { cx.stop_propagation(); run(`t3-tabs.close-tab:${c.id}`); })
-        .when(over, el => el.child(svg("mods/t3-tabs/icons/x.svg").size(12).text_color(t.foreground)))
         .when(!over && status != null, el => el.child(mark(t, status)))
-        .when(over, el => stop(this, t, closeId, el, 4)), { action: c.active ? "t3-tabs.close-tab" : undefined, below: true, delay: 500 });
+        .when(over, el => stop(this, t, closeId, el, radiusOf("tiny"))), { action: c.active ? "t3-tabs.close-tab" : undefined, below: true, delay: 500 });
       const tab = h_flex().id(tabId).relative().h(24).w(widths.get(c.id)).pl(6).pr(8).gap(2).rounded(6).items_center().flex_none().text_size(12)
         .bg(c.active ? t.selected : t.chrome).text_color(c.active || over ? t.foreground : t.muted)
         .role("button").accessibility_label(name)
@@ -508,8 +508,7 @@ export default class Tabs extends View {
     };
     const root = layout(), { rail: sidebar } = sidebarParts(root);
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.
-    // Hidden, the sidebar's toggle stands where the brand bar's Herdr mark was: its 16px icon, 6 into the button, centred
-    // on that 20px logo, which the brand bar puts 82 in past the window buttons (16 + 66 here) and 14 in elsewhere.
+    // Hidden, leave room for the window controls before the sidebar toggle's padded 28px button.
     const lights = w?.platform === "macos" && w.titlebar === "none" && !w.fullscreen && root?.traffic_lights;
     const lightsPadding = sidebar?.hidden ? (lights ? (root.traffic_lights[0] + 66) / settings().zoom - 4 : 10)
       : lights ? Math.max(8, (root.traffic_lights[0] + 64) / settings().zoom - (sidebar?.size?.px ?? 0)) : 8;

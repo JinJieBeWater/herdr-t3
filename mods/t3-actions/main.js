@@ -7,6 +7,7 @@ import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, onStop, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 import { KEY, migrate } from "./store.js";
+import { button, radiusOf } from "./button.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
@@ -47,6 +48,7 @@ function deleteAction(id) {
   setShared(KEY.actions, { ...s, list: s.list.filter(x => x.id !== id) });
 }
 
+// Not shared/button.js: one outline round two halves is T3's ButtonGroup (docs/internals/t3-tokens.md).
 // The bar's control: "▶ Dev | ▾", or "Add action" before there is one. Outlined, not filled: a fill would read as an active tab.
 function control(view, t, stopPress) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the icon alone, the name left to the hover label. Unset, the full control.
@@ -107,10 +109,8 @@ function menu(view) {
     })
     // Add action stays outside the list, always in view: with it lit, nothing here is.
     .child(scrollList(view, "actions-list", { count: list.length, row: 28, height: Math.min(list.length * 28, MENU_MAX - MENU_REST), at: view.at < list.length ? view.at : -1, wheeled: (keep) => { if (keep >= 0) view.at = keep; }, draw: (at) => { const a = list[at]; return row(`action-${a.id}`, at, icon(a.icon).size(16).mx(-2).text_color(t.muted), a.name)
-        .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, div().id(`edit-${a.id}`).size(24).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(view, `edit-${a.id}`))
-          .hover(s => s.bg(t.raised)).on_hover(glow(view, `edit-${a.id}`)).role("button").accessibility_label(`Edit ${a.name}`)
-          .on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); })
-          .child(svg("mods/t3-actions/icons/settings.svg").size(14)), 8), { below: true })); } }))
+        .child(tip(view, t, `edit-${a.id}`, `Edit ${a.name}`, stop(view, t, `edit-${a.id}`, button(t, `edit-${a.id}`, { icon: "mods/t3-actions/icons/settings.svg", label: `Edit ${a.name}`, surface: "card", hot: view.hot === `edit-${a.id}` })
+          .on_hover(glow(view, `edit-${a.id}`)).on_click((_e, cx) => { cx.stop_propagation(); done(); editor(a.id); }), radiusOf()), { below: true })); } }))
     .child(div().h(1).mx(8).my(4).flex_none().bg(t.border))
     .child(row("action-new", list.length, svg("mods/t3-actions/icons/plus.svg").size(16).mx(-2).text_color(t.muted), "Add action")));
 }
@@ -143,9 +143,8 @@ function saveEditor(view) {
 // T3's dialog: 512 wide (max-w-lg) and as tall as its content. Its 16px corners are more than the app's frame has, so it opens frame: "none" and draws them.
 const dialog = (id, t) => v_flex().id(id).size_full().relative().rounded(16).border(1).border_color(t.border).bg(t.popover).shadow_2xl().text_size(14).line_height("20px");
 const dialogTitle = (t, text) => div().text_size(20).line_height("27.5px").font_semibold().text_color(t.foreground).child(text);
-// T3's default button, 32 high: 11 in from its 1px border.
-const dialogButton = (view, t, id, text, el) => stop(view, t, id, el.id(id).h(32).px(11).flex_none().items_center().rounded(8).border_1().font_medium()
-  .cursor_pointer().hover(s => s.opacity(0.88)).role("button").accessibility_label(text).child(text), 8);
+const dialogButton = (view, t, id, text, variant, act, disabled = false) => stop(view, t, id,
+  button(t, id, { text, variant, size: "default", surface: "card", disabled }).when(!disabled, el => el.cursor_pointer().on_click(act)), radiusOf("default"));
 
 function editorView(view) {
   const t = theme(), done = () => closeOverlay(props().overlay);
@@ -160,17 +159,11 @@ function editorView(view) {
     .bg(on ? t.selected : t.input).text_color(lit(view, id, on ? t.foreground : t.dim)).on_hover(glow(view, id))
     .role("button").accessibility_label(name)
     .on_click((_e, cx) => { pick(); cx.notify(); }).child(child), 8);
-  const button = (id, text, primary, act) => {
-    const on = primary && ok;
-    return dialogButton(view, t, id, text, h_flex().border_color(on ? t.solid : t.input)
-      .bg(on ? t.solid : t.raised).text_color(on ? t.solid_foreground : primary ? t.dim : t.foreground).on_click(act));
-  };
   return focusRoot(view, dialog("action-editor", t)
     .child(div().p(24).pb(12).child(dialogTitle(t, view.action ? "Edit action" : "Add action")))
     // T3's close: 32 square, 8 in from the corner.
-    .child(stop(view, t, "action-close", div().id("action-close").absolute().top(8).right(8).size(32).flex().items_center().justify_center().rounded(8)
-      .text_color(lit(view, "action-close")).hover(s => s.bg(t.hover)).on_hover(glow(view, "action-close"))
-      .role("button").accessibility_label("Close").on_click(done).child(svg("mods/t3-actions/icons/x.svg").size(16)), 8))
+    .child(stop(view, t, "action-close", button(t, "action-close", { icon: "mods/t3-actions/icons/x.svg", label: "Close", size: "default", surface: "card", hot: view.hot === "action-close" })
+      .absolute().top(8).right(8).on_hover(glow(view, "action-close")).on_click(done), radiusOf("default")))
     .child(v_flex().px(24).py(4).gap(16)
       .children(view.inputs.map(field))
       .child(h_flex().gap(16)
@@ -180,7 +173,7 @@ function editorView(view) {
           choice(`place-${p}`, view.place === p, () => { view.place = p; }, `Run in: ${text}`, text)))))))
     // As T3's editor: its footer is the bare kind, with no rule.
     .child(h_flex().mt_auto().px(24).py(16).gap(8).items_center()
-      .when(Boolean(view.action), el => el.child(dialogButton(view, t, "action-delete", "Delete", h_flex().border_color(t.input).text_color(t.ansi1).on_click(() => {
+      .when(Boolean(view.action), el => el.child(dialogButton(view, t, "action-delete", "Delete", "danger", () => {
           done();
           openOverlay({ mod: MOD, kind: "dialog", frame: "none", width: 512, props: {
             actions: "confirm",
@@ -189,10 +182,10 @@ function editorView(view) {
             yes: "Delete",
             command: { name: `${MOD}.delete-action:${view.action.id}` },
           } });
-        }))))
+        })))
       .child(div().flex_1())
-      .child(button("action-cancel", "Cancel", false, done))
-      .child(button("action-save", "Save", true, () => saveEditor(view)))));
+      .child(dialogButton(view, t, "action-cancel", "Cancel", "outline", done))
+      .child(dialogButton(view, t, "action-save", "Save", "primary", () => saveEditor(view), !ok))));
 }
 
 // T3's alert dialog, for what the shipped confirm mod would ask: props { title, detail, yes, command: { name, args } }. Enter confirms, Esc cancels.
@@ -218,8 +211,8 @@ function confirmView(view) {
       .child(dialogTitle(t, p.title ?? "Are you sure?"))
       .child(div().id("confirm-detail").max_h(384).overflow_y_scrollbar().text_color(t.muted).child(p.detail ?? "")))
     .child(h_flex().id("confirm-footer").mt_auto().px(24).pb(24).gap(8).items_center().justify_end()
-      .child(dialogButton(view, t, "confirm-no", "Cancel", h_flex().border_color(t.input).bg(t.raised).text_color(t.foreground).on_click(done)))
-      .child(dialogButton(view, t, "confirm-yes", p.yes ?? "Confirm", h_flex().border_color(t.input).bg(t.raised).text_color(t.ansi1).on_click(yes)))));
+      .child(dialogButton(view, t, "confirm-no", "Cancel", "outline", done))
+      .child(dialogButton(view, t, "confirm-yes", p.yes ?? "Confirm", "danger", yes))));
 }
 
 export default class Actions extends View {

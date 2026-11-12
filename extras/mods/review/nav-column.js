@@ -2,9 +2,10 @@
 // on its left, its left edge dragged, a 40 head over what it lists. As T3's FileExplorerPane: 256 to start, 160 at least,
 // at most 560 and never leaving the content less than 256. Each page keeps its width (`nav.width`) and whether its column
 // is open (`nav.open`) in its own localStorage. scripts/sync.sh copies this to both mods.
-import { div, svg } from "gpui-kit";
+import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { settings } from "herdr";
+import { button as drawButton } from "./button.js";
 
 export const NAV = 256, NAV_MIN = 160, NAV_MAX = 560, CONTENT_MIN = 256;
 
@@ -72,26 +73,23 @@ export function withNav(t, id, body, { content, head, list, open }) {
 }
 
 /** T3's xs ghost icon button, as the toolbars and the column's head have them: 24, a 14 icon, `on` lit, greyed when `disabled`. */
-/** @param {any} t @param {string} mod @param {string} id @param {string} icon @param {string} label @param {any} press @param {{ on?: boolean, disabled?: boolean }} [state] */
-export function ghostButton(t, mod, id, icon, label, press, { on = false, disabled = false } = {}) {
-  return div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(8)
-    .role("button").accessibility_label(label)
-    .when(disabled, (el) => el.opacity(0.3).text_color(t.muted))
-    .when(!disabled, (el) => el.text_color(on ? t.foreground : t.muted).when(on, (el) => el.bg(t.foreground + "1f"))
-      .hover((s) => s.bg(t.foreground + "12").text_color(t.foreground))
+/** @param {any} t @param {string} mod @param {string} id @param {string} icon @param {string} label @param {any} press @param {{ on?: boolean, disabled?: boolean, view?: any }} [state] */
+export function ghostButton(t, mod, id, icon, label, press, { on = false, disabled = false, view } = {}) {
+  return drawButton(t, id, { icon: `${mod}/icons/${icon}.svg`, label, surface: "card", on, disabled, hot: view?.hot === id })
+    .when(!disabled, (el) => el
+      .when(Boolean(view), el => el.on_hover((on, cx) => { view.hot = on ? id : null; cx.notify(); }))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); press(cx); }))
-    .child(svg(`${mod}/icons/${icon}.svg`).size(14));
+      .on_click((_e, cx) => { cx.stop_propagation(); press(cx); }));
 }
 
 /** The toolbar's switch for the column, last at its right, on while open; greyed when `disabled`. */
-/** @param {any} t @param {string} mod @param {string} id @param {boolean} open @param {any} toggle @param {boolean} [disabled] */
-export function navToggle(t, mod, id, open, toggle, disabled = false) {
-  return ghostButton(t, mod, id, "folder-tree", open ? "Hide the file tree" : "Show the file tree", toggle, { on: open, disabled });
+/** @param {any} t @param {string} mod @param {string} id @param {boolean} open @param {any} toggle @param {boolean} [disabled] @param {any} [view] */
+export function navToggle(t, mod, id, open, toggle, disabled = false, view) {
+  return ghostButton(t, mod, id, "folder-tree", open ? "Hide the file tree" : "Show the file tree", toggle, { on: open, disabled, view });
 }
 
 /** The head's Collapse all / Expand all: `folded` says which it does now. */
-/** @param {any} t @param {string} mod @param {string} id @param {boolean} folded @param {any} press */
-export function foldAllButton(t, mod, id, folded, press) {
-  return ghostButton(t, mod, id, folded ? "chevrons-up-down" : "chevrons-down-up", folded ? "Expand all" : "Collapse all", press);
+/** @param {any} t @param {string} mod @param {string} id @param {boolean} folded @param {any} press @param {any} [view] */
+export function foldAllButton(t, mod, id, folded, press, view) {
+  return ghostButton(t, mod, id, folded ? "chevrons-up-down" : "chevrons-down-up", folded ? "Expand all" : "Collapse all", press, { view });
 }

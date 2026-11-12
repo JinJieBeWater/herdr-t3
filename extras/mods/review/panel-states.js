@@ -2,6 +2,7 @@
 // on both. Each paints no background: the panel's shows through. scripts/sync.sh copies this to both mods.
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
+import { button as drawButton } from "./button.js";
 
 // Herdr's own spinner, which every mod can draw.
 const SPINNER = "mods/workspace-chrome/spinner.svg";
@@ -22,12 +23,11 @@ export function emptyState(t, id, icon, title, hint) {
 }
 
 /** Failed: a red bar under the toolbar, `ansi1` on a wash of it (its 0x18 alpha, Review's before), and Retry, T3's xs ghost button. */
-export function errorBar(t, id, text, retry) {
+export function errorBar(t, id, text, retry, view) {
   return h_flex().id(id).flex_none().px(12).py(6).gap(8).items_center().bg(t.ansi1 + "18").text_color(t.ansi1).text_size(11)
     .child(div().id(`${id}-text`).flex_1().min_w(0).child(text))
-    .child(h_flex().id(`${id}-retry`).h(24).px(8).flex_none().items_center().rounded(8).text_size(12).font_medium().text_color(t.foreground)
-      .hover((s) => s.bg(t.foreground + "12")).role("button")
+    .child(drawButton(t, `${id}-retry`, { variant: "plain", text: "Retry", surface: "card", hot: view?.hot === `${id}-retry` })
+      .when(Boolean(view), el => el.on_hover((on, cx) => { view.hot = on ? `${id}-retry` : null; cx.notify(); }))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); retry(cx); })
-      .child("Retry"));
+      .on_click((_e, cx) => { cx.stop_propagation(); retry(cx); }));
 }

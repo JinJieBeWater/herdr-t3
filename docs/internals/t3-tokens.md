@@ -47,6 +47,26 @@
 | 侧栏图标 | `SidebarThreadHeader.tsx`、`SidebarProjectFolderHeader.tsx`、`ui/collapsible-section-header.tsx`、`SidebarThreadRow.tsx` | 图标跟着按钮框走：28 的按钮图标 16，24 的小按钮（`icon-xs`）图标 14；收纳区和文件夹的折叠箭头、行内控件和标记 12 |
 | 面板标签 | 终端和预览面板的标签组件 | 见源码 |
 
+## 按钮
+
+按钮一律用 `shared/button.js` 的 `button()` 画，对照 T3 `ui/button.tsx`；为什么按钮例外于规则 2，见 [ADR 0016](../adr/0016-buttons-share-one-helper.md)。颜色只从这张表取，`accent` 不做按钮的底（它是焦点环和强调文字的色），`accent_foreground` 只配 `accent` 底的非按钮元素（`check.sh` 查）。
+
+| variant | T3 | 静止 | 悬停 | on（按下、弹层开着） |
+| --- | --- | --- | --- | --- |
+| `primary` | `default` | `solid` 底和边、`solid_foreground` 字 | 透明度 0.9 | — |
+| `outline` | `outline` | `raised` 底、`input` 边、`foreground` 字 | 透明度 0.9 | — |
+| `danger` | `destructive-outline` | 同 outline，字 `ansi1` | 透明度 0.9 | — |
+| `ghost` | `ghost-muted` | 无底无边，`dim` 字；`hot` 时 `foreground` | 底见下 | 底见下，字 `foreground` |
+| `plain` | `ghost` | 无底无边，`foreground` 字（工具栏里的文字动作，如 Review 的 Analyze、Retry） | 底见下 | 底见下 |
+
+- ghost 和 plain 的底随它所在的面（`surface`）：`chrome` 上悬停 `hover`、on `selected`；`card`（`background` 卡片、`popover`、对话框）上悬停 foreground 7%、on 12%，因为部分主题的 `hover` 等于 `popover` 和 `background`；`row`（侧栏的行和卡片里的控件，T3 行控件）没有底，只变亮；`tab`（标签的 ×）悬停 `raised`，照 T3 tab close 的 `bg-muted`。
+- 禁用：整体透明度 0.64（T3 `disabled:opacity-64`），不换底色和字色，没有悬停，不响应点击。
+- 焦点：`stop()` 的 2px `accent` 内环，半径取 `radiusOf(size)`。
+- svg 不吃悬停样式，ghost 的字色变化靠调用方传 `hot`（`view.hot === id`）。
+- 尺寸：`default` 32、`sm` 28、`compact` 28（字 12、圆角 6）、`xs` 24、`micro` 20（字 11、圆角 4）、`tiny` 16（圆角 4）；只有图标时是正方形，图标 16/16/14/14/12/12。
+
+不走 `button()` 的：列表行、菜单行、标签、分段切换（ToggleGroup）、日历格、select 的触发框和画成输入框的按钮（Inbox 的 Search）、按钮组（Actions 的 `▶ | ▾` 共用一圈描边，照 T3 的 ButtonGroup）、输入框自带的 stepper（`NumberInput` 的 − +）、行内链接（Undo，悬停下划线）、命令面板底部的文字动作（只变亮）、Inbox 卡片和行上的悬停控件（T3 行控件，无底）、Update 胶囊、品牌栏 Home。
+
 ## 程序标志
 
 程序标志直接使用 Herdr 官方资源，各组件沿用 T3 的图标槽尺寸，由 `shared/program.js` 的 `programIcon` 统一绘制。素材的画布、内部留白、宽高比与配色由 Herdr 维护，布局随官方资源更新。mod 提供的自定义图标也按其原画布绘制。

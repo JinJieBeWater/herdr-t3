@@ -7,6 +7,7 @@ import { sidebarParts } from "./sidebar.js";
 import { initSettings, settingsView } from "./settings.js";
 import { KEY } from "./store.js";
 import { panelState, showPage, hidePanel, toggleWide } from "./panel.js";
+import { button as drawButton, radiusOf } from "./button.js";
 
 // The space panel's pages (docs/adr/0011), as its stack has them: a page the layout lacks has no tab.
 // Review wears pulls.review's own mark, as the Review bar does: a review, not a git command. In its colors, so an image.
@@ -58,8 +59,7 @@ export default class WorkspaceChrome extends View {
   render() {
     if (props()?.view === "settings") return settingsView(this);
     const t = theme();
-    const lit = (id, color = t.dim) => (this.hot === id ? t.foreground : color);
-    if (props()?.part === "panel") return this.panelHead(t, lit);
+    if (props()?.part === "panel") return this.panelHead(t);
     if (props()?.footer) {
       // As T3's footer: a row of 32px icon buttons, and at its end, once Herdr has downloaded an update, its restart.
       const ready = updates().app.ready;
@@ -77,16 +77,14 @@ export default class WorkspaceChrome extends View {
             .on_click(() => run("t3-tabs.undo")))
           .child("Undo")
           .when(n.live && Date.now() - n.at < 5000, (el) => stop(this, t, "undo-notice-undo", el, 4)));
-      const button = (id, glyph, label, action, key) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(32).flex_none().flex().items_center().justify_center().rounded(8)
-        .text_color(lit(id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
-        .role("button").accessibility_label(label)
+      const button = (id, icon, label, action, key) => tip(this, t, id, label, stop(this, t, id, drawButton(t, id, { size: "default", icon, label, hot: this.hot === id })
+        .on_hover(glow(this, id))
         // Each opens over its button, before the pointer can report leaving it.
-        .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })
-        .child(glyph), 8), { action: key });
+        .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); }), radiusOf("default")), { action: key });
       // T3's footer: 8 in and 4 above its row, whatever height the layout gives the block.
       return focusRoot(this, div().size_full().bg(t.chrome).px(8).pt(4).child(h_flex().h(32).gap(4).items_center()
-        .child(button("settings", svg("mods/t3-chrome/icons/settings.svg").size(16), "Settings", () => run("app.settings"), "app.settings"))
-        .child(button("t3-settings", svg("mods/t3-chrome/icons/sliders-horizontal.svg").size(16), "Herdr T3 settings", () => run("t3-tabs.settings"), "t3-tabs.settings"))
+        .child(button("settings", "mods/t3-chrome/icons/settings.svg", "Settings", () => run("app.settings"), "app.settings"))
+        .child(button("t3-settings", "mods/t3-chrome/icons/sliders-horizontal.svg", "Herdr T3 settings", () => run("t3-tabs.settings"), "t3-tabs.settings"))
         .child(notice || div().flex_1())
         .when(Boolean(ready), el => el.child(tip(this, t, "app-update", `Update ${ready} downloaded. Click to restart`, stop(this, t, "app-update", div().id("app-update").h(32).px(12).flex_none().flex().items_center()
           .rounded_full().bg(t.accent + "26").text_size(12).text_color(t.accent).hover(s => s.bg(t.accent + "40")).on_hover(glow(this, "app-update"))
@@ -118,25 +116,23 @@ export default class WorkspaceChrome extends View {
           .on_size_change((size, cx) => { this.nameW = size.width / zoom; cx.notify(); }))), 8))
       .child(div().flex_1())
       // T3's 28px title bar buttons, side by side instead of its 12 apart, so each stands over a button of the list's top row below.
-      .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", div().id("sidebar-mode").size(28).flex_none().flex().items_center().justify_center().rounded(8)
-        .text_color(lit("sidebar-mode")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-mode"))
-        .role("button").accessibility_label(inbox ? "Show lists" : "Show inbox")
+      // The mode a click shows: a tray for the Inbox, rows with their marks for the lists.
+      .child(tip(this, t, "sidebar-mode", inbox ? "Show lists" : "Show inbox", stop(this, t, "sidebar-mode", drawButton(t, "sidebar-mode", {
+        size: "sm", icon: `mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`, label: inbox ? "Show lists" : "Show inbox", hot: this.hot === "sidebar-mode" })
+        .on_hover(glow(this, "sidebar-mode"))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click(() => run("t3-tabs.sidebar"))
-        // The mode a click shows, as its label says: a tray for the Inbox, rows with their marks for the lists. Not circle-check or layers: those are Settle and Grouped by space.
-        .child(svg(`mods/t3-chrome/icons/${inbox ? "layout-list" : "inbox"}.svg`).size(16)), 8), { action: "t3-tabs.sidebar", below: true }))
-      .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", div().id("sidebar-toggle").size(28).flex_none().flex().items_center().justify_center().rounded(8)
-        .text_color(lit("sidebar-toggle")).hover(s => s.bg(t.hover)).on_hover(glow(this, "sidebar-toggle"))
-        .role("button").accessibility_label("Hide sidebar")
+        .on_click(() => run("t3-tabs.sidebar")), radiusOf("sm")), { action: "t3-tabs.sidebar", below: true }))
+      .child(tip(this, t, "sidebar-toggle", "Hide sidebar", stop(this, t, "sidebar-toggle", drawButton(t, "sidebar-toggle", {
+        size: "sm", icon: "mods/t3-chrome/icons/panel-left.svg", label: "Hide sidebar", hot: this.hot === "sidebar-toggle" })
+        .on_hover(glow(this, "sidebar-toggle"))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         // It goes with the sidebar, before the pointer can report leaving it.
-        .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); })
-        .child(svg("mods/t3-chrome/icons/panel-left.svg").size(16)), 8), { action: "layout.toggle:sidebar", below: true })));
+        .on_click(() => { this.hot = null; run("layout.toggle", { id: "sidebar" }); }), radiusOf("sm")), { action: "layout.toggle:sidebar", below: true })));
   }
 
   // The space panel's top: its pages as T3's panel tabs (24px, 12px words), then widen and close as 24px icon buttons.
   // The rest of the row drags the window, as the tab bar does.
-  panelHead(t, lit) {
+  panelHead(t) {
     const s = panelState(), space = spaces().find(p => p.active);
     // Review's run for this space, marked as a tab's agent is: what was news in a pane's card before (docs/adr/0011).
     const word = space && shared("review.status")?.[space.id];
@@ -157,11 +153,10 @@ export default class WorkspaceChrome extends View {
         .child(label)
         .when(id === "review" && mark != null, el => el.child(mark))), 6);
     };
-    const button = (id, icon, label, action, key) => tip(this, t, id, label, stop(this, t, id, own(div().id(id).size(24).flex_none().flex().items_center().justify_center().rounded(8)
-      .text_color(lit(id)).hover(st => st.bg(t.hover)).on_hover(glow(this, id))
-      .role("button").accessibility_label(label)
-      .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })
-      .child(svg(`mods/t3-chrome/icons/${icon}.svg`).size(14))), 8), { action: key, below: true });
+    const button = (id, icon, label, action, key) => tip(this, t, id, label, stop(this, t, id, own(drawButton(t, id, {
+      icon: `mods/t3-chrome/icons/${icon}.svg`, label, hot: this.hot === id })
+      .on_hover(glow(this, id))
+      .on_click((_e, cx) => { this.hot = null; action(); cx.notify(); })), radiusOf("xs")), { action: key, below: true });
     return focusRoot(this, h_flex().id("panel-head").size_full().bg(t.chrome).gap(4).items_center()
       .children(s.pages.map(page))
       .child(div().flex_1())

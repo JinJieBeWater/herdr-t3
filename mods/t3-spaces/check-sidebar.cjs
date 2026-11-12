@@ -51,6 +51,8 @@ function bundle(dir, file = "main.js", seen = new Set()) {
   if (seen.has(file)) return "";
   seen.add(file);
   const src = fs.readFileSync(path.join(dir, file), "utf8");
+  // Keep the helper's private tint separate from project.js's exported tint.
+  if (file === "button.js") return "const { button, radiusOf } = (() => {\n" + src.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") + "\nreturn { button, radiusOf }; })();\nconst drawButton = button;";
   const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map((m) => bundle(dir, m[1], seen)).join("\n");
   return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 }
@@ -169,7 +171,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(grandchild.style.pl - child.style.pl, 20);
   assert.equal(child.style.text_size, 14);
   for (const row of [agent, child, grandchild]) {
-    assert.equal(inFlow(row)[0].style.size, 16, "icons share a fixed column");
+    assert.equal(inFlow(row)[0].style.w ?? inFlow(row)[0].style.size, 16, "icons share a fixed column");
     assert.equal(row.style.gap, 10);
     assert.equal(row.style.h, 36, "T3's one-line row");
   }
@@ -183,7 +185,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(lines(find(branched, "sub-child2")), [[17.25, "elbow"]]);
   const elbow = find(child, "sub-child").items.find(n => "border_b" in n.style).style;
   assert.deepEqual([elbow.w, elbow.rounded_bl], [9.75, 6], "upstream-size turn: ends 4px before the icon, 6px radius");
-  assert.equal(elbow.left + 1.5 / 2, agent.style.px + inFlow(agent)[0].style.size / 2, "the line runs down the parent icon's center");
+  assert.equal(elbow.left + 1.5 / 2, agent.style.px + inFlow(agent)[0].style.w / 2, "the line runs down the parent icon's center");
   assert.equal(elbow.left + elbow.w + 4, child.style.pl + (16 - 14) / 2, "the turn stops 4px before the child icon");
   f.terminals().pop();
   // A kept sub-agent (one with a pane) is in agents() too: it shows once, under its parent, unless pinned.
@@ -209,11 +211,16 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(agent, "on_hover", true, cx);
   const hoveredTree = ag.render(cx);
   assert.notEqual(find(hoveredTree, "agent-fold-t0").items[0]?.source, "mods/t3-agents/icons/chevron-down.svg", "hover leaves the icon alone");
-  assert.equal(find(hoveredTree, "agent-fold-t0").style.size, 16);
-  assert.equal(find(hoveredTree, "pin-t0").style.size, 24, "T3's row control, over the time's slot");
+  assert.deepEqual([find(hoveredTree, "agent-fold-t0").style.h, find(hoveredTree, "agent-fold-t0").style.w], [16, 16]);
+  assert.equal(find(hoveredTree, "agent-fold-t0").hoverStyle.bg, undefined, "a row control only lights, as T3's: no ground");
+  assert.equal(find(hoveredTree, "pin-t0").style.h, 24, "T3's row control, over the time's slot");
+  assert.equal(find(hoveredTree, "pin-t0").style.w, 24);
+  assert.equal(find(hoveredTree, "pin-t0").items[0].style.size, 14);
+  assert.equal(find(hoveredTree, "pin-t0").style.rounded, 8);
   assert.equal(find(hoveredTree, "pin-t0").style.border, undefined, "pin is borderless like fold");
   fire(find(hoveredTree, "pin-t0"), "on_hover", true, cx);
-  assert.equal(find(ag.render(cx), "pin-t0").items[0].style.text_color, f.theme().foreground, "hovered, the pin brightens");
+  assert.equal(find(ag.render(cx), "pin-t0").style.text_color, f.theme().foreground, "hovered, the pin inherits the brightened button color");
+  assert.equal(find(ag.render(cx), "pin-t0").hoverStyle.bg, undefined, "a row control only lights, as T3's");
   fire(find(hoveredTree, "pin-t0"), "on_hover", false, cx);
   assert.deepEqual(find(hoveredTree, "controls-t0").items.map(n => n.key), ["tip-fold-t0", "when-t0", "tip-status-t0-mark"], "pin shares the time's slot, the status stays, as the shipped list");
   assert.deepEqual([find(hoveredTree, "pin-t0").style.opacity, find(hoveredTree, "when-t0").items[0].style.opacity], [1, 0], "time and pin cross-fade, as T3's corner");
@@ -237,6 +244,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // Inside a hovered row a button's own fill doesn't show: its arrow and count brighten together instead.
   fire(find(at, "fold-t0"), "on_hover", true, cx);
   const lit = find(ag.render(cx), "fold-t0");
+  assert.equal(lit.hoverStyle.bg, undefined, "no ground, as T3's row controls");
   assert.deepEqual([lit.style.text_color, find(lit, "fold-t0-arrow-right").items[0].style.text_color], [f.theme().foreground, f.theme().foreground], "hovered, the arrow and the count brighten together");
   fire(lit, "on_hover", false, cx);
   assert.equal(find(ag.render(cx), "fold-t0-arrow-right").items[0].style.text_color, f.theme().dim);
@@ -365,7 +373,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const header = f.load("t3-chrome").render(cx);
   assert.deepEqual(header.items.map(n => n.key).filter(k => typeof k === "string"), ["home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Herdr's mark (Home, no tooltip), the sidebar switch and toggle; search is a shortcut");
   assert.ok(walk(find(header, "home")).some(n => n.kind === "image") && strings(find(header, "home")).includes("Herdr"), "Herdr's mark and name, as its own layout has them");
-  assert.deepEqual([header.style.pl, header.style.pr, find(header, "sidebar-mode").style.size, find(header, "sidebar-mode").style.rounded], [76, 8, 28, 8], "past the window buttons; T3's 28px buttons, side by side so they stand over the list's top row");
+  assert.deepEqual([header.style.pl, header.style.pr, find(header, "sidebar-mode").style.h, find(header, "sidebar-mode").style.w, find(header, "sidebar-mode").style.rounded], [76, 8, 28, 28, 8], "past the window buttons; T3's 28px buttons, side by side so they stand over the list's top row");
   fire(find(header, "sidebar-toggle"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["layout.toggle", { id: "sidebar" }]);
   {
@@ -380,7 +388,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   }
   const footer = f.load("t3-chrome", { footer: true });
   const settings = find(footer.render(cx), "settings");
-  assert.deepEqual([settings.style.size, settings.items[0].style.size, settings.style.accessibility_label], [32, 16, "Settings"], "as T3's footer: 32px icon buttons");
+  assert.deepEqual([settings.style.h, settings.style.w, settings.items[0].style.size, settings.style.accessibility_label], [32, 32, 16, "Settings"], "as T3's footer: 32px icon buttons");
   assert.equal(find(footer.render(cx), "app-update"), null, "no update, no restart");
   f.ui.updates = { app: { ready: "0.9.1" } };
   const update = find(footer.render(cx), "app-update");
@@ -420,7 +428,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(slot.handlers.on_click, undefined, "status remains an indicator, not a pin target");
   }
   const at = ag.render(cx), heading = find(at, "agents-heading");
-  assert.deepEqual([heading.style.pr, find(heading, "ag-sort").style.size, find(heading, "ag-sort").style.rounded], [8, 28, 8], "T3's header button, 8 from the edge");
+  assert.deepEqual([heading.style.pr, find(heading, "ag-sort").style.h, find(heading, "ag-sort").style.w, find(heading, "ag-sort").style.rounded], [8, 28, 28, 8], "T3's header button, 8 from the edge");
   assert.equal(heading.items[0].style.text_color, f.theme().muted, "section titles are a step brighter than group labels");
   // A space's group is T3's project folder: its mark and name, the chevron where the rows' content ends.
   const group = find(at, "sp-s0"), chevron = inFlow(group).at(-1);
@@ -1343,7 +1351,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   delete f.agents()[0].program.icon;
   ag.toggleFold("t0", cx);
   const tree = ag.render(cx);
-  assert.equal(find(tree, "ag-t0").items[0].style.size, 16, "missing icons do not shift names");
+  assert.equal(find(tree, "ag-t0").items[0].style.w, 16, "missing icons do not shift names");
   assert.equal(inFlow(find(tree, "sub-child"))[0].style.size, 16);
   fire(find(tree, "agent-fold-t0"), "on_click", {}, cx);
   assert.equal(find(ag.render(cx), "sub-grandchild"), null, "missing icons do not disable folding");
@@ -1573,7 +1581,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const spinner = tree => walk(tree).find(n => n.source === "mods/workspace-chrome/spinner.svg");
   const open = f.load("t3-agents");
   for (const tree of [tabs.render(cx), head, open.render(cx)]) assert.equal(spinner(tree).style.text_color, f.theme().working);
-  for (const id of ["ph-r-p0", "ph-d-p0", "ph-z-p0", "ph-x-p0"]) assert.equal(find(head, id).style.size, 24);
+  for (const id of ["ph-r-p0", "ph-d-p0", "ph-z-p0", "ph-x-p0"]) assert.deepEqual([find(head, id).style.h, find(head, id).style.w], [24, 24]);
   const actions = walk(head).find(n => n.items.some(child => child?.key === "tip-ph-r-p0"));
   assert.equal(actions.style.gap, 4);
   assert.ok("flex_none" in actions.style, "narrow panes keep the action targets at their full size");
@@ -1850,7 +1858,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Not on the chevron's own box: there Herdr drew the whole group past the sidebar's edge.
     const lists = f.load("t3-spaces", menu), row = find(lists.render(cx), "machine-local");
     const add = find(row, "machine-add-local").style, slots = row.items.at(-1).style;
-    assert.deepEqual([row.style.h, row.style.mx, row.style.px, add.size, add.rounded, slots.gap, slots.mr, find(row, "machine-fold-local").style.mr], [32, 2, 8, 24, 8, 10, -2, undefined]);
+    assert.deepEqual([row.style.h, row.style.mx, row.style.px, add.h, add.w, add.rounded, slots.gap, slots.mr, find(row, "machine-fold-local").style.mr], [32, 2, 8, 24, 24, 8, 10, -2, undefined]);
     assert.equal(row.style.text_size, 12, "the same size as the agents' group headers and Inbox's shelves");
     assert.ok(row.items.findIndex(n => find(n, "machine-state-local")) < row.items.findIndex(n => find(n, "machine-add-local")), "the dot is before the +");
     // Hover labels name the control, and its key only when the key does the same.
@@ -1979,7 +1987,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const tab = find(tabs.render(cx), "tab-other").style;
     assert.deepEqual([tab.h, tab.text_size, tab.pl, tab.pr, tab.gap], [24, 12, 6, 8, 2]);
     const close = () => find(tabs.render(cx), "close-other");
-    assert.deepEqual([close().style.size, close().style.accessibility_label], [16, "Close other"], "every tab has it, not only the active one");
+    assert.deepEqual([close().style.h, close().style.w, close().style.accessibility_label], [16, 16, "Close other"], "every tab has it, not only the active one");
     assert.equal(close().items.length, 0, "at rest it's empty, with no status to show");
     assert.ok(walk(find(tabs.render(cx), "tab-other")).some(n => n.source === "mods/t3-tabs/icons/terminal.svg"), "the tab's icon, a terminal's when it has no program");
     // The pointer on a tab's name is on the tab too; the card goes by the name, the × by the tab.

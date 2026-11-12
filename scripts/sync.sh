@@ -36,6 +36,7 @@ share file-tree mods/t3-files extras/mods/review
 share nav-column mods/t3-files extras/mods/review
 share file-menu mods/t3-files extras/mods/review
 share panel-states mods/t3-files extras/mods/review
+share button mods/t3-actions mods/t3-agents mods/t3-spaces mods/t3-inbox mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-files extras/mods/pulls-review extras/mods/review extras/mods/asciicn-wallpaper
 # file-icons.js's SVGs (scripts/vendor.sh makes them): each mod draws only its own.
 for d in mods/t3-files extras/mods/review; do rsync -a --delete "$src/shared/icons/cat/" "$src/$d/icons/cat/"; done
 

@@ -8,6 +8,7 @@ import { step, scrollList } from "./list.js";
 import { FIRST } from "./row-model.js";
 import { KEY } from "./store.js";
 import { openMenu } from "./menu.js";
+import { button, radiusOf } from "./button.js";
 
 // The space filter's rows, flush as T3's, and how many show before the list scrolls: the whole rows T3's 23rem holds.
 const SCOPE_ROW = 32, SCOPE_SHOWN = 9;
@@ -35,10 +36,8 @@ export function inboxTop(view, t, model) {
   const avatar = (id, name, size) => projectMark(sp.find((s) => s.id === id) ?? { name: name ?? "" }, size, t, ps);
   // T3's top row: search on the left, then the space filter, new space and new tab.
   const asks = props()?.newMenu && machines().length > 1;
-  const tool = (id, label, icon, fn, more) => tip(view, t, id, label, stop(view, t, id, div().id(id).size(28).flex_none().flex().items_center().justify_center().rounded(8)
-    .hover((s) => s.bg(t.hover)).on_hover(glow(view, id)).on_mouse_down("left", () => pressed(view))
-    .role("button").accessibility_label(label).on_click(fn)
-    .child(svg(`mods/t3-inbox/icons/${icon}.svg`).size(16).text_color(lit(id, t.dim))), 8), more);
+  const tool = (id, label, icon, fn, more) => tip(view, t, id, label, stop(view, t, id, button(t, id, { icon: `mods/t3-inbox/icons/${icon}.svg`, label, size: "sm", hot: view.hot === id })
+    .on_hover(glow(view, id)).on_mouse_down("left", () => pressed(view)).on_click(fn), radiusOf("sm")), more);
   // The filter shows what it filters to: one avatar, two overlapping, or the plain filter icon.
   const scoped = sp.filter((s) => scope.includes(s.id)), found = view.matches();
   const choice = (s, i) => {
@@ -70,16 +69,14 @@ export function inboxTop(view, t, model) {
       }
       cx.notify();
     })
-    .trigger(stop(view, t, "inbox-scope", h_flex().id("inbox-scope").size(28).flex_none().items_center().justify_center().rounded(8)
-      .hover((s) => s.bg(t.hover)).on_hover(glow(view, "inbox-scope"))
-      .role("button").accessibility_label(scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space")
-      .child(scoped.length > 1
+    .trigger(stop(view, t, "inbox-scope", button(t, "inbox-scope", { size: "sm", hot: view.hot === "inbox-scope", on: view.scopeOpen,
+      label: scoped.length ? `Filter by space: ${scoped.map((s) => s.name).join(", ")}` : "Filter by space",
+      icon: scoped.length ? undefined : "mods/t3-inbox/icons/list-filter.svg" }).on_hover(glow(view, "inbox-scope"))
+      .when(scoped.length > 0, el => el.child(scoped.length > 1
         // T3's second mark overlaps by 4 with a 2px ring of the sidebar's color.
         ? h_flex().children(scoped.slice(0, 2).map((s, i) => i === 0 ? avatar(s.id, s.name, 14)
           : h_flex().flex_none().ml(-6).rounded(6).border(2).border_color(t.chrome).child(avatar(s.id, s.name, 14))))
-        : scoped.length
-          ? avatar(scoped[0].id, scoped[0].name, 16)
-          : svg("mods/t3-inbox/icons/list-filter.svg").size(16).text_color(lit("inbox-scope", t.dim))), 8))
+        : avatar(scoped[0].id, scoped[0].name, 16))), radiusOf("sm")))
     .content(v_flex().id("inbox-scope-panel").w(288).mt(4).p(4).rounded(8)
       .bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(14)
       .on_key_down((e, cx) => {
@@ -100,7 +97,8 @@ export function inboxTop(view, t, model) {
         .when(found.length === 0, (el) => el.child(div().p(8).text_center().line_height("20px").text_color(t.dim).child("No matching spaces.")))));
   // T3's top group: 8 in and the search field 4 before its buttons, which touch. The right edge is the brand bar's above, so the two rows of icons line up.
   const top = h_flex().id("inbox-top").h(32).px(8).gap(4).flex_none().items_center()
-    // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to.
+    // Sized as T3's search field (h-8, 16px icon, a medium 14px placeholder), but a button: it opens Go to. Not shared/button.js:
+    // it's drawn as a field, as the select triggers are.
     .child(stop(view, t, "inbox-search", h_flex().id("inbox-search").flex_1().h(32).px(8).gap(8).items_center().rounded(6).text_size(14).font_medium()
       .text_color(lit("inbox-search", t.dim)).hover((s) => s.bg(t.hover)).on_hover(glow(view, "inbox-search")).on_mouse_down("left", () => pressed(view))
       // Each opens over its button, before the pointer can report leaving it.

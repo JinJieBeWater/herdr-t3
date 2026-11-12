@@ -497,7 +497,7 @@ export default class ReviewPanel extends View {
         if (Math.abs(width - this.width) >= 1 || Math.abs(height - this.height) >= 1) { this.width = width; this.height = height; cx.notify(); }
       })
       .child(header(this, t, this.head()))
-      .when(Boolean(this.error), el => el.child(errorBar(t, "review-error", this.error, (cx) => this.load(cx))))
+      .when(Boolean(this.error), el => el.child(errorBar(t, "review-error", this.error, (cx) => this.load(cx), this)))
       // The groups, as pulls.review's tabs, across the page: the one picked is the diff and the tree.
       .children(this.review && !this.switching ? [groupTabs(this, t, (key, cx) => showGroup(this, key, cx))].filter(Boolean) : [])
       .child((!this.review
