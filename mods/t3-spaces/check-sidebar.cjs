@@ -2570,11 +2570,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.spaces()[0].tabs[0].active = true;
     f.answerHc(args => { if (args[0] === "label") { const i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
     const tabs = f.load("t3-tabs");
-    // Pinned from the tab bar's menu as from the agents list (pins.js): last, and it ends a snooze.
+    // Pinned from the tab bar's menu as from the agents list (pins.js): first, and it ends a snooze.
     k.labels.snoozed = String(Date.now() + 60000);
     f.scopes.get("t3-tabs").pin("t0");
     await new Promise(setImmediate);
-    assert.deepEqual([plain(f.state["t3.pins"]), k.labels.snoozed], [["head", "t0"], ""], "Pin goes last and ends the snooze, as the agents list's");
+    assert.deepEqual([plain(f.state["t3.pins"]), k.labels.snoozed], [["t0", "head"], ""], "Pin goes first, as T3's, and ends the snooze");
     f.state["t3.pins"] = ["head"];
     f.scopes.get("t3-tabs").pin("t0");
     const at = Date.now() + 3600000;

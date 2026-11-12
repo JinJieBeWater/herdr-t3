@@ -7,10 +7,10 @@ import { writeLabel } from "./labels.js";
 export const pinList = () => shared(KEY.pins) ?? [];
 export const setPinned = (list) => setShared(KEY.pins, list);
 
-// Last, as the agents list adds them. A pin ends a snooze, here so every way to pin does, whether or not the Inbox runs.
+// First, as T3's: a fresh pin lands where it's looked for. A pin ends a snooze, here so every way to pin does, whether or not the Inbox runs.
 export function pin(address) {
   const pins = pinList();
-  if (!pins.includes(address)) setPinned([...pins, address]);
+  if (!pins.includes(address)) setPinned([address, ...pins]);
   if (terminals().find(k => k.address === address)?.labels?.snoozed) writeLabel(address, "snoozed", "");
 }
 
