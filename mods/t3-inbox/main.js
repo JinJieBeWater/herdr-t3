@@ -258,7 +258,7 @@ export default class Inbox extends View {
       changed: state(a) === ownStatus(a.status, a.address, all) ? tabs.get(a.tab)?.changed_at : null,
     })), all, now, cx);
     const sections = inboxSections(every.map((a) => ({ a, address: a.address, settledAt: settledAt(a), hidden: hidden(a),
-      working: working(a), viewing: viewing(a), since: since(a), begun: begun(a), napUntil: napUntil(a) })),
+      working: working(a), viewing: viewing(a), since: since(a), begun: begun(a), napUntil: napUntil(a), blocked: state(a) === "blocked" })),
       { scope, pins, workOpen: this.workOpen, napOpen: this.napOpen, open: this.open, limit: this.limit });
     const { pinned, out, work, nap, put, busyRows, napRows, rows, next } = sections;
     // A menu whose card went (snoozed, gone) or now needs the person closes, as T3's.

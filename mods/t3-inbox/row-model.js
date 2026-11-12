@@ -8,6 +8,8 @@ const BUSY = new Set(["working", "blocked"]);
 // The last word when times tie, so the order doesn't follow the order the data came in.
 const byAddress = (x, y) => x.address.localeCompare(y.address);
 export const byRecent = (x, y) => y.since - x.since || byAddress(x, y);
+// The cards: one waiting on the person first, however long it has waited; the rest by when each came back.
+export const byCard = (x, y) => Number(y.blocked) - Number(x.blocked) || byRecent(x, y);
 
 // Takes each agent's state as working, blocked or idle (done counts as idle: looking at it isn't news).
 // A run's place in Working is when it started, as T3's is the person's message: a pause for them, or a stop
@@ -114,8 +116,8 @@ export function inboxSections(every, { scope, pins, workOpen, napOpen, open, lim
   const list = scope.length ? every.filter((x) => scope.includes(x.a.space)) : every;
   const pinned = pins.map((p) => list.find((x) => x.address === p)).filter((x) => x && !x.hidden);
   const rest = list.filter((x) => !pins.includes(x.address));
-  // Active by when each came back to the person; Working by when its run started.
-  const out = rest.filter((x) => !x.settledAt && !x.hidden && !x.working).sort(byRecent);
+  // Active as byCard; Working by when its run started.
+  const out = rest.filter((x) => !x.settledAt && !x.hidden && !x.working).sort(byCard);
   const work = rest.filter((x) => !x.settledAt && !x.hidden && x.working).sort((x, y) => y.begun - x.begun || byAddress(x, y));
   // Soonest back first; pinned ones too: they wake back to their pin.
   const nap = list.filter((x) => x.hidden).sort((x, y) => x.napUntil - y.napUntil || byAddress(x, y));

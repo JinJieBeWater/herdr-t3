@@ -605,11 +605,22 @@ test("a hidden list's Working clock goes quiet: only a draw starts it again", ()
 });
 
 
-test("a run out of its grace lands on top of Active, over one that came back meanwhile", () => {
+test("a run out of its grace lands on top of what needs nothing, under one waiting on the person", () => {
   const f = fixture(), a = f.add("A", "working"), b = f.add("B", "working"); f.mod.workOpen = true;
   f.render(); a.status = "idle"; f.render(1100);
   b.status = "blocked"; f.render(2000); assert.deepEqual(f.active(), ["B"]);
-  f.render(3100); assert.deepEqual(f.active(), ["A", "B"]);
+  f.render(3100); assert.deepEqual(f.active(), ["B", "A"]);
+});
+
+test("a card waiting on the person leads the cards, however long it has waited; the rest go by when they came back", () => {
+  const f = fixture(); f.add("Stuck", "blocked", 100); f.add("Seen", "idle", 900); f.add("Finished", "done", 500);
+  f.render(1000); assert.deepEqual(f.active(), ["Stuck", "Seen", "Finished"]);
+  // Unpinned, the drop's gap shows where it will land: under the one waiting.
+  const g = fixture(); g.add("Stuck", "blocked", 100); g.add("Seen", "idle", 200); g.add("P", "idle", 900); g.pins = ["P"];
+  g.render(1000); g.mod.drag = { from: "P", moved: true, y: 100, grab: 10, height: 60, target: { section: "active" } }; g.render(1000);
+  assert.ok(find(g.tree, "gap-Seen").style.h[0] > 0);
+  g.event("t3-inbox-root", "on_mouse_up:left"); g.render(1000);
+  assert.deepEqual(g.active(), ["Stuck", "P", "Seen"]);
 });
 
 test("pinned agents skip the grace: unpinned right after stopping, it's in Active", () => {
