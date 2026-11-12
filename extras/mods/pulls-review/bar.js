@@ -2,7 +2,7 @@
 // its upstream, each opening that diff.
 // Its logo lists what else there is to pick: a commit, or another branch. The git reads are review-git.js's, shared with the
 // Review page's scope menu.
-// In Herdr T3 (`toggle` in its props) the panel's toggle takes the logo's place: the logo is the panel's Review tab.
+// In Herdr T3 (`toggle` in its props) the bar is the panel's toggle alone, no counts: the logo is the panel's Review tab.
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
 import { div, svg, image } from "gpui-kit";
@@ -287,35 +287,35 @@ function openPicks(view, r, at, still = () => true) {
 }
 
 export function reviewBar(view, t, stopPress) {
-  const toggle = Boolean(props()?.toggle);
+  // How the space's analysis goes: the panel head's mark, here too (docs/adr/0011).
+  const space = spaces().find(s => s.active)?.id, word = shared("review.status")?.[space], mark = word === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
+    : word === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
+    : word === "done" ? div().size(6).flex_none().rounded_full().bg(t.done) : null;
+  // Herdr T3: the panel's toggle alone, the counts left to the panel's scope menu.
+  if (props()?.toggle) return h_flex().id("pulls-review").h(24).flex_none().items_center().on_mouse_down("left", stopPress).child(panelButton(view, t, word, mark));
   // Looked up on each render, so the frame that shows another space already shows its own counts.
   const r = onHome() ? null : view.reviews?.get(JSON.stringify(reviewLocation()));
-  if (!r) return toggle ? h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stopPress)
-    .child(panelButton(view, t, null, true)) : null;
+  if (!r) return null;
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // A narrow bar's layout sets it (Herdr T3's bar-measure): each count with an icon for what it counts. Unset, the words.
   const compact = shared(KEY.compact);
-  // What the space's review shows, when it's this repository's, and how its analysis goes: the panel head's mark, here too (docs/adr/0011).
-  const space = spaces().find(s => s.active)?.id, reviewed = shared("review.shown")?.[space], here = reviewed?.root === r.root ? reviewed : null;
-  const word = shared("review.status")?.[space], mark = word === "working" ? svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)
-    : word === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
-    : word === "done" ? div().size(6).flex_none().rounded_full().bg(t.done) : null;
+  // What the space's review shows, when it's this repository's.
+  const reviewed = shared("review.shown")?.[space], here = reviewed?.root === r.root ? reviewed : null;
   const pickLabel = `Change what to review${word ? `, analysis ${{ working: "running", done: "done", blocked: "failed" }[word]}` : ""}`;
   // The diff, whichever of its commits the pane is on.
   const isShown = (args) => here?.base === argPage(args, r.branch);
   // The accessibility label says what each count compares, which the short label can't. No color: here it means an agent's state.
   // The count leads; what it counts stays quiet beside it.
-  // As T3's xs buttons in a Group: 22, the outline's inside (a hover card's wrapper has no height for h_full to fill), the
-  // outline's 1 and 7 in. Its label is the name's first part. Compact, the label gives back the words the count lost, `· merged?` included.
-  const item = ([id, count, noun, icon, name, args, arrow = ""], first) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], stop(view, t, id, h_flex().id(id).h(22).px(7).gap(4).flex_none().items_center()
-    .text_size(12).font_medium().text_color(t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover).text_color(t.foreground))
-    // Herdr has no group hover. Entering the next segment can report before leaving this one.
+  // As T3's ghost xs buttons: 24, 8 in, no outline. Quiet: dim and regular, lit (foreground) hovered or while its diff is the one
+  // shown; a hover style can't brighten the icon, so the hover is view.hot. Its label is the name's first part. Compact, the label
+  // gives back the words the count lost, `· merged?` included.
+  const item = ([id, count, noun, icon, name, args, arrow = ""]) => tip(view, t, id, compact && noun ? `${count} ${noun}` : name.split(": ")[0], stop(view, t, id, h_flex().id(id).h(24).px(8).gap(4).flex_none().items_center().rounded(8)
+    .text_size(12).text_color(isShown(args) || view.hot === id ? t.foreground : t.dim).hover(s => s.bg(t.hover)).role("button").accessibility_label(isShown(args) ? `${name}, shown` : name).when(isShown(args), el => el.bg(t.hover))
     .on_hover(glow(view, id))
     .on_click((_e, cx) => cx.spawn(() => launch({ root: r.root, args, page: argPage(args, r.branch), analyze: true })))
     .when(compact, el => el.child(svg(`mods/${MOD}/icons/${icon}.svg`).size(14).flex_none()))
-    .child(div().text_color(t.foreground).child(compact ? count : arrow + count))
-    .when(Boolean(noun) && !compact, el => el.child(noun))
-    .when(first, el => el.rounded_l(7)), first ? 7 : 0), { below: true });
+    .child(compact ? count : arrow + count)
+    .when(Boolean(noun) && !compact, el => el.child(noun)), 8), { below: true });
   const segments = [
     r.changed > 0 && ["review-changes", String(r.changed), "uncommitted", "file-diff", `Review ${n(r.changed, "uncommitted file")}: staged, unstaged and new`, ["--worktree"]],
     // A squash merge leaves the count standing, so a deleted upstream is the visible hint it may be done.
@@ -334,30 +334,29 @@ export function reviewBar(view, t, stopPress) {
     const reading = openPicks(view, r, at, () => JSON.stringify(reviewLocation()) === from);
     if (reading) cx.spawn(() => reading);
   };
-  // Outlined, not filled: a fill would read as an active tab. Each part's fill runs to the outline and the rules.
-  // The block ends where the bar does, so the logo, last, stays put as the counts come and go.
-  return h_flex().id("pulls-review").h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).on_mouse_down("left", stopPress)
-    .children(segments.flatMap((s, i) => [item(/** @type {any} */ (s), i === 0), div().w(1).h(22).flex_none().bg(t.border)]))
-    .when(toggle, el => el.child(panelButton(view, t, mark, !segments.length)))
-    .when(!toggle, el => el
+  // No outline: ghost buttons in a row, as the tab bar's own. The last button ends where the bar does, so it stays put as the counts come and go.
+  return h_flex().id("pulls-review").h(24).flex_none().items_center().gap(4).on_mouse_down("left", stopPress)
+    .children(segments.map(s => item(/** @type {any} */ (s))))
     // Stays with no counts: on a clean default branch it's the only way in.
     // With the analysis's mark after the logo, it grows to hold both.
-    .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", h_flex().id("review-pick").h(22).flex_none().items_center().justify_center().rounded_r(7).when(!segments.length, el => el.rounded_l(7))
-      .when(!mark, el => el.w(segments.length ? 23 : 22)).when(Boolean(mark), el => el.px(5).gap(5))
+    .child(tip(view, t, "review-pick", "Change what to review", stop(view, t, "review-pick", h_flex().id("review-pick").h(24).flex_none().items_center().justify_center().rounded(8)
+      .when(!mark, el => el.w(24)).when(Boolean(mark), el => el.px(6).gap(5))
       .hover(s => s.bg(t.hover)).on_hover(glow(view, "review-pick")).role("button").accessibility_label(pickLabel)
       .on_mouse_down("left", press).on_click(openMenu)
-      // As T3's icon-xs, 24 with the outline's sides. image, not svg: svg would draw the logo in one tint.
-      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 7), { below: true })));
+      // As T3's icon-xs. image, not svg: svg would draw the logo in one tint.
+      .child(image(`mods/${MOD}/icons/logo.svg`).w(14).h(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 8), { below: true }));
 }
 
-// The space panel's toggle as the bar's last part (Herdr T3): the panel on the page last shown, or closed; lit while open.
-// The analysis's mark follows it, as it did the logo. `alone`: no counts before it, so both ends round.
-function panelButton(view, t, mark, alone) {
-  const open = panelState().open, label = open ? "Hide panel" : "Show panel";
-  return tip(view, t, "review-panel", label, stop(view, t, "review-panel", h_flex().id("review-panel").h(22).flex_none().items_center().justify_center().rounded_r(7).when(alone, el => el.rounded_l(7))
-    .when(!mark, el => el.w(alone ? 22 : 23)).when(Boolean(mark), el => el.px(5).gap(5))
+// The space panel's toggle, Herdr T3's whole bar: a 24 ghost icon button, as t3-tabs' panel-toggle. The panel on the page last
+// shown, or closed; lit while open. While the panel is closed the analysis's `mark` sits left of the icon inside it, the
+// button growing leftward so the icon stays put at the bar's end; open, the panel head's Review tab shows it, not twice.
+function panelButton(view, t, word, shown) {
+  const open = panelState().open, mark = open ? null : shown, state = mark && { working: "running", done: "done", blocked: "failed" }[word];
+  const label = (open ? "Hide panel" : "Show panel") + (state ? `, analysis ${state}` : "");
+  return tip(view, t, "review-panel", label, stop(view, t, "review-panel", h_flex().id("review-panel").h(24).flex_none().items_center().justify_center().rounded(8)
+    .when(!mark, el => el.w(24)).when(Boolean(mark), el => el.px(6).gap(5).child(mark))
     .text_color(open || view.hot === "review-panel" ? t.foreground : t.dim).hover(s => s.bg(t.hover)).on_hover(glow(view, "review-panel"))
     .role("button").accessibility_label(label)
     .on_click((_e, cx) => { view.hot = null; togglePanel(); cx.notify(); })
-    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()).when(Boolean(mark), el => el.child(mark)), 7), { action: "t3-tabs.panel", below: true });
+    .child(svg(`mods/${MOD}/icons/panel-right.svg`).size(14).flex_none()), 8), { action: "t3-tabs.panel", below: true });
 }

@@ -31,7 +31,7 @@ fi
 for t in "$src"/extras/themes/*.json; do [ ! -f "$app/themes/$(basename "$t")" ] || cp "$t" "$app/themes/"; done
 
 # The theme picker, stack switches, your focus ring color and the Review bar and theme-export blocks you added live in the installed layout; keep them across updates.
-# The Review bar goes right before the bar's end and draws the panel's toggle as its last part (`toggle`), so its counts and the way into the panel are one control.
+# The Review bar goes right before the bar's end and draws the panel's toggle (`toggle`), last and on its own after the counts.
 # With the Review extra installed, its review is a page of the space panel: the `review` block goes in `panel-body`.
 # A block's id must stay unique: a duplicate crashes Herdr App, so a Review bar still named `review`, as its README once had it, becomes `review-bar`.
 old=$(cat "$layout" 2>/dev/null || echo '{}')

@@ -20,7 +20,8 @@ export default class PullsReview extends View {
       // would stay until that page is seen. The bar, always shown, drops it; a review still running says so again at its next poll (1.5s).
       const status = Object.entries(shared("review.status") ?? {}), left = status.filter(([, word]) => word !== "working");
       if (left.length < status.length) setShared("review.status", Object.fromEntries(left));
-      watchReview(this, cx);
+      // Herdr T3's bar is the panel's toggle alone: no counts to read git for.
+      if (!p.toggle) watchReview(this, cx);
       stopsInit(this, cx);
     }
   }
