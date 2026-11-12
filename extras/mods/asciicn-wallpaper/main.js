@@ -1,20 +1,19 @@
 // Home as a still picture in asciicn's dots (https://asciicn.dev, MIT, see LICENSE-asciicn): one of its own, one of the
-// person's images drawn in Dots, or a frame they made in that Studio, in the theme's colours.
+// person's images previewed in Braille, blocks or dots, or a frame they made in that Studio, in the theme's colours.
 // Every picture is tiles of one theme colour at one opacity (ascii-art.js); the theme tints them, so a new theme repaints
 // them at once. The built-ins are under scenes/ (scripts/wallpaper.mjs); imports are the `.ans` files in
 // <appHome>/asciicn-wallpaper/ (an image becomes one there), each converted once into its .tiles/<name>/, its
 // scene.json written last and keyed by the file's cksum and the converter's VERSION, so a changed or half-converted one,
 // or one an older converter made, is converted again.
 // The pointer near the bottom-right corner shows the switcher: ‹ › step, × asks before deleting, and + opens the add card.
-// Imports preview across Home; only Apply writes their .ans and composition. Saved pictures have no editing controls.
+// An image previews across Home; only Apply writes its .ans. Studio exports import as finished drawings.
 // The picture picked is the person's, shared under `asciicn-wallpaper.scene`, so a new Home shows it too.
 //
-// Without saved composition the picture scales with the pane's height. Its subject (`focus`) is pinned by a percentage left and
+// The picture scales with the pane's height. Across, its subject (the scene's `focus`) is pinned by a percentage left and
 // a fixed margin, which layout works out itself: a width change, as the sidebar folding, only shows more or less of the
 // edges, with no frame laid out late and nothing rasterised again. Sizing from the width would do both, so only a picture
 // narrower than the pane does (Studio's frames are about 1.2:1, the built-ins 2.4:1): it fills the width and is cut
 // evenly at the top and bottom.
-// New imports keep relative fill/fit, position and zoom in `asciicn-wallpaper.placements`, apart from their rebuildable tiles.
 // Reaching Home other than by t3-tabs (which lays it out first), the pane shows for a frame or two 60px short (still under
 // `main`'s header and the unfolded tab row, see t3-tabs' fitRow) before it takes its height: the picture hangs from the
 // bottom, which stays put, and a smaller height counts only once it has lasted 250ms, so that dip neither moves nor rescales it.
@@ -22,30 +21,28 @@
 // through sips (macOS) or ImageMagick (Linux); on Windows the card offers only the folder, until Herdr gives mods a file picker.
 // shortcut: an image's EXIF rotation is ignored, so a phone photo can come out on its side; rotate it first if that bites.
 import { View, div, svg } from "gpui-kit";
-import { h_flex, v_flex, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
+import { h_flex, v_flex } from "gpui-base";
 import { appHome, exec, nextCommand, notify, openOverlay, readTextFile, setShared, settings, shared, theme, watchFolder, window, writeTextFile } from "herdr";
 import { SCENES } from "./scenes.js";
 import { VERSION, imageAns, convert, decodeBmp, imageGrid } from "./ascii-art.js";
 import { enter, focusRoot, stop, stopsEnd, stopsInit } from "./focus.js";
 import { button as drawButton, radiusOf } from "./button.js";
 
-const MOD = "asciicn-wallpaper", KEY = `${MOD}.scene`, PLACEMENTS = `${MOD}.placements`;
+const MOD = "asciicn-wallpaper", KEY = `${MOD}.scene`;
 const BUILT_IN = SCENES.map((s) => ({ ...s, base: `mods/${MOD}/scenes/${s.id}` }));
 const zoom = () => Number(settings()?.zoom) || 1;
 // Where the pointer shows the switcher: it at its widest, 12 from the corner, and about 60 more each way.
 const CORNER = { w: 340, h: 104 };
 // Imports being converted, by name: the module is shared by every copy, so two Homes don't convert one file twice.
 const converting = new Map();
-// Shared across Homes only for this run: deletion also invalidates Apply waiting on an already cached picture.
-const applying = new Set();
-// A file list read before a placement write cannot prune that newer placement.
-let placementsVersion = 0;
-// Draft composition and identity live only for this run; each Home owns its preview folder.
+// Draft pixels, style and generation live only for this run; each Home owns its preview folder.
 // Clear abandoned folders once per app run, before any copy can start drawing a new preview.
 let previewsReady;
-const bounded = (v, fallback, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback;
-const placement = (v, focus = 0.5) => ({ mode: v?.mode === "contain" ? "contain" : "cover",
-  zoom: bounded(v?.zoom, 1, 1, 4), x: bounded(v?.x, focus, 0, 1), y: bounded(v?.y, 0.5, 0, 1) });
+const STYLES = [
+  { id: "braille", name: "Braille", detail: "Fine dots" },
+  { id: "blocks", name: "Blocks", detail: "Pixel mosaic" },
+  { id: "dots", name: "Dots", detail: "Round grains" },
+];
 const tick = (cx) => new Promise((go) => cx.timer.after(0, () => go(undefined)));
 // A generator from ascii-art.js run to its end, a tick wherever it yields null.
 async function finish(it, cx) {
@@ -69,13 +66,6 @@ export default class Wallpaper extends View {
     this.imported = [];
     this.importing = null;
     this.draft = null;
-    this.scale = SliderState.new({ min: 1, max: 4, step: 0.01, value: 1 });
-    this.scale.on("change", (value, cx) => {
-      if (!this.draft || this.draft.busy || this.draft.error || this.draft.applying) return;
-      this.draft.placement.zoom = bounded(value, 1, 1, 4);
-      this.drag = null;
-      cx.notify();
-    });
     this.dir = `${appHome()}/${MOD}`;
     cx.spawn(async (cx) => {
       this.ready = previewsReady ??= exec("rm", ["-rf", `${this.dir}/.preview`])
@@ -101,9 +91,6 @@ export default class Wallpaper extends View {
   close() {
     stopsEnd(this);
     this.closed = true;
-    this.previewRequest = null;
-    this.drag = null;
-    this.scale.release();
     const draft = this.draft;
     this.draft = null;
     if (draft) exec("rm", ["-rf", draft.dir]).catch(() => null);
@@ -143,10 +130,7 @@ export default class Wallpaper extends View {
   }
 
   async refresh(cx, retryName = null) {
-    const version = placementsVersion;
-    const placed = Object.keys(shared(PLACEMENTS) ?? {});
     const files = await this.sourceFiles();
-    if (version === placementsVersion) for (const id of placed) if (!files.some(f => id === `file:${f.name}`)) this.forgetPlacement(id);
     const cleaned = await sh('cd .tiles || exit; for d in .*/ */; do d=${d%/}; case "$d" in .|..) continue;; esac; [ -e "../$d.ans" ] || rm -rf "./$d" || exit; done', this.dir);
     if (cleaned.code !== 0) throw new Error(cleaned.stderr.trim());
     const shown = [], todo = [];
@@ -157,6 +141,10 @@ export default class Wallpaper extends View {
       else if (!kept.failed) shown.push({ ...kept, id: `file:${f.name}`, name: f.name, base: `${MOD}/.tiles/${f.name}` });
     }
     this.imported = shown.sort((a, b) => a.name.localeCompare(b.name));
+    if (this.picking && shown.some(s => s.name === this.picking)) {
+      setShared(KEY, `file:${this.picking}`);
+      this.picking = null;
+    }
     cx.notify();
     for (const f of todo) await this.convertFile(f, cx);
   }
@@ -193,6 +181,7 @@ export default class Wallpaper extends View {
       if (!(await current())) { stale = true; return true; }
       this.imported = [...this.imported.filter((s) => s.name !== f.name), { ...scene, sum: f.sum, id: `file:${f.name}`, name: f.name, base: `${MOD}/.tiles/${f.name}` }]
         .sort((a, b) => a.name.localeCompare(b.name));
+      if (this.picking === f.name) { this.picking = null; setShared(KEY, `file:${f.name}`); }
     } catch (e) {
       if (job.cancelled) return;
       await mark({ failed: true }).catch(() => null);
@@ -229,7 +218,16 @@ export default class Wallpaper extends View {
     let base = file.replace(/\.[^.]*$/, "").replace(/[\x00-\x1f\x7f/\\]/g, "-");
     if (!base || base === "." || base === "..") base = "wallpaper";
     this.guide = false;
-    return this.startPreview(from, base, cx, ans);
+    if (!ans) return this.startPreview(from, base, cx);
+    try {
+      if (!file.toLowerCase().endsWith(".ans")) throw new Error("Choose a .ans file exported from Studio.");
+      const text = await exec("cat", [from]);
+      if (text.code !== 0) throw new Error(text.stderr.trim());
+      const name = await this.availableName(base);
+      this.picking = name;
+      await this.saveFile(name, text.stdout);
+      await this.refresh(cx);
+    } catch (e) { this.failed(base, `${e?.message ?? e}`, cx); }
   }
 
   async availableName(base) {
@@ -262,52 +260,62 @@ export default class Wallpaper extends View {
     }
   }
 
-  async startPreview(from, name, cx, ans = false) {
-    const cancelled = this.cancelPreview(cx);
-    const request = this.previewRequest = {};
-    await cancelled;
+  async startPreview(from, name, cx) {
+    await this.cancelPreview(cx);
     await this.ready;
-    if (this.closed || this.previewRequest !== request) return;
+    if (this.closed) return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const draft = this.draft = { id, name, dir: `${this.dir}/.preview/${id}`, placement: placement(null), busy: true, scene: null, text: null, error: null, applying: false };
-    this.scale.set_value(1);
+    const draft = this.draft = { id, name, dir: `${this.dir}/.preview/${id}`, style: "braille", version: 0, busy: true, scene: null, text: null, pixels: null, error: null, applying: false };
     if (/** @type {any} */ (this).fs.keyboard) enter(this, cx, "wallpaper-preview-cancel");
     cx.notify();
     const bmp = `${draft.dir}/image.bmp`, mac = window()?.platform === "macos";
     try {
       const madeDir = await exec("mkdir", ["-p", draft.dir]);
       if (madeDir.code !== 0) throw new Error(madeDir.stderr.trim());
-      let text;
-      if (ans) {
-        if (!from.toLowerCase().endsWith(".ans")) throw new Error("Choose a .ans file exported from Studio.");
-        const read = await exec("cat", [from]);
-        if (read.code !== 0) throw new Error(read.stderr.trim());
-        text = read.stdout;
-      } else {
-        const size = await (mac ? exec("sips", ["-g", "pixelWidth", "-g", "pixelHeight", from]) : exec("identify", ["-format", "%w %h", `${from}[0]`]));
-        const [w, h] = mac ? ["Width", "Height"].map((d) => Number(size.stdout.match(new RegExp(`pixel${d}: (\\d+)`))?.[1])) : size.stdout.trim().split(" ").map(Number);
-        if (!(w > 0 && h > 0)) throw new Error("it isn't a picture this computer can read");
-        const grid = imageGrid(w, h);
-        const made = await (mac ? exec("sips", ["-s", "format", "bmp", "-z", String(grid.height), String(grid.width), from, "--out", bmp])
-          : exec("convert", [`${from}[0]`, "-resize", `${grid.width}x${grid.height}!`, `bmp3:${bmp}`]));
-        if (made.code !== 0) throw new Error(made.stderr.trim() || "it couldn't be resized");
-        const read = await sh(`base64 < ${quote(bmp)} | tr -d '\\n'; rm -f ${quote(bmp)}`, this.dir);
-        if (read.code !== 0) throw new Error(read.stderr.trim());
-        const pixels = await finish(decodeBmp(read.stdout), cx);
-        if (this.draft !== draft) return;
-        text = await finish(imageAns(pixels), cx);
-      }
+      const size = await (mac ? exec("sips", ["-g", "pixelWidth", "-g", "pixelHeight", from]) : exec("identify", ["-format", "%w %h", `${from}[0]`]));
+      const [w, h] = mac ? ["Width", "Height"].map((d) => Number(size.stdout.match(new RegExp(`pixel${d}: (\\d+)`))?.[1])) : size.stdout.trim().split(" ").map(Number);
+      if (!(w > 0 && h > 0)) throw new Error("it isn't a picture this computer can read");
+      const grid = imageGrid(w, h);
+      const made = await (mac ? exec("sips", ["-s", "format", "bmp", "-z", String(grid.height), String(grid.width), from, "--out", bmp])
+        : exec("convert", [`${from}[0]`, "-resize", `${grid.width}x${grid.height}!`, `bmp3:${bmp}`]));
+      if (made.code !== 0) throw new Error(made.stderr.trim() || "it couldn't be resized");
+      const read = await sh(`base64 < ${quote(bmp)} | tr -d '\\n'; rm -f ${quote(bmp)}`, this.dir);
+      if (read.code !== 0) throw new Error(read.stderr.trim());
+      const pixels = await finish(decodeBmp(read.stdout), cx);
       if (this.draft !== draft) return;
-      const scene = await this.drawTiles(text, draft.dir, cx);
-      if (this.draft !== draft) return;
-      draft.text = text;
-      draft.scene = { ...scene, id: `preview:${id}`, name, base: `${MOD}/.preview/${id}` };
+      draft.pixels = pixels;
+      await this.previewStyle("braille", cx);
     } catch (e) {
       if (this.draft !== draft) return;
       const missing = !mac && /ENOENT|not found|spawn/i.test(String(e?.message ?? e));
       draft.error = missing ? "Install ImageMagick to import pictures, or import a .ans file from Studio." : `${e?.message ?? e}`;
+      draft.busy = false;
     } finally {
       if (this.draft !== draft) await exec("rm", ["-rf", draft.dir]);
+      if (!this.closed) cx.notify();
+    }
+  }
+
+  async previewStyle(style, cx) {
+    const draft = this.draft;
+    if (!draft?.pixels || draft.applying || !STYLES.some(s => s.id === style)) return;
+    const version = ++draft.version, out = `${draft.dir}/${version}`;
+    const current = () => this.draft === draft && draft.version === version;
+    draft.style = style; draft.busy = true; draft.error = null;
+    cx.notify();
+    try {
+      const text = await finish(imageAns(draft.pixels, style), cx);
+      if (!current()) return;
+      const scene = await this.drawTiles(text, out, cx);
+      if (!current()) return;
+      const previous = draft.scene?.out;
+      draft.text = text;
+      draft.scene = { ...scene, id: `preview:${draft.id}:${version}`, name: draft.name, base: `${MOD}/.preview/${draft.id}/${version}`, out };
+      if (previous) await exec("rm", ["-rf", previous]);
+    } catch (e) {
+      if (current()) draft.error = `${e?.message ?? e}`;
+    } finally {
+      if (!current()) await exec("rm", ["-rf", this.draft === draft ? out : draft.dir]);
       else draft.busy = false;
       if (!this.closed) cx.notify();
     }
@@ -316,8 +324,6 @@ export default class Wallpaper extends View {
   async cancelPreview(cx) {
     const draft = this.draft;
     this.draft = null;
-    this.previewRequest = null;
-    this.drag = null;
     if (draft) await exec("rm", ["-rf", draft.dir]);
     if (!this.closed && /** @type {any} */ (this).fs.keyboard) enter(this, cx, "wallpaper-add");
     if (!this.closed) cx.notify();
@@ -326,10 +332,7 @@ export default class Wallpaper extends View {
   async applyPreview(cx) {
     const draft = this.draft;
     if (!draft?.scene || draft.busy || draft.error || draft.applying) return;
-    this.drag = null;
     draft.applying = true;
-    const job = { name: draft.savedName, cancelled: false };
-    applying.add(job);
     cx.notify();
     try {
       let name = draft.savedName;
@@ -339,38 +342,23 @@ export default class Wallpaper extends View {
       }
       if (!name) {
         name = await this.availableName(draft.name);
-        job.name = name; job.cancelled = false;
         await this.saveFile(name, draft.text);
         draft.savedName = name;
       }
+      this.picking = name;
       await this.refresh(cx, name);
-      if (this.draft !== draft || this.closed) return;
-      if (job.cancelled) throw new Error("The saved drawing was deleted. Try Apply again.");
-      if (!this.imported.some(s => s.name === name)) throw new Error("The drawing couldn't be prepared. Try Apply again.");
-      placementsVersion++;
-      setShared(PLACEMENTS, { ...shared(PLACEMENTS), [`file:${name}`]: { ...draft.placement } });
-      setShared(KEY, `file:${name}`);
+      if (!this.imported.some(s => s.name === name) || shared(KEY) !== `file:${name}`) throw new Error("The drawing couldn't be prepared. Try Apply again.");
       await this.cancelPreview(cx);
     } catch (e) {
-      if (this.draft !== draft || this.closed) return;
       draft.applying = false;
       this.failed(draft.name, `${e?.message ?? e}`, cx);
-    } finally {
-      applying.delete(job);
     }
   }
 
   failed(name, why, cx) {
+    this.picking = null;
     notify({ title: "Couldn't import the wallpaper", body: `${name}: ${why}`, level: "warning" });
     cx.notify();
-  }
-
-  forgetPlacement(id) {
-    const kept = { ...shared(PLACEMENTS) };
-    if (!Object.hasOwn(kept, id)) return;
-    delete kept[id];
-    placementsVersion++;
-    setShared(PLACEMENTS, kept);
   }
 
   askRemove(scene) {
@@ -394,8 +382,6 @@ export default class Wallpaper extends View {
     }
     const job = converting.get(scene.name);
     if (job) job.cancelled = true;
-    for (const job of applying) if (job.name === scene.name) job.cancelled = true;
-    this.forgetPlacement(scene.id);
     if (shared(KEY) === scene.id) setShared(KEY, all[(i - 1 + all.length) % all.length].id);
     this.imported = this.imported.filter((s) => s.id !== scene.id);
     this.hot = null;
@@ -415,10 +401,8 @@ export default class Wallpaper extends View {
         else if (height < this.height) cx.timer.after(250, (cx) => { if (this.seen < this.height) { this.height = this.seen; cx.notify(); } });
       });
     if (!this.height) return root;
-    const p = placement(this.draft?.scene ? this.draft.placement : shared(PLACEMENTS)?.[scene.id], scene.focus);
-    const unit = (p.mode === "contain" ? Math.min : Math.max)(this.height / scene.height, (this.width ?? 0) / scene.width) * p.zoom;
-    const w = scene.width * unit, h = scene.height * unit;
-    const picture = div().id(`wallpaper-${scene.id}`).absolute().bottom((this.height - h) * (1 - p.y)).left(`${p.x * 100}%`).ml(-p.x * w).w(w).h(h)
+    const unit = Math.max(this.height / scene.height, (this.width ?? 0) / scene.width), w = scene.width * unit, h = scene.height * unit;
+    const picture = div().id(`wallpaper-${scene.id}`).absolute().bottom((this.height - h) / 2).left(`${scene.focus * 100}%`).ml(-scene.focus * w).w(w).h(h)
       .children(scene.tiles.map((l) => svg(`${scene.base}/${l.file}`).absolute().left(l.x0 * unit).top(l.y0 * unit)
         .w((l.x1 - l.x0) * unit).h((l.y1 - l.y0) * unit).text_color(t[l.tint]).opacity(l.opacity)));
     const button = (id, icon, label, act) => stop(this, t, id, drawButton(t, id, { icon: `mods/${MOD}/icons/${icon}.svg`, label, hot: this.hot === id, act })
@@ -439,41 +423,8 @@ export default class Wallpaper extends View {
       .child(switcher);
     return focusRoot(this, root.child(picture)
       .when(!this.draft, el => el.child(corner))
-      .when(Boolean(this.draft), el => el.child(this.compositionCanvas(t, w, h)).child(this.previewCard(t)))
+      .when(Boolean(this.draft), el => el.child(this.previewCard(t)))
       .when(this.guide && !this.draft, (el) => el.child(this.guideCard(t))));
-  }
-
-  compositionCanvas(t, w, h) {
-    const d = this.draft, move = (dx, dy, cx) => {
-      if (!d.scene || d.busy || d.applying) return;
-      const p = d.placement;
-      if (Math.abs(this.width - w) > 0.01) p.x = bounded(p.x + dx / (this.width - w), p.x, 0, 1);
-      if (Math.abs(this.height - h) > 0.01) p.y = bounded(p.y + dy / (this.height - h), p.y, 0, 1);
-      cx.notify();
-    };
-    return stop(this, t, "wallpaper-compose", div().id("wallpaper-compose").absolute().inset_0().cursor_grab()
-      .role("group").accessibility_label("Wallpaper position. Drag or use arrow keys to move.")
-      .on_mouse_down("left", (e, cx) => {
-        if (!d.scene || d.busy || d.applying) return;
-        this.drag = e.position;
-        cx.notify();
-      })
-      .on_mouse_move((e, cx) => {
-        if (!this.drag) return;
-        const previous = this.drag;
-        this.drag = e.position;
-        move((e.position.x - previous.x) / zoom(), (e.position.y - previous.y) / zoom(), cx);
-      })
-      .on_mouse_up("left", (_e, cx) => { this.drag = null; cx.notify(); })
-      .on_hover((on) => { if (!on) this.drag = null; })
-      .on_key_down((e, cx) => {
-        if (e.modifiers.control || e.modifiers.platform || e.modifiers.alt) return;
-        const delta = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[e.key];
-        if (!delta) return;
-        const step = e.modifiers.shift ? 50 : 10;
-        move(delta[0] * step, delta[1] * step, cx);
-        cx.stop_propagation();
-      }), 8);
   }
 
   // A card's full-width rows: T3's compact button, 28 with 12px words, to fit its 300 width.
@@ -481,35 +432,23 @@ export default class Wallpaper extends View {
     return stop(this, t, id, drawButton(t, id, { variant: primary ? "primary" : "outline", size: "compact", text: label, act, disabled }), radiusOf("compact"));
   }
 
-  // T3's popover and compact controls; slider uses the same 16px thumb and 4px track as T3's small controls.
+  // T3's popover, 16px inset; three small visual choices fit its 300px width without a separate settings page.
   previewCard(t) {
     const d = this.draft;
-    const disabled = d.busy || !!d.error || !d.scene || d.applying;
     return v_flex().id("wallpaper-preview").absolute().right(12).bottom(12).w(300).p(16).gap(12)
       .rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(12).text_color(t.muted)
       .child(div().text_size(13).font_semibold().text_color(t.foreground).child("Preview wallpaper"))
       .child(div().truncate().child(d.name))
-      .child(h_flex().gap(8)
-        .child(this.action(t, "wallpaper-cover", d.placement.mode === "cover" ? "Fill ✓" : "Fill", cx => { d.placement.mode = "cover"; this.drag = null; cx.notify(); }, disabled))
-        .child(this.action(t, "wallpaper-contain", d.placement.mode === "contain" ? "Fit ✓" : "Fit", cx => { d.placement.mode = "contain"; this.drag = null; cx.notify(); }, disabled))
-        .child(this.action(t, "wallpaper-reset", "Reset", cx => { d.placement = placement(null); this.scale.set_value(1); this.drag = null; cx.notify(); }, disabled)))
-      .child(h_flex().justify_between().child("Zoom").child(`${d.placement.zoom.toFixed(2)}×`))
-      .child(stop(this, t, "wallpaper-zoom", div().id("wallpaper-zoom").role("group").w_full().opacity(disabled ? 0.5 : 1)
-        .accessibility_label("Wallpaper zoom, 1 to 4 times")
-        .on_key_down((e, cx) => {
-          if (disabled || !["left", "right", "up", "down"].includes(e.key)) return;
-          d.placement.zoom = bounded(d.placement.zoom + (["right", "up"].includes(e.key) ? 0.1 : -0.1), 1, 1, 4);
-          this.scale.set_value(d.placement.zoom);
-          this.drag = null;
-          cx.stop_propagation(); cx.notify();
-        })
-        .child(Slider.new(this.scale).disabled(disabled).w_full()
-          .child(SliderTrack.new(this.scale).disabled(disabled).flex().items_center().h(24).w_full()
-            .child(SliderIndicator.new(this.scale).relative().w_full().h(4).rounded(4).bg(t.border)
-              .range_style(el => el.rounded(4).bg(t.foreground))
-              .child(SliderThumb.new(this.scale).disabled(disabled).size(16).rounded(8).bg(t.foreground).ml(-8)))))))
+      .child(h_flex().gap(8).children(STYLES.map(s => stop(this, t, `wallpaper-style-${s.id}`,
+        v_flex().id(`wallpaper-style-${s.id}`).flex_1().min_w(0).p(8).gap(4).items_center().rounded(6)
+          .border_1().border_color(d.style === s.id ? t.accent : t.border).bg(d.style === s.id ? t.selected : t.raised)
+          .text_color(t.foreground).hover(el => el.bg(t.hover))
+          .role("button").accessibility_label(`${s.name}: ${s.detail}${d.style === s.id ? ", selected" : ""}`)
+          .on_click((_e, cx) => { if (!d.applying) cx.spawn(cx => this.previewStyle(s.id, cx)); })
+          .child(svg(`mods/${MOD}/icons/style-${s.id}.svg`).w(32).h(20))
+          .child(s.name).child(div().text_size(10).text_color(t.dim).child(s.detail))))))
       .child(div().text_color(d.error ? t.ansi1 : t.dim)
-        .child(d.error ?? (d.busy ? "Drawing preview…" : "Drag to position; arrow keys also move. Apply fixes this composition. Colours follow your theme.")))
+        .child(d.error ?? (d.busy ? "Drawing preview…" : "Colours follow your theme. Try a style, then Apply.")))
       .child(h_flex().gap(8).justify_end()
         .child(this.action(t, "wallpaper-preview-cancel", "Cancel", cx => cx.spawn(cx => this.cancelPreview(cx)), d.applying))
         .child(this.action(t, "wallpaper-preview-apply", d.applying ? "Applying…" : "Apply", cx => cx.spawn(cx => this.applyPreview(cx)), d.busy || !!d.error || !d.scene || d.applying, true)));
