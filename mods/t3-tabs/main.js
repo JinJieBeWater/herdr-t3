@@ -334,13 +334,19 @@ export default class Tabs extends View {
       .on_mouse_down("left", stopPress).on_click(action).child(glyph), 8), { action: key, below: true });
     // The bar's end, a block of its own after the controls other mods put in the bar (Actions, Review): + keeps its spot
     // however wide they are, and the window's own buttons stay last.
+    // Its last control's box ends 12 from the window's edge, over the pane headers' last button, so its icon stands as far in
+    // from the window's corner as the sidebar's from its edge; the window's own buttons (Windows) 2. Review's toggle before
+    // it ends 2 in itself, so 6 first, the boxes 8 apart. With nothing to draw, 10 after that toggle, so it ends at 12 the
+    // same way; with no toggle either, none, and Actions keeps its own 8.
+    const newTabShown = !this.navigation.atHome && !inboxShown(), toggleShown = panelState().pages.length > 0 && !reviewToggle(layout());
+    const endShown = newTabShown || toggleShown || w?.buttons;
     if (props()?.part === "end") return focusRoot(this, h_flex().size_full().items_center().justify_end().bg(t.chrome)
-      .child(h_flex().id("tabs-end").flex_none().pr(12).gap(4).items_center().on_size_change((size) => this.fit(size))
+      .child(h_flex().id("tabs-end").flex_none().pl(endShown && reviewToggle(layout()) ? 6 : 0).pr(w?.buttons ? 2 : endShown ? 12 : reviewToggle(layout()) ? 10 : 0).gap(4).items_center().on_size_change((size) => this.fit(size))
         // With the Inbox, the breadcrumb's space is the way to a new tab.
-        .when(!this.navigation.atHome && !inboxShown(), el => el.child(button("tab-new", svg("mods/t3-tabs/icons/plus.svg").size(14), "New tab", () => newTab(spaces().find(s => s.active)), "t3-tabs.new")))
+        .when(newTabShown, el => el.child(button("tab-new", svg("mods/t3-tabs/icons/plus.svg").size(14), "New tab", () => newTab(spaces().find(s => s.active)), "t3-tabs.new")))
         // The space panel's toggle, last before the window's buttons, over where it opens: the sidebar's panel-left, mirrored.
         // It opens on the page last shown; the panel's head picks the page. Lit while open.
-        .when(panelState().pages.length > 0 && !reviewToggle(layout()), el => el.child(button("panel-toggle", svg("mods/t3-tabs/icons/panel-right.svg").size(14).when(panelState().open, g => g.text_color(t.foreground)),
+        .when(toggleShown, el => el.child(button("panel-toggle", svg("mods/t3-tabs/icons/panel-right.svg").size(14).when(panelState().open, g => g.text_color(t.foreground)),
           panelState().open ? "Hide panel" : "Show panel", () => togglePanel(), "t3-tabs.panel")))
         .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/t3-tabs/icons/win-min.svg").size(16) : "−", "Minimize", () => run("window.minimize"), undefined, 28))
           .child(button("maximize", w.platform === "windows" ? svg(`mods/t3-tabs/icons/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", w.maximized ? "Restore" : "Maximize", () => run("window.maximize"), undefined, 28))

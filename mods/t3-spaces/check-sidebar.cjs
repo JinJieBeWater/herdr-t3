@@ -1528,6 +1528,21 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-panel-toggle", "tip-minimize", "tip-maximize", "tip-close-window"]);
   f.slots.review = { id: "review-bar", content: { mod: "pulls-review", props: { block: "review-bar", toggle: true } } };
   assert.deepEqual(find(end.render(cx), "tabs-end").items.map(n => n.key), ["tip-tab-new", "tip-minimize", "tip-maximize", "tip-close-window"]);
+  // The window's buttons (Windows) end 2 in; Review's toggle before them ends 2 in itself, so 6 first, the boxes 8 apart.
+  assert.deepEqual(["pl", "pr"].map(k => find(end.render(cx), "tabs-end").style[k]), [6, 2], "8 from Review's");
+  delete f.slots.review;
+  assert.deepEqual(["pl", "pr"].map(k => find(end.render(cx), "tabs-end").style[k]), [0, 2], "Actions keeps its own 8 after itself");
+  f.slots.review = { id: "review-bar", content: { mod: "pulls-review", props: { block: "review-bar", toggle: true } } };
+  f.scopes.get("t3-tabs").window = () => ({ platform: "macos", buttons: false });
+  // Without them the last control's box ends 12 from the window's edge, over the pane headers' last button, its icon about
+  // as far in as the sidebar's from its edge. With nothing to draw (the Inbox's crumb has the + and the Review bar the
+  // toggle), 10, so the toggle's box, 2 in itself, ends at 12 too.
+  assert.deepEqual(["pl", "pr"].map(k => find(end.render(cx), "tabs-end").style[k]), [6, 12], "over the pane headers' buttons, 8 from Review's");
+  f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
+  assert.deepEqual([find(end.render(cx), "tabs-end").items.length, find(end.render(cx), "tabs-end").style.pl, find(end.render(cx), "tabs-end").style.pr], [0, 0, 10], "nothing to draw: the toggle's box 12 in");
+  delete f.slots.review;
+  assert.deepEqual([find(end.render(cx), "tabs-end").style.pl, find(end.render(cx), "tabs-end").style.pr], [0, 12], "the panel's own toggle back, 12 in");
+  delete f.slots["sidebar-lists"]; f.scopes.get("t3-tabs").window = () => ({ platform: "windows", buttons: true });
   delete f.slots.panel; delete f.slots.review;
   fire(find(end.render(cx), "close-window"), "on_hover", true, cx);
   assert.equal(find(end.render(cx), "close-window").style.text_color, f.theme().foreground, "the window's close lights as the others do: it's no tab's ×");

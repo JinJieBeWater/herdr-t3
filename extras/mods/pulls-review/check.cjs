@@ -604,6 +604,8 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual([toggleOf().style.w, toggleOf().style.h, toggleOf().style.rounded, "border" in toggleOf().style, "bg" in toggleOf().style, toggleOf().hoverStyle.bg], [24, 24, 8, false, false, theme.hover]);
   assert.equal(walk(toggleOf()).find(n => n.kind === "svg").source, "mods/pulls-review/icons/panel-right.svg");
   assert.equal(toggleOf().items.length, 1, "no analysis, the icon alone");
+  // Last on the bar, 2 in as the ghost buttons after it; the tab bar's end makes up the rest, so its box ends 12 from the window's edge.
+  assert.equal(find(joined, "review-fit").style.pr, 2, "2 in, as the bar's other ghost buttons");
   // While the panel is closed the analysis's mark sits inside the button, left of the icon: the button grows leftward, its
   // icon staying put at the bar's end. Never a badge over the icon. Open, the panel head's Review tab shows it: not twice.
   for (const [word, label] of [["working", "running"], ["done", "done"], ["blocked", "failed"]]) {
