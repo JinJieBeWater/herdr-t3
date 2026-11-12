@@ -178,6 +178,22 @@ async function check() {
     }
     await say("space:4");
     assert.deepEqual(made(), [], "past the last, nothing");
+
+    // Going Home: the layout takes Home's shape in the same go as the select, before spaces() shows it, and not once left.
+    {
+      home.active = false; list[0].active = true;
+      panes.push({ pane: "ph", tab: "page", mod: "t3-home", title: "Home" });
+      view.arrive = () => f.calls.push(["arrive", view.atHome]);
+      await say("home"); await pending;
+      assert.deepEqual(made(), [["arrive", true], ["tab.select", { id: "page" }]], "laid out for Home, then shown");
+      assert.equal(view.atHome, true, "spaces() hasn't caught up: still Home's shape");
+      home.active = true; list[0].active = false;
+      assert.equal(view.atHome, true);
+      home.active = false; list[0].active = true;
+      assert.equal(view.atHome, false, "left straight after: not still coming");
+      home.active = true; list[0].active = false;
+      panes.pop(); delete view.arrive;
+    }
     home.active = false; list.find(s => s.id === "s1").active = true;
     await say("space-next");
     assert.deepEqual(made(), [["space.select", { id: "s2" }]]);

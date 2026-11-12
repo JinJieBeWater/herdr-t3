@@ -15,7 +15,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
   let states = new Map();
   // Spaces that were Home until an agent started there: their rename may not have shown yet.
   const released = new Set();
-  let renaming = false, going, inView, wasHome, unread, focusWas, zoomOff, asking, settingsOpen;
+  let renaming = false, going, homing, inView, wasHome, unread, focusWas, zoomOff, asking, settingsOpen;
   const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
   // The Inbox's ways with attention hold unless Lists is the mode (docs/adr/0002).
   const listsShown = () => sidebarParts(layout()).stack?.active === "lists";
@@ -38,6 +38,10 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     if (found) setShared("t3-home.space", found.id);
   }
   const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
+  // Home's tab is selected but spaces() hasn't caught up: the layout already takes Home's shape, so Home's first frame isn't
+  // the 60px shorter one under `main`'s header and the unfolded row. 1s at most, for a select that didn't land.
+  // Arrived, it's over: leaving straight after isn't taken for still coming.
+  const shownHome = () => atHome() ? (homing = null, true) : Date.now() - (homing ?? 0) < 1000;
   // The one mod Home is (t3.settings, docs/adr/0005); null: a shell in the home folder.
   const homeMod = () => t3Settings().homeMod;
   const fill = () => homeMod() ? { mod: homeMod() } : {};
@@ -165,7 +169,11 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     }
     if (!go) return;
     // tab.select brings the space along, so nothing else there shows on the way.
-    if (own) return run("tab.select", { id: own.tab });
+    if (own) {
+      homing = Date.now();
+      api.arrive?.();
+      return run("tab.select", { id: own.tab });
+    }
     run("tab.new", { space: homeId(), name: "Home", folder: home(), ...fill() });
   }
 
@@ -436,8 +444,9 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     run("tab.select", { id: list[(list.findIndex(c => c.active) + by + list.length) % list.length].id });
   }
 
-  return {
-    get atHome() { return atHome(); },
+  // arrive: set by the view, lays the window out for Home in the same go as the select that shows it.
+  const api = {
+    get atHome() { return shownHome(); },
     nextCard,
     async handle(command, cx) {
       if (command === "close-tab") await closeTab(focused()?.tab, cx);
@@ -476,7 +485,8 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     frame(trackFrame = true) {
       if (trackFrame) track();
       const w = work(), tabs = visibleTabs(w);
-      return { tabs, atHome: atHome(), context: context(w, tabs) };
+      return { tabs, atHome: shownHome(), context: context(w, tabs) };
     },
   };
+  return api;
 }

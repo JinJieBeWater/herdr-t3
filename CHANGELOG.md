@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-12
+
+- Going Home shows it at full height from the first frame, without briefly flashing a strip at the top while the tab row folds away.
+
 ## 2026-11-11
 
 - With Inbox, the tabs at the top right hug their names, evenly spaced and flush against Actions; hovering one turns its icon into the ×. They show no status mark there, so the slot after each name that holds one in Lists is gone.

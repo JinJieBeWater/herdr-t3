@@ -81,6 +81,7 @@ export default class Tabs extends View {
       detailsFor(this, null, cx);
       cx.notify();
     });
+    this.navigation.arrive = () => this.fitRow(window());
     this.dragKeys = cx.focus_handle();
     if (props()?.part !== "measure") stopsInit(this, cx);
     // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
