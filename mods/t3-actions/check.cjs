@@ -87,13 +87,16 @@ assert.equal(find(control, "tip-action-more").style.anchor, "top_center", "the t
 assert.deepEqual(strings(find(control, "action-run")), ["Dev"]);
 fire(find(control, "action-run"), "on_click");
 assert.deepEqual(calls.at(-1), ["terminal.open", { argv: ["sh", "-c", "bun dev"], name: "Dev", place: "tab", folder: "/repo" }]);
-// The menu hangs from the bar under the press; with none (assistive tech), at the pointer.
+// The menu hangs 4 under the control, right edges together (its outline 1 past ▾), as T3's (align end) and the layout's
+// other menus from a right-side button; with no press (assistive tech), at the pointer.
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
 assert.equal(overlays.at(-1).at, undefined);
-fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 } }, cx);
+fire(find(bar.render(), "action-more"), "on_mouse_down:left", { position: { x: 1000, y: 20 }, bounds: { x: 990 * zoom, y: 9 * zoom, width: 23 * zoom, height: 22 * zoom } }, cx);
 fire(find(bar.render(), "action-more"), "on_click", {}, cx);
-assert.deepEqual(plain(overlays.at(-1).at), { x: 992, y: 36 * zoom });
+const hung = plain(overlays.at(-1).at);
+assert.deepEqual([hung.x / zoom, hung.y / zoom].map(v => Math.round(v * 1000) / 1000), [990 + 23 + 1 - 220, 9 + 22 + 1 + 4], "right edges together, 4 under the outline");
 assert.equal(overlays.at(-1).mod, "t3-actions");
+assert.equal(overlays.at(-1).width, 220, "as wide as the layout's other menus (t3-menu's, T3's)");
 // The button toggles: the press closed the open menu on its way in, so its click doesn't open another.
 {
   const open = load({ actions: "menu" }), count = overlays.length;

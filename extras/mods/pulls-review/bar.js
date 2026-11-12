@@ -24,12 +24,12 @@ const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
 const MENU_CLOSED = `${MOD}.menuClosed`;
 export const menuClosed = () => setShared(MENU_CLOSED, Date.now());
 
-// A menu hangs 4 under its button (T3's sideOffset), 24 tall in the 40 bar, and under the click, not on the pointer, where it
-// would cover the bar; the app keeps it in the window. With no press to read (assistive tech clicks without one), the app's default: the pointer.
-const underBar = (press) => press && { x: press.x - 8, y: 36 * settings().zoom };
+// A menu hangs 4 under its button (T3's sideOffset), right edges together, as T3's (align end) and the layout's other menus
+// from a right-side button: `b` is its bounds from the press. With none (assistive tech clicks without one), the app's default: the pointer.
+const underBar = (b) => { const z = Number(settings()?.zoom) || 1; return b && { x: b.x + b.width - MENU_W * z, y: b.y + b.height + 4 * z }; };
 
 // The menu's rows (T3's MenuItem), and what sits above them: its padding, search field and either the pages' switch or a title.
-const MENU_ROW = 28, menuChrome = (tabs) => 8 + 43 + (tabs ? 32 : 28);
+const MENU_ROW = 28, MENU_W = 368, menuChrome = (tabs) => 8 + 43 + (tabs ? 32 : 28);
 
 // The shipped `changes` mod's lookup, except for a mod pane (below).
 export function reviewLocation() {
@@ -282,7 +282,7 @@ function openPicks(view, r, at, still = () => true) {
     // Tall enough for the longer page, so turning pages doesn't resize it; one page alone has a title instead of the switch.
     const tabs = branches.length > 0 && commits.length > 0;
     const height = Math.min(368, menuChrome(tabs) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * MENU_ROW);
-    openOverlay({ mod: MOD, kind: "popup", at, width: 368, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
+    openOverlay({ mod: MOD, kind: "popup", at, width: MENU_W, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
   } finally { view.readingPicks = false; } })();
 }
 
@@ -324,7 +324,7 @@ export function reviewBar(view, t, stopPress) {
     r.ahead > 0 && ["review-ahead", String(r.ahead), null, "arrow-up", `Review ${r.branch} → ${r.upstream}: ${n(r.ahead, "commit")} to push, on ${r.branch}, not on ${r.upstream}`, [`${r.upstream}...${r.branch}`], "↑"],
     r.behind > 0 && ["review-behind", String(r.behind), null, "arrow-down", `Review ${r.upstream} → ${r.branch}: ${n(r.behind, "commit")} to pull, on ${r.upstream} as of your last fetch, not on ${r.branch}`, [`${r.branch}...${r.upstream}`], "↓"],
   ].filter(Boolean);
-  const press = (e, cx) => { view.reviewPress = e.position; pressed(view); stopPress(e, cx); };
+  const press = (e, cx) => { view.reviewPress = e.bounds; pressed(view); stopPress(e, cx); };
   const openMenu = (_e, cx) => {
     view.hot = null; cx.notify();
     // Under this click's press, if it came with one; read now, as a press while git reads is another click's.

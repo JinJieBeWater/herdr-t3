@@ -21,12 +21,15 @@ const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foregr
 const state = () => shared(KEY.actions) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
 // The menu: a popup's height is only a maximum, so its list sets its own. REST: its padding, rule and Add action.
-const MENU_MAX = 420, MENU_REST = 45;
+// The menu as wide as the layout's other menus (t3-menu's, T3's); a longer name is cut short.
+const MENU_MAX = 420, MENU_REST = 45, MENU_W = 220;
 const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", frame: "none", width: 512, props: { actions: "edit", id } });
 
 // A menu hangs 4px under the bar's 24px control, centered in its 40 (T3's MenuPopup sideOffset), under the click, not on the pointer; the app keeps it in the window.
 // With no press to read (assistive tech clicks without one), the app's default: the pointer.
-const underBar = (press) => press && { x: press.x - 8, y: 36 * settings().zoom };
+// Hung 4 under the control, right edges together (its outline 1 past ▾), as T3's (align end) and the layout's other menus
+// from a right-side button: `b` is ▾'s bounds from the press.
+const underBar = (b) => { const z = Number(settings()?.zoom) || 1; return b && { x: b.x + b.width + z - MENU_W * z, y: b.y + b.height + 5 * z }; };
 
 function runAction(a) {
   setShared(KEY.actions, { ...state(), last: a.id });
@@ -64,10 +67,10 @@ function control(view, t, stopPress) {
     .child(tip(view, t, "action-more", "Actions", stop(view, t, "action-more", div().id("action-more").h(22).w(23).flex().items_center().justify_center().rounded_r(8).text_color(lit(view, "action-more")).hover(st => st.bg(t.hover)).on_hover(glow(view, "action-more"))
       .role("button").accessibility_label("Actions").on_click((_e, cx) => {
         view.hot = null; // The menu covers it, before the pointer can report leaving it.
-        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: 280, height: Math.min(MENU_MAX, MENU_REST + s.list.length * 28), props: { actions: "menu" } });
+        if (!justClosed(view, MENU_CLOSED)) openOverlay({ mod: MOD, kind: "popup", at: underBar(view.actionPress), width: MENU_W, height: Math.min(MENU_MAX, MENU_REST + s.list.length * 28), props: { actions: "menu" } });
         cx.notify();
       })
-      .on_mouse_down("left", (e, cx) => { view.actionPress = e.position; pressed(view); stopPress(e, cx); })
+      .on_mouse_down("left", (e, cx) => { view.actionPress = e.bounds; pressed(view); stopPress(e, cx); })
       .child(svg("mods/t3-actions/icons/chevron-down.svg").size(16)), 8), { below: true }));
 }
 

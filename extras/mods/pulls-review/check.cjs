@@ -288,7 +288,7 @@ const load = (props = {}, setup = record) => {
   const run = { ...cx, spawn: fn => { reading = fn(run); } };
   const click = async (picked) => {
     show(picked);
-    fire(find(bar.render(), "review-pick"), "on_mouse_down:left", { position: { x: 900, y: 20 } }, cx);
+    fire(find(bar.render(), "review-pick"), "on_mouse_down:left", { position: { x: 900, y: 20 }, bounds: { x: 890 * zoom, y: 8 * zoom, width: 24 * zoom, height: 24 * zoom } }, cx);
     fire(find(bar.render(), "review-pick"), "on_click", {}, run);
     await reading;
     return overlays.at(-1);
@@ -307,7 +307,7 @@ const load = (props = {}, setup = record) => {
   // The Review page reads git itself for its scope menu (shared/review-git.js): the bar takes no command from it.
   assert.equal(commands.length, 0, "no copy waits on a command");
   assert.ok(!fs.readFileSync(path.join(__dirname, "bar.js"), "utf8").includes("async function readReview"), "the reads are review-git.js's, one source for both mods");
-  assert.deepEqual(plain(spec.at), { x: 892, y: 36 * zoom }, "it hangs 4 under the 24 tall button, under the press, not over the bar");
+  assert.deepEqual([spec.at.x / zoom, spec.at.y / zoom].map(v => Math.round(v * 1000) / 1000), [890 + 24 - 368, 36], "4 under the button, right edges together, wherever the press was");
   fire(find(bar.render(), "review-open"), "on_click", {}, cx);
   assert.deepEqual(launched.at(-1), { root: "/repo", args: [], page: "/branch/feat", analyze: true }, "a count's click opens its page, known without git, and starts the analysis");
   const { mod: menu } = load({ ...spec.props, overlay: "m1" });
