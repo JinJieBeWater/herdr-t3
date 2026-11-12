@@ -60,6 +60,15 @@ const SEG_CHROME = 32, RULE_W = 9;
 // name turns to `…`.
 const NARROW = 360;
 
+// The panes you were in, the one you're in first, for Go to's order (T3's recent threads): kept here, as this copy always
+// shows, so every way of moving counts. A closed pane leaves it.
+const RECENT = 30;
+function keepRecent() {
+  const here = focused()?.pane, open = new Set(panes().map(p => p.pane)), was = shared(KEY.recent) ?? [];
+  const next = [...(here ? [here] : []), ...was.filter(p => p !== here)].filter(p => open.has(p)).slice(0, RECENT);
+  if (next.length !== was.length || next.some((p, i) => p !== was[i])) setShared(KEY.recent, next);
+}
+
 // The widest a tab may be for `wants` to fill `room`: the shorter keep all they want, the longest share what's left.
 function fairCap(wants, room) {
   const sorted = [...wants].sort((a, b) => a - b);
@@ -317,7 +326,7 @@ export default class Tabs extends View {
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
       .on_size_change((size) => setShared(KEY.compact, size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme(), w = window();
-    if (!props()?.part) syncPanel(this, false);
+    if (!props()?.part) { syncPanel(this, false); keepRecent(); }
     const stopPress = (_e, cx) => cx.stop_propagation();
     // 24 as T3's tab bar +; the window's own buttons 28, as its titlebar controls.
     const button = (id, glyph, label, action, key, size = 24) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))

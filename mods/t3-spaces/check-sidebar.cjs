@@ -655,6 +655,17 @@ for (const width of [208, 240, 256, 320, 480]) {
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
   assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "no done dot for a settled agent's tab");
+  {
+    // The panes you were in, newest first, for Go to: the tab bar keeps them as focus moves, however it moved; a closed one goes.
+    const tabs = f.load("t3-tabs"), recent = () => plain(f.state["t3-tabs.recent"]);
+    f.shown.pane = "p0"; tabs.render(cx); f.shown.pane = "p2"; tabs.render(cx);
+    assert.deepEqual(recent(), ["p2", "p0"]);
+    f.shown.pane = "p0"; tabs.render(cx); tabs.render(cx);
+    assert.deepEqual(recent(), ["p0", "p2"], "back to one moves it up, once");
+    const gone = f.panes().splice(1, 1); tabs.render(cx);
+    assert.deepEqual(recent(), ["p0"], "a closed pane leaves it");
+    f.panes().splice(1, 0, ...gone); delete f.state["t3-tabs.recent"];
+  }
   f.terminals().find(c => c.address === "t0").labels = { snoozed: String(Date.now() + 60000) };
   assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "nor for a snoozed one's");
   // Snoozed with a sub-agent stuck, the Inbox shows it as needing the person, so the hidden sidebar's toggle counts it.

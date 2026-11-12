@@ -1,6 +1,6 @@
 // Go to a pane, drawn as T3's command palette and the New menu (t3-new-menu): a row a pane, agents and programs
 // alike, named and marked as its pane header is, so lazygit beside an agent is found as itself. From the shipped
-// picker (mod.clone). First a Back row to the pane the last jump from here left, so ⌘P, Enter goes back and forth.
+// picker (mod.clone). The panes you were in lately lead, as T3's recent threads, so ⌘P, Enter goes back and forth.
 // ↑/↓ and Enter to go, ctrl+d to close a pane (asking first while a program runs), Esc to leave.
 import { View, div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
@@ -33,7 +33,9 @@ export default class Picker extends View {
   // For the buttons that open this: see justClosed in focus.js.
   close() { setShared("t3-picker.closed", Date.now()); }
 
-  // Every pane, the current space's first, then its machine's, as New orders spaces; each space's in tab order.
+  // Every pane: the ones you were in lately first, newest first (the tab bar keeps them, t3-tabs.recent); then the current
+  // space's, then its machine's, as New orders spaces, each space's in tab order; the pane you're in last. Typing, a name that
+  // matches goes before a folder or space that does.
   items() {
     const q = this.filter.toLowerCase(), ps = panes(), all = terminals(), name = namer(), kids = subAgents(agents(), all);
     const mine = spaces().find((s) => s.active)?.machine ?? null;
@@ -49,18 +51,17 @@ export default class Picker extends View {
           words: [s.name, s.machine ?? "", c.named ? c.name : "", name(p), programOf(p)?.name ?? "", p.program?.key ?? "", (p.cwd ?? "").split(/[\\/]/).pop()],
         };
       })));
-    // Not by `focused`: each tab has its own, so another tab's pane would never be a way back.
-    const back = !q && rows.find((r) => r.p.pane === shared(KEY.pickerBack) && r.p.pane !== focused()?.pane);
-    const found = rows.filter((r) => !q || r.words.join(" ").toLowerCase().includes(q));
-    return back ? [{ ...back, key: `back:${back.p.pane}`, back: true }, ...found] : found;
+    // Not by `focused`: each tab has its own. The pane you're in is the recent list's first.
+    const here = focused()?.pane, recent = (shared(KEY.recent) ?? []).filter((p) => p !== here);
+    const place = (r) => r.p.pane === here ? Infinity : recent.includes(r.p.pane) ? recent.indexOf(r.p.pane) - recent.length : 0;
+    const named = (r) => !q || r.label.toLowerCase().includes(q) ? 0 : 1;
+    return rows.filter((r) => !q || r.words.join(" ").toLowerCase().includes(q))
+      .map((r, i) => ({ r, i })).sort((a, b) => named(a.r) - named(b.r) || place(a.r) - place(b.r) || a.i - b.i).map(({ r }) => r);
   }
 
   choose(item) {
     if (!item) return;
     closeOverlay(props().overlay);
-    // The pane this leaves, for the next open's Back row. Only jumps from here are seen: a click elsewhere isn't.
-    const from = focused()?.pane;
-    if (from && item.p.pane !== from) setShared(KEY.pickerBack, from);
     focusPane(item.p.pane);
   }
 
@@ -71,7 +72,7 @@ export default class Picker extends View {
       : st === "blocked" ? div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(11).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!")
       : st === "done" && !notNews(terminals().find(k => k.address === item.p.terminal), item.p.status, item.under) ? div().size(6).flex_none().rounded_full().bg(t.done) : null;
     return h_flex().id(item.key).w_full().h(ROW).px(8).py(6).gap(8).rounded(4).items_center().flex_none()
-      .role("button").accessibility_label(item.back ? `Back to ${item.label}` : item.label)
+      .role("button").accessibility_label(item.label)
       .when(on, (el) => el.bg(t.selected))
       .on_hover((over, cx) => { if (over && this.at !== i) { this.at = i; cx.notify(); } })
       .on_click(() => this.choose(item))
@@ -88,14 +89,13 @@ export default class Picker extends View {
             .child(svg("mods/t3-picker/icons/server.svg").size(12).flex_none().text_color(t.muted))
             .child(div().flex_none().text_color(t.muted).child(`${s.machine} ·`)))
           .child(div().min_w(0).truncate().child(s.name + (item.team ? ` · +${item.team}` : "")))))
-      .when(Boolean(mark), (el) => el.child(mark))
-      .when(Boolean(item.back), (el) => el.child(div().flex_none().text_size(12).font_medium().text_color(t.muted).child("↩ Back")));
+      .when(Boolean(mark), (el) => el.child(mark));
   }
 
   render() {
     const t = theme(), ps = panes(), items = this.items();
-    // Opens on Back, else where you are.
-    if (this.at === null) this.at = Math.max(0, items.findIndex((r) => /** @type {any} */ (r).back || r.here));
+    // Opens on the first row: the pane you were in before, or another; never the one you're in, where Enter would go nowhere.
+    if (this.at === null) this.at = 0;
     this.at = Math.min(this.at, Math.max(0, items.length - 1));
     const key = (label) => div().flex().flex_none().min_w(20).h(20).px(4).items_center().justify_center().rounded(4).bg(t.foreground + "14").text_size(12).text_color(t.foreground).child(label);
     const hint = (label, what) => h_flex().gap(4).items_center().children(label.split(" ").map(key)).child(what);

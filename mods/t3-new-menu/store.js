@@ -6,8 +6,8 @@ import { shared, setShared } from "herdr";
 // is the layout's own. Code names a key only through here.
 export const KEY = {
   settings: "t3.settings", pins: "t3.pins", notice: "t3.notice", focus: "t3.focus", spaceIcons: "t3.spaceIcons", agentOrder: "t3.agentOrder", panels: "t3.panels",
-  home: "t3-tabs.home", undo: "t3-tabs.undo", unsettled: "t3-tabs.unsettled", compact: "t3-tabs.compact",
-  inboxRows: "t3-inbox.rows", agentsRows: "t3-agents.rows", pickerBack: "t3-picker.back", actions: "t3-actions.actions", menuChain: "t3-menu.chain",
+  home: "t3-tabs.home", undo: "t3-tabs.undo", unsettled: "t3-tabs.unsettled", compact: "t3-tabs.compact", recent: "t3-tabs.recent",
+  inboxRows: "t3-inbox.rows", agentsRows: "t3-agents.rows", actions: "t3-actions.actions", menuChain: "t3-menu.chain",
 };
 
 // Old name, new name, and whether the value goes along (a cache or a passing value doesn't: the old key only goes).
@@ -17,6 +17,7 @@ const RENAMED = [
   ["agents.pins", KEY.pins, true], ["t3-home.space", KEY.home, true], ["t3-actions", KEY.actions, true], ["bar.compact", KEY.compact, true],
   ["t3-inbox.notice", KEY.notice, false], ["t3-inbox.undo", KEY.undo, false], ["t3-inbox.unsettled", KEY.unsettled, false],
   ["space.icons", KEY.spaceIcons, false], ["t3-agent-order", KEY.agentOrder, false], ["t3-focus", KEY.focus, false],
+  ["t3-picker.back", KEY.recent, false],
 ];
 
 // Nothing in it: null, or an empty list or record, as a list nothing was ever pinned to.
