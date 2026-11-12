@@ -2,6 +2,8 @@
 
 研究日期：2026-11-12。研究对象：Kitty graphics protocol 官方规范、kitty 与 Ghostty 的上游源码/测试，以及独立 Ghostty 1.4.0 上的原生 PTY 实测。不含修复实施。
 
+上游状态补充（2026-11-12）：同案 [#12010](https://github.com/earendil-works/pi/issues/12010) 已由 [PR #12047](https://github.com/earendil-works/pi/pull/12047) 修复并合入 `main`；有图片缓存时跳过 `CSI 2J`，采用本文 §4.2 的方向 1。最新正式版仍为受影响的 `1.5.2`，详见 [查重与发布状态](pi-image-clear-upstream-search.md)。
+
 ## 0. 结论
 
 1. **规范明确说清屏应清图（should），但不保证清屏后数据还在。** `CSI 2J`（ED2）之后 image data 是否保留没有规定；小写删除命令与清屏是不同操作，不能把前者的数据保留行为套到后者。
