@@ -1,5 +1,5 @@
 // What the Review bar counts and the Review page's scope menu lists, read from git: the focused worktree's uncommitted
-// files, its commits ahead of the default branch and of its upstream, its commits and the other branches.
+// files, its commits ahead of the default branch and of its upstream, its commits, the other branches and the bases to pick.
 // scripts/sync.sh copies this to pulls-review and review. Read-only: nothing here writes under .git.
 import { exec } from "herdr";
 
@@ -87,4 +87,14 @@ export async function readPicks(r) {
       return { name, subject, time: Number(time) * 1000, author, upstream, track, worktree, ...(ab === undefined ? {} : { count, behind }) };
     });
   return { commits, branches, unpushed };
+}
+
+// shortcut: the 200 most recently committed branches, so search can't reach past them; read more if a repo needs it.
+/** The local and remote branches, newest first, for the Review page's base picker: [{ name, remote }], `remote` null for a local one. */
+export async function readRefs(root) {
+  const read = await git(root, ["for-each-ref", "--sort=-committerdate", "--count=200", "--format=%(refname)", "refs/heads", "refs/remotes"]);
+  return read.code !== 0 ? [] : read.stdout.split("\n").map(full => full.split("/"))
+    // A remote's HEAD is only a name for its default branch, listed already.
+    .filter(parts => parts.length > 2 && parts.at(-1) !== "HEAD")
+    .map(([, kind, ...rest]) => ({ name: rest.join("/"), remote: kind === "remotes" ? rest[0] : null }));
 }

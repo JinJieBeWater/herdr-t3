@@ -10,6 +10,11 @@
 
 - 显示 Inbox 时，Settle 或 Snooze 一个和工作中的 agent 分屏在同一标签里的 agent，它会离开分屏，拆到同一 space 下自己的标签，分屏里只留在工作的。它回来时（有新工作、到点醒来、需要你、你点了 Undo，或它的 agent 退回 shell），会合回原来的分屏，放在最右。你正在看的那个，等你离开后再搬；你正看着时它回来，会带你一起回到它的分屏。
 - space 面板的快捷键改为跟随 VS Code：`cmd-alt-b` 打开或关闭面板，停在上次的页面；`cmd-shift-e` 打开 Files；装了 Review 扩展时 `cmd-shift-g` 打开 Review；面板已在显示那一页时，按这一页的键则关闭面板。Herdr 的 `cmd-b` 仍然隐藏侧栏，和 VS Code 一样。更新时 `scripts/update.sh` 会加上这两个新键。
+- Review 页的 base 选择器把默认分支放在 Automatic 下面第一行，同 T3，其余分支仍按最近提交排。以前 `main` 最近没提交时会混在其他分支中间。
+- Inbox：等你处理的 agent 排在卡片最前，不管等了多久；其余仍按回到你手上的时间排，`cmd-]` 也按这个顺序走。以前等了十分钟的会压在刚停下的卡片下面。
+- 用按钮或菜单置顶时，agent 排到 Pinned 最上面，同 T3，不再排到最后。拖进 Pinned 的仍落在放下的位置。
+- 有多台机器时，`ctrl-1…9` 和切换上一个、下一个 space 的键按 Spaces 看到的顺序走，同一台机器的 space 连在一起。以前在另一台机器上开的 space 可能夹在本机的 space 中间，按键会跳到别的机器上。
+- Review 页照 T3 可以拿当前分支和任意 base 比较：在 Changes 下，`head →` 后面的 base 是一个按钮，点开换成别的分支，本地或远程都行（行尾开关切到远程版本），或者选 Automatic 回到默认分支。每个 space 记住自己选的 base，Changes 按它计数，Commits 只列它之后的提交。没选过范围的 space 打开 Review 时照 T3 的 diff 面板显示当前分支的 Changes，不再先显示未提交的改动或提示去选一段。范围菜单里的 Branches 子菜单去掉了；Review 栏自己菜单里的 Branches 页还在。
 - 菜单的下一级改成在旁边展开，同 T3 的子菜单，不再换成另一个菜单或翻页：agent 右键菜单里 Snooze 的时间、Review 页范围菜单里的 Commits 和 Branches，以及 Review 设置里的 Language、Agent 和 Model。鼠标停在那一行或点它就展开；键盘用 → 或 Enter 打开，← 或 Esc 返回。指针斜穿别的行奔向子菜单时，不会被半路的行切走。
 - 去掉了标签栏里的 `⧉`（Show all panes），agent 名字旁边和被 zoom 标签的窗格组末尾都不再有：还原分屏用窗格标题栏的缩放按钮或 `cmd-shift-enter`。
 - space 面板的快捷键改为照 T3：`cmd-alt-b` 打开或关闭面板，停在上次的页面；键盘在面板里时 `cmd-w` 关闭面板，而不是后面的标签；装了 Review 扩展时 `cmd-shift-g` 打开 Review，面板已在显示 Review 时则关闭。`cmd-d` 仍是 Herdr 的分屏。更新时 `scripts/update.sh` 会加上新键。

@@ -1,7 +1,7 @@
 import { step, menuJump } from "./list.js";
 import { settingsBack, submitModel } from "./settings.js";
 import { FOLDS, foldAll } from "./diff.js";
-import { scopeRows, scopeList, scopeBack, pickScopeRow } from "./scope.js";
+import { scopeRows, scopeList, scopeBack, pickScopeRow, baseList } from "./scope.js";
 
 export function reviewKey(view, e, cx) {
   // Typing a model name isn't a shortcut; Escape closes the panel. An open submenu has the keyboard.
@@ -34,7 +34,7 @@ export function reviewKey(view, e, cx) {
     cx.stop_propagation(); cx.notify();
     return;
   }
-  // The scope menu moves as T3's menus: ↑/↓, Home, End, typing, Enter or Space to pick, → or Enter on Commits or Branches
+  // The scope menu moves as T3's menus: ↑/↓, Home, End, typing, Enter or Space to pick, → or Enter on Commits
   // to open its submenu, its first row lit. There, typing is the search's and Enter its submit; ← (the search empty) or
   // Escape closes it, then Escape the menu.
   if (view.popup === "scope") {
@@ -53,6 +53,13 @@ export function reviewKey(view, e, cx) {
     if (e.keystroke === "escape" || (e.key === "left" && !view.scopeSearch.value())) { scopeBack(view, cx); cx.stop_propagation(); return; }
     const to = step(e, view.scopeListAt, scopeList(view).length);
     if (to >= 0) { view.scopeListAt = to; cx.stop_propagation(); cx.notify(); }
+    return;
+  }
+  // The base picker, as T3's combobox: typing is its search's and Enter its submit; ↑/↓ light rows, Escape closes it.
+  if (view.popup === "base") {
+    if (e.keystroke === "escape") { view.closePopup(cx); cx.stop_propagation(); return; }
+    const to = step(e, view.baseAt, baseList(view).length);
+    if (to >= 0) { view.baseAt = to; cx.stop_propagation(); cx.notify(); }
     return;
   }
   // The status has no keys of its own, and what's under it is out of reach while it's up.

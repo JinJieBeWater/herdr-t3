@@ -13,7 +13,7 @@ import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button, subState 
 import { subOpened } from "./submenu.js";
 import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
 import { loadSettings, models, submitModel, pageRows, locale, settingsPanel, settingsSub, openPage } from "./settings.js";
-import { diffCommits, scopeList, pickListed, openScope, openScopePage, scopeMenu, scopeSub } from "./scope.js";
+import { diffCommits, scopeList, pickListed, openScope, openScopePage, scopeMenu, scopeSub, baseList, openBase, pickBase, baseMenu, chosenBase, changesPage } from "./scope.js";
 import { groupSidebar, groupHeader, groupTabs } from "./groups.js";
 import { aside } from "./files.js";
 import { setReviewed, toggleFull, headerPress, diffView, hbars, foldMenu } from "./diff.js";
@@ -46,24 +46,29 @@ export default class ReviewPanel extends View {
     // The inputs are the panel's; what they act on is the space shown.
     this.modelInput.on("change", (_e, cx) => { const s = this.shown(); if (s) s.pageAt = -1; cx.notify(); });
     this.modelInput.on("submit", (_e, cx) => { const s = this.shown(); if (s) submitModel(s, cx); });
-    // The scope menu's lit row, its submenu open (null, "commits" or "branches"), the row lit there, and its search: Enter picks that row.
+    // The scope menu's lit row, its submenu open (null or "commits"), the row lit there, and its search: Enter picks that row.
     this.scopePage = null; this.scopeAt = -1; this.scopeListAt = -1;
     this.scopeSearch = InputState.new({ placeholder: "Search" });
     this.scopeSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.scopeListAt = 0; s.scrollTop = { ...s.scrollTop, "scope-list": 0 }; cx.notify(); });
     this.scopeSearch.on("submit", (_e, cx) => { const s = this.shown(); if (s) pickListed(s, scopeList(s)[s.scopeListAt], cx); });
+    // The base picker's search, its lit row, and where its button is: Enter picks that row.
+    this.baseAt = 0; this.baseX = null;
+    this.refSearch = InputState.new({ placeholder: "Search refs" });
+    this.refSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.baseAt = 0; s.scrollTop = { ...s.scrollTop, "base-list": 0 }; cx.notify(); });
+    this.refSearch.on("submit", (_e, cx) => { const s = this.shown(), item = s && baseList(s)[s.baseAt]; if (item) pickBase(s, item.value, cx); });
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
     this.handle = cx.focus_handle();
-    // `review.scope` (a key, or `herdr-app do`) toggles the shown review's scope menu, as its button does; `scope:commits` or
-    // `scope:branches` opens it with that submenu. `review.settings` the same for the settings, `settings:language`, `:agent`
+    // `review.scope` (a key, or `herdr-app do`) toggles the shown review's scope menu, as its button does; `scope:commits`
+    // opens it with that submenu; `review.base` the base picker the same way. `review.settings` the same for the settings, `settings:language`, `:agent`
     // or `:model` with that submenu. `review.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
     cx.spawn(async (cx) => {
       for (;;) {
         const [name, page] = (await nextCommand()).split(":"), s = this.shown();
         if (name === "close") hidePanel();
-        if ((name !== "scope" && name !== "settings") || !s?.page) continue;
+        if ((name !== "scope" && name !== "settings" && name !== "base") || !s?.page) continue;
         if (!page || s.popup !== name) s.togglePopup(name, cx);
-        if (name === "scope" && (page === "commits" || page === "branches")) openScopePage(s, page, cx, 0);
+        if (name === "scope" && page === "commits") openScopePage(s, page, cx, 0);
         if (name === "settings" && ["language", "agent", "model"].includes(page)) openPage(s, page, cx);
         cx.notify();
       }
@@ -119,16 +124,16 @@ export default class ReviewPanel extends View {
     this.scroll = null; this.barsOn = false; this.barsRun = 0;
   }
 
-  // Nothing shown in this space yet: its folder's repository, on its uncommitted changes if there are any. A clean
-  // worktree waits for a pick in the Review bar.
+  // Nothing shown in this space yet: its folder's repository, on its branch's Changes as T3's diff panel opens, against the
+  // base picked for the space; a detached HEAD, with no branch, on its uncommitted changes.
   start(space, cx) {
     cx.spawn(async (cx) => {
       const git = (args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd: space.folder || undefined }).catch(() => null);
       const top = await git(["rev-parse", "--show-toplevel"]);
       if (this.root || top?.code !== 0) { this.noRepo = !this.root; return cx.notify(); }
       this.root = top.stdout.trim();
-      const status = await git(["status", "--porcelain"]);
-      if (!this.page && status?.stdout.trim()) { this.page = this.base = "/worktree"; this.load(cx); }
+      const head = await git(["symbolic-ref", "--short", "-q", "HEAD"]), branch = head?.code === 0 && head.stdout.trim();
+      if (!this.page) { this.page = this.base = branch ? changesPage(chosenBase(this), branch) : "/worktree"; this.load(cx); }
       cx.notify();
     });
   }
@@ -209,6 +214,7 @@ export default class ReviewPanel extends View {
     if (name === "settings") loadSettings(this, cx);
     // On the row shown, so ↑/↓ start from it.
     if (name === "scope") openScope(this, cx);
+    if (name === "base") openBase(this, cx);
     cx.notify();
   }
 
@@ -216,7 +222,7 @@ export default class ReviewPanel extends View {
   closePopup(cx, outside = false) {
     if (!this.popup) return;
     this.closedPopup = outside ? this.popup : null; this.popup = null; this.popupClosedAt = Date.now();
-    this.modelInput.set_value(""); this.scopeSearch.set_value(""); this.pageAt = -1; this.settingsPage = null; this.scopePage = null;
+    this.modelInput.set_value(""); this.scopeSearch.set_value(""); this.refSearch.set_value(""); this.pageAt = -1; this.settingsPage = null; this.scopePage = null;
     subOpened(subState(this), null);
     cx.notify();
   }
@@ -342,7 +348,7 @@ export default class ReviewPanel extends View {
     const s = this.spaceReview(space, cx);
     s.follow(cx);
     if (!s.scroll) return note("");
-    if (!s.page) return note(s.noRepo ? "This space's folder isn't in a git repository." : s.root ? "Nothing uncommitted here. Pick a diff to review in the Review bar." : "");
+    if (!s.page) return note(s.noRepo ? "This space's folder isn't in a git repository." : "");
     return s.draw(cx);
   }
 
@@ -451,6 +457,8 @@ export default class ReviewPanel extends View {
       // Under the header's left end, where the scope button starts.
       .when(this.popup === "scope" && !hidden, el => el.child(div().absolute().top(36).left(16).child(scopeMenu(this, t))))
       .when(this.popup === "scope" && Boolean(this.scopePage) && !hidden, el => el.child(scopeSub(this, t)))
+      // Under its button in the header, where its press found it.
+      .when(this.popup === "base" && !hidden, el => el.child(baseMenu(this, t)))
       // At the pane's end rather than under its button: 320 wide, it would run off a narrow pane from there.
       .when(this.popup === "status", el => el.child(div().absolute().top(38).right(16).child(statusPanel(this, t))));
   }

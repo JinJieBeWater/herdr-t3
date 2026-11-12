@@ -210,6 +210,7 @@ const put = async () => { await new Promise(setImmediate); return puts.at(-1); }
 let keyboard = null;
 const field = { text: "", events: {}, value() { return this.text; }, set_value(v) { this.text = v; }, on(event, h) { this.events[event] = h; return true; }, focus() { keyboard = "field"; } };
 const scopeField = { ...field, events: {}, focus() { keyboard = "scope"; } };
+const refField = { ...field, events: {}, focus() { keyboard = "refs"; } };
 const env = {
   View: class {}, div: element, svg: element, image: element, h_flex: element, v_flex: element, h_resizable: element, resizable_panel: element, Scrollbar: { vertical: element },
   Switch: { new: element }, settings: () => ({ zoom: 1 }),
@@ -217,7 +218,7 @@ const env = {
   hoverKept: (view, key, id, el) => el.on_hover((on) => { if (on) view[key] = id; else if (view[key] === id) view[key] = null; }),
   // Paths build into nothing here; painting one is an element like any other.
   PathBuilder: (() => { const chain = new Proxy({}, { get: () => () => chain }); return { stroke: () => chain, fill: () => chain }; })(),
-  window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search" ? scopeField : field },
+  window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search" ? scopeField : options.placeholder === "Search refs" ? refField : field },
   v_virtual_list: (_id, count, sizes, _key, render) => { assert.equal(sizes.length, count); lists.push(() => render({ start: 0, end: count }).forEach(Boolean)); return element(); },
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => calls.push(["scroll", i]) }) },
   TextView: { markdown: element },
@@ -314,7 +315,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   sharedStore.set("review", { space: "s1", root: "/repo", page: "/branch/fix", n: Date.now() });
   panel.render(cx); pane = panel.shown();
   // Later panes bind the same stand-in.
-  const scopeEvents = { ...scopeField.events };
+  const scopeEvents = { ...scopeField.events }, refEvents = { ...refField.events };
   // As the app, which never starts an AI run by itself: analyzing on a count's click is off until turned on.
   assert.ok(!pref("autoAnalyze"));
   // A pane wide enough for the sidebar, and a diff for split, as the pane measures them.
@@ -795,23 +796,25 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(!routes.includes("/api/review/analyze"));
   setPref("autoAnalyze", true); review.analysis = { state: "outdated", agent: true }; review.head = { sha: "h2" };
   // Each space its own review: another space shown starts its own, from its folder, and the first keeps all it had.
-  // A clean worktree there waits for a pick in the Review bar; a request for the first space doesn't reach it.
+  // As T3's diff panel, it starts on its branch's Changes, uncommitted files or not; a request for the first space doesn't reach it.
   {
     const git = [], firstReview = pane.review, firstPage = pane.page;
-    mainScope.exec = async (cmd, args, options) => { git.push([args.at(-1), options.cwd]); return args.includes("--show-toplevel") ? { code: 0, stdout: "/other\n" } : { code: 0, stdout: "" }; };
+    mainScope.exec = async (cmd, args, options) => { git.push([args.at(-1), options.cwd]); return args.includes("--show-toplevel") ? { code: 0, stdout: "/other\n" } : args.includes("symbolic-ref") ? { code: 0, stdout: "feat\n" } : { code: 0, stdout: " M a.ts\n" }; };
     activeSpace = "s2"; drawn.clear(); panel.render(cx); await new Promise(setImmediate); await new Promise(setImmediate);
     const s2 = panel.shown();
-    assert.ok(s2 !== pane && s2.root === "/other" && !s2.page && !s2.review);
-    assert.deepEqual(plain(git), [["--show-toplevel", "/other"], ["--porcelain", "/other"]]);
-    drawn.clear(); panel.render(cx);
-    assert.ok(drawn.has("review-note") && !drawn.has("review-pane"));
+    assert.ok(s2 !== pane && s2.root === "/other" && s2.page === "/branch/feat");
+    assert.deepEqual(plain(git).slice(0, 2), [["--show-toplevel", "/other"], ["HEAD", "/other"]]);
     sharedStore.set("review", { space: "s1", root: "/repo", page: "/worktree", n: Date.now() + 1 }); panel.render(cx);
-    assert.equal(s2.page, null, "the first space's request");
+    assert.equal(s2.page, "/branch/feat", "the first space's request");
     sharedStore.set("review", { space: "s2", root: "/other", page: "/worktree", n: Date.now() + 2 }); panel.render(cx); await new Promise(setImmediate);
     assert.ok(s2.page === "/worktree" && s2.review && sharedStore.get("review.shown").s2.root === "/other");
-    // With uncommitted files, a space's review starts on them.
-    activeSpace = "s1"; mainScope.exec = async (_cmd, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : { code: 0, stdout: " M a.ts\n" };
-    panel.bySpace.delete("s1"); const was = sharedStore.get("review.shown"); sharedStore.set("review.shown", {});
+    // With a base picked for the space, Changes against it; a detached HEAD has no branch, and starts on its uncommitted files.
+    let detached = false;
+    activeSpace = "s1"; mainScope.exec = async (_cmd, args) => args.includes("--show-toplevel") ? { code: 0, stdout: "/repo\n" } : args.includes("symbolic-ref") ? { code: detached ? 1 : 0, stdout: detached ? "" : "fix\n" } : { code: 0, stdout: "" };
+    panel.bySpace.delete("s1"); const was = sharedStore.get("review.shown"); sharedStore.set("review.shown", {}); sharedStore.set("review.bases", { s1: "origin/dev" });
+    panel.render(cx); await new Promise(setImmediate); await new Promise(setImmediate);
+    assert.equal(panel.shown().page, "/compare/origin/dev...fix");
+    detached = true; panel.bySpace.delete("s1"); sharedStore.set("review.shown", {}); sharedStore.set("review.bases", null);
     panel.render(cx); await new Promise(setImmediate); await new Promise(setImmediate);
     assert.equal(panel.shown().page, "/worktree");
     // A space on another machine has no review: jin.review listens on this one only.
@@ -928,7 +931,9 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     if (args.includes("--show-toplevel")) return { code: 0, stdout: "/repo\n" };
     if (args.includes("status")) return { code: 0, stdout: ["# branch.head fix", "# branch.upstream origin/fix", "# branch.ab +2 -0", "1 .M N... 100644 100644 100644 1a 1a a.ts", ""].join("\n") };
     if (args.includes("symbolic-ref")) return { code: 0, stdout: "origin/main\n" };
-    if (args.includes("--left-right")) return args.at(-1) === "origin/main...HEAD" ? { code: 0, stdout: "0\t2\n" } : { code: 128, stdout: "" };
+    if (args.includes("--left-right")) return { "origin/main...HEAD": { code: 0, stdout: "0\t2\n" }, "origin/dev...HEAD": { code: 0, stdout: "1\t5\n" } }[args.at(-1)] ?? { code: 128, stdout: "" };
+    if (args.includes("refs/remotes")) return { code: 0, stdout: ["refs/heads/fix", "refs/heads/other", "refs/heads/main", "refs/remotes/origin/HEAD", "refs/remotes/origin/main",
+      "refs/remotes/origin/fix", "refs/remotes/origin/dev", ""].join("\n") };
     if (args.includes("log")) return { code: 0, stdout: `c2\x1ftwo\x1f${now - 60}\x1fA\nc1\x1fone\x1f${now - 7200}\x1fA\n` };
     if (args.includes("rev-list")) return { code: 0, stdout: "c2\n" };
     if (args.includes("for-each-ref")) return { code: 0, stdout: `other\x1fadd other\x1f${now - 3600}\x1fB\x1f\x1f\x1f\x1f3 0\n` };
@@ -943,7 +948,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   pane.width = 500; draw();
   assert.ok(!drawn.has("review-ref-head") && texts.get("review-ref-vs") === "vs" && texts.get("review-ref-base") === "origin/main");
   pane.width = 1200; draw();
-  // The menu: Changes, Uncommitted, Outgoing and Incoming with their counts, read on opening; then Commits and Branches.
+  // The menu: Changes, Uncommitted, Outgoing and Incoming with their counts, read on opening; then Commits.
   press("review-scope");
   assert.ok(pane.popup === "scope" && drawn.has("review-scope-menu"));
   await settled(); await settled(); draw();
@@ -995,12 +1000,12 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(pane.scopePage === "commits" && pane.scopeListAt === 0);
   pane.key({ keystroke: "escape" }, cx);
   {
-    // Resting on Branches opens it after a moment; on a radio, it closes.
+    // Resting on Commits opens it after a moment; on a radio, it closes.
     const at = (y) => ({ position: { x: 100, y: y + 10 }, bounds: { x: 21, y, width: 310, height: 28 } });
-    handlers.get("scope-branches.on_mouse_move")(at(190), cx);
+    handlers.get("scope-commits.on_mouse_move")(at(162), cx);
     assert.equal(pane.scopePage, null, "not at once");
     tick(); draw();
-    assert.ok(pane.scopePage === "branches" && drawn.has("review-scope-sub") && drawn.has("scope-changes"));
+    assert.ok(pane.scopePage === "commits" && drawn.has("review-scope-sub") && drawn.has("scope-changes"));
     handlers.get("scope-changes.on_mouse_move")({ ...at(41), position: { x: 60, y: 50 } }, cx);
     tick(); draw();
     assert.ok(pane.popup === "scope" && pane.scopePage === null && !drawn.has("review-scope-sub"));
@@ -1034,13 +1039,44 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   press("scope-changes"); await settled(); draw();
   assert.deepEqual(plain(sharedStore.get("review")), { space: "s1", root: "/repo", page: base, n: sharedStore.get("review").n, analyze: true });
   assert.deepEqual([pane.page, pane.base, texts.get("review-scope-label")], [base, base, "Changes"]);
-  // Branches: the other local branches against the default branch; a pick compares it there.
-  routes.length = 0; pane.popupClosedAt = 0; press("review-scope"); await settled(); press("scope-branches");
-  assert.ok(pane.scopePage === "branches" && drawn.has("scope-branch-other") && texts.get("scope-branch-other-detail") === "3 ahead");
-  press("scope-branch-other"); await settled(); draw();
-  assert.ok(sharedStore.get("review").page === "/compare/origin/main...other" && !sharedStore.get("review").base && !sharedStore.get("review").analyze);
-  assert.deepEqual([texts.get("review-scope-label"), texts.get("review-ref-head"), texts.get("review-ref-base")], ["other", "other", "origin/main"]);
-  assert.ok(!routes.includes("/api/review/analyze"), "nor a branch's");
+  // No Branches: as T3's, the head is the branch's own and only the base changes, from the header.
+  assert.ok(!drawn.has("scope-branches"));
+  // On Changes the base is T3's comparison-target picker: Automatic, then each local branch with its origin remote, a switch
+  // between the two; a remote-only one checked; the head itself left out.
+  routes.length = 0; pane.popupClosedAt = 0; press("review-base"); await settled(); await settled(); draw();
+  assert.ok(pane.popup === "base" && keyboard === "refs" && styles["review-base-menu"].w === 288);
+  assert.deepEqual(["base-auto", "base-main", "base-other", "base-origin/fix", "base-origin/dev"].map(id => drawn.has(id)), [true, true, true, true, true]);
+  assert.deepEqual([...drawn].filter(id => ["base-auto", "base-main", "base-other"].includes(id)), ["base-auto", "base-main", "base-other"], "the default branch first, as T3's, though other was committed to later");
+  assert.ok(!drawn.has("base-fix") && !drawn.has("base-origin/main") && !drawn.has("base-origin"), "paired, the head and a remote's HEAD left out");
+  assert.ok(drawn.has("base-main-remote") && !drawn.has("base-other-remote") && !drawn.has("base-origin/dev-remote"));
+  assert.ok(styles["base-auto"].accessibility_label.endsWith(", picked"));
+  // The switch takes the remote ref and shows Changes against it, the picker kept open; no run.
+  press("base-main-remote"); await settled(); draw();
+  assert.ok(pane.popup === "base" && sharedStore.get("review.bases").s1 === "origin/main");
+  assert.ok(sharedStore.get("review").page === "/compare/origin/main...fix" && !sharedStore.get("review").analyze);
+  assert.ok(styles["base-main"].accessibility_label.endsWith(", picked") && styles["base-main-remote"].accessibility_label.endsWith(", on"));
+  assert.deepEqual([texts.get("review-scope-label"), texts.get("review-ref-head"), texts.get("review-ref-base")], ["Changes", "fix", "origin/main"]);
+  // Searching drops Automatic; Enter picks the lit row and closes it.
+  refField.text = "dev"; refEvents.change({}, cx); draw();
+  assert.ok(!drawn.has("base-auto") && drawn.has("base-origin/dev") && !drawn.has("base-main"));
+  refEvents.submit({}, cx); await settled(); draw();
+  assert.ok(pane.popup === null && keyboard === "pane" && sharedStore.get("review").page === "/compare/origin/dev...fix" && sharedStore.get("review.bases").s1 === "origin/dev");
+  assert.ok(!routes.includes("/api/review/analyze"), "nor a base's");
+  // The space keeps it: Changes counts against it and opens there, and Commits lists what's past it.
+  pane.popupClosedAt = 0; gitCalls.length = 0; press("review-scope"); await settled(); await settled(); draw();
+  assert.ok(texts.get("scope-changes-detail") === "5 ahead of origin/dev" && styles["scope-changes"].accessibility_label.endsWith(", shown"));
+  assert.ok(gitCalls.some(args => args.includes("log") && args.includes("origin/dev..HEAD")));
+  pane.key({ keystroke: "escape" }, cx);
+  // `review.base`, for a key or `herdr-app do`, opens it on the base picked; Automatic goes back to the default branch.
+  pane.popupClosedAt = 0; send("base"); await settled(); await settled(); draw();
+  assert.ok(pane.popup === "base" && keyboard === "refs" && pane.baseAt === 4);
+  pane.key({ key: "down" }, cx); assert.equal(pane.baseAt, 0, "round the end");
+  press("base-auto"); await settled(); draw();
+  assert.ok(pane.popup === null && sharedStore.get("review").page === base && sharedStore.get("review.bases").s1 === null);
+  // Outgoing and Incoming name their refs but pick none.
+  pane.page = "/compare/origin/fix...fix"; draw();
+  assert.ok(!drawn.has("review-base") && drawn.has("review-ref-base"));
+  pane.page = base; draw();
   // What there is to push or to pull reads as such, before the menu's read too.
   for (const [page, label, head, baseRef] of [["/compare/origin/fix...fix", "Outgoing", "fix", "origin/fix"], ["/compare/fix...origin/fix", "Incoming", "origin/fix", "fix"], ["/worktree", "Uncommitted"]]) {
     pane.page = page; pane.scopeGit = null; draw();
@@ -1061,13 +1097,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.deepEqual([styles["review-sub-at"].left, styles["review-scope-sub"].w], [16 + 320 - 5, 620 - 8 - (16 + 320 - 5)]);
   pane.key({ keystroke: "escape" }, cx);
   pane.key({ keystroke: "escape" }, cx); pane.width = 1200;
-  // `review.scope`, for a key or `herdr-app do`: the menu, as its button toggles it; `scope:commits` or `scope:branches` on that page.
+  // `review.scope`, for a key or `herdr-app do`: the menu, as its button toggles it; `scope:commits` on that page.
   pane.popupClosedAt = 0; send("scope"); await settled(); draw();
   assert.ok(pane.popup === "scope" && pane.scopePage === null && drawn.has("review-scope-menu"));
   send("scope"); await settled();
   assert.equal(pane.popup, null);
-  send("scope:branches"); await settled(); await settled(); draw();
-  assert.ok(pane.popup === "scope" && pane.scopePage === "branches" && keyboard === "scope" && drawn.has("scope-branch-other") && drawn.has("scope-changes"));
+  send("scope:commits"); await settled(); await settled(); draw();
+  assert.ok(pane.popup === "scope" && pane.scopePage === "commits" && keyboard === "scope" && drawn.has("scope-commit-c2") && drawn.has("scope-changes"));
   // `review.settings:model`, for `herdr-app do`: the settings with that submenu open.
   pane.closePopup(cx); send("settings:model"); await settled(); draw();
   assert.ok(pane.popup === "settings" && pane.settingsPage === "model" && drawn.has("review-settings-sub"));
