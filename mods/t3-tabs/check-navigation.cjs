@@ -39,7 +39,7 @@ function fixture() {
   };
   const scope = vm.createContext({ ...core, Date: { now: () => now } });
   vm.runInContext(source, scope, { filename: "navigation.js" });
-  Object.assign(core, vm.runInContext("({ namer, programOf, focusAgent, focusPane })", scope));
+  Object.assign(core, vm.runInContext("({ namer, programOf, focusAgent, focusPane, writeLabel })", scope));
   return { ...core, cx, slots, state, shown, calls, labelled, overlays, closed, notifications, timers, events,
     navigation: (beforeAsk, over = {}) => scope.navigation(beforeAsk, { ...core, ...over }),
     answerHc: fn => { hcAnswer = fn; }, advance: ms => { now += ms; },
@@ -104,8 +104,8 @@ async function check() {
     first.frame(); assert.deepEqual(plain(f.calls), [["tab.select", { id: "b0" }]], "the first view keeps its own history");
     const h = { id: "h", machine: null, name: "Home\u200b", named: true, tabs: [] };
     f.spaces().push(h); second.frame(false);
-    assert.equal(f.state["t3-home.space"], undefined, "a drawing-only copy does not claim Home");
-    second.frame(); assert.equal(f.state["t3-home.space"], "h");
+    assert.equal(f.state["t3-tabs.home"], undefined, "a drawing-only copy does not claim Home");
+    second.frame(); assert.equal(f.state["t3-tabs.home"], "h");
   }
   // Home: a space of its own, in no list, and the keys that walk spaces go around it.
   {
@@ -125,12 +125,12 @@ async function check() {
     assert.deepEqual(made(), [["space.new", { name: "Home\u200b", machine: "", folder: "/home/test" }]]);
     // A slow core: past 2s it still counts as the Home it asked for, or it'd be an orphan in the lists.
     for (let i = 0; i < 100; i++) await tick();
-    assert.equal(f.state["t3-home.space"], undefined, "not known until it's seen");
+    assert.equal(f.state["t3-tabs.home"], undefined, "not known until it's seen");
     // In the model's middle: its place doesn't change the keys' count or the spaces' rows.
     const home = { id: "h", name: "Home\u200b", named: true, active: true, machine: null, folder: "/home/test", tabs: [{ id: "shell", name: "1" }] };
     list[0].active = false; list.splice(1, 0, home);
     await tick();
-    assert.equal(f.state["t3-home.space"], "h");
+    assert.equal(f.state["t3-tabs.home"], "h");
     assert.deepEqual(made(), [["tab.new", { space: "h", name: "Home", mod: "t3-home" }]]);
     assert.ok(f.spaces().find(s => s.id === "h").tabs.some(c => c.id === "shell"), "the page goes in before the shell leaves");
     home.tabs.push({ id: "page", name: "Home", active: true });
@@ -430,14 +430,14 @@ async function check() {
     place("plain", "Home\u200b", { named: false });
     place("far", "Home\u200b", { machine: "kvm" });
     tabs.frame();
-    assert.equal(f.state["t3-home.space"], undefined, "a space someone calls Home, an unnamed one, another machine's: none is this Home");
+    assert.equal(f.state["t3-tabs.home"], undefined, "a space someone calls Home, an unnamed one, another machine's: none is this Home");
     place("h", "Home\u200b");
     tabs.frame();
-    assert.equal(f.state["t3-home.space"], "h");
-    f.state["t3-home.space"] = "mine"; f.calls.length = 0;
+    assert.equal(f.state["t3-tabs.home"], "h");
+    f.state["t3-tabs.home"] = "mine"; f.calls.length = 0;
     tabs.frame(); tabs.frame();
     assert.deepEqual(plain(f.calls.filter(([name]) => name === "space.rename")), [["space.rename", { id: "mine", name: "Home\u200b" }]], "a Home made before gets the name, once");
-    assert.equal(f.state["t3-home.space"], "mine", "the Home it knows stays");
+    assert.equal(f.state["t3-tabs.home"], "mine", "the Home it knows stays");
   }
 
   // A focus or a zoom this mod didn't go ahead of (a toast, hc, the zoom button): the later of the two wins, once, and what the stale zoom showed gets its done back.
@@ -605,7 +605,7 @@ async function check() {
       see("prog"); taken();
       await say("close-tab:new");
       assert.deepEqual(taken(), [["tab.close", { id: "new" }]], "out of view, closing it moves nothing");
-      f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [{ id: "hp", name: "Home" }] });
+      f.state["t3-tabs.home"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [{ id: "hp", name: "Home" }] });
       see("mine", "A"); taken();
       await say("close-tab-now:mine");
       assert.deepEqual(taken(), [["space.select", { id: "h" }], ["tab.close", { id: "mine", confirmed: true }]], "the agent in view: Home first, then the close");
@@ -623,7 +623,7 @@ async function check() {
       await say("space-next");
       assert.deepEqual(taken(), [["tab.select", { id: "mine" }]], "walking there too");
       f.spaces()[0].active = true; f.spaces().at(-1).active = false;
-      f.spaces().pop(); delete f.state["t3-home.space"]; f.panes().pop(); gone("new");
+      f.spaces().pop(); delete f.state["t3-tabs.home"]; f.panes().pop(); gone("new");
     }
 
     // Nowhere to go back to, as after a restart: Herdr's pick stands.
@@ -664,7 +664,7 @@ async function check() {
     f.terminals().splice(0, f.terminals().length, ...list);
     f.panes().splice(0, f.panes().length, ...list.map(a => ({ ...a, terminal: a.address })));
     f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "lists" };
-    f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, active: false, tabs: [{ id: "hp", name: "Home" }] });
+    f.state["t3-tabs.home"] = "h"; f.spaces().push({ id: "h", name: "Home\u200b", named: true, machine: null, active: false, tabs: [{ id: "hp", name: "Home" }] });
     const view = f.navigation();
     const pick = (id, address) => { tabs.forEach(c => { c.active = c.id === id; }); list.forEach(a => { a.focused = a.address === address; }); f.shown.agent = address ?? null; view.frame(); };
     pick("was", "W"); pick("mine", "A"); f.calls.length = 0;
@@ -736,7 +736,7 @@ async function check() {
   // idle shell when a mod is wanted, gives way to it; a busy shell keeps its tab and Home gets a new one.
   {
     const f = fixture(), ps = f.panes(), list = f.spaces(), every = f.agents();
-    f.state["t3-home.space"] = "h";
+    f.state["t3-tabs.home"] = "h";
     const home = { id: "h", name: "Home\u200b", named: true, machine: null, tabs: [] };
     list.push(home);
     let n = 0, busy = false;
@@ -782,7 +782,7 @@ async function check() {
       ps.splice(2, Infinity, { pane: "pq", tab: "ht", terminal: "t6" }); home.tabs = [{ id: "ht", active: true, named: true, name: "Home" }]; every.push({ address: "t6", tab: "ht", status: "working" });
       f.calls.length = 0; strip.frame(); strip.frame();
       assert.deepEqual(plain(f.calls), [["space.rename", { id: "h", name: "" }], ["tab.rename", { id: "ht", name: "" }]], "once, and the view stays; the tab's Home name goes too");
-      assert.equal(f.state["t3-home.space"], null);
+      assert.equal(f.state["t3-tabs.home"], null);
       assert.equal(strip.frame().atHome, false, "an ordinary space now: its tabs show");
       f.calls.length = 0;
       strip.handle("home", f.cx); await flush();

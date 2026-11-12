@@ -24,6 +24,8 @@ Two audiences, two sets:
 
 `docs/internals/t3-tokens.md`: read before changing a size, radius, spacing or color.
 
+`docs/internals/storage.md`: read before keeping anything past a frame: a terminal label, a shared key, `localStorage`, a layout file write.
+
 ## Agent skills
 
 ### Domain docs

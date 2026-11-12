@@ -1,6 +1,6 @@
 # Home 是一个隐形 space
 
-Home 是全局一个、放在本机的真实 space，在 Spaces、新建菜单和 Inbox 的范围筛选里都不显示；`ctrl-1…9` 和切换 space 的键改由 `t3-tabs` 处理并跳过它，项目序号不变。它是真实位置，所以焦点离开 agent，所有跳转也都能自然离开 Home。识别只靠 `shared("t3-home.space")` 里的 id，不看里面有什么。里面只放一样东西：一个 mod（默认 `t3-home`，设置里可换），或者一个 shell；没有窗格标题栏，不能 split、关闭。Home 里不放 agent：早先 Home 的窗格任人摆放，结果在 Home 的 shell 里起的 agent 占住了 Home，此后回 Home、Settle、Snooze 都落在它上面，Home 不再是安静的落脚点。所以 Home 的 shell 里一出现 agent，这个 space 就原地变成普通 space，下次回 Home 新建一个。跳转逻辑放在 `t3-tabs`，因为标签栏一直显示，而品牌栏会随侧栏隐藏。
+Home 是全局一个、放在本机的真实 space，在 Spaces、新建菜单和 Inbox 的范围筛选里都不显示；`ctrl-1…9` 和切换 space 的键改由 `t3-tabs` 处理并跳过它，项目序号不变。它是真实位置，所以焦点离开 agent，所有跳转也都能自然离开 Home。识别只靠 `shared("t3-tabs.home")` 里的 id，不看里面有什么。里面只放一样东西：一个 mod（默认 `t3-home`，设置里可换），或者一个 shell；没有窗格标题栏，不能 split、关闭。Home 里不放 agent：早先 Home 的窗格任人摆放，结果在 Home 的 shell 里起的 agent 占住了 Home，此后回 Home、Settle、Snooze 都落在它上面，Home 不再是安静的落脚点。所以 Home 的 shell 里一出现 agent，这个 space 就原地变成普通 space，下次回 Home 新建一个。跳转逻辑放在 `t3-tabs`，因为标签栏一直显示，而品牌栏会随侧栏隐藏。
 
 ## Considered Options
 

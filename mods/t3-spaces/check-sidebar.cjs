@@ -99,7 +99,7 @@ function fixture(width) {
   function load(name, props = {}) {
     const storage = stores.get(name) ?? new Map();
     stores.set(name, storage);
-    const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
+    const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
     const source = bundle(path.join(modRoot, name));
     const context = vm.createContext({ ...env, t3FocusRun: true, localStorage, props: () => props, fs: fs.promises, appHome: () => path.dirname(modRoot) });
     vm.runInContext(source, context, { filename: name });
@@ -181,9 +181,9 @@ for (const width of [208, 240, 256, 320, 480]) {
   f.agents().push({ ...f.agents()[0], address: "child", focused: false });
   const kept = ag.render(cx);
   assert.ok(find(kept, "sub-child") && !find(kept, "ag-child"), "a kept sub-agent shows once, under its parent");
-  f.state["agents.pins"] = ["child"];
+  f.state["t3.pins"] = ["child"];
   assert.ok(find(ag.render(cx), "ag-child"), "pinned, it has a row of its own");
-  delete f.state["agents.pins"];
+  delete f.state["t3.pins"];
   f.agents().pop();
   assert.equal(space.items[0].style.gap, 10);
   assert.equal(space.style.h, 32, "a space's row is T3's project row");
@@ -255,7 +255,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.pop(), ["terminal.peek", { terminal: "child" }]);
   fire(agent, "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["agent.focus", { terminal: "t0" }]);
-  assert.equal(f.state["agents.pins"], undefined, "ordinary row click does not pin");
+  assert.equal(f.state["t3.pins"], undefined, "ordinary row click does not pin");
   fire(space, "on_mouse_down:left", {}, cx);
   fire(space, "on_mouse_up:left", {}, cx);
   assert.deepEqual(f.calls.pop(), ["space.select", { id: "s0" }]);
@@ -310,7 +310,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.equal(find(ag.render(cx), "details-sub-child")?.style.content, undefined, "its row is back, with the pointer long gone: no card");
   fire(find(ag.render(cx), "agent-fold-t0"), "on_click", {}, cx);
   // A pinned sub-agent with a pane has two rows: hovering one isn't hovering the other, and the next one reporting first keeps the hover and the card.
-  f.state["agents.pins"] = ["child"];
+  f.state["t3.pins"] = ["child"];
   f.agents().push({ address: "child", pane: "pn", space: "s1", space_name: "project 1", tab: "b1", title: "child task", seq: 9, program: f.agents()[0].program, focused: false, status: "working" });
   fire(find(ag.render(cx), "sub-child"), "on_hover", true, cx);
   settle();
@@ -328,7 +328,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(both, "ag-child"), "on_hover", false, cx);
   settle();
   f.agents().pop();
-  delete f.state["agents.pins"];
+  delete f.state["t3.pins"];
   ag.render(cx);
   settle();
   const beforePin = f.calls.length;
@@ -336,7 +336,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
   fire(find(ag.render(cx), "pin-t0"), "on_click", {}, { ...cx, stop_propagation() { stopped = true; } });
   assert.ok(stopped, "pin button stops propagation to the row");
-  assert.ok(f.state["agents.pins"].includes("t0"));
+  assert.ok(f.state["t3.pins"].includes("t0"));
   assert.equal(find(ag.render(cx), "pin-t0").style.opacity, 0, "pinning does not leave a stale hover after reordering");
   fire(find(ag.render(cx), "ag-t0"), "on_hover", true, cx);
   assert.equal(find(ag.render(cx), "pin-t0").items[0].source, "mods/t3-agents/icons/pin-off.svg", "pinned rows offer unpin");
@@ -346,13 +346,13 @@ for (const width of [208, 240, 256, 320, 480]) {
   fire(find(ag.render(cx), "pin-t0"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-tabs.unpin:t0", {}], "Lists unpin uses the shared Undo owner");
   f.load("t3-tabs").unpin("t0", cx);
-  assert.equal(f.state["agents.pins"].includes("t0"), false, "unpin still persists");
+  assert.equal(f.state["t3.pins"].includes("t0"), false, "unpin still persists");
   assert.equal(f.calls.length, beforePin, "pin and unpin do not focus a pane");
   fire(find(ag.render(cx), "ag-vps/t2"), "on_hover", true, cx);
   fire(find(ag.render(cx), "ag-t0"), "on_hover", false, cx);
   assert.equal(find(ag.render(cx), "pin-t0").handlers.on_click, undefined);
   fire(find(ag.render(cx), "pin-vps/t2"), "on_click", {}, cx);
-  assert.deepEqual([...f.state["agents.pins"]], ["vps/t2"], "pin acts on the selected remote button");
+  assert.deepEqual([...f.state["t3.pins"]], ["vps/t2"], "pin acts on the selected remote button");
   const header = f.load("t3-chrome").render(cx);
   assert.deepEqual(header.items.map(n => n.key).filter(k => typeof k === "string"), ["home", "tip-sidebar-mode", "tip-sidebar-toggle"], "the header holds Herdr's mark (Home, no tooltip), the sidebar switch and toggle; search is a shortcut");
   assert.ok(walk(find(header, "home")).some(n => n.kind === "image") && strings(find(header, "home")).includes("Herdr"), "Herdr's mark and name, as its own layout has them");
@@ -380,7 +380,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.deepEqual(f.calls.pop(), ["app.update", {}]);
   f.ui.updates = { app: {} };
   // The inbox's undo notice, in the footer's free space as T3's: short, then Undo, which the inbox does.
-  f.state["t3-inbox.notice"] = { action: "Settled", count: 2, gen: 3, shown: true, live: true, at: Date.now() };
+  f.state["t3.notice"] = { action: "Settled", count: 2, gen: 3, shown: true, live: true, at: Date.now() };
   assert.ok(find(footer.render(cx), "undo-notice-3"), "Lists have Undo too");
   f.slots["sidebar-lists"] = { id: "sidebar-lists", active: "inbox" };
   const note = find(footer.render(cx), "undo-notice-3");
@@ -388,11 +388,11 @@ for (const width of [208, 240, 256, 320, 480]) {
   assert.ok("flex_none" in find(note, "undo-notice-undo").style && "truncate" in note.items[0].style, "short of room the summary is cut, never Undo");
   fire(find(note, "undo-notice-undo"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-tabs.undo", {}]);
-  f.state["t3-inbox.notice"].count = 1;
+  f.state["t3.notice"].count = 1;
   assert.deepEqual(strings(find(footer.render(cx), "undo-notice-3")), ["Settled,", "Undo"]);
-  f.state["t3-inbox.notice"].at = Date.now() - 60000;
+  f.state["t3.notice"].at = Date.now() - 60000;
   assert.equal(find(footer.render(cx), "undo-notice-3"), null, "one left from before a restart doesn't show");
-  delete f.state["t3-inbox.notice"];
+  delete f.state["t3.notice"];
   delete f.slots["sidebar-lists"];
   const groups = ["pinned", "sp-s0"].map(id => find(ag.render(cx), id).style);
   assert.deepEqual([groups[0].h, groups[1].h], [32, 32], "T3's shelf and folder header");
@@ -715,7 +715,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   for (const a of f.agents()) { a.status = "done"; a.focused = false; }
   for (const k of f.terminals()) if (k.parent) k.status = "idle";
   const t0 = f.terminals().find(k => k.address === "t0");
-  const pins = () => [...(f.state["agents.pins"] ?? [])];
+  const pins = () => [...(f.state["t3.pins"] ?? [])];
   const root = () => inbox.render(run);
   const h = (id) => find(root(), id)?.style.h;
   const badge = (v) => find(find(root(), "drag-ghost"), `badge-${v}`);
@@ -804,7 +804,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   release();
   t0.labels = {};
 
-  f.state["agents.pins"] = [];
+  f.state["t3.pins"] = [];
   fire(find(root(), "card-t0"), "on_hover", true, run);
   const settleButton = find(root(), "settle-t0");
   fire(settleButton, "on_mouse_down:left", { position: { x: 0, y: 0 } }, { ...run, stop_propagation() {} });
@@ -855,7 +855,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   const old = fixture(256);
   old.stores.set("t3-agents", new Map([["pins", '["t0"]']]));
   old.load("t3-agents");
-  assert.deepEqual([...old.state["agents.pins"]], ["t0"], "older pins move to the shared set, so a drag in the inbox keeps them");
+  assert.deepEqual([...old.state["t3.pins"]], ["t0"], "older pins move to the shared set, so a drag in the inbox keeps them");
 
   const w = fixture(256), wf = w.load("t3-inbox");
   for (const k of w.terminals()) if (k.parent) k.status = "idle";
@@ -1028,7 +1028,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   // A ghost (a lifted or leaving row) is drawn as its row, without the list's ids, handlers, labels or keyboard stops.
   const o = fixture(256), view = o.load("t3-spaces"), list = o.spaces(), repo = JSON.stringify([null, "/w/E/.git"]);
   const keyOf = n => "key" in n ? n.key : null;
-  o.state["t3-focus"] = "elsewhere"; // Keyboard mode: the list's rows are stops.
+  o.state["t3.focus"] = "elsewhere"; // Keyboard mode: the list's rows are stops.
   list[2].machine = null;
   const wt = { repo, linked: true, name: "E", branch: "x", ahead: 0, behind: 0 };
   const result = repoResults(view, o);
@@ -1489,12 +1489,12 @@ for (const width of [208, 240, 256, 320, 480]) {
   // The strip under the work column says whether the bar's controls fold, at 1024.
   const measure = f.load("t3-tabs", { part: "measure" });
   fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1023 }, cx);
-  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), true);
+  assert.equal(f.scopes.get("t3-tabs").shared("t3-tabs.compact"), true);
   fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 1024 }, cx);
-  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false);
+  assert.equal(f.scopes.get("t3-tabs").shared("t3-tabs.compact"), false);
   fire(find(measure.render(cx), "bar-measure"), "on_size_change", { width: 0 }, cx);
   measure.close();
-  assert.equal(f.scopes.get("t3-tabs").shared("bar.compact"), false, "gone with its layout, it leaves no bar compact");
+  assert.equal(f.scopes.get("t3-tabs").shared("t3-tabs.compact"), false, "gone with its layout, it leaves no bar compact");
   fire(find(root, "close-b0"), "on_click", {}, cx);
   assert.deepEqual(f.calls.pop(), ["t3-tabs.close-tab:b0", {}], "the × goes through the tab bar's answer");
   const pane = f.load("t3-pane", { pane: "p0" });
@@ -1650,7 +1650,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     {
       // The icon through a cd: until the new place answers, the space keeps it, not a flash of its letter.
       const f = fixture(256), sp = f.load("t3-spaces"), scope = f.scopes.get("t3-spaces"), key = dir => JSON.stringify([null, dir]);
-      f.state["space.icons"] = { [key("/work/s0")]: "cache/t3-icons/x.svg", [key("/old")]: "cache/t3-icons/y.svg", [key("/empty")]: null };
+      f.state["t3.spaceIcons"] = { [key("/work/s0")]: "cache/t3-icons/x.svg", [key("/old")]: "cache/t3-icons/y.svg", [key("/empty")]: null };
       let open;
       const gate = new Promise(res => { open = res; });
       scope.exec = async () => { await gate; return { code: 1, stdout: "", stderr: "" }; };
@@ -1660,15 +1660,15 @@ for (const width of [208, 240, 256, 320, 480]) {
       assert.ok(hasIcon(), "asking, it keeps the icon");
       open();
       await flush();
-      assert.equal(f.state["space.icons"][key("/work/s0/src")], null, "no icon there is an answer every mod can see");
-      assert.ok(key("/work/s0/src") in f.state["space.icons"]);
+      assert.equal(f.state["t3.spaceIcons"][key("/work/s0/src")], null, "no icon there is an answer every mod can see");
+      assert.ok(key("/work/s0/src") in f.state["t3.spaceIcons"]);
       assert.ok(!hasIcon(), "and it shows");
-      assert.ok(!(key("/empty") in f.state["space.icons"]), "answers of no icon stay only for places in use");
-      assert.equal(f.state["space.icons"][key("/old")], "cache/t3-icons/y.svg");
+      assert.ok(!(key("/empty") in f.state["t3.spaceIcons"]), "answers of no icon stay only for places in use");
+      assert.equal(f.state["t3.spaceIcons"][key("/old")], "cache/t3-icons/y.svg");
       // Agents draws beside Spaces, which keeps asking: it asks only where nobody has answered (a worktree has no mark in Spaces).
       const ag = f.load("t3-agents"), asks = [];
       f.scopes.get("t3-agents").exec = async (_cmd, args, { cwd }) => { if (args.includes("--show-toplevel")) asks.push(cwd); return { code: 1, stdout: "", stderr: "" }; };
-      delete f.state["space.icons"][JSON.stringify(["vps", "/work/s2"])];
+      delete f.state["t3.spaceIcons"][JSON.stringify(["vps", "/work/s2"])];
       ag.render(cx);
       await flush();
       ag.render(cx);
@@ -2133,7 +2133,7 @@ for (const width of [208, 240, 256, 320, 480]) {
       const node = find(view.render(cx), id);
       if (node) assert.equal(node.style.tab_index, undefined, `${id} takes no keyboard from a terminal when pressed`);
     }
-    f.state["t3-focus"] = "on";
+    f.state["t3.focus"] = "on";
     for (const [view, id] of [[ag, "ag-t0"], [ag, "ag-sort"], [ag, "fold-t0"], [sp, "space-s0"], [sp, "space-new"], [footer, "settings"], [footer, "t3-settings"], [brand, "sidebar-mode"], [brand, "sidebar-toggle"], [tabs, "tab-b0"]])
       assert.equal(find(view.render(cx), id).style.tab_index, 0, `${id} is a stop`);
     assert.equal(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new").style.tab_index, 0);
@@ -2171,7 +2171,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.slots["work-main"] = { id: "work-main", type: "stack", active: "main" };
     const bar = f.load("t3-tabs"), resized = () => plain(f.calls.splice(0).filter(([n]) => n.startsWith("layout.")));
     bar.render(cx); assert.deepEqual(resized(), [], "away from Home, as the layout has it");
-    list[0].active = false; list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, tabs: [{ id: "page", active: true }] }); f.state["t3-home.space"] = "h";
+    list[0].active = false; list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, tabs: [{ id: "page", active: true }] }); f.state["t3-tabs.home"] = "h";
     // The fixture applies a resize and a select, as Herdr does.
     bar.render(cx); assert.deepEqual(resized(), [["layout.select", { stack: "work-main", child: "home-main" }], ["layout.resize", { id: "tabs-row", px: 8 }]]);
     bar.render(cx); assert.deepEqual(resized(), [], "once");
@@ -2188,7 +2188,7 @@ for (const width of [208, 240, 256, 320, 480]) {
   {
     const f = fixture(256), list = f.spaces();
     const home = { id: "h", name: "Home\u200b", named: true, active: true, machine: null, folder: "/home/test", tabs: [{ id: "page", name: "Home", active: true }] };
-    list[0].active = false; list.splice(1, 0, home); f.state["t3-home.space"] = "h";
+    list[0].active = false; list.splice(1, 0, home); f.state["t3-tabs.home"] = "h";
     const made = () => plain(f.calls.splice(0));
     const view = f.load("t3-spaces");
     view.render(cx);
@@ -2236,9 +2236,9 @@ for (const width of [208, 240, 256, 320, 480]) {
       delete f.slots.lists;
       delete f.state["t3-inbox.rows"];
       // The mode's owner closing ends the mode: its row can move the page aside, and its timers go with it.
-      f.state["t3-focus"] = page.fs.me;
+      f.state["t3.focus"] = page.fs.me;
       page.close();
-      assert.equal(f.state["t3-focus"], null);
+      assert.equal(f.state["t3.focus"], null);
     }
 
     // Home has no header, whatever is there: nothing to split or close, and the brand bar's lit mark tells where this is.
@@ -2501,7 +2501,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     f.slots.lists = { id: "sidebar-lists", active: mode }; f.slots.sidebar.hidden = hidden;
     f.terminals().splice(2); a.status = k.status = "done"; k.turn = 2;
     const until = String(Date.now() + 60000); k.labels = { snoozed: until };
-    f.state["agents.pins"] = ["head", "t0", "tail"];
+    f.state["t3.pins"] = ["head", "t0", "tail"];
     Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
     f.spaces()[0].tabs[0].active = true;
     f.answerHc(args => { if (args[0] === "label") { const i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
@@ -2512,10 +2512,10 @@ for (const width of [208, 240, 256, 320, 480]) {
       continue;
     }
     assert.match(k.labels.settled, /^\d+:2$/);
-    assert.deepEqual([k.labels.snoozed, f.state["agents.pins"]], ["", ["head", "tail"]]);
+    assert.deepEqual([k.labels.snoozed, f.state["t3.pins"]], ["", ["head", "tail"]]);
     assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]], `${mode}, hidden=${hidden}: Settle goes Home`);
     assert.equal(f.scopes.has("t3-inbox"), false, "the Inbox has never started");
-    assert.equal(f.state["t3-inbox.notice"].count, 1);
+    assert.equal(f.state["t3.notice"].count, 1);
     for (const timer of cx.timers.slice(firstTimer).filter(t => t.ms === 16)) timer.fn(cx);
     const tree = hidden ? tabs.render(cx) : f.load("t3-chrome", { footer: true }).render(cx);
     const undo = find(tree, "undo-notice-undo");
@@ -2524,11 +2524,11 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(f.calls.pop(), ["t3-tabs.undo", {}]);
     f.spaces()[0].active = false;
     f.spaces().push({ id: "h", name: "Home", active: true, tabs: [{ id: "home" }] });
-    f.state["t3-home.space"] = "h"; f.state["agents.pins"] = ["new", "head", "tail"];
+    f.state["t3-tabs.home"] = "h"; f.state["t3.pins"] = ["new", "head", "tail"];
     await tabs.undo();
-    assert.deepEqual(plain([k.labels.settled, k.labels.snoozed, f.state["agents.pins"]]), ["", until, ["new", "head", "t0", "tail"]]);
+    assert.deepEqual(plain([k.labels.settled, k.labels.snoozed, f.state["t3.pins"]]), ["", until, ["new", "head", "t0", "tail"]]);
     assert.deepEqual(plain(f.calls.splice(0)), [["agent.focus", { terminal: "t0" }]], "Undo returns from Home");
-    assert.equal(f.state["t3-inbox.notice"], null);
+    assert.equal(f.state["t3.notice"], null);
     f.spaces().pop(); f.spaces()[0].active = true;
     await tabs.settle(cx);
     const end = cx.timers.filter(t => t.ms === 5000).at(-1); end.fn(cx);
@@ -2536,26 +2536,31 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.equal(find(gone, "undo-notice-undo").handlers.on_click, undefined, "Undo stops at five seconds");
     const labels = f.labelled.length; await tabs.undo(); assert.equal(f.labelled.length, labels, "expired Undo writes nothing");
     cx.timers.filter(t => t.ms === 5250).at(-1).fn(cx);
-    assert.equal(f.state["t3-inbox.notice"], null);
+    assert.equal(f.state["t3.notice"], null);
   }
 
   // The breadcrumb title's menu, for the agent in view: Pin as the agents list's, Snooze as its card's, putting it away as Settle does.
   {
     const f = fixture(256), k = f.terminals()[0];
     f.slots.lists = { id: "sidebar-lists", active: "inbox" };
-    f.terminals().splice(2); k.labels = {}; f.state["agents.pins"] = ["head"];
+    f.terminals().splice(2); k.labels = {}; f.state["t3.pins"] = ["head"];
     Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
     f.spaces()[0].tabs[0].active = true;
     f.answerHc(args => { if (args[0] === "label") { const i = args[2].indexOf("="); k.labels[args[2].slice(0, i)] = args[2].slice(i + 1); } return { code: 0 }; });
     const tabs = f.load("t3-tabs");
-    tabs.pin("t0");
-    assert.deepEqual(plain(f.state["agents.pins"]), ["head", "t0"], "Pin goes last, as the agents list's");
+    // Pinned from the tab bar's menu as from the agents list (pins.js): last, and it ends a snooze.
+    k.labels.snoozed = String(Date.now() + 60000);
+    f.scopes.get("t3-tabs").pin("t0");
+    await new Promise(setImmediate);
+    assert.deepEqual([plain(f.state["t3.pins"]), k.labels.snoozed], [["head", "t0"], ""], "Pin goes last and ends the snooze, as the agents list's");
+    f.state["t3.pins"] = ["head"];
+    f.scopes.get("t3-tabs").pin("t0");
     const at = Date.now() + 3600000;
     await tabs.snooze(`t0:${at}`, cx);
     assert.equal(k.labels.snoozed, String(at));
     assert.deepEqual(plain(f.calls.splice(0)), [["t3-tabs.home", {}]], "the agent in view snoozed: Home, as Settle");
-    assert.equal(f.state["t3-inbox.notice"].action, "Snoozed");
-    f.spaces()[0].active = false; f.spaces().push({ id: "h", name: "Home", active: true, tabs: [{ id: "home" }] }); f.state["t3-home.space"] = "h";
+    assert.equal(f.state["t3.notice"].action, "Snoozed");
+    f.spaces()[0].active = false; f.spaces().push({ id: "h", name: "Home", active: true, tabs: [{ id: "home" }] }); f.state["t3-tabs.home"] = "h";
     await tabs.undo();
     assert.equal(k.labels.snoozed, "", "Undo wakes it");
     assert.deepEqual(plain(f.calls.splice(0)), [["agent.focus", { terminal: "t0" }]], "and brings it back from Home");
@@ -2568,56 +2573,56 @@ for (const width of [208, 240, 256, 320, 480]) {
   {
     const f = fixture(256), tabs = f.load("t3-tabs"), k = f.terminals()[0];
     k.labels = { settled: "100:1", snoozed: "200" };
-    f.state["agents.pins"] = ["head", "t0", "tail"];
+    f.state["t3.pins"] = ["head", "t0", "tail"];
     const timers = cx.timers.length;
     tabs.unpin("t0", cx);
-    assert.deepEqual(plain(f.state["agents.pins"]), ["head", "tail"]);
-    assert.deepEqual(plain([f.state["t3-inbox.notice"].action, f.state["t3-inbox.notice"].count]), ["Unpinned", 1]);
+    assert.deepEqual(plain(f.state["t3.pins"]), ["head", "tail"]);
+    assert.deepEqual(plain([f.state["t3.notice"].action, f.state["t3.notice"].count]), ["Unpinned", 1]);
     for (const timer of cx.timers.slice(timers).filter(t => t.ms === 16)) timer.fn(cx);
     assert.ok(strings(f.load("t3-chrome", { footer: true }).render(cx)).includes("Unpinned,"));
-    f.state["agents.pins"] = ["new", "head", "tail"];
-    f.state["t3-home.space"] = "h"; f.spaces()[0].active = false; f.spaces().push({ id: "h", active: true, tabs: [] });
+    f.state["t3.pins"] = ["new", "head", "tail"];
+    f.state["t3-tabs.home"] = "h"; f.spaces()[0].active = false; f.spaces().push({ id: "h", active: true, tabs: [] });
     await tabs.undo();
-    assert.deepEqual(plain(f.state["agents.pins"]), ["new", "head", "t0", "tail"]);
+    assert.deepEqual(plain(f.state["t3.pins"]), ["new", "head", "t0", "tail"]);
     assert.deepEqual([f.labelled, f.calls], [[], []], "unpin Undo changes neither labels nor the place being viewed");
     assert.deepEqual(k.labels, { settled: "100:1", snoozed: "200" });
     tabs.unpin("t0", cx);
     tabs.unpin("tail", cx);
-    assert.equal(f.state["t3-inbox.notice"].count, 2, "successive unpins share one Undo notice");
+    assert.equal(f.state["t3.notice"].count, 2, "successive unpins share one Undo notice");
     await tabs.undo();
-    assert.deepEqual(plain(f.state["agents.pins"]), ["new", "head", "t0", "tail"]);
-    f.state["t3-inbox.notice"] = { owner: "tabs", action: "Settled", live: true, at: Date.now(), count: 1, undos: [{ address: "head", pins: [] }] };
+    assert.deepEqual(plain(f.state["t3.pins"]), ["new", "head", "t0", "tail"]);
+    f.state["t3.notice"] = { owner: "tabs", action: "Settled", live: true, at: Date.now(), count: 1, undos: [{ address: "head", pins: [] }] };
     tabs.unpin("t0", cx);
-    assert.equal(f.state["t3-inbox.notice"].count, 1, "unpin does not merge a Settle undo into a pin-only action");
+    assert.equal(f.state["t3.notice"].count, 1, "unpin does not merge a Settle undo into a pin-only action");
   }
 
   // A failed Settle cannot move the person or remove a pin.
   {
     const f = fixture(256); f.terminals().splice(2); f.agents()[0].status = "idle";
-    f.state["agents.pins"] = ["t0"];
+    f.state["t3.pins"] = ["t0"];
     Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
     f.answerHc(() => ({ code: 1, stderr: "offline" }));
     await f.load("t3-tabs").settle(cx);
-    assert.deepEqual([f.calls, f.state["agents.pins"], f.state["t3-inbox.notice"]], [[], ["t0"], undefined]);
+    assert.deepEqual([f.calls, f.state["t3.pins"], f.state["t3.notice"]], [[], ["t0"], undefined]);
     assert.equal(f.notifications.at(-1).body, "offline");
-    f.spaces()[0].active = false; f.spaces().push({ id: "h", active: true, tabs: [] }); f.state["t3-home.space"] = "h";
-    f.state["t3-inbox.notice"] = { owner: "tabs", live: true, at: Date.now(), undos: [{ address: "t0", pins: [] }] };
+    f.spaces()[0].active = false; f.spaces().push({ id: "h", active: true, tabs: [] }); f.state["t3-tabs.home"] = "h";
+    f.state["t3.notice"] = { owner: "tabs", live: true, at: Date.now(), undos: [{ address: "t0", pins: [] }] };
     await f.load("t3-tabs").undo();
     assert.deepEqual(f.calls, [], "failed Undo does not jump to an agent it could not restore");
-    assert.deepEqual(plain(f.state["t3-inbox.notice"].undos.map(u => u.address)), ["t0"], "and its notice stays, so Undo can be tried again");
+    assert.deepEqual(plain(f.state["t3.notice"].undos.map(u => u.address)), ["t0"], "and its notice stays, so Undo can be tried again");
   }
 
   {
     const f = fixture(256); f.terminals().splice(2); f.agents()[0].status = "idle";
     Object.assign(f.shown, { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
-    f.state["agents.pins"] = ["t0"];
+    f.state["t3.pins"] = ["t0"];
     let finish;
     f.answerHc(() => new Promise(resolve => { finish = resolve; }));
     const settling = f.load("t3-tabs").settle(cx);
-    f.state["agents.pins"] = ["new", "t0"];
+    f.state["t3.pins"] = ["new", "t0"];
     Object.assign(f.shown, { space: "s2", tab: "b2", pane: "p2", terminal: "vps/t2", agent: "vps/t2" });
     finish({ code: 0 }); await settling;
-    assert.deepEqual(f.state["agents.pins"], ["new"], "a slow label write preserves pins added while it was pending");
+    assert.deepEqual(f.state["t3.pins"], ["new"], "a slow label write preserves pins added while it was pending");
     assert.deepEqual(f.calls, [], "finishing a slow Settle cannot pull someone away from where they've gone");
   }
 
@@ -2664,7 +2669,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     Object.assign(f.shown, { tab: reviewTab, pane: "pr" }); view.render(cx); f.calls.length = 0;
     const want = split ? [["agent.focus", { terminal: "t0" }], ["pane.close", { pane: "pr" }]] : [["tab.select", { id: "b0" }], ["pane.close", { pane: "pr" }]];
     await view.settle(cx); assert.deepEqual(plain(f.calls.splice(0)), mode === "lists" ? [] : want, "Settle is the Inbox's");
-    assert.equal(f.labelled.length, 0); assert.equal(f.state["t3-inbox.notice"], undefined);
+    assert.equal(f.labelled.length, 0); assert.equal(f.state["t3.notice"], undefined);
     await view.navigation.handle("close-pane-now:pr", cx); assert.deepEqual(plain(f.calls.splice(0)), want, "× returns the same way");
     f.state["review.status"][reviewTab] = "working";
     await view.settle(cx); assert.deepEqual(f.calls, [], "analysis in progress cannot be settled");
@@ -2678,7 +2683,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const neighbour = { ...f.agents()[0], address: "N", pane: "pn", focused: false, status: "done" };
     f.agents().push(neighbour); f.panes().push({ ...neighbour, terminal: "N" });
     const k = { ...neighbour, turn: 1, labels: { "herdr.seen": "0" } }; f.terminals().push(k);
-    f.state["t3-home.space"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [] });
+    f.state["t3-tabs.home"] = "h"; f.spaces().push({ id: "h", name: "Home", active: false, tabs: [] });
     const view = f.load("t3-tabs"); view.render(cx); f.calls.length = 0;
     await view.navigation.handle("close-pane-now:p0", cx);
     assert.deepEqual(plain(f.calls.splice(0)), [["pane.close", { pane: "p0" }]], "the surviving pane stays in view");

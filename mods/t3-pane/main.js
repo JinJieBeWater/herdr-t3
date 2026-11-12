@@ -17,6 +17,7 @@ import { tip, tipMark, glow, POINTER_WATCH, pointerAt, pointerGone, pointerMoved
 import { stopsInit, stopsEnd, stop, focusRoot, within, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
 import { sidebarParts } from "./sidebar.js";
+import { KEY } from "./store.js";
 
 // The list as the layout's other menus (the sort menu, the right-click menu): 4 around 28px rows.
 const KIDS_WIDTH = 280, KIDS_SHOWN = 10, KIDS_ROW = 28, KIDS_CLOSED = "t3-pane.kidsClosed";
@@ -232,7 +233,7 @@ export default class Pane extends View {
     if (props()?.kids) return this.kidsMenu(t);
     const p = this.me();
     // Home has no header, mod or shell (docs/adr/0005): nothing to split, zoom or close, and the brand bar's lit mark tells where this is.
-    if (!p || spaces().find((s) => s.id === shared("t3-home.space"))?.tabs.some((c) => c.id === p.tab)) return div();
+    if (!p || spaces().find((s) => s.id === shared(KEY.home))?.tabs.some((c) => c.id === p.tab)) return div();
     const named = namer()(p);
     const pic = programIcon(programOf(p), 14, t.muted);
     // A name that is only the program's says what its icon already does.

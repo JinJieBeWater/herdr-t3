@@ -6,6 +6,7 @@ import { projectMark, placeOf, newTab } from "./project.js";
 import { step, scrollList } from "./list.js";
 import { keyOf, keyLabel } from "./tip.js";
 import { stopsInit, stop, focusRoot } from "./focus.js";
+import { KEY } from "./store.js";
 
 // As T3's command item: 6 + a 20px title + a 16px line + 6.
 const ROW = 48;
@@ -49,7 +50,7 @@ export default class NewMenu extends View {
     if (this.picking) return this.machineRows().filter(m => m.name.toLowerCase().includes(q));
     const ps = panes(), here = spaces().find(s => s.active)?.machine ?? null;
     const rank = (s) => (s.active ? 0 : (s.machine ?? null) === here ? 1 : 2);
-    return spaces().filter(s => s.id !== shared("t3-home.space") && `${s.name} ${s.machine ?? ""} ${placeOf(s, ps)}`.toLowerCase().includes(q))
+    return spaces().filter(s => s.id !== shared(KEY.home) && `${s.name} ${s.machine ?? ""} ${placeOf(s, ps)}`.toLowerCase().includes(q))
       .sort((a, b) => rank(a) - rank(b) || (a.machine ?? "").localeCompare(b.machine ?? ""))
       .map(s => ({ key: `space:${s.id}`, space: s }));
   }

@@ -6,10 +6,10 @@ import { theme, run, openOverlay, closeOverlay, props, shared, setShared, home, 
 import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, onStop, pressed, justClosed } from "./focus.js";
 import { menuJump, scrollList } from "./list.js";
+import { KEY, migrate } from "./store.js";
 
 const MOD = "t3-actions";
 // Where everyone's saved actions live: another key would lose them, whatever the mod is called.
-const KEY = "t3-actions";
 const MENU_CLOSED = `${MOD}.menuClosed`;
 const ICONS = ["play", "test", "lint", "configure", "build", "debug"];
 const PLACES = [["tab", "Tab"], ["right", "Right"], ["down", "Down"]];
@@ -18,7 +18,7 @@ const icon = (name) => svg(`mods/${MOD}/icons/action-${ICONS.includes(name) ? na
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 // { list: [{ id, name, command, icon, place, cwd }], last: id }
-const state = () => shared(KEY) ?? { list: [] };
+const state = () => shared(KEY.actions) ?? { list: [] };
 const primary = ({ list, last }) => list.find(a => a.id === last) ?? list[0];
 // The menu: a popup's height is only a maximum, so its list sets its own. REST: its padding, rule and Add action.
 const MENU_MAX = 420, MENU_REST = 45;
@@ -29,7 +29,7 @@ const editor = (id) => openOverlay({ mod: MOD, kind: "dialog", frame: "none", wi
 const underBar = (press) => press && { x: press.x - 8, y: 36 * settings().zoom };
 
 function runAction(a) {
-  setShared(KEY, { ...state(), last: a.id });
+  setShared(KEY.actions, { ...state(), last: a.id });
   // A mod pane (a review beside its agent) has no folder: use a terminal's in the same tab, else the space's.
   const f = focused();
   const folder = a.cwd?.startsWith("~") ? home() + a.cwd.slice(1)
@@ -41,13 +41,13 @@ function runAction(a) {
 // The answer from Delete's confirm dialog.
 function deleteAction(id) {
   const s = state();
-  setShared(KEY, { ...s, list: s.list.filter(x => x.id !== id) });
+  setShared(KEY.actions, { ...s, list: s.list.filter(x => x.id !== id) });
 }
 
 // The bar's control: "▶ Dev | ▾", or "Add action" before there is one. Outlined, not filled: a fill would read as an active tab.
 function control(view, t, stopPress) {
   // A narrow bar's layout sets it (Herdr T3's bar-measure): the icon alone, the name left to the hover label. Unset, the full control.
-  const s = state(), main = primary(s), compact = shared("bar.compact");
+  const s = state(), main = primary(s), compact = shared(KEY.compact);
   // T3's xs outline button: its svg hangs 2px into each side, its label sits 4 on, and with the icon alone it's 24 square.
   const ends = (el, wide) => wide ? el.pl(5).pr(7).gap(4) : el.justify_center();
   const box = (id) => h_flex().id(id).h(24).flex_none().items_center().rounded(8).border(1).border_color(t.border).text_size(12).on_mouse_down("left", stopPress);
@@ -133,7 +133,7 @@ function saveEditor(view) {
   if (!v.name || !v.command) return;
   const s = state(), id = view.action?.id ?? Date.now().toString(36);
   const next = { id, name: v.name, command: v.command, icon: view.icon, place: view.place, ...(v.cwd ? { cwd: v.cwd } : {}) };
-  setShared(KEY, { ...s, list: view.action ? s.list.map(x => x.id === id ? next : x) : [...s.list, next] });
+  setShared(KEY.actions, { ...s, list: view.action ? s.list.map(x => x.id === id ? next : x) : [...s.list, next] });
   closeOverlay(props().overlay);
 }
 
@@ -222,6 +222,8 @@ function confirmView(view) {
 export default class Actions extends View {
 
   init(_props, cx) {
+    // Installed alone, this may be the only mod of the layout's here: keys under old names move first (docs/internals/storage.md).
+    migrate();
     const overlay = props()?.actions;
     if (overlay === "edit") initEditor(this, cx);
     if (overlay === "menu") initMenu(this, cx);
@@ -246,7 +248,7 @@ export default class Actions extends View {
     if (overlay === "menu") return menu(this);
     if (overlay === "edit") return editorView(this);
     if (overlay === "confirm") return confirmView(this);
-    const stopPress = (_e, cx) => cx.stop_propagation(), home = shared("t3-home.space");
+    const stopPress = (_e, cx) => cx.stop_propagation(), home = shared(KEY.home);
     return focusRoot(this, h_flex().size_full().items_center().justify_end()
       // Home has no project to run them in.
       .when(!home || !spaces().some(s => s.active && s.id === home), el => el.child(h_flex().id("actions-fit").flex_none().pr(8).items_center().on_size_change((size) => this.fit(size)).child(control(this, theme(), stopPress)))));

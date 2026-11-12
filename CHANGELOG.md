@@ -8,6 +8,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-11
 
+- Pinning an agent from the tab bar's menu ends its snooze, as pinning it from the agents list always has. Behind this, every pin, label and stored value now goes through one place each. Your pins, Home, actions and the Inbox's open shelves move to their new names by themselves the first time the layout starts; there's nothing to do.
 - With Inbox, the tabs at the top right hug their names, evenly spaced and flush against Actions; hovering one turns its icon into the ×. They show no status mark there, so the slot after each name that holds one in Lists is gone.
 - With Inbox, the tabs at the top right line up against Actions: short of room, the ones nearest it stay whole and the far end fades out, instead of the last tab being cut off against Actions. In Lists too, the end of the tab bar that's cut now fades out.
 - The wheel over the tab bar now only scrolls the tabs, up and down as sideways, instead of switching to the next or previous tab; click a tab to go to it.

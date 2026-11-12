@@ -43,7 +43,7 @@ const context = vm.createContext({
   theme: () => ({ foreground: "#fff" }), spaces: () => spaces, machines: () => machines, panes: () => [], run: (name, args) => calls.push([name, args]),
   shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, closeOverlay() {}, props: () => ({ overlay: "o", ...openProps }), window: () => ({ platform }), keys: () => [{ section: "global", keys: "cmd-n", action: "space.new" }], home: () => "/home/me", projectMark: element, placeOf: (s) => s.folder, newTab: (s) => calls.push(["tab.new", { space: s.id, folder: s.folder }]),
 });
-const src = ["list.js", "tip.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["store.js", "list.js", "tip.js", "focus.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const list = (m) => find(m.render(), "new-rows");
@@ -69,9 +69,9 @@ assert.ok(text(find(list(open()), "space:a")).includes("Super+3"), "not a Mac's 
 platform = "macos";
 
 // New work doesn't start in Home, shown or not.
-state["t3-home.space"] = "a";
+state["t3-tabs.home"] = "a";
 assert.deepEqual(keysOf(open()), ["space:r2", "space:r1", "space:b"]);
-delete state["t3-home.space"];
+delete state["t3-tabs.home"];
 
 // Up and down keep the highlighted row on screen, round the ends too; six rows show.
 spaces = Array.from({ length: 9 }, (_, i) => local("s" + i, i === 0));

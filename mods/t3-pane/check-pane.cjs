@@ -71,7 +71,7 @@ function load(...files) {
   const mod = new context.Mod(); mod.init({}, cx); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const parts = ["name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "main.js"].map((f) => path.join(__dirname, f));
+const parts = ["store.js", "name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "main.js"].map((f) => path.join(__dirname, f));
 const header = load(...parts);
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);
@@ -197,9 +197,9 @@ delete terms[0].labels.settled; delete terms[0].turn;
 // The mode's owner closing ends the mode: a pane's × can close the pane it's on, and its timers go with it.
 {
   const owner = load(...parts);
-  sharedValues["t3-focus"] = owner.fs.me;
+  sharedValues["t3.focus"] = owner.fs.me;
   owner.close();
-  assert.equal(sharedValues["t3-focus"], null);
+  assert.equal(sharedValues["t3.focus"], null);
 }
 
 // The buttons come with the keyboard on the header, the stop that gets there, and only in keyboard mode.
@@ -208,11 +208,11 @@ delete terms[0].labels.settled; delete terms[0].turn;
   props = { pane: "p2" };
   assert.equal(find(quiet.render(), "ph-x-p2"), null);
   assert.equal(find(quiet.render(), "pane-head-p2").style?.tab_index, undefined);
-  sharedValues["t3-focus"] = "on";
+  sharedValues["t3.focus"] = "on";
   assert.equal(find(quiet.render(), "ph-x-p2"), null);
   quiet.fs.keyboard = true; quiet.fs.handles.set("pane-head-p2", { focus() {}, is_focused: () => true });
   assert.ok(find(quiet.render(), "ph-x-p2"), "the buttons show");
-  delete sharedValues["t3-focus"];
+  delete sharedValues["t3.focus"];
 }
 
 // Its sub-agents, all the way down: how many, or how many need the person, that opens their list.

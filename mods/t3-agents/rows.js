@@ -1,7 +1,7 @@
 // The agents list's rows and group headers, including their leaving ghosts.
 import { div, svg } from "gpui-kit";
 import { h_flex, Popup } from "gpui-base";
-import { spaces, run, hc, notify, setShared, openOverlay } from "herdr";
+import { spaces, run, openOverlay } from "herdr";
 import { namer } from "./name.js";
 import { focusAgent } from "./zoom.js";
 import { agentKids, kidStatus } from "./tree.js";
@@ -11,6 +11,7 @@ import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { programIcon } from "./program.js";
 import { stop, within } from "./focus.js";
 import { MOTION, foldArrow } from "./motion.js";
+import { pin } from "./pins.js";
 
 // T3's one-line row and shelf or folder header, its folders 8 apart and its list's 1px between items (gap-px).
 const ROW = 36, HEAD = 32, HEAD_GAP = 8;
@@ -184,7 +185,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
     // As T3's rows: what you're on or what wants you leads; the rest recede until hovered, a working one fainter still.
     const leads = on || offer || st === "blocked" || st === "done";
     // Over the time's slot on hover, as in the shipped list; the two cross-fade, as T3's corner. Faded out it's no button.
-    const pin = () => div().id(pinId)
+    const pinButton = () => div().id(pinId)
       .size(24).flex_none().flex().items_center().justify_center()
       .rounded(6)
       .opacity(offer ? 1 : 0).transition("opacity", MOTION)
@@ -196,13 +197,9 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
           // The row's about to move from under the pointer.
           view.hovered = view.hot = null;
           detailsFor(view, null, cx);
+          // A pin ends a snooze, in pins.js: here the Inbox may not have started yet.
           if (isPinned) run(`t3-tabs.unpin:${a.address}`);
-          else setShared("agents.pins", [...view.pins, a.address]);
-          // A pin ends a snooze. Here, not in the Inbox: it may not have started yet.
-          if (!isPinned && all.find((k) => k.address === a.address)?.labels?.snoozed) cx.spawn(async () => {
-            const r = await hc(["label", a.address, "snoozed="]).catch((e) => ({ code: 1, stderr: String(e) }));
-            if (r.code !== 0) notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
-          });
+          else pin(a.address);
           cx.notify();
         }), 6))
       .child(svg(`mods/t3-agents/icons/${isPinned ? "pin-off" : "pin"}.svg`).size(12).flex_none().text_color(lit(pinId)));
@@ -241,7 +238,7 @@ export function agentEntries(view, t, { list, all, shown, ps, now, viewing, byPr
         .child(ghost ? h_flex().h(24).min_w(32).flex_none().items_center().justify_end().child(time)
           : h_flex().id(`when-${a.address}`).relative().h(24).min_w(32).flex_none().items_center().justify_end()
             .child(time)
-            .child(div().absolute().top(0).right(0).child(tip(view, t, pinId, isPinned ? "Unpin" : "Pin", pin()))))
+            .child(div().absolute().top(0).right(0).child(tip(view, t, pinId, isPinned ? "Unpin" : "Pin", pinButton()))))
         .child(agentStatus(view, t, { status: st }, fromKid ? " (sub-agent)" : "", ghost ? undefined : `status-${a.address}`)));
     if (ghost) return base;
     return stop(view, t, rowId, base

@@ -12,6 +12,7 @@ import { projectMark } from "./project.js";
 import { programIcon } from "./program.js";
 import { step, scrollList } from "./list.js";
 import { stopsInit, stop, focusRoot } from "./focus.js";
+import { KEY } from "./store.js";
 
 // As T3's command item: 6 + a 20px title + a 16px line + 6.
 const ROW = 48;
@@ -39,7 +40,7 @@ export default class Picker extends View {
     const rank = (s) => (s.active ? 0 : (s.machine ?? null) === mine ? 1 : 2);
     const rows = [...spaces()].sort((a, b) => rank(a) - rank(b) || (a.machine ?? "").localeCompare(b.machine ?? "")).flatMap((s) => s.tabs.flatMap((c) =>
       // Home has its own key and nothing to find.
-      ps.filter((p) => p.tab === c.id && s.id !== shared("t3-home.space")).map((p) => {
+      ps.filter((p) => p.tab === c.id && s.id !== shared(KEY.home)).map((p) => {
         const under = p.terminal ? kids(p.terminal) : [];
         return {
           key: `pane:${p.pane}`, p, s, label: name(p), program: programOf(p), team: under.length, under, here: s.active && c.active && p.focused,
@@ -49,7 +50,7 @@ export default class Picker extends View {
         };
       })));
     // Not by `focused`: each tab has its own, so another tab's pane would never be a way back.
-    const back = !q && rows.find((r) => r.p.pane === shared("t3-picker.back") && r.p.pane !== focused()?.pane);
+    const back = !q && rows.find((r) => r.p.pane === shared(KEY.pickerBack) && r.p.pane !== focused()?.pane);
     const found = rows.filter((r) => !q || r.words.join(" ").toLowerCase().includes(q));
     return back ? [{ ...back, key: `back:${back.p.pane}`, back: true }, ...found] : found;
   }
@@ -59,7 +60,7 @@ export default class Picker extends View {
     closeOverlay(props().overlay);
     // The pane this leaves, for the next open's Back row. Only jumps from here are seen: a click elsewhere isn't.
     const from = focused()?.pane;
-    if (from && item.p.pane !== from) setShared("t3-picker.back", from);
+    if (from && item.p.pane !== from) setShared(KEY.pickerBack, from);
     focusPane(item.p.pane);
   }
 

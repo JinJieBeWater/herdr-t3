@@ -5,8 +5,9 @@
 // keyboard leaving every stop ends it. A terminal keeps Tab, so nothing else starts it, and with the mode off nothing here listens.
 import { div } from "gpui-kit";
 import { shared, setShared } from "herdr";
+import { KEY } from "./store.js";
 
-const MODE = "t3-focus";
+const MODE = KEY.focus;
 // A handle can't be made in render (the kit throws), and rows appear there.
 const POOL = 64;
 // Tab is the shell's action: a mod hears only its release, and only where it landed. Leaving by anything else, nobody tells it.

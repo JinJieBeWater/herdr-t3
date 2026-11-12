@@ -23,7 +23,7 @@ function element() {
 const state = {};
 let holding = null, now = 0;
 const FakeDate = { now: () => now };
-const src = fs.readFileSync(path.join(__dirname, "focus.js"), "utf8")
+const src = ["store.js", "focus.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ")
   + "\nglobalThis.focus = { stopsInit, stopsEnd, stop, focusRoot, onStop, within, enter };";
 const context = vm.createContext({ div: element, shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, Date: FakeDate });
@@ -56,32 +56,32 @@ const view = (kind) => { const v = {}, cx = fakeCx(); stopsInit(v, cx, kind); re
 // a key in the mode) must not: that mode is someone's.
 {
   context.t3FocusRun = false;
-  state["t3-focus"] = "old";
+  state["t3.focus"] = "old";
   view();
-  assert.equal(state["t3-focus"], null);
-  state["t3-focus"] = "live";
+  assert.equal(state["t3.focus"], null);
+  state["t3.focus"] = "live";
   view();
   view("modal");
-  assert.equal(state["t3-focus"], "live");
-  state["t3-focus"] = null;
+  assert.equal(state["t3.focus"], "live");
+  state["t3.focus"] = null;
 }
 
 // A mode nothing's walking (its owner went without a close): a stop's press ends it, so next frame it isn't a stop and Herdr gives the
 // keyboard back. An owner's own press, or an overlay's, is the walk's business.
 {
   const { v } = view();
-  state["t3-focus"] = "old";
+  state["t3.focus"] = "old";
   const el = stop(v, t, "a", element());
   assert.equal(el.style.tab_index, 0);
   el.handlers["on_mouse_down:left"]({}, fakeCx());
-  assert.equal(state["t3-focus"], null);
+  assert.equal(state["t3.focus"], null);
   assert.equal(stop(v, t, "a", element()).style.tab_index, undefined);
   const owner = view();
   enter(owner.v, owner.cx, "first");
   stop(owner.v, t, "first", element()).handlers["on_mouse_down:left"]({}, owner.cx);
-  assert.equal(state["t3-focus"], owner.v.fs.me);
+  assert.equal(state["t3.focus"], owner.v.fs.me);
   assert.equal(stop(view("modal").v, t, "save", element()).handlers["on_mouse_down:left"], undefined);
-  state["t3-focus"] = null;
+  state["t3.focus"] = null;
   holding = null;
 }
 
@@ -89,7 +89,7 @@ const view = (kind) => { const v = {}, cx = fakeCx(); stopsInit(v, cx, kind); re
 const a = view(), b = view();
 {
   enter(a.v, a.cx, "first");
-  assert.ok(state["t3-focus"]);
+  assert.ok(state["t3.focus"]);
   const first = stop(a.v, t, "first", element(), 8), second = stop(a.v, t, "second", element());
   assert.equal(first.style.tab_index, 0, "as T3's rows, every stop is in the order: no roving");
   assert.equal(holding, first.style.track_focus);
@@ -139,13 +139,13 @@ const a = view(), b = view();
   stop(b.v, t, "other", element());
   b.v.fs.handles.get("other").focus();
   focusRoot(b.v, element()).handlers.on_key_up({ key: "tab" }, b.cx);
-  assert.equal(state["t3-focus"], b.v.fs.me);
+  assert.equal(state["t3.focus"], b.v.fs.me);
   const seen = a.cx.notified;
   a.cx.tick();
   assert.equal(a.cx.notified, seen + 1, "the ring it left comes off by the next tick");
   for (let i = 0; i < 3; i++) a.cx.tick();
   assert.equal(a.v.fs.watch, null);
-  assert.equal(state["t3-focus"], b.v.fs.me);
+  assert.equal(state["t3.focus"], b.v.fs.me);
 }
 
 // The keyboard leaves every stop (a terminal took it): the mode ends, not on the first look, and the handles go back to the pool.
@@ -154,9 +154,9 @@ const a = view(), b = view();
   holding = null;
   b.cx.tick();
   b.cx.tick();
-  assert.ok(state["t3-focus"], "a tick isn't enough: the mod Tab landed in may not have spoken yet");
+  assert.ok(state["t3.focus"], "a tick isn't enough: the mod Tab landed in may not have spoken yet");
   b.cx.tick();
-  assert.equal(state["t3-focus"], null);
+  assert.equal(state["t3.focus"], null);
   assert.equal(b.v.fs.keyboard, false);
   focusRoot(b.v, element());
   assert.equal(b.v.fs.handles.size, 0);
@@ -168,9 +168,9 @@ const a = view(), b = view();
   const owner = view(), other = view();
   enter(owner.v, owner.cx, "first");
   stopsEnd(other.v);
-  assert.equal(state["t3-focus"], owner.v.fs.me);
+  assert.equal(state["t3.focus"], owner.v.fs.me);
   stopsEnd(owner.v);
-  assert.equal(state["t3-focus"], null);
+  assert.equal(state["t3.focus"], null);
   holding = null;
 }
 
@@ -183,10 +183,10 @@ const a = view(), b = view();
   stop(v, t, "first", element());
   holding = null;
   for (let i = 0; i < 5; i++) cx.tick();
-  assert.ok(state["t3-focus"]);
+  assert.ok(state["t3.focus"]);
   open = false;
   for (let i = 0; i < 3; i++) cx.tick();
-  assert.equal(state["t3-focus"], null);
+  assert.equal(state["t3.focus"], null);
   // Back by pane.go: the stop it left, once. One gone from the list loses the keyboard, and the next try starts at `first`.
   v.fs.last = "gone";
   enter(v, cx, "first");
@@ -206,7 +206,7 @@ const a = view(), b = view();
   el.style.track_focus.focus();
   focusRoot(v, element()).handlers.on_key_up({ key: "tab" }, cx);
   assert.ok(ringOf(stop(v, t, "save", element())));
-  assert.equal(state["t3-focus"], null);
+  assert.equal(state["t3.focus"], null);
   // Tab onto one of the overlay's inputs: no stop's lit.
   holding = {};
   focusRoot(v, element()).handlers.on_key_up({ key: "tab" }, cx);

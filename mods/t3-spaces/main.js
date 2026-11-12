@@ -12,6 +12,7 @@ import { repoFacts } from "./repos.js";
 import { dragGone, glow, hoverKept, tip, tipMark, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot, enter, pressed, justClosed } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
+import { KEY } from "./store.js";
 
 // How long a checkout being opened may take to show up before it's asked for again.
 const OPENING = 5000;
@@ -149,7 +150,7 @@ export default class Spaces extends View {
     const ready = (w) => this.shown.has(w.id) || this.repos.forSpace(w, ps).answered || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
     // Home stays in the model's order below, so the moves count it, but it's no one's checkout and has no row.
-    const homeId = shared("t3-home.space");
+    const homeId = shared(KEY.home);
     const list = sp.map((w, i) => ({ w, i, g: w.id === homeId ? null : this.repos.forSpace(w, ps).git }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const worktrees = (repo) => list.filter((k) => k.g?.linked && k.g.repo === repo);

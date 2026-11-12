@@ -5,10 +5,12 @@ import { focusAgent, focusPane } from "./zoom.js";
 import { sidebarParts } from "./sidebar.js";
 import { newTab } from "./project.js";
 import { t3Settings } from "./layout-settings.js";
+import { KEY } from "./store.js";
+import { writeLabel } from "./labels.js";
 
 // One instance per Tabs view; the Herdr operations also admit the check's fake core.
-export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), window: () => window(), namer, programOf, focusAgent, focusPane }) {
-  const { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, window, namer, programOf, focusAgent, focusPane } = core;
+export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agents, terminals, machines: () => machines(), run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home: () => home(), window: () => window(), namer, programOf, focusAgent, focusPane, writeLabel }) {
+  const { spaces, panes, agents, terminals, machines, run, openOverlay, closeOverlay, focused, hc, notify, layout, shared, setShared, home, window, namer, programOf, focusAgent, focusPane, writeLabel } = core;
   // lastIn: each tab's agent last in view, which the Inbox's bar holds while a program there has the focus.
   // fresh: spaces where the person started something new (the breadcrumb's space, cmd-t) since last looking at an agent there.
   const trail = {}, lastIn = {}, fresh = new Set(), owed = new Map(), waking = new Map();
@@ -24,7 +26,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
   // Home: one place to land, a space of its own on this computer, known by its id so whatever someone arranges there is theirs.
   // The layout's lists leave it out and the keys that walk spaces go around it, so it takes no number. This mod answers for it
   // because the tab bar always shows; the sidebar, with its brand bar, can be hidden.
-  const homeId = () => shared("t3-home.space");
+  const homeId = () => shared(KEY.home);
   // Reads "Home", with a zero-width space nobody types: a space someone else calls Home is never taken for it, and being wrong would hide theirs.
   const HOME_NAME = "Home\u200b";
 
@@ -35,7 +37,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     if (known?.name === "Home" && !renaming) { renaming = true; run("space.rename", { id: known.id, name: HOME_NAME }); }
     if (known) return;
     const found = all.find(s => s.machine === null && s.named && s.name === HOME_NAME && !released.has(s.id));
-    if (found) setShared("t3-home.space", found.id);
+    if (found) setShared(KEY.home, found.id);
   }
   const atHome = () => Boolean(homeId()) && spaces().some(s => s.active && s.id === homeId());
   // Home's tab is selected but spaces() hasn't caught up: the layout already takes Home's shape, so Home's first frame isn't
@@ -65,7 +67,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     run("space.new", { name: HOME_NAME, machine: "", folder: home() });
     const made = await seen(cx, () => spaces().find(s => !before.has(s.id) && s.name === HOME_NAME));
     if (!made) return;
-    setShared("t3-home.space", made.id);
+    setShared(KEY.home, made.id);
     // A new space comes with a shell: Home as a terminal, that's it. Else, as a space can't lose its last tab, the mod goes in first.
     if (!homeMod()) return;
     const shell = made.tabs[0]?.id;
@@ -75,7 +77,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
   }
   // The selected sidebar's rows, shown or hidden, stopping at either end.
   function step(command) {
-    const { order = [], view = null } = shared(inboxShown() ? "t3-inbox.rows" : "t3-agents.rows") ?? {};
+    const { order = [], view = null } = shared(inboxShown() ? KEY.inboxRows : KEY.agentsRows) ?? {};
     const i = view === null ? -1 : order.indexOf(view);
     const to = view === null ? (command === "next" ? order[0] : order.at(-1)) : i < 0 ? null : order[command === "next" ? i + 1 : i - 1];
     if (to?.startsWith("pane:")) focusPane(to.slice(5));
@@ -196,18 +198,11 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
   // `cards` are the cards. False: the caller goes Home.
   function nextCard(from) {
     if (t3Settings().afterAway !== "next") return false;
-    const { order = [], cards = 0 } = shared("t3-inbox.rows") ?? {}, list = order.slice(0, cards), i = list.indexOf(from);
+    const { order = [], cards = 0 } = shared(KEY.inboxRows) ?? {}, list = order.slice(0, cards), i = list.indexOf(from);
     const to = i < 0 ? null : [...list.slice(i + 1), ...list.slice(0, i)][0];
     if (to?.startsWith("pane:")) focusPane(to.slice(5));
     else if (to) focusAgent(to);
     return Boolean(to);
-  }
-
-  async function writeLabel(address, key, value, quiet = false) {
-    const r = await hc(["label", address, `${key}=${value}`]).catch(e => ({ code: 1, stderr: String(e) }));
-    if (r.code === 0) return true;
-    if (!quiet) notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
-    return false;
   }
 
   // Going first, so Herdr's neighbour never shows: being shown costs an agent its unread done, one the bar hides included.
@@ -253,7 +248,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     const homeSpace = spaces().find(s => s.id === homeId());
     if (homeSpace && agents().some(a => homeSpace.tabs.some(c => c.id === a.tab))) {
       released.add(homeSpace.id);
-      setShared("t3-home.space", null);
+      setShared(KEY.home, null);
       run("space.rename", { id: homeSpace.id, name: "" });
       // Home's own tab is called Home, which a card would take for the agent's name.
       for (const c of homeSpace.tabs.filter(c => c.named && c.name === "Home")) run("tab.rename", { id: c.id, name: "" });

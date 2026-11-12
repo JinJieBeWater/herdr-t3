@@ -56,7 +56,7 @@ const context = vm.createContext({
   shared: (k) => shared[k], setShared: (k, v) => { shared[k] = v; },
   namer: () => (p) => p.program.name, programOf: (p) => p.program, modStatus: () => null, projectMark: element,
 });
-const src = ["tree.js", "list.js", "zoom.js", "focus.js", "program.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+const src = ["store.js", "tree.js", "list.js", "zoom.js", "focus.js", "program.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n").replace(/^import .*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 vm.runInContext(src, context);
 const open = () => { const m = new context.Mod(); m.init({}, cx); return m; };
 const keys = (m) => find(m.render(), "picker-rows")?.items.map((n) => n.key) ?? [];
@@ -111,10 +111,10 @@ shared["t3-picker.back"] = "p9";
 assert.ok(!keys(open()).some((k) => k.startsWith("back:")));
 
 // Home has no row, mod or shell.
-shared["t3-home.space"] = "s1";
+shared["t3-tabs.home"] = "s1";
 panes.push({ pane: "ph", tab: "c1", mod: "review", title: "Home", program: {}, focused: false }, { pane: "pb", tab: "c1", terminal: "t5", program: vite, focused: false });
 { const rows = keys(open()); assert.ok(!rows.includes("pane:ph")); assert.ok(!rows.includes("pane:pb")); }
-panes.splice(-2); delete shared["t3-home.space"];
+panes.splice(-2); delete shared["t3-tabs.home"];
 // Its contents are there from the first frame: a fade leaves the popup blank.
 assert.notEqual(typeof open().render().opacity, "number");
 // Closing says so, for the buttons that open it to toggle.

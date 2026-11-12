@@ -6,13 +6,14 @@ import { glow, tip } from "./tip.js";
 import { stop, pressed, justClosed } from "./focus.js";
 import { step, scrollList } from "./list.js";
 import { FIRST } from "./row-model.js";
+import { KEY } from "./store.js";
 
 // The space filter's rows, flush as T3's, and how many show before the list scrolls: the whole rows T3's 23rem holds.
 const SCOPE_ROW = 32, SCOPE_SHOWN = 9;
 
 export function inboxMatches(view) {
   const q = view.search.value().toLowerCase();
-  return [{ id: null, name: "All spaces" }, ...spaces().filter((s) => s.id !== shared("t3-home.space"))].filter((s) => s.name.toLowerCase().includes(q));
+  return [{ id: null, name: "All spaces" }, ...spaces().filter((s) => s.id !== shared(KEY.home))].filter((s) => s.name.toLowerCase().includes(q));
 }
 
 // A click shows that space alone; shift-click adds or removes it and keeps the menu open, as in T3.

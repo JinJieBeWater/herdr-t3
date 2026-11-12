@@ -6,6 +6,7 @@ import { MOTION, planMotion, flying } from "./motion.js";
 import { stop } from "./focus.js";
 import { inboxTop } from "./filter.js";
 import { FIRST, MORE } from "./row-model.js";
+import { KEY } from "./store.js";
 
 // T3's slim rows and Show more (h-9) and its shelves' headers (h-8), logical px.
 export const SLIM = 36, SHELF = 32;
@@ -93,7 +94,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
   };
   view.ticking = busyRows.length > 0 || pinned.some(working);
   // T3 shows the undo notice in the sidebar footer's row, so it covers nothing: the layout's footer (t3-chrome) draws it
-  // from shared("t3-inbox.notice"). Docked alone, with no footer, it goes over the first shelf's header.
+  // from shared(KEY.notice). Docked alone, with no footer, it goes over the first shelf's header.
   const n = view.notice;
   const footer = (x) => !x?.hidden && ((x?.content?.mod === "t3-chrome" && Boolean(x.content.props?.footer)) || (x?.children ?? []).some(footer));
   const notice = n && !footer(layout()) && h_flex().id(`undo-notice-${n.gen}`).absolute().left(0).right(0).top(-24).h(24).px(10).gap(4).items_center()
@@ -113,7 +114,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
     .when(work.length > 0, (el) => el
       .child(fly("m:working", "marker", shelf("working-header", "Working", work.length, view.workOpen, () => {
         view.workOpen = !view.workOpen;
-        localStorage.setItem("working-open", String(view.workOpen));
+        localStorage.setItem("working.open", String(view.workOpen));
       }).on_mouse_move((_e, cx) => aim(null, cx))))
       // Folded, no wrapper: its py(2) and the gap before it would open Working's header 5px further from Snoozed's.
       .when(busyRows.length > 0, (el) => el.child(v_flex().py(2).gap(CARD_GAP).children(busyRows.map((a) => fly(a.address, "work", card(a)))))));
@@ -121,7 +122,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
   const napShelf = v_flex().id("snoozed").gap(STACK).flex_none()
     .child(fly("m:snoozed", "marker", shelf("snoozed-header", "Snoozed", nap.length, view.napOpen, () => {
       view.napOpen = !view.napOpen;
-      localStorage.setItem("snoozed-open", String(view.napOpen));
+      localStorage.setItem("snoozed.open", String(view.napOpen));
     }).on_mouse_move((_e, cx) => aim(null, cx))))
     .children(lane("snoozed", napRows, (a) => slim(a), 0));
   // With nothing to clear the button goes, and a gone element hears no pointer-leave: drop its hover.
@@ -148,7 +149,7 @@ export function inboxList(view, t, model, actions, drag, draw, cx) {
     .child(fly("m:settled", "marker", shelf("settled-header", "Settled", put.length, view.open, () => {
       view.open = !view.open;
       view.limit = FIRST;
-      localStorage.setItem("open", String(view.open));
+      localStorage.setItem("settled.open", String(view.open));
     }, clearButton).on_mouse_move((_e, cx) => aim({ section: "settled" }, cx))
       // As T3's shelf header: brighter while anything is lifted, accent as the target.
       .when(dragging, (el) => el.text_color(hot("settled") ? t.accent : t.foreground))))

@@ -7,6 +7,7 @@ import { exec, readTextFile, appHome, settings, shared, setShared, spaces, panes
 import { Buffer } from "buffer";
 import { createHash } from "crypto";
 import * as fs from "fs/promises";
+import { KEY } from "./store.js";
 
 // T3's project colors in its order, each as Tailwind's 400 (dark themes) and 600 (light).
 const PALETTE = [
@@ -111,7 +112,7 @@ export function placeOf(s, ps) {
 // A terminal tab where the space is now, as its mark and folder say: Herdr's tab.new alone starts where the space was made.
 export const newTab = (s) => run("tab.new", { space: s.id, folder: placeOf(s, panes()) });
 
-// Shared "space.icons": [machine, folder] -> the copy's path or null, so every mod shows what one found.
+// Shared KEY.spaceIcons: [machine, folder] -> the copy's path or null, so every mod shows what one found.
 // shortcut: folders with an icon that no space uses any more stay listed; prune them if the list ever grows noticeably.
 const looked = new Map(); // [machine, folder] -> when this copy last looked
 const lastIcon = new Map(); // space -> its icon where it last had an answer
@@ -119,17 +120,17 @@ const iconKey = (s, ps) => JSON.stringify([s.machine ?? null, placeOf(s, ps)]);
 function projectIcon(s, ps, follow) {
   const folder = placeOf(s, ps);
   if (!folder) return null;
-  const key = iconKey(s, ps), icons = shared("space.icons") ?? {}, known = icons[key] ?? null;
+  const key = iconKey(s, ps), icons = shared(KEY.spaceIcons) ?? {}, known = icons[key] ?? null;
   // As T3's cache: a found icon is looked for again after 10 minutes, a missing one after a minute.
   const stale = !looked.has(key) || Date.now() - looked.get(key) > (known ? 600000 : 60000);
   if (stale && !(follow && key in icons)) {
     looked.set(key, Date.now());
     lookUp(s.machine ?? null, folder).then((found) => {
-      const all = shared("space.icons") ?? {};
+      const all = shared(KEY.spaceIcons) ?? {};
       if (all[key] === found) return;
       // Each folder a terminal passes through would otherwise stay listed as having none.
       const ps = panes(), used = new Set(spaces().map((x) => iconKey(x, ps)));
-      setShared("space.icons", { ...Object.fromEntries(Object.entries(all).filter(([k, icon]) => icon || used.has(k))), [key]: found });
+      setShared(KEY.spaceIcons, { ...Object.fromEntries(Object.entries(all).filter(([k, icon]) => icon || used.has(k))), [key]: found });
     }, () => {}); // a machine away, no sh: the next look tries again
   }
   // Until a place new to it answers (a cd), the space keeps the icon it had, not a flash of its letter.

@@ -107,14 +107,14 @@ function fixture() {
     namer: () => (a) => a.mod ? f.state[`${a.mod}.titles`]?.[a.tab] || a.title : a.address, Date: FakeDate,
     programOf: (x) => x.mod ? f.state[`${x.mod}.program`] ?? null : x.program,
     modStatus: (x) => f.state[`${x.mod}.status`]?.[x.tab] ?? null,
-    localStorage: { getItem: (k) => f.data.get(k) ?? null, setItem: (k, v) => f.data.set(k, v) },
+    localStorage: { getItem: (k) => f.data.get(k) ?? null, setItem: (k, v) => f.data.set(k, v), removeItem: (k) => f.data.delete(k) },
     keys: () => [], agents: () => f.rows, terminals: () => f.terms, panes: () => [],
     spaces: () => [{ id: "s1", name: "One", tabs: [] }, { id: "s2", name: "Two", tabs: [] }],
     focused: () => ({ agent: f.rows.find((a) => a.focused)?.address }),
     theme: () => ({}), settings: () => ({}), props: () => ({}),
     layout: () => ({ id: "sidebar-lists", active: f.mode }),
-    shared: (k) => k === "agents.pins" ? f.pins : f.state[k] ?? null,
-    setShared: (k, v) => { f.writes.push(k); if (k === "agents.pins") f.pins = Array.from(v); else f.state[k] = v; },
+    shared: (k) => k === "t3.pins" ? f.pins : f.state[k] ?? null,
+    setShared: (k, v) => { f.writes.push(k); if (k === "t3.pins") f.pins = Array.from(v); else f.state[k] = v; },
     setAgentOrder: (xs) => { f.orderWrites++; f.order = Array.from(xs); },
     run: (...args) => f.calls.push(args), notify: (n) => f.notifications.push(n), openOverlay() {}, closeOverlay() {},
     hc: async (args) => { f.labelled.push(args.join(" ")); return { code: 0 }; }, nextCommand: () => new Promise(() => {}),
@@ -299,8 +299,8 @@ test("Clear confirms terminals, as closing a tab does", () => {
 
 test("a shared Undo request seen while drawing runs just after the draw, not with the 1s poll", () => {
   const f = fixture(), a = f.add("A"); a.focused = true; f.render(); f.settle();
-  const n = f.state["t3-inbox.notice"];
-  f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
+  const n = f.state["t3.notice"];
+  f.state["t3-tabs.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
   // The footer's Undo: a draw sees it first, and can't ask to be drawn again (Herdr would keep the last frame and say so).
   f.render();
   assert.equal(f.mod.notice.live, true, "not during the draw");
@@ -366,12 +366,12 @@ test("a background window can miss the whole tab-bar notice and still distinguis
     const tabs = f.loadTabs(), settling = tabs.settle(f.cx);
     if (!undo) await settling;
     f.render(11000);
-    assert.equal(f.state["t3-inbox.notice"] ?? null, null, "the observer has seen no live notice");
+    assert.equal(f.state["t3.notice"] ?? null, null, "the observer has seen no live notice");
     if (undo) { reply(); await settling; }
     f.now = 11100;
     if (undo) await tabs.undo(); else await tabs.settle(f.cx);
     f.render(11200);
-    assert.equal(f.state["t3-inbox.notice"], null);
+    assert.equal(f.state["t3.notice"], null);
     assert.deepEqual(f.active(), undo ? ["A", "B", "C"] : ["B", "A", "C"]);
   }
 });
@@ -393,15 +393,15 @@ test("Undo in another window keeps Active order through Inbox, footer and tab-ba
 });
 
 test("a refused key return sends no signal and preserves other agents' return signals; ended terminals' go", { skip: !fs.existsSync(path.join(__dirname, "../t3-tabs/main.js")) }, async () => {
-  const f = fixture(); f.add("A").focused = true; f.add("B"); f.label("A", "settled", "500:0"); f.state["t3-inbox.unsettled"] = { B: 900, gone: 800 };
+  const f = fixture(); f.add("A").focused = true; f.add("B"); f.label("A", "settled", "500:0"); f.state["t3-tabs.unsettled"] = { B: 900, gone: 800 };
   f.env.hc = async () => ({ code: 1, stderr: "offline" });
   const tabs = f.loadTabs(); f.render(); await tabs.settle(f.cx);
-  assert.deepEqual(f.state["t3-inbox.unsettled"], { B: 900, gone: 800 });
+  assert.deepEqual(f.state["t3-tabs.unsettled"], { B: 900, gone: 800 });
   f.env.hc = async () => ({ code: 0 });
   await f.loadTabs().settle(f.cx);
-  assert.deepEqual(plain(f.state["t3-inbox.unsettled"]), { A: 1000, B: 900 });
+  assert.deepEqual(plain(f.state["t3-tabs.unsettled"]), { A: 1000, B: 900 });
   await f.loadTabs().settle(f.cx);
-  assert.equal(f.state["t3-inbox.unsettled"].A, 1001, "two successes on the same clock tick are distinct signals");
+  assert.equal(f.state["t3-tabs.unsettled"].A, 1001, "two successes on the same clock tick are distinct signals");
 });
 
 test("a quick continuation keeps its Working place, showing its real state meanwhile", () => {
@@ -559,23 +559,23 @@ test("a layout Inbox handles Undo through shared state while hidden or behind Li
     const f = fixture(); f.context.props = () => ({ home: "t3-tabs.home" }); f.mode = mode;
     let undone = 0;
     f.mod.remember("Snoozed", 1, () => undone++, f.cx);
-    const n = f.state["t3-inbox.notice"];
-    f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
+    const n = f.state["t3.notice"];
+    f.state["t3-tabs.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now, request: 1 };
     const tick = () => f.watches.find(w => w.ms === 1000).fn(f.cx);
     tick(); tick(); assert.equal(undone, 1);
-    assert.equal(f.state["t3-inbox.notice"].live, false);
-    f.state["t3-inbox.notice"] = { owner: "tabs", gen: 100, live: true };
+    assert.equal(f.state["t3.notice"].live, false);
+    f.state["t3.notice"] = { owner: "tabs", gen: 100, live: true };
     f.now = 7000;
     for (const timer of f.timers) if (!timer.cancelled && timer.at <= f.now) { timer.cancel(); timer.fn(f.cx); }
-    assert.equal(f.state["t3-inbox.notice"].owner, "tabs", "an older Inbox notice's timers cannot erase a newer tab-bar action");
+    assert.equal(f.state["t3.notice"].owner, "tabs", "an older Inbox notice's timers cannot erase a newer tab-bar action");
   }
 });
 
 test("Undo pressed just before five seconds runs before expiry, without waiting for the hidden poll", () => {
   const f = fixture(); f.context.props = () => ({ home: "t3-tabs.home" }); let undone = 0;
   f.mod.remember("Snoozed", 1, () => undone++, f.cx);
-  const n = f.state["t3-inbox.notice"];
-  f.state["t3-inbox.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now + 4999, request: 1 };
+  const n = f.state["t3.notice"];
+  f.state["t3-tabs.undo"] = { gen: n.gen, at: n.at, requestedAt: f.now + 4999, request: 1 };
   f.now += 5000;
   f.timers.find(t => t.at === f.now).fn(f.cx);
   assert.equal(undone, 1);
@@ -683,7 +683,7 @@ test("in keyboard mode each control is a stop, and a row shows with the keyboard
   f.render();
   assert.equal(find(f.tree, "card-A").style.tab_index, undefined, "no stop until the mode's on: a press would take the terminal's keyboard");
   assert.equal(find(f.tree, "inbox-search").style.track_focus, undefined);
-  f.state["t3-focus"] = "on";
+  f.state["t3.focus"] = "on";
   f.render();
   for (const id of ["card-A", "inbox-search", "inbox-scope", "inbox-new-space", "inbox-new-tab"]) assert.deepEqual(find(f.tree, id).style.tab_index, [0], id);
   assert.equal(find(f.tree, "settle-A").style.tab_index, undefined, "faded out it's no button");
@@ -708,7 +708,7 @@ test("pane.go hands the inbox the keyboard, and it starts at Search", async () =
   const sent = ["focus"];
   f.context.nextCommand = async () => { if (sent.length) return sent.shift(); throw new Error("done"); };
   await assert.rejects(f.jobs.at(0)(f.cx), /done/);
-  assert.ok(f.state["t3-focus"], "the mode's on");
+  assert.ok(f.state["t3.focus"], "the mode's on");
   assert.ok(f.keys, "and the keyboard's moved");
   f.render();
   assert.equal(find(f.tree, "inbox-search").style.track_focus[0], f.mod.fs.handles.get("inbox-search"));
@@ -975,12 +975,12 @@ test("with the layout's footer there, the notice goes to it, as T3's footer row 
   f.context.layout = () => ({ children: [{ id: "sidebar-lists", active: "inbox" }, { id: "sidebar-footer", content: { mod: "t3-chrome", props: { footer: true } } }] });
   f.render(); f.settle(); f.render(1000);
   assert.equal(find(f.tree, "undo-notice-1"), null, "nothing over the list");
-  assert.deepEqual(plain(f.state["t3-inbox.notice"]), { action: "Settled", count: 1, gen: 1, shown: false, live: true, at: 1000 });
-  f.render(1016); assert.equal(f.state["t3-inbox.notice"].shown, true, "then it fades in, there");
+  assert.deepEqual(plain(f.state["t3.notice"]), { action: "Settled", count: 1, gen: 1, shown: false, live: true, at: 1000 });
+  f.render(1016); assert.equal(f.state["t3.notice"].shown, true, "then it fades in, there");
   f.mod.undo(f.cx);
   assert.equal(f.mod.pending.settled.A, "");
-  f.render(1016); assert.deepEqual([f.state["t3-inbox.notice"].live, f.state["t3-inbox.notice"].shown], [false, false], "fading out");
-  f.render(1300); assert.equal(f.state["t3-inbox.notice"], null);
+  f.render(1016); assert.deepEqual([f.state["t3.notice"].live, f.state["t3.notice"].shown], [false, false], "fading out");
+  f.render(1300); assert.equal(f.state["t3.notice"], null);
   const writes = f.jobs.length; f.mod.undo(f.cx); assert.equal(f.jobs.length, writes, "an Undo pressed as it goes does nothing");
 });
 
@@ -1098,10 +1098,10 @@ test("each mod pane asking for Inbox gets its own layout card, including two in 
 });
 
 test("Home's mod has no card, even one that asks", () => {
-  const f = fixture(); f.review("pm", "tr", "s2"); f.state["t3-home.space"] = "s2";
+  const f = fixture(); f.review("pm", "tr", "s2"); f.state["t3-tabs.home"] = "s2";
   f.context.props = () => ({ home: "t3-tabs.home" }); f.render();
   assert.ok(!cards(f.tree).includes("pane:pm"));
-  delete f.state["t3-home.space"]; f.render();
+  delete f.state["t3-tabs.home"]; f.render();
   assert.ok(cards(f.tree).includes("pane:pm"), "the same review elsewhere has one");
 });
 
@@ -1166,19 +1166,19 @@ test("the settle key on the review in view moves on to the next card, then close
 
 // As a layout with a Home passes it to the Inbox, with the person there or not.
 const atHome = (f, where = "home") => {
-  f.state["t3-home.space"] = "home";
+  f.state["t3-tabs.home"] = "home";
   f.context.props = () => ({ home: "t3-tabs.home" });
   f.context.focused = () => ({ space: where, tab: "th", pane: "ph", terminal: null, agent: "B" });
 };
 
 test("with a Home, Settle and Snooze on the agent in view land there, not on the next card", () => {
   const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
-  f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
+  f.state["t3-tabs.home"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
   a.focused = true; f.render(); f.calls.length = 0;
   f.settle();
   assert.deepEqual(plain(f.calls), [["t3-tabs.home"]]);
   const s = fixture(), b = s.add("A", "idle", 300); s.add("B", "idle", 200);
-  s.state["t3-home.space"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" });
+  s.state["t3-tabs.home"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" });
   b.focused = true; s.render(); s.calls.length = 0;
   s.mod.customSnooze(`A:${Date.now() + 3600000}`, s.cx);
   assert.deepEqual(plain(s.calls), [["t3-tabs.home"]]);
@@ -1187,13 +1187,13 @@ test("with a Home, Settle and Snooze on the agent in view land there, not on the
 test("with a Home and Next card chosen, putting away the agent in view opens the next card, and Home once none is left", () => {
   for (const put of ["settle", "snooze"]) {
     const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
-    f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" }); f.state["t3.settings"] = { afterAway: "next" };
+    f.state["t3-tabs.home"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" }); f.state["t3.settings"] = { afterAway: "next" };
     a.focused = true; f.render(); f.calls.length = 0;
     if (put === "settle") f.settle(); else f.mod.customSnooze(`A:${Date.now() + 3600000}`, f.cx);
     assert.deepEqual(plain(f.calls), [["agent.focus", { terminal: "B" }]], put);
   }
   const s = fixture(), b = s.add("A", "idle", 300);
-  s.state["t3-home.space"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" }); s.state["t3.settings"] = { afterAway: "next" };
+  s.state["t3-tabs.home"] = "home"; s.context.props = () => ({ home: "t3-tabs.home" }); s.state["t3.settings"] = { afterAway: "next" };
   b.focused = true; s.render(); s.calls.length = 0;
   s.settle();
   assert.deepEqual(plain(s.calls), [["t3-tabs.home"]], "the last card: Home");
@@ -1209,7 +1209,7 @@ test("with a Home, settling Review uses the tab bar's return path", () => {
 test("with a Home, Undo brings the agent back while the person is still there, and moves nothing once they've gone", () => {
   for (const [where, back] of [["home", true], ["s1", false]]) for (const put of ["settle", "snooze"]) {
     const f = fixture(), a = f.add("A", "idle", 300); f.add("B", "idle", 200);
-    f.state["t3-home.space"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
+    f.state["t3-tabs.home"] = "home"; f.context.props = () => ({ home: "t3-tabs.home" });
     a.focused = true; f.render();
     if (put === "settle") f.settle();
     else f.mod.customSnooze(`A:${Date.now() + 3600000}`, f.cx);

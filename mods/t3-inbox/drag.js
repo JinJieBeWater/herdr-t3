@@ -1,12 +1,13 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { focused, run, setShared, settings } from "herdr";
+import { focused, run, settings } from "herdr";
 import { focusPane } from "./zoom.js";
 import { dragGone, POINTER_WATCH, pointerMoved } from "./tip.js";
 import { detailsAt, detailsFor } from "./details.js";
 import { MOTION } from "./motion.js";
 import { SLIM, CARD_GAP, LIST_TOP } from "./list-view.js";
 import { byRecent } from "./row-model.js";
+import { setPinned, unpin } from "./pins.js";
 
 export function inboxDrag(view, t, model, actions) {
   const { list, pins, pinned, put, out, busy, hidden, settledAt, working, since, viewing, napUntil, wake, inView, busyRows, napRows } = model;
@@ -136,11 +137,11 @@ export function inboxDrag(view, t, model, actions) {
     if (!plan) return false;
     const a = lifted;
     if (plan.section === "settled") return settle([a], cx);
-    if (plan.section === "pinned") setShared("agents.pins", plan.order);
+    if (plan.section === "pinned") setPinned(plan.order);
     // Out of Snoozed it's a Wake, which keeps the pin.
     else if (pins.includes(a.address) && from !== "snoozed") {
       const before = [...pins];
-      setShared("agents.pins", pins.filter((p) => p !== a.address));
+      unpin([a.address]);
       view.remember("Unpinned", 1, () => repin(before, [a.address]), cx);
     }
     if (settledAt(a)) unsettle(a, cx);

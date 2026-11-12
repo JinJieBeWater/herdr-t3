@@ -5,6 +5,7 @@ import { tip, glow } from "./tip.js";
 import { stopsInit, stopsEnd, stop, focusRoot } from "./focus.js";
 import { sidebarParts } from "./sidebar.js";
 import { initSettings, settingsView } from "./settings.js";
+import { KEY } from "./store.js";
 
 // The sidebar shows either Lists (Spaces and Agents) or the Inbox (t3-inbox): a stack in the layout.
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
@@ -59,7 +60,7 @@ export default class WorkspaceChrome extends View {
       // T3's undo notice, the inbox's (t3-inbox.notice), in this row's free space so it covers nothing: "Settled," or
       // "Settled 2," then Undo, which the inbox does. It fades in and out over 200ms, Undo inert while it goes. One older than
       // its 5s and the fade is left from before a restart.
-      const n = shared("t3-inbox.notice");
+      const n = shared(KEY.notice);
       // Short of room the summary is cut, never Undo: GPUI's flex doesn't do T3's two wraps, which squeezed Undo to nothing.
       const notice = n && Date.now() - n.at < 6000 && h_flex().id(`undo-notice-${n.gen}`).flex_1().min_w(0).h(24).justify_end().gap(4).items_center()
         .text_size(11).text_color(t.dim).opacity(n.shown ? 1 : 0).transition("opacity", { duration: 200, easing: "ease-out" })
@@ -96,7 +97,7 @@ export default class WorkspaceChrome extends View {
     // this button's 6 in. Short of room the name gives way whole, never cut to "Her…", and never the buttons.
     const zoom = settings().zoom || 1, left = w?.platform === "macos" && !w?.fullscreen ? (68 + 16 - 2) / zoom - 6 : 8, on = this.hot === "home"
       // Lit at Home too: its tab bar is empty and its panes may be anyone's, so this says where you are.
-      || spaces().some((s) => s.active && s.id === shared("t3-home.space"));
+      || spaces().some((s) => s.active && s.id === shared(KEY.home));
     // What the name has past the left inset: less the 8 at the right, two 28px buttons, this button's 6 each side, the 20px logo and 8 gap.
     const named = !this.brandW || this.brandW - left - 8 - 56 - 12 - 20 - 8 >= (this.nameW || 0);
     return focusRoot(this, h_flex().id("brand").size_full().bg(t.chrome).pl(left).pr(8).items_center()

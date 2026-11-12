@@ -11,7 +11,7 @@
 
 import { View } from "gpui-kit";
 import { v_flex, InputState } from "gpui-base";
-import { agents, terminals, panes, spaces, focused, hc, notify, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, window } from "herdr";
+import { agents, terminals, panes, spaces, focused, theme, shared, setShared, setAgentOrder, props, nextCommand, settings, layout, window } from "herdr";
 import { modStatus, programOf } from "./name.js";
 import { descendants, ownStatus, stillSettled } from "./tree.js";
 import { stopsInit, stopsEnd, focusRoot, enter } from "./focus.js";
@@ -23,6 +23,9 @@ import { inboxDrag } from "./drag.js";
 import { inboxRowView } from "./row-view.js";
 import { inboxList } from "./list-view.js";
 import { sidebarParts } from "./sidebar.js";
+import { KEY, migrate, migrateLocal } from "./store.js";
+import { pinList } from "./pins.js";
+import { writeLabel } from "./labels.js";
 
 // A label write render keeps asking for waits this long (ms) after failing.
 const RETRY = 60000;
@@ -32,6 +35,9 @@ export default class Inbox extends View {
 
   init(_props, cx) {
     if (props()?.customSnooze) return initCustom(this, cx);
+    // Published alone, this may be the layout's only mod: keys under old names move first (docs/internals/storage.md).
+    migrate();
+    migrateLocal([["open", "settled.open"], ["working-open", "working.open"], ["snoozed-open", "snoozed.open"]]);
     stopsInit(this, cx);
     // A menu of its own holds the keyboard off every stop for as long as it's open, and gives it back to the one it opened from.
     // Only while the keyboard's really in it: one left open as the Inbox hid would hold the mode with the keyboard back in the terminal.
@@ -39,18 +45,18 @@ export default class Inbox extends View {
     // Each agent's last state, when we saw it set going or come back (ms; 0: before we were watching), the turns
     // it had ended then, and for one that just stopped, when its run started.
     this.changed = JSON.parse(localStorage.getItem("changes") ?? "{}");
-    this.open = localStorage.getItem("open") === "true";
-    this.workOpen = localStorage.getItem("working-open") === "true";
-    this.napOpen = localStorage.getItem("snoozed-open") === "true";
+    this.open = localStorage.getItem("settled.open") === "true";
+    this.workOpen = localStorage.getItem("working.open") === "true";
+    this.napOpen = localStorage.getItem("snoozed.open") === "true";
     // The card whose snooze menu is open, and the row its keys are on.
     this.napMenu = null;
-    this.undoRequest = shared("t3-inbox.undo");
+    this.undoRequest = shared(KEY.undo);
     this.napAt = -1;
     this.napKeys = cx.focus_handle();
     this.limit = FIRST;
     // Labels written but not back from the core yet: label → address → value ("" = removed).
     this.pending = { settled: {}, snoozed: {} };
-    this.unsettledBefore = { ...(shared("t3-inbox.unsettled") ?? {}) };
+    this.unsettledBefore = { ...(shared(KEY.unsettled) ?? {}) };
     // Labels with writes under way, by `key address`: how many, and whether the label can't yet be taken at its word.
     this.writing = {};
     // Writes that failed, and when.
@@ -117,13 +123,12 @@ export default class Inbox extends View {
     w.unsure = w.unsure || w.out > 0;
     w.out++;
     cx.spawn(async (cx) => {
-      const r = await hc(["label", addr, `${key}=${value}`]).catch((e) => ({ code: 1, stderr: String(e) }));
+      const written = await writeLabel(addr, key, value);
       if (--w.out === 0) delete this.writing[slot];
-      if (r.code !== 0) {
+      if (!written) {
         if (this.pending[key][addr] === value) delete this.pending[key][addr];
         failed?.();
         this.refused[`${key} ${addr} ${value}`] = Date.now();
-        notify({ title: "Couldn't update the agent", body: r.stderr.trim(), level: "error" });
         // A Settle or Snooze that didn't happen: the notice says one fewer, or goes. Its Undo would only rewrite what's there.
         if (value && this.notice?.live) { if (--this.notice.count > 0) this.publishNotice(); else this.forget(cx); }
       }
@@ -144,7 +149,7 @@ export default class Inbox extends View {
   // T3's undo notice (showThreadUndoNotice): the latest run of one action, "Settled 2 agents", undone together for
   // 5s, then gone. A new notice fades in (a frame clear first: Herdr eases only later changes); it fades out going.
   remember(action, count, undo, cx) {
-    const live = this.notice?.live && shared("t3-inbox.notice")?.owner !== "tabs" && this.notice.action === action ? this.notice : null;
+    const live = this.notice?.live && shared(KEY.notice)?.owner !== "tabs" && this.notice.action === action ? this.notice : null;
     const n = live ?? { action, count: 0, undos: [], gen: (this.notice?.gen ?? 0) + 1, shown: false };
     n.count += count; n.undos.push(undo); n.live = true; n.at = Date.now();
     this.notice = n;
@@ -173,7 +178,7 @@ export default class Inbox extends View {
   }
 
   consumeUndo(cx) {
-    const undo = shared("t3-inbox.undo");
+    const undo = shared(KEY.undo);
     if (JSON.stringify(undo) === JSON.stringify(this.undoRequest)) return;
     this.undoRequest = undo;
     if (undo && undo.gen === this.notice?.gen && undo.at === this.notice?.at && undo.requestedAt < undo.at + 5000) this.undo(cx);
@@ -184,18 +189,18 @@ export default class Inbox extends View {
     const said = n ? { action: n.action, count: n.count, gen: n.gen, shown: n.shown, live: n.live, at: n.at } : null;
     const before = this.said;
     this.said = JSON.stringify(said);
-    if (this.said !== before && (fresh || JSON.stringify(shared("t3-inbox.notice") ?? null) === before)) setShared("t3-inbox.notice", said);
+    if (this.said !== before && (fresh || JSON.stringify(shared(KEY.notice) ?? null) === before)) setShared(KEY.notice, said);
   }
 
   compute(cx, publish = true) {
     // An Undo asks for a redraw, which a draw can't: one seen while drawing runs just after it, not a second later.
     if (publish) this.consumeUndo(cx);
-    else if (JSON.stringify(shared("t3-inbox.undo")) !== JSON.stringify(this.undoRequest)) cx.timer.after(0, (cx) => { this.consumeUndo(cx); cx.notify(); });
+    else if (JSON.stringify(shared(KEY.undo)) !== JSON.stringify(this.undoRequest)) cx.timer.after(0, (cx) => { this.consumeUndo(cx); cx.notify(); });
     const now = Date.now();
     const runs = agents(), all = terminals(), ps = panes(), sp = spaces(), f = focused();
     // `pane:<id>` is a mod card's address, in t3-inbox.rows too. Docked alone, keep the original one-card-per-agentless-tab rule.
     // Home's mod is no one's work, whatever it reports (docs/adr/0005).
-    const every = [...runs, ...sp.filter((s) => s.id !== shared("t3-home.space")).flatMap((s) => s.tabs.flatMap((c) => {
+    const every = [...runs, ...sp.filter((s) => s.id !== shared(KEY.home)).flatMap((s) => s.tabs.flatMap((c) => {
       const cards = ps.filter(x => x.tab === c.id && x.mod && programOf(x)?.inbox);
       return (props()?.home ? cards : runs.some(a => a.tab === c.id) ? [] : cards.slice(0, 1)).map(p => ({ ...p,
         address: `pane:${p.pane}`, status: modStatus(p) ?? "idle", focused: p.pane === f?.pane,
@@ -215,7 +220,7 @@ export default class Inbox extends View {
     const scope = this.scope.filter((id) => sp.some((s) => s.id === id));
     const term = new Map(all.map((k) => [k.address, k]));
     // The key reports an explicit return; a label cleared by Undo, even in another window, keeps its place.
-    const unsettled = shared("t3-inbox.unsettled") ?? {};
+    const unsettled = shared(KEY.unsettled) ?? {};
     const returned = new Set(all.filter((k) => unsettled[k.address] !== undefined && unsettled[k.address] !== this.unsettledBefore[k.address]
       && !k.labels?.settled && this.pending.settled[k.address] === undefined).map((k) => k.address));
     for (const addr of returned) this.unsettledBefore[addr] = unsettled[addr];
@@ -230,7 +235,7 @@ export default class Inbox extends View {
       if (label && !stillSettled({ labels: { settled: label }, turn: term.get(a.address)?.turn }, ownStatus(a.status, a.address, all), kids.get(a.address))) this.setLabelDue("settled", a.address, "", cx);
     }
     // Pins are the agents list's (t3-agents), one set for both: pinned agents stay up top in pin order, whatever their state.
-    const pins = shared("agents.pins") ?? [];
+    const pins = pinList();
     const wake = (a, cx) => this.setLabel("snoozed", a.address, "", cx);
     // A snooze ends on a failure in its tree (a program's error doesn't stay said), a new turn in view (the person gave
     // it work), or being looked at once it has woken. A pin ends it too, as the pinning writes the label.
@@ -274,12 +279,12 @@ export default class Inbox extends View {
     const { stack: mode } = sidebarParts(layout());
     if (mode && mode.active !== "inbox") { this.agentOrder = null; return; }
     const drawn = { order: [...cards, ...rest].map((a) => a.address), view, cards: cards.length };
-    if (JSON.stringify(drawn) !== JSON.stringify(shared("t3-inbox.rows") ?? null)) setShared("t3-inbox.rows", drawn);
+    if (JSON.stringify(drawn) !== JSON.stringify(shared(KEY.inboxRows) ?? null)) setShared(KEY.inboxRows, drawn);
     const order = ordered.filter((a) => !a.mod).map((a) => a.address);
-    if (JSON.stringify(order) !== this.agentOrder || shared("t3-agent-order") !== "inbox") {
+    if (JSON.stringify(order) !== this.agentOrder || shared(KEY.agentOrder) !== "inbox") {
       this.agentOrder = JSON.stringify(order);
       setAgentOrder(order);
-      if (shared("t3-agent-order") !== "inbox") setShared("t3-agent-order", "inbox");
+      if (shared(KEY.agentOrder) !== "inbox") setShared(KEY.agentOrder, "inbox");
     }
   }
 

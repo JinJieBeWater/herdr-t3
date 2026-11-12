@@ -11,6 +11,7 @@ import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { glow, tip } from "./tip.js";
 import { step, scrollList } from "./list.js";
 import { stop, pressed, justClosed } from "./focus.js";
+import { KEY } from "./store.js";
 
 const MOD = "pulls-review";
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
@@ -94,7 +95,7 @@ async function touchesDiff(root, paths) {
 // Focus is checked every 250 ms (memory reads only); git is read on a new location, a change in the worktree (a second
 // after the last read at the soonest), else every 10 s.
 // Herdr T3's Home: no worktree to count.
-const onHome = () => shared("t3-home.space") && spaces().some((s) => s.active && s.id === shared("t3-home.space"));
+const onHome = () => shared(KEY.home) && spaces().some((s) => s.active && s.id === shared(KEY.home));
 
 export function watchReview(view, cx) {
   view.reviews = new Map();
@@ -363,7 +364,7 @@ export function reviewBar(view, t, stopPress) {
   if (!r) return null;
   const n = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   // A narrow bar's layout sets it (Herdr T3's bar-measure): each count with an icon for what it counts. Unset, the words.
-  const compact = shared("bar.compact");
+  const compact = shared(KEY.compact);
   // What the space's review pane shows, when it's this repository's. Its entry outlives a closed pane, until another review pane drops it.
   const open = spaceReview(), reviewed = open ? shared("review.shown")?.[open.tab] : null, here = reviewed?.root === r.root ? reviewed : null;
   // The diff, whichever of its commits the pane is on.

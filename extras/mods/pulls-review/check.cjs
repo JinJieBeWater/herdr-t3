@@ -49,7 +49,7 @@ const env = {
   openOverlay: (spec) => overlays.push(spec), closeOverlay: (id) => closed.push(id),
   appHome: () => "/app", home: () => "/Users/me", readTextFile: async () => '{ "open": "herdr" }',
 };
-const source = ["details.js", "tip.js", "list.js", "zoom.js", "focus.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["store.js", "details.js", "tip.js", "list.js", "zoom.js", "focus.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
 const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
@@ -91,9 +91,9 @@ const load = (props = {}, setup = record) => {
   assert.equal(strings(find(drawn, "tip-review-ahead").style.content).length, 0, "its card waits for the hover");
   assert.ok("rounded_l" in find(drawn, "review-changes").style && "rounded_r" in find(drawn, "review-pick").style && !("rounded_l" in find(drawn, "review-pick").style), "the end parts' fills follow the outline's corners");
   // In keyboard mode Tab reaches each count and the logo, as it does the Actions beside them.
-  state["t3-focus"] = "someone";
+  state["t3.focus"] = "someone";
   for (const id of ["review-changes", "review-open", "review-ahead", "review-behind", "review-pick"]) assert.equal(find(bar.render(), id).style.tab_index, 0, `${id} is a Tab stop`);
-  delete state["t3-focus"];
+  delete state["t3.focus"];
   assert.equal(find(bar.render(), "review-pick").style.tab_index, undefined, "out of it, a press keeps the terminal's keyboard");
   assert.equal(find(drawn, "review-open").style.accessibility_label, "Review the branch: 4 commits on feat, not on main");
   for (const n of walk(drawn)) if (n.hoverStyle.text_color) assert.ok(!walk(n).some(c => c.kind === "svg"), `${n.key}: a hover style can't brighten its icon`);
@@ -141,7 +141,7 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(bar.render(), "review-ahead")), ["↑2"]);
   assert.deepEqual(walk(find(bar.render(), "review-open")).filter(n => n.kind === "svg"), [], "wide, the words tell them apart");
   // In a narrow bar each count has a Lucide icon in place of its words, or its arrow; the hover label gives back the words, and the accessibility label stays whole.
-  state["bar.compact"] = true;
+  state["t3-tabs.compact"] = true;
   assert.deepEqual(strings(find(bar.render(), "review-open")), ["4"]);
   assert.deepEqual(strings(find(bar.render(), "review-ahead")), ["2"]);
   for (const [id, icon] of [["review-changes", "file-diff"], ["review-open", "git-branch"], ["review-ahead", "arrow-up"], ["review-behind", "arrow-down"]]) {
@@ -154,7 +154,7 @@ const load = (props = {}, setup = record) => {
   assert.deepEqual(strings(find(bar.render(), "tip-review-open").style.content), ["4 ahead of main · merged?"]);
   fire(find(bar.render(), "review-open"), "on_hover", false, cx);
   assert.match(find(bar.render(), "review-open").style.accessibility_label, /^Review the branch: 4 commits on feat/);
-  delete state["bar.compact"];
+  delete state["t3-tabs.compact"];
   assert.equal(find(bar.render(), "review-open").style.accessibility_label,
     "Review the branch: 4 commits on feat, not on main · main has 1 newer commit · origin/feat is gone, likely merged");
   const full = status;
@@ -183,9 +183,9 @@ const load = (props = {}, setup = record) => {
   const fit = () => find(bar.render(), "review-fit");
   assert.equal(fit().style.pr, 8);
   // Herdr T3's Home has no worktree to count: no bar, and its block closes.
-  state["t3-home.space"] = "s";
+  state["t3-tabs.home"] = "s";
   assert.equal(fit().style.pr, undefined);
-  delete state["t3-home.space"];
+  delete state["t3-tabs.home"];
   fire(fit(), "on_size_change", { width: 220 });
   fire(fit(), "on_size_change", { width: 220 });
   assert.deepEqual(calls.splice(0), [["layout.resize", { id: "review", px: 200 }]]);
@@ -252,10 +252,10 @@ const load = (props = {}, setup = record) => {
     assert.equal((await watcher.readReview(repo)).changed, 2, "and a new file");
     assert.equal(fs.readFileSync(path.join(repo, ".git/index")).includes("n.txt"), false, "the person's index untouched");
     // Herdr T3's Home draws no bar: nothing reads its folder, which may be a whole home directory's repository.
-    view.reviewAt.clear(); state["t3-home.space"] = "s";
+    view.reviewAt.clear(); state["t3-tabs.home"] = "s";
     tick(wcx); await new Promise(setImmediate);
     assert.equal(view.reviewAt.size, 0);
-    delete state["t3-home.space"];
+    delete state["t3-tabs.home"];
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
   // The logo reads on click, then its menu's rows open one commit, or one branch against the base.
