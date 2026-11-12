@@ -2,7 +2,8 @@
 // installed app or the browser) or the official CLI.
 
 import { spaces, exec, hc, window, notify, closeOverlay, shared, setShared, appHome, readTextFile } from "herdr";
-import { argPage, changedFiles, git, reviewLocation } from "./bar.js";
+import { reviewLocation } from "./bar.js";
+import { argPage, changedFiles, git } from "./review-git.js";
 import { showPage } from "./panel.js";
 
 // `open` in this folder's config.json, which the person creates; none means "herdr" (see mods/README.md):

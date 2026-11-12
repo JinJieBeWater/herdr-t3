@@ -5,8 +5,8 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { props, run, settings, setShared, shared, theme, nextCommand } from "herdr";
-import { watchReview, reviewBar, reviewMenu, initReviewMenu, menuClosed, pickCommand } from "./bar.js";
+import { props, run, settings, setShared, shared, theme } from "herdr";
+import { watchReview, reviewBar, reviewMenu, initReviewMenu, menuClosed } from "./bar.js";
 import { launch } from "./open.js";
 import { stopsInit, stopsEnd, focusRoot } from "./focus.js";
 
@@ -22,8 +22,6 @@ export default class PullsReview extends View {
       if (left.length < status.length) setShared("review.status", Object.fromEntries(left));
       watchReview(this, cx);
       stopsInit(this, cx);
-      // The Review page's header asks here for the menu of what else to review: the bar has read the repository.
-      cx.spawn(async () => { for (;;) { const c = await nextCommand(); if (c.startsWith("pick:")) await pickCommand(this, c); } });
     }
   }
 

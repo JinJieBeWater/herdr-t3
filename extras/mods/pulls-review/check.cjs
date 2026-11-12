@@ -35,7 +35,7 @@ function fire(node, event, ...args) {
 }
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-const commands = [], command = (c) => commands.shift()(c), flush = () => new Promise(done => setImmediate(done));
+const commands = [];
 const zoom = 1.1, calls = [], overlays = [], closed = [], notes = [], launched = [], state = {}, shown = { pane: "p1", tab: "b" };
 const theme = new Proxy({ foreground: "#f4f4f6", dim: "#77777f", border: "#2a2a30", hover: "#202024" }, { get: (t, k) => t[k] ?? "#a9a9b4" });
 const env = {
@@ -54,7 +54,7 @@ const env = {
   // Herdr T3's layout: the space panel, its pages Files and Review.
   layout: () => ({ id: "root", children: [{ id: "work" }, { id: "panel", hidden: true, children: [{ id: "panel-body", active: "files", children: [{ id: "files" }, { id: "review" }] }] }] }),
 };
-const source = ["store.js", "details.js", "tip.js", "list.js", "focus.js", "panel.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
+const source = ["store.js", "details.js", "tip.js", "list.js", "focus.js", "panel.js", "review-git.js", "bar.js", "open.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n")
   .replace(/^import [^;]*;\r?\n/gm, "").replace("export default class", "globalThis.Mod = class").replace(/^export /gm, "");
 // Timers fire at once: a card that waits 150ms is up by the next render.
 const cx = { notify() {}, stop_propagation() {}, spawn: (f) => f(cx), focus_handle: () => ({ focus() {}, is_focused: () => false }), timer: { every() {}, after: (_ms, f) => (f(cx), { cancel() {} }) } };
@@ -301,15 +301,9 @@ const load = (props = {}, setup = record) => {
   assert.equal(spec.height, 8 + 43 + 32 + 28, "the popup fits the switch and the longer page, so turning pages doesn't resize it");
   assert.equal(spec.props.height, spec.height, "and the menu sets that height itself: a popup's is only a maximum");
   assert.deepEqual([spec.mod, spec.props.menu], ["pulls-review", "review"]);
-  // The Review page's header asks the bar for the same menu, for the repository it shows, hung where it says: under its button.
-  overlays.length = 0;
-  command(`pick:300,88,/repo`);
-  for (let i = 0; i < 5; i++) await flush();
-  assert.deepEqual(plain([overlays.at(-1)?.props.menu, overlays.at(-1)?.props.root, overlays.at(-1)?.at]), ["review", "/repo", { x: 300, y: 88 }]);
-  overlays.length = 0;
-  command(`pick:300,88,/elsewhere`);
-  for (let i = 0; i < 5; i++) await flush();
-  assert.equal(overlays.length, 0, "a repository the bar hasn't read has nothing to pick from");
+  // The Review page reads git itself for its scope menu (shared/review-git.js): the bar takes no command from it.
+  assert.equal(commands.length, 0, "no copy waits on a command");
+  assert.ok(!fs.readFileSync(path.join(__dirname, "bar.js"), "utf8").includes("async function readReview"), "the reads are review-git.js's, one source for both mods");
   assert.deepEqual(plain(spec.at), { x: 892, y: 36 * zoom }, "it hangs 4 under the 24 tall button, under the press, not over the bar");
   fire(find(bar.render(), "review-open"), "on_click", {}, cx);
   assert.deepEqual(launched.at(-1), { root: "/repo", args: [], page: "/branch/feat", analyze: true }, "a count's click opens its page, known without git, and starts the analysis");
@@ -621,5 +615,5 @@ const load = (props = {}, setup = record) => {
   const code = ["bar.js", "details.js", "tip.js", "main.js"].map(file => fs.readFileSync(path.join(__dirname, file), "utf8")).join("\n");
   for (const file of fs.readdirSync(path.join(__dirname, "icons"))) assert.ok(code.includes(path.basename(file, ".svg")), `${file} is used`);
 
-  console.log("ok: the Review bar's counts outlined and ruled, its block sized to fit, the branch menu and its search, opening a review on the panel's review page, the space's analysis marked by the logo, the panel's toggle in its place in Herdr T3, the menu for the Review page");
+  console.log("ok: the Review bar's counts outlined and ruled, its block sized to fit, the branch menu and its search, opening a review on the panel's review page, the space's analysis marked by the logo, the panel's toggle in its place in Herdr T3, the git reads shared with the Review page");
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,18 +1,20 @@
 // The Review bar: the focused worktree's uncommitted files and its commits ahead of and behind
 // its upstream, each opening that diff.
-// Its logo lists what else there is to pick: a commit, or another branch; so does the Review page's header (`pulls-review.pick`).
+// Its logo lists what else there is to pick: a commit, or another branch. The git reads are review-git.js's, shared with the
+// Review page's scope menu.
 // In Herdr T3 (`toggle` in its props) the panel's toggle takes the logo's place: the logo is the panel's Review tab.
 // The counts read the remote-tracking refs as they are; fetching is left to you.
 
 import { div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input, Popup } from "gpui-base";
-import { spaces, panes, focused, exec, watchFolder, window, openOverlay, props, setShared, shared, theme, settings, home } from "herdr";
+import { spaces, panes, focused, watchFolder, window, openOverlay, props, setShared, shared, theme, settings, home } from "herdr";
 import { launch } from "./open.js";
 import { detailsFor, detailsAt, detailsLine, detailsCard } from "./details.js";
 import { glow, tip } from "./tip.js";
 import { step, scrollList } from "./list.js";
 import { stop, pressed, justClosed } from "./focus.js";
 import { KEY } from "./store.js";
+import { git, argPage, readReview, readPicks } from "./review-git.js";
 import { panelState, togglePanel } from "./panel.js";
 
 const MOD = "pulls-review";
@@ -39,21 +41,6 @@ export function reviewLocation() {
   return { cwd: pane?.cwd || beside || f?.cwd || space?.folder, on };
 }
 
-// Reads write nothing under .git, so the folder watch doesn't wake on them.
-export const git = (cwd, args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd });
-// The files the pane lists for the working tree, as the daemon's worktreeDiff reads them: HEAD to the working tree, net,
-// new files marked intent-to-add in a throwaway copy of the index so a moved file pairs up as one rename.
-const NET = `d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && { cp "$(git rev-parse --git-path index)" "$d/i" 2>/dev/null; export GIT_INDEX_FILE="$d/i"; } && `
-  + "git --no-optional-locks -c core.fsmonitor=false add -N -- . && git --no-optional-locks -c core.fsmonitor=false diff -M --name-only -z HEAD --";
-// Status counts a file staged then edited back, which the pane shows no diff for, and a moved file as two: `lines`, status's
-// count, stands only where the net read can't run.
-export async function changedFiles(root, lines) {
-  if (!lines) return 0;
-  const net = await exec("sh", ["-c", NET], { cwd: root }).catch(() => null);
-  // shortcut: no sh (Windows) or no commit yet falls back to status's count; follow the daemon's empty-tree base if that matters.
-  return net?.code === 0 ? net.stdout.split("\0").filter(Boolean).length : lines;
-}
-
 // A commit's age as the Inbox's settled rows read (t3-inbox's ago), but "now" for "just now": the column is narrow.
 function ago(ms, now) {
   const m = Math.floor((now - ms) / 60000);
@@ -69,12 +56,6 @@ function when(ms, now) {
   const d = new Date(ms), short = ago(ms, now), pad = (n) => String(n).padStart(2, "0");
   return `${short === "now" ? "just now" : `${short} ago`} · ${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-
-export const browserPath = page => encodeURI(page).replaceAll("#", "%23");
-
-// The page the CLI opens for `args` (its pageFor), `branch` standing in for its default-branch lookup: what the bar knows without git.
-export const argPage = (args, branch) => browserPath(args[0] === "--worktree" ? "/worktree"
-  : args[0] ? `/${args[0].includes("...") ? "compare" : "commit"}/${args[0]}` : `/branch/${branch}`);
 
 // Worth a read? Of Git's own files only HEAD and refs, and nothing Git ignores: macOS reports those too.
 async function touchesDiff(root, paths) {
@@ -129,70 +110,6 @@ export function watchReview(view, cx) {
       finally { view.reviewBusy.delete(key); cx.notify(); }
     });
   });
-}
-
-async function readReview(cwd) {
-  const top = await git(cwd, ["rev-parse", "--show-toplevel"]);
-  if (top.code !== 0) return null;
-  // File by file, as the page it opens lists them: plain status folds a new folder into one line.
-  const root = top.stdout.trim(), status = await git(root, ["status", "--porcelain=v2", "--branch", "--untracked-files=all"]);
-  if (status.code !== 0) return null;
-  const review = { root, branch: null, upstream: null, base: null, baseRef: null, changed: 0, ahead: 0, behind: 0, unmerged: 0, newer: 0, gone: false };
-  let ab = false, lines = 0;
-  for (const line of status.stdout.split("\n")) {
-    if (line.startsWith("# branch.head ")) review.branch = line.slice(14);
-    else if (line.startsWith("# branch.upstream ")) review.upstream = line.slice(18);
-    else if (line.startsWith("# branch.ab ")) { ab = true; [review.ahead, review.behind] = line.slice(12).split(" ").map(n => Math.abs(parseInt(n, 10)) || 0); }
-    else if (line && !line.startsWith("#")) lines++;
-  }
-  review.changed = await changedFiles(root, lines);
-  // git leaves out branch.ab when the upstream is set but gone, as after a merged PR's branch is deleted.
-  review.gone = Boolean(review.upstream) && !ab;
-  // The default branch as the CLI resolves it (resolveDefaultBranch): origin/HEAD, else main or master.
-  const originHead = (await git(root, ["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"])).stdout.trim();
-  const names = originHead ? [originHead.replace(/^origin\//, "")] : ["main", "master"];
-  for (const ref of names.flatMap(name => [`origin/${name}`, name])) {
-    const count = await git(root, ["rev-list", "--left-right", "--count", `${ref}...HEAD`]);
-    if (count.code !== 0) continue; // No such ref.
-    // `base` is the branch name; `baseRef` is what was compared, named in the label so a fork's stale origin/main reads as itself.
-    review.base = ref.replace(/^origin\//, "");
-    review.baseRef = ref;
-    // On the default branch or a detached HEAD the CLI opens its ref picker instead: nothing to show.
-    if (review.branch !== review.base && review.branch !== "(detached)") {
-      [review.newer, review.unmerged] = count.stdout.trim().split(/\s+/).map(n => parseInt(n, 10) || 0);
-      // A branch tracking the default branch: its ↑ is the same commits as N ahead of base.
-      if (review.upstream === `origin/${review.base}`) review.ahead = 0;
-    }
-    break;
-  }
-  return review;
-}
-
-// Read on click, so the bar's 10 s poll stays as cheap as it was.
-// shortcut: the menu holds the newest 200 commits and 20 branches, so search can't reach past them; read more if a repo needs it.
-// `unpushed`: the shas not on the upstream, for the menu's ↑.
-async function readPicks(r) {
-  const [read, ahead] = await Promise.all([
-    // log.showSignature would add lines of its own.
-    git(r.root, ["log", "-200", "--no-show-signature", "--format=%H%x1f%s%x1f%ct%x1f%an", r.unmerged ? `${r.baseRef}..HEAD` : "HEAD"]),
-    // All of them: a menu commit can be past the first 200 to push, and one missing here reads as pushed.
-    r.upstream && !r.gone ? git(r.root, ["rev-list", `${r.upstream}..HEAD`]) : { code: 0, stdout: "" },
-  ]);
-  const commits = read.stdout.split("\n").filter(Boolean).map(line => { const [sha, subject, time, author] = line.split("\x1f"); return { sha, subject, time: Number(time) * 1000, author }; });
-  const unpushed = ahead.code === 0 ? ahead.stdout.split("\n").filter(Boolean) : [];
-  if (!r.baseRef) return { commits, branches: [], unpushed };
-  // Each branch's last commit, upstream and worktree, and how far it is ahead of and behind the base, in the same call.
-  // %(ahead-behind) is Git 2.41's: an older Git fails it, and the menu goes without counts.
-  const fields = "%(refname:short)%1f%(contents:subject)%1f%(committerdate:unix)%1f%(authorname)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(worktreepath)";
-  const refs = (format) => git(r.root, ["for-each-ref", "--sort=-committerdate", "--count=21", `--no-merged=${r.baseRef}`, `--format=${format}`, "refs/heads"]);
-  let listed = await refs(`${fields}%1f%(ahead-behind:${r.baseRef})`);
-  if (listed.code !== 0) listed = await refs(fields);
-  const branches = listed.stdout.split("\n").map(line => line.split("\x1f")).filter(([name]) => name && name !== r.branch).slice(0, 20)
-    .map(([name, subject, time, author, upstream, track, worktree, ab]) => {
-      const [count, behind] = (ab ?? "").split(" ").map(n => parseInt(n, 10) || 0);
-      return { name, subject, time: Number(time) * 1000, author, upstream, track, worktree, ...(ab === undefined ? {} : { count, behind }) };
-    });
-  return { commits, branches, unpushed };
 }
 
 const branchArgs = (b) => [`${props().baseRef}...${b.name}`];
@@ -352,9 +269,9 @@ function branchCard(view, t, id, b, base, now) {
     ], { wrap: true, from: 4 }).mr(4)));
 }
 
-// What else to review in r's repository, a commit or another branch, in a menu at `at`: the logo's, or the Review page's
-// header's through `pulls-review.pick`. `still` says the bar still shows that repository when git is done.
-export function openPicks(view, r, at, still = () => true) {
+// What else to review in r's repository, a commit or another branch, in the logo's menu at `at`. `still` says the bar still
+// shows that repository when git is done.
+function openPicks(view, r, at, still = () => true) {
   // The button toggles: the press that brought this click closed the menu, so the click leaves it closed.
   if (justClosed(view, MENU_CLOSED) || view.readingPicks) return;
   view.readingPicks = true;
@@ -367,13 +284,6 @@ export function openPicks(view, r, at, still = () => true) {
     const height = Math.min(368, menuChrome(tabs) + (tabs ? Math.max(commits.length, branches.length) : commits.length + branches.length) * MENU_ROW);
     openOverlay({ mod: MOD, kind: "popup", at, width: 368, height, props: { menu: "review", root: r.root, branch: r.branch, base: r.base, baseRef: r.baseRef, upstream: r.gone ? null : r.upstream, commits, branches, unpushed, height } });
   } finally { view.readingPicks = false; } })();
-}
-
-// `pick:<x>,<y>,<root>` from the Review page: the menu for the repository it shows, if the bar has read it, at x, y.
-export function pickCommand(view, command) {
-  const [x, y, ...root] = command.slice("pick:".length).split(","), path = root.join(",");
-  const r = [...(view.reviews?.values() ?? [])].find(v => v?.root === path);
-  return r && openPicks(view, r, { x: Number(x), y: Number(y) });
 }
 
 export function reviewBar(view, t, stopPress) {

@@ -14,10 +14,36 @@ export const RUN = 32;
 export const codeInset = (split) => split ? 52 : 92;
 
 // Wide (CJK and up) counts 2: a BMP character is 1 unit plus 1 here; an astral one, 2 units (surrogates aren't matched).
-const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g;
+const WIDE = /[\u2e80-\ud7ff\ue000-\uffff]/g, WIDE_CHAR = /[\u2e80-\ud7ff\ue000-\uffff]/;
 // As drawn, so past a clipped line's wide characters and tabs it still scrolls to its end. Kept on the row: its tokens don't
 // change once clipped.
 const columns = (row) => row ? row.columns ??= row.tokens.reduce((n, [text]) => { const t = text.replaceAll("\t", "    "); return n + t.length + (t.match(WIDE)?.length ?? 0); }, 0) : 0;
+
+/** The columns a wrapped line holds at a diff `width` and a character's width: unified past both numbers, split past one on
+ * each half (less the rule between them), an added or removed file's split rows on the whole width. */
+export function wrapColumns(width, char) {
+  const fit = (w, inset) => Math.max(8, Math.floor((w - inset - 16) / char));
+  return { row: fit(width, codeInset(false)), pair: fit((width - 1) / 2, codeInset(true)), solo: fit(width, codeInset(true)) };
+}
+
+/** A row's tokens cut into lines of at most `cols` columns, as columns() counts them, each piece in its token's color. Kept on
+ * the row for the width it was cut at: its tokens don't change once arrived. */
+export function wrapRow(row, cols) {
+  if (row.wrapAt === cols) return row.wrapped;
+  const lines = [[]];
+  let used = 0;
+  for (const [text, color] of row.tokens) {
+    let part = "";
+    for (const ch of text.replaceAll("\t", "    ")) {
+      const w = ch.length > 1 || WIDE_CHAR.test(ch) ? 2 : 1;
+      if (used + w > cols && used > 0) { if (part) lines.at(-1).push([part, color]); lines.push([]); part = ""; used = 0; }
+      part += ch; used += w;
+    }
+    if (part) lines.at(-1).push([part, color]);
+  }
+  row.wrapAt = cols; row.wrapped = lines;
+  return lines;
+}
 
 // A group's rows run past the 8 MB one read carries: a read asks for at most ROW_BUDGET changed lines, from the files in view
 // and the LOOKAHEAD after them, so the rest come as the list reaches them. As the daemon's FIRST_ROWS for an open.
@@ -159,7 +185,7 @@ export const groupFiles = (group) => [...group.files, ...group.children.flatMap(
  * Returns the items with their heights, as `v_virtual_list` takes them. `parts` keeps each file's items from the last
  * build, reused while what they're drawn from holds: a batch of rows or a fold rebuilds its files, not a group of thousands.
  */
-export function buildItems(review, group, { collapsed, full, split, width, parts = new Map() }) {
+export function buildItems(review, group, { collapsed, full, split, width, wrap = null, parts = new Map() }) {
   const items = [], byPath = new Map(review.files.map(file => [file.path, file]));
   const notesOf = (g, path) => [g, ...g.children].flatMap(x => x.notes[path] ?? []);
   const addFile = (path) => {
@@ -171,9 +197,9 @@ export function buildItems(review, group, { collapsed, full, split, width, parts
     // What its items show: rows arriving, a page more (a hunk added, or the last one's rows), a whole file, its notes (and
     // the width they wrap at), the mode. A read's new file objects carry the rows already shown.
     const stamp = [hunks, hunks?.length, hunks?.at(-1)?.rows, file.clipped, file.stuck, file.status, file.isBinary, file.truncated,
-      whole, whole?.rows, whole?.truncated, whole?.stuck, split, notes.length ? `${width}:${JSON.stringify(notes)}` : ""];
+      whole, whole?.rows, whole?.truncated, whole?.stuck, split, notes.length ? `${width}:${JSON.stringify(notes)}` : "", wrap && `${wrap.row}:${wrap.pair}:${wrap.solo}`];
     let part = parts.get(path);
-    if (!part || stamp.some((value, i) => value !== part.stamp[i])) parts.set(path, part = { stamp, items: fileItems(path, file, notes, whole, split, width) });
+    if (!part || stamp.some((value, i) => value !== part.stamp[i])) parts.set(path, part = { stamp, items: fileItems(path, file, notes, whole, split, width, wrap) });
     for (const item of part.items) items.push(item);
   };
   for (const path of group.files) addFile(path);
@@ -185,7 +211,7 @@ export function buildItems(review, group, { collapsed, full, split, width, parts
 }
 
 /** A file's items under its header: its own notes, then its rows (or the whole file's), with their lines' notes. */
-function fileItems(path, file, notes, whole, split, width) {
+function fileItems(path, file, notes, whole, split, width, wrap) {
   const items = [];
   // Each names its file: a path may hold ":", which its key can't be split at.
   const push = (item, size) => { items.push({ ...item, size, path }); };
@@ -204,6 +230,9 @@ function fileItems(path, file, notes, whole, split, width) {
   // Split, an added or removed file has one side only: it takes the whole width rather than half.
   const solo = split && (file.status === "added" || file.status === "removed");
   const kind = !split ? "row" : solo ? "solo" : "pair";
+  // Wrapped, a line is as many ROWs as it runs to; a pair, as its longer side.
+  const count = (row) => row ? wrapRow(row, wrap[kind]).length : 1;
+  const height = (line) => !wrap ? ROW : (kind === "pair" ? Math.max(count(line.left), count(line.right)) : count(line)) * ROW;
   // The anchored notes by the line they're on: each row looks up its own, not every note of the file.
   const anchored = new Map();
   for (const [i, note] of notes.entries()) {
@@ -215,8 +244,8 @@ function fileItems(path, file, notes, whole, split, width) {
     const lines = split && !solo ? pairRows(hunk.rows) : hunk.rows;
     let run = /** @type {any} */ (null);
     for (const [r, line] of lines.entries()) {
-      if (!run || run.lines.length === RUN) { run = { key: `r:${path}:${h}:${r}`, kind, lines: [], path }; items.push(run); }
-      run.lines.push(line); run.size = run.lines.length * ROW;
+      if (!run || run.lines.length === RUN) { run = { key: `r:${path}:${h}:${r}`, kind, lines: [], path, size: 0 }; items.push(run); }
+      run.lines.push(line); run.size += height(line);
       if (!anchored.size) continue;
       const rows = kind === "pair" ? [line.left, line.right].filter(Boolean) : [line];
       // A removed line holds the deletions side's notes, any other the additions'; a pair's two sides, in the file's order.

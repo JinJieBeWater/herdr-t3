@@ -28,6 +28,7 @@ share labels mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
 share pins mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
 share menu mods/t3-menu mods/t3-inbox mods/t3-agents mods/t3-spaces mods/t3-tabs mods/t3-pane
 share panel mods/t3-chrome mods/t3-tabs mods/t3-files extras/mods/pulls-review extras/mods/review
+share review-git extras/mods/pulls-review extras/mods/review
 share file-icons mods/t3-files extras/mods/review
 share file-icons-data mods/t3-files extras/mods/review
 # file-icons.js's SVGs (scripts/vendor.sh makes them): each mod draws only its own.

@@ -1,6 +1,7 @@
 import { step, menuJump } from "./list.js";
 import { settingsBack, submitModel } from "./settings.js";
 import { FOLDS, foldAll } from "./diff.js";
+import { scopeRows, scopeList, scopeBack, pickScopeRow } from "./scope.js";
 
 export function reviewKey(view, e, cx) {
   // Typing a model name isn't a shortcut; Escape closes the panel.
@@ -32,11 +33,24 @@ export function reviewKey(view, e, cx) {
     cx.stop_propagation(); cx.notify();
     return;
   }
-  // Typing is the search's, and Enter its submit.
-  if (view.popup === "commits") {
-    if (e.keystroke === "escape") { view.closePopup(cx); view.handle.focus(); cx.stop_propagation(); return; }
-    const to = step(e, view.commitAt, view.commitRows().length);
-    if (to >= 0) { view.commitAt = to; cx.stop_propagation(); cx.notify(); }
+  // The scope menu's first page moves as T3's menus: ↑/↓, Home, End, typing, Enter or Space to pick. On a page of commits
+  // or branches, typing is the search's and Enter its submit; Escape goes back a page, then closes.
+  if (view.popup === "scope") {
+    if (!view.scopePage) {
+      const rows = scopeRows(view);
+      if (e.keystroke === "escape") view.closePopup(cx);
+      else if (e.key === "enter" || e.key === "space") { if (rows[view.scopeAt]) pickScopeRow(view, rows[view.scopeAt], cx); }
+      else {
+        const to = menuJump(view, e, rows.map(r => r.label), view.scopeAt);
+        if (to < 0) return;
+        view.scopeAt = to;
+      }
+      cx.stop_propagation(); cx.notify();
+      return;
+    }
+    if (e.keystroke === "escape") { scopeBack(view, cx); cx.stop_propagation(); return; }
+    const to = step(e, view.scopeAt, scopeList(view).length);
+    if (to >= 0) { view.scopeAt = to; cx.stop_propagation(); cx.notify(); }
     return;
   }
   // The status has no keys of its own, and what's under it is out of reach while it's up.

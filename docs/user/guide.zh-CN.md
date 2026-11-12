@@ -25,7 +25,7 @@
 - **关闭前确认**：标签或窗格的 ×、`cmd-w`、`cmd-shift-w` 和右键菜单的 Close 在有程序运行时先询问，没有程序运行时直接关闭。
 - **space 面板**：窗口右侧和侧栏一样高的面板，页面有 Files，装了 Review 扩展时还有 Review，同时只显示一页。切换标签时它不动，内容跟着当前 space。标签栏右端的按钮（和侧栏开关左右对称）打开面板，停在上次的页面，再按就关闭（装了 Review 扩展时，它是 Review 栏的最后一段）；`cmd-shift-e` 打开面板并切到 Files，面板正显示 Files 时关闭它。它的顶栏有各页的页签、`⤢`（放大盖住标签区，再按还原）和 `×`（关闭）。拖它的边缘可以调宽度，一开始和标签区一样宽。
 - **Files**：只读浏览当前 space 的文件夹，本机或其他机器上的都可以。右边的文件树边展开边读取，Git 忽略的项变暗，改动的文件用 Review 的颜色标 A、M、D 或 R；折叠的文件夹里有改动时带一个点。选一个文件，左边显示内容：代码带语法着色，Markdown 默认显示预览（也可以看源码，会记住上次的选择），图片直接显示。文件树上方的 Search files 按路径找任何文件，没展开的文件夹也算：输入几个词，每个词都要出现在路径里；↑/↓、Enter 和 Esc 可用。点文件上方路径里的文件夹，会在树里定位到它。改动过的文件有一个 `Review ↗` 按钮，在 Review 里打开它。在某一行右键可以复制路径或相对路径、在这个 space 的 agent 里提及它（输进它的输入框，不按回车）、在 Finder 里显示或用默认应用打开（后两项只限本机）。文件有变化时会自己更新。
-- **Review**（可选，[见扩展](extras.zh-CN.md#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在面板的 Review 页打开。每个 space 各有自己的评审，页面显示当前 space 的。切换 commit 在页面自己的顶栏。diff 在左，分组和文件在右。Review 栏最后一段是面板按钮，分析进度用布局的状态标记显示在它后面和面板的 Review 页签上；这个页签用的是 pulls.review 的 logo。页面顶栏最左边的分支按钮可以改选一个提交或另一个分支来评审。其他机器上的 space 没有 Review。
+- **Review**（可选，[见扩展](extras.zh-CN.md#pullsreview)）：标签栏里的 Review 栏统计当前 worktree 待评审的内容，点击后在面板的 Review 页打开。每个 space 各有自己的评审，页面显示当前 space 的。diff 在左，分组和文件在右。Review 栏最后一段是面板按钮，分析进度用布局的状态标记显示在它后面和面板的 Review 页签上；这个页签用的是 pulls.review 的 logo。Review 页顶栏左边的范围按钮照 T3 Code 的 diff 面板，写着正在看的范围（Changes、Uncommitted、Outgoing、Incoming、某个 commit 或另一个分支），点开菜单换一个：上面四项带数量，下面是 Commits 和 Branches，各自翻到可搜索的第二页。其他机器上的 space 没有 Review。
 
 ## 日常用法
 
@@ -88,6 +88,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - 其他机器上的 space 没有 Review 栏，也没有 Review 页。
 - 其他机器上的 Files：变化最多 10 秒后才显示，超过 512 KB 的图片不预览。
 - Files 只预览 1 MB 以内的文本，只给常见语言着色（JavaScript 和 TypeScript、JSON、YAML、Rust、Go、Python、shell、CSS、C 和 C++、Java、Kotlin、Ruby、PHP、SQL、Lua、GraphQL、Makefile）；TOML、HTML、Swift 等显示为纯文本。
+- Review 的 `Lines: Wrap` 在面板边缘断行，必要时会从单词中间断开。
 - Files 只按路径搜索，不搜内容，也不含 Git 忽略的文件；不在 Git 里时最多搜 20 万个文件。
 - 用 `⤤` 把面板放大盖住标签栏时，`cmd-shift-e` 不起作用：用面板的 `×` 关闭，或再按 `⤤` 收回。
 - 这次启动 Herdr 后 Inbox 还没显示过时，侧栏隐藏期间它不更新卡片顺序，`cmd-]` 和 `cmd-[` 可能按旧顺序走。`cmd-shift-s` 照常能 Settle。

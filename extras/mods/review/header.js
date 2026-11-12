@@ -1,9 +1,8 @@
 import { div, svg } from "gpui-kit";
-import { layout, run, settings } from "herdr";
 import { h_flex } from "gpui-base";
 import { LU, MONO, COMPACT, button, iconButton, popover } from "./controls.js";
 import { donut } from "./groups.js";
-import { commitSwitch } from "./commits.js";
+import { scopeHeader } from "./scope.js";
 
 // As the app's describeProgress, but the file's name only: the agent's paths run long, often through its own scratch folder.
 function progressText(progress) {
@@ -56,37 +55,20 @@ export function head(view) {
   }
   // The view (unified or split, files as a tree or a list) is set in the settings, with the analysis.
   buttons.push({ id: "settings", icon: "mods/review/icons/settings.svg", label: "Settings", active: view.popup === "settings", run: (cx) => view.togglePopup("settings", cx) });
-  // The diff shown is named in the pane's own header (render's titles), so this one starts with the counts.
+  // The diff shown is named by the scope button, which leads the header (scope.js).
   return { parts, buttons };
 }
 
-// A Review bar in view, which has read the repositories and draws the menu of what else to review (`pulls-review.pick`):
-// none, or hidden (Herdr T3's widened panel hides the tab bar), and it can't hear.
-function barShown(node) {
-  if (!node || node.hidden) return false;
-  return node.content?.mod === "pulls-review" || (node.children ?? []).some(barShown);
-}
-
-// What else to review in this repository, a commit or another branch: the Review bar's menu, hung 4 under this button.
-function pickButton(view, t) {
-  if (!view.root || !barShown(layout())) return null;
-  return iconButton(t, "review-pick", "mods/review/icons/git-branch.svg", "Change what to review", () => {
-    const b = view.pickBox, gap = 4 * (Number(settings()?.zoom) || 1);
-    run(`pulls-review.pick:${b ? Math.round(b.x) : 0},${b ? Math.round(b.y + b.height + gap) : 0},${view.root}`);
-  }, { press: (e) => { view.pickBox = e.bounds; } });
-}
-
 export function header(view, t, head) {
-  // Narrow, the counts and the commit switch give way and the buttons never.
-  const commits = commitSwitch(view, t), pick = pickButton(view, t);
-  // As T3's DiffPanel header; the counts as its DiffStatLabel.
+  // As T3's DiffPanel header: the scope and what it compares, the counts as its DiffStatLabel, then the tools. Narrow, the
+  // words give way and the buttons never.
   return h_flex().id("review-header").h(40).flex_none().px(16).gap(8).items_center().overflow_hidden().border_b(1).border_color(t.border).bg(t.chrome)
-    .when(Boolean(pick), el => el.child(pick))
-    .when(Boolean(commits), el => el.child(commits))
-    .when(head.parts.length > 0, el => el.child(h_flex().min_w(0).gap(4).items_center().text_size(11).font_family(MONO)
-      .children(head.parts.map(p => h_flex().min_w(0).gap(4).items_center().text_color(t[p.color] ?? t.dim)
+    .child(scopeHeader(view, t))
+    // The counts hold, as T3's stats beside its tools: a long commit subject truncates instead.
+    .when(head.parts.length > 0, el => el.child(h_flex().id("review-counts").flex_none().gap(4).items_center().text_size(11).font_family(MONO)
+      .children(head.parts.map(p => h_flex().gap(4).items_center().text_color(t[p.color] ?? t.dim)
         .when(p.donut !== undefined, el => el.ml(4).child(donut(t, p.donut)))
-        .child(div().min_w(0).truncate().child(p.text))))))
+        .child(div().child(p.text))))))
     .child(div().flex_1())
     .child(h_flex().flex_none().gap(4).items_center()
       .children(head.buttons.map(b => b.text

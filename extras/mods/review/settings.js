@@ -141,6 +141,10 @@ export function settingsPanel(view, t) {
     label("View"),
     // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
     choiceRow(t, "Diff", [["view-unified", "Unified", !split], ["view-split", "Split", split, view.view < SPLIT_MIN]], (id, cx) => { if ((id === "view-split") !== split) view.toggleSplit(cx); }),
+    // As T3's line wrapping: long lines scroll sideways by default, or wrap at the diff's width.
+    choiceRow(t, "Lines", [["lines-scroll", "Scroll", pref("wrap") !== true], ["lines-wrap", "Wrap", pref("wrap") === true]], (id, cx) => {
+      setPref("wrap", id === "lines-wrap"); cx.notify();
+    }),
     // A tree by default, as the app's own toggle.
     choiceRow(t, "Files", [["files-tree", "Tree", pref("fileList") !== "list"], ["files-list", "List", pref("fileList") === "list"]], (id, cx) => {
       setPref("fileList", id === "files-list" ? "list" : "tree"); cx.notify();

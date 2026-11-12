@@ -1,18 +1,18 @@
 // A pulls.review review, the `review` page of the window's space panel (docs/adr/0011): groups (the AI analysis, else
 // rule-based), each group's files and their diffs, reviewed marks, one commit at a time. One copy serves every space and
-// shows the active one's review. The pulls-review mod's "herdr" mode asks for a page through shared(PANE)
+// shows the active one's review. The pulls-review mod's "herdr" mode and the header's scope menu ask for a page through shared(PANE)
 // `{ space, root, page, base?, n, analyze }`; the Files page asks for a file through `review.reveal` `{ space, file, n }`.
 // Everything comes from the jin.review daemon, which listens on this machine only: a remote space has no review.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, InputState } from "gpui-base";
-import { exec, setShared, shared, spaces, theme, window as appWindow } from "herdr";
+import { exec, nextCommand, setShared, shared, spaces, theme, window as appWindow } from "herdr";
 import { panelState } from "./panel.js";
-import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, LOOKAHEAD } from "./rows.js";
+import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, wrapColumns, CHAR, LOOKAHEAD } from "./rows.js";
 import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
 import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
 import { loadSettings, models, submitModel, pageRows, locale, settingsPanel } from "./settings.js";
-import { diffCommits, showPage, commitRows, commitMenu } from "./commits.js";
+import { diffCommits, scopeList, pickListed, openScope, openScopePage, scopeMenu } from "./scope.js";
 import { groupSidebar, groupHeader, groupTabs } from "./groups.js";
 import { aside } from "./files.js";
 import { setReviewed, toggleFull, headerPress, diffView, hbars, foldMenu } from "./diff.js";
@@ -32,10 +32,12 @@ export default class ReviewPanel extends View {
     if (pref("openIn") !== undefined) { const { openIn: _, ...prefs } = shared(`${PANE}.prefs`); setShared(`${PANE}.prefs`, prefs); }
     // Each space's review, by space id, for this run; what each shows is kept in review.shown.
     this.panel = this; this.bySpace = new Map();
-    // The one popup open over the diff, if any: "settings", "status" or "fold".
+    // The one popup open over the diff, if any: "settings", "status", "fold" or "scope".
     this.popup = null; this.closedPopup = null; this.popupClosedAt = 0;
     this.agents = null; this.shared = null; this.settingsError = null;
     this.height = 600; this.width = 900; this.view = 600; this.diffHeight = 600; this.frames = 0;
+    // A character's width in the code's font, measured once (diff.js), for where wrapped lines break; every space's review shares it.
+    this.charWidth = null;
     // The model field searches the agent's catalog; Enter picks the model it names exactly, else the text as typed.
     this.modelInput = InputState.new({ placeholder: "Search or type a model" });
     // The row lit on a settings page and in the fold menu, by keys or the pointer; Enter on one picks it.
@@ -43,14 +45,25 @@ export default class ReviewPanel extends View {
     // The inputs are the panel's; what they act on is the space shown.
     this.modelInput.on("change", (_e, cx) => { const s = this.shown(); if (s) s.pageAt = -1; cx.notify(); });
     this.modelInput.on("submit", (_e, cx) => { const s = this.shown(); if (s) submitModel(s, cx); });
-    // The commit list's search, and the row lit in it.
-    this.commitSearch = InputState.new({ placeholder: "Search commits" });
-    this.commitAt = 0;
-    this.commitSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.commitAt = 0; s.scrollTop = { ...s.scrollTop, "commit-list": 0 }; cx.notify(); });
-    this.commitSearch.on("submit", (_e, cx) => { const s = this.shown(), row = s?.commitRows()[s.commitAt]; if (row) showPage(s, row.page, cx); });
+    // The scope menu's page shown (null, "commits" or "branches"), the row lit on it, and its search: Enter picks the lit row.
+    this.scopePage = null; this.scopeAt = -1;
+    this.scopeSearch = InputState.new({ placeholder: "Search" });
+    this.scopeSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.scopeAt = 0; s.scrollTop = { ...s.scrollTop, "scope-list": 0 }; cx.notify(); });
+    this.scopeSearch.on("submit", (_e, cx) => { const s = this.shown(); if (s) pickListed(s, scopeList(s)[s.scopeAt], cx); });
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
     this.handle = cx.focus_handle();
+    // `review.scope` (a key, or `herdr-app do`) toggles the shown review's scope menu, as its button does; `scope:commits` or
+    // `scope:branches` opens it on that page.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        const [name, page] = (await nextCommand()).split(":"), s = this.shown();
+        if (name !== "scope" || !s?.page) continue;
+        if (!page || s.popup !== "scope") s.togglePopup("scope", cx);
+        if (page === "commits" || page === "branches") openScopePage(s, page, cx);
+        cx.notify();
+      }
+    });
     // While a run goes the review follows it; otherwise the folder watch and a slow timer catch new diffs.
     // Every space's: the tab bar's Review bar and the panel head show how each space's run goes.
     const each = (f) => { for (const s of this.bySpace.values()) f(s); };
@@ -175,8 +188,6 @@ export default class ReviewPanel extends View {
 
   diffCommits() { return diffCommits(this); }
 
-  commitRows() { return commitRows(this); }
-
   models() { return models(this); }
 
   pageRows() { return pageRows(this); }
@@ -193,7 +204,7 @@ export default class ReviewPanel extends View {
     this.popup = name; this.foldAt = -1;
     if (name === "settings") loadSettings(this, cx);
     // On the row shown, so ↑/↓ start from it.
-    if (name === "commits") { this.commitAt = Math.max(0, this.commitRows().findIndex(r => r.page === this.page)); this.commitSearch.focus(); }
+    if (name === "scope") openScope(this, cx);
     cx.notify();
   }
 
@@ -201,7 +212,7 @@ export default class ReviewPanel extends View {
   closePopup(cx, outside = false) {
     if (!this.popup) return;
     this.closedPopup = outside ? this.popup : null; this.popup = null; this.popupClosedAt = Date.now();
-    this.modelInput.set_value(""); this.commitSearch.set_value(""); this.pageAt = -1; this.settingsPage = null;
+    this.modelInput.set_value(""); this.scopeSearch.set_value(""); this.pageAt = -1; this.settingsPage = null; this.scopePage = null;
     cx.notify();
   }
 
@@ -216,13 +227,16 @@ export default class ReviewPanel extends View {
   // Rebuilt only when something it shows changed: render runs on every live change in Herdr. Of the files, only those whose
   // items changed are built again (`parts`); the rest of a group of thousands is joined as it was.
   items() {
-    const split = this.splitShown(), group = this.group(), id = `${this.version}:${this.groupKey}:${split}:${Math.round(this.view / 40)}`;
+    // Wrapped, lines break at the columns the diff's width holds, of the character's measured width (diff.js), once known.
+    const wrap = pref("wrap") === true ? wrapColumns(this.view, this.charWidth ?? CHAR) : null;
+    const split = this.splitShown(), group = this.group(), id = `${this.version}:${this.groupKey}:${split}:${Math.round(this.view / 40)}:${wrap ? `${wrap.row}:${wrap.pair}` : ""}`;
     if (id !== this.itemsId) {
       // Kept only once all of it is built: a throw part way would leave the list and its lookups out of step, never rebuilt.
-      const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view, parts: this.parts }) : [];
+      // shortcut: a width's change re-cuts every wrapped line of the group; cut only the files in view if a big group drags slowly.
+      const list = group ? buildItems(this.review, group, { collapsed: this.collapsed, full: this.full, split, width: this.view, wrap, parts: this.parts }) : [];
       // In one pass: the heights v_virtual_list takes (the trailing blank's last), the height from the last header on, and
-      // how wide the code runs, from each open file's widths, measured once per build of its items.
-      const measure = (items) => split ? ["left", "right", "solo"].map(side => contentWidth(items, side)) : [0, 0, contentWidth(items)];
+      // how wide the code runs, from each open file's widths, measured once per build of its items. Wrapped, nothing runs past.
+      const measure = (items) => wrap ? [0, 0, 0] : split ? ["left", "right", "solo"].map(side => contentWidth(items, side)) : [0, 0, contentWidth(items)];
       const sizes = [], widths = measure([]);
       let tail = 0;
       for (const item of list) {
@@ -234,7 +248,7 @@ export default class ReviewPanel extends View {
       }
       sizes.push(0);
       // The range last drawn was another list's: until this one draws, scrollToTop mustn't go by it.
-      this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.sizes = sizes; this.tail = tail;
+      this.itemsId = id; this.visible = null; this.itemList = list; this.sideWidth = widths; this.sizes = sizes; this.tail = tail; this.wrapCols = wrap;
     }
     return this.itemList;
   }
@@ -335,9 +349,9 @@ export default class ReviewPanel extends View {
     if (request && request.space === this.space && request.n > this.handled) {
       this.handled = request.n;
       if (request.root !== this.root) { this.root = request.root; this.watching = null; this.seen.clear(); this.collapsed.clear(); this.page = null; this.forget(); }
-      // With a base, the header's switch picking another page of the same diff: its commits stay.
+      // With the same base, ‹ › stepping to another page of the same diff: its commits stay.
+      if (!request.base || request.base !== this.base) this.baseCommits = null;
       this.base = request.base ?? request.page;
-      if (!request.base) this.baseCommits = null;
       // Only the bar's counts ask for an analysis, so anything else takes back an ask not yet read.
       this.analyzeFor = request.analyze === true ? request.page : null;
       // The page already shown has no read coming to act on the ask.
@@ -424,8 +438,8 @@ export default class ReviewPanel extends View {
       .when(this.popup === "settings", el => el.child(div().absolute().top(38).right(16).child(settingsPanel(this, t))))
       // Under its button, the one left of the gear.
       .when(this.popup === "fold" && Boolean(this.review) && !this.switching && !hidden, el => el.child(div().absolute().top(38).right(48).child(foldMenu(this, t))))
-      // Under the header's left end, where the switch starts.
-      .when(this.popup === "commits" && !hidden, el => el.child(div().absolute().top(36).left(16).child(commitMenu(this, t))))
+      // Under the header's left end, where the scope button starts.
+      .when(this.popup === "scope" && !hidden, el => el.child(div().absolute().top(36).left(16).child(scopeMenu(this, t))))
       // At the pane's end rather than under its button: 320 wide, it would run off a narrow pane from there.
       .when(this.popup === "status", el => el.child(div().absolute().top(38).right(16).child(statusPanel(this, t))));
   }

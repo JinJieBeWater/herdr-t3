@@ -3,6 +3,7 @@
 // `demo-stage.actions-last:<id>` makes that the action the bar's button runs, as running it does.
 // `demo-stage.setting:<key>=<value>` picks that in the layout's settings, as its dialog (t3-chrome/settings.js) does.
 // `demo-stage.menu:{"at":{"x":…,"y":…},"tab":…,"target":…}` opens a right-click menu there, as openMenu (shared/menu.js) does at the pointer.
+// `demo-stage.shared:<key>=<json>` sets a shared value, as a mod's write does: a Review page's request (`review`), its prefs.
 import { View, div } from "gpui-kit";
 import { nextCommand, openOverlay, run, setShared, settings, shared } from "herdr";
 
@@ -16,6 +17,7 @@ export default class Stage extends View {
         if (name === "actions-menu") openOverlay({ mod: "t3-actions", kind: "popup", at: { x: Number(arg) - 8, y: 36 * (Number(settings().zoom) || 1) },
           width: 280, height: Math.min(420, 45 + n * 28), props: { actions: "menu" } });
         if (name === "menu") { const { at, ...p } = JSON.parse(arg); openOverlay({ mod: "t3-menu", kind: "popup", width: 220, height: 260, at, props: p }); }
+        if (name === "shared") { const at = arg.indexOf("="); setShared(arg.slice(0, at), JSON.parse(arg.slice(at + 1))); }
         if (name === "actions-last") setShared("t3-actions", { ...shared("t3-actions"), last: arg });
         if (name === "setting") {
           const [key, value] = arg.split("=");
