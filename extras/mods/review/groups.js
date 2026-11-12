@@ -55,11 +55,15 @@ export function donut(t, value) {
 export function groupTabs(view, t, pick) {
   const groups = view.review.groups;
   if (groups.length < 2) return null;
+  // Counted once per read or mark: a draw runs on any live change in Herdr, and a review runs to thousands of files.
+  if (view.tabStats?.review !== view.review || view.tabStats.marks !== view.marks) {
+    view.tabStats = { review: view.review, marks: view.marks, stats: new Map(groups.map(g => [g.key, groupStats(view, g)])) };
+  }
   // The shown tab is raised a pixel: the row's top pixel keeps it from the clip.
   return v_flex().id("group-tabs").flex_none().pt(9).pb(8).border_b(1).border_color(t.border)
     .child(h_flex().id("group-tab-row").px(16).pt(1).gap(6).overflow_x_scroll().children(groups.map(g => {
       const id = `group-tab-${g.key}`, active = g.key === view.groupKey, [, darkHue, lightHue] = CATEGORY[g.category] ?? CATEGORY.other;
-      const stats = groupStats(view, g), critical = g.critical || g.children.some(c => c.critical);
+      const stats = view.tabStats.stats.get(g.key), critical = g.critical || g.children.some(c => c.critical);
       return hoverKept(view, "hovered", id, v_flex().id(id)).flex_none().rounded_t(6).border_t(1).border_l(1).border_r(1).border_color(t.border).bg(t.background)
         .when(active, el => el.relative().top(-1).shadow_sm())
         .child(h_flex().id(`${id}-button`).px(8).py(2).gap(8).items_center().text_size(14).font_medium().text_color(t.foreground)
@@ -72,7 +76,7 @@ export function groupTabs(view, t, pick) {
               .when(critical, el => el.child(criticalMark(t))))
             .child(h_flex().items_center().text_size(11)
               .child(diffStats(t, stats.added, stats.deleted))
-              .child(div().id(`${id}-count`).text_color(t.dim).child(`・${stats.count} ${stats.count === 1 ? "file" : "files"}`))))
+              .child(div().id(`${id}-count`).text_color(t.dim).child(`${stats.added || stats.deleted ? "・" : ""}${stats.count} ${stats.count === 1 ? "file" : "files"}`))))
           .when(stats.progress !== 0, el => el.child(donut(t, stats.progress))))
         .child(div().h(2).w_full().bg(active ? (isLight(t.background) ? lightHue : darkHue) : t.border));
     })));

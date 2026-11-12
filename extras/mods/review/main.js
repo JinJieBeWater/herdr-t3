@@ -435,7 +435,8 @@ export default class ReviewPanel extends View {
     // The keys move in the file tree only while it's drawn.
     this.treeShown = this.navShown;
     // There's always a file in front while the group has one: its first, until a click, a key or the list's top says another.
-    if (group && !this.switching && !groupFiles(group).includes(this.current)) this.current = groupFiles(group)[0] ?? null;
+    // Its folders open, so the tree shows it.
+    if (group && !this.switching && !groupFiles(group).includes(this.current)) { this.current = groupFiles(group)[0] ?? null; if (this.current) openTo(this, this.current); }
     // Its run over, nothing else closes the panel: the next run would bring it back, or the next press only close it unseen.
     const { running, error } = analysisStatus(this);
     if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;
@@ -472,7 +473,8 @@ export default class ReviewPanel extends View {
         : div().flex_1().min_h(0).child(withNav(t, "review", this.width, { open: this.navShown, head: navHead(this, t), list: fileTree(this, t).size_full(),
           // The group shown's summary over its diff, as the app's group header: its title 13 medium, its words 12.
           content: v_flex().size_full().min_w(0)
-            .when(Boolean(group?.summary), el => el.child(v_flex().id("group-summary").flex_none().max_h(160).overflow_hidden().px(16).py(10).gap(4).border_b(1).border_color(t.border)
+            // A rule-based group's summary is the daemon's boilerplate for its folder rule.
+            .when(Boolean(group?.summary) && this.review.source !== "rule-based", el => el.child(v_flex().id("group-summary").flex_none().max_h(160).overflow_hidden().px(16).py(10).gap(4).border_b(1).border_color(t.border)
               .child(div().text_size(13).font_medium().child(group.label))
               .child(TextView.markdown(`summary-${group.key}`, group.summary).selectable(true).scrollable(false).text_size(12).text_color(t.muted))))
             .child(div().flex_1().min_h(0).child(diffView(this, t))) }))).when(Boolean(this.switching), el => el.opacity(DISABLED)))

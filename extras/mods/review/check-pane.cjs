@@ -44,18 +44,18 @@ const review = {
 };
 const kinds = (items) => plain(items).map(item => item.key.split(":")[0] + (item.kind === "note" ? `(${item.note.text})` : item.lines ? item.lines.length : ""));
 const opts = { collapsed: new Set(), full: new Map(), split: false, width: 900 };
-// Unanchored notes under the header, an anchored one under its line, children after their header.
-assert.deepEqual(kinds(buildItems(review, review.groups[0], opts)), ["f", "n(whole file)", "h", "r3", "n(on the new line 2)", "f", "e", "g", "f", "h", "r3"]);
+// Unanchored notes under the header, an anchored one under its line, children after their header; a binary file its header alone.
+assert.deepEqual(kinds(buildItems(review, review.groups[0], opts)), ["f", "n(whole file)", "h", "r3", "n(on the new line 2)", "f", "g", "f", "h", "r3"]);
 assert.deepEqual(plain(groupFiles(review.groups[0])), ["a.ts", "b.png", "c.ts"]);
 // Collapsed files show only their header; a whole file replaces the hunks; split pairs the rows.
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, collapsed: new Set(["a.ts", "c.ts"]) })), ["f", "f", "e", "g", "f"]);
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", { rows: [row(" ", 1, 1), row("+", undefined, 2)] }]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, collapsed: new Set(["a.ts", "c.ts"]) })), ["f", "f", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", { rows: [row(" ", 1, 1), row("+", undefined, 2)] }]]), collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "r2", "n(on the new line 2)", "f", "g", "f"]);
 // Rows that stop short of the file's end, past the bytes a read carries, say so after them: a whole file or a diff.
 const cut = (items) => plain(items).filter(i => i.key.endsWith(":cut")).map(i => i.key);
 assert.deepEqual(cut(buildItems(review, review.groups[0], { ...opts, full: new Map([["a.ts", { rows: [row("+", undefined, 1)], truncated: true }]]) })), ["e:a.ts:cut"]);
 assert.deepEqual(cut(buildItems({ ...review, files: review.files.map(f => f.path === "c.ts" ? { ...f, clipped: true } : f) }, review.groups[0], opts)), ["e:c.ts:cut"]);
 assert.deepEqual(cut(buildItems(review, review.groups[0], opts)), []);
-assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: true, collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "h", "r2", "n(on the new line 2)", "f", "e", "g", "f"]);
+assert.deepEqual(kinds(buildItems(review, review.groups[0], { ...opts, split: true, collapsed: new Set(["c.ts"]) })), ["f", "n(whole file)", "h", "r2", "n(on the new line 2)", "f", "g", "f"]);
 // Code lines go in runs of up to 32, a line's note ending one: a few thousand changed lines stay far under v_virtual_list's 10000 items.
 const lines = (n) => Array.from({ length: n }, (_, i) => row("+", undefined, i + 1));
 const one = (n, notes = {}) => buildItems({ ...review, files: [file("x.ts", { hunks: [{ header: "@@", rows: lines(n) }] })] }, { key: "x", files: ["x.ts"], notes, children: [] }, opts);
@@ -1489,7 +1489,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     return route === "/api/review/rows" ? { files: files.filter(f => f.hunks) } : { ...review, files };
   } });
   await wait(); older.render(cx); await wait(); older.render(cx); await wait();
-  assert.deepEqual(plain(oldReads), [[], ["a.ts", "b.png", "c.ts"]]);
+  assert.deepEqual(plain(oldReads), [[], ["a.ts", "c.ts"]], "a binary file has no rows to ask for");
   // A watched change reads the diff only if it touches it: Git's HEAD or refs, or a file Git doesn't ignore (macOS reports
   // those too). The next batch waits a second, so at most one change read a second.
   let batch, watches = 0; const checked = [], watchReads = [];
@@ -1597,29 +1597,44 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   {
     // As pulls.review's DiffGroupNav: the groups, the daemon's folder rules' too, as one row of tabs across the page under its
     // toolbar; the one picked is the tree and the diff, alone. A file of another group, shown from elsewhere, shows that group.
-    const two = { ...review, source: "rule-based", files: [file("src/a.ts"), file("src/b.ts")], groups: [
-      { key: "x", label: "X", category: "core", files: ["src/a.ts"], missing: [], notes: {}, children: [] },
-      { key: "y", label: "Y", category: "docs", files: ["src/b.ts"], missing: [], notes: {}, children: [] }] };
+    const two = { ...review, source: "rule-based", files: [file("src/a.ts"), file("src/b.ts"), file("img/c.png", { isBinary: true, additions: 0, deletions: 0, hunks: [] })], groups: [
+      { key: "x", label: "X", category: "core", summary: "Code changes.", files: ["src/a.ts"], missing: [], notes: {}, children: [] },
+      { key: "y", label: "Y", category: "docs", summary: "Docs changes.", files: ["src/b.ts"], missing: [], notes: {}, children: [] },
+      { key: "z", label: "Z", category: "other", summary: "Other changes.", files: ["img/c.png"], missing: [], notes: {}, children: [] }] };
     const { p } = await paneOf({ review: async () => structuredClone(two) });
     p.width = 1200; drawn.clear(); p.render(cx);
     const order = (a, b) => [...drawn].indexOf(a) < [...drawn].indexOf(b);
-    assert.ok(p.review.groups.length === 2 && drawn.has("group-tab-row") && order("group-tab-x", "group-tab-y"));
+    assert.ok(p.review.groups.length === 3 && drawn.has("group-tab-row") && order("group-tab-x", "group-tab-y"));
     assert.ok(order("review-header", "group-tab-row") && order("group-tab-row", "review-diff-area") && order("group-tab-row", "review-nav"), "under the toolbar, across the page");
     assert.ok(styles["group-tab-x"].shadow_sm && !styles["group-tab-y"]?.shadow_sm, "the group shown, raised");
     assert.equal(texts.get("group-tab-y-count"), "・1 file");
-    assert.ok(drawn.has("tree-d-src") && !drawn.has("tree-f-src/a.ts") && !drawn.has("tree-g-x"), "the tree, the group shown's, its folders folded");
+    assert.equal(texts.get("group-tab-z-count"), "1 file", "no lines to count, no separator before the files");
+    // The column head counts the group shown's files, as the tree lists them.
+    assert.equal(texts.get("review-nav-count"), "1");
+    // A rule-based group's summary is the rule's boilerplate: none over the diff.
+    assert.ok(!drawn.has("group-summary"));
+    // Folders start folded, but the file in front, picked for you, shows: its folders open.
+    assert.ok(p.current === "src/a.ts" && drawn.has("tree-f-src/a.ts") && !drawn.has("tree-g-x"), "the tree, the group shown's");
     assert.deepEqual(plain(p.items().filter(i => i.kind === "file").map(i => i.path)), ["src/a.ts"]);
+    // The tabs' counts are made once per read or mark, not on every draw: a draw runs on any live change in Herdr.
+    const stats = p.tabStats.stats; drawn.clear(); p.render(cx);
+    assert.equal(p.tabStats.stats, stats);
+    p.setReviewed(p.fileAt("src/b.ts"), true, cx); drawn.clear(); p.render(cx);
+    assert.ok(p.tabStats.stats !== stats && p.tabStats.stats.get("y").progress === 1);
+    p.setReviewed(p.fileAt("src/b.ts"), false, cx);
     const toTop = []; p.scrollToTop = (i) => toTop.push(i);
     handlers.get("group-tab-y-button.on_click")({}, cx); drawn.clear(); p.render(cx);
     assert.deepEqual([p.groupKey, p.current, toTop], ["y", "src/b.ts", [0]], "another group's row shows it from its top");
-    assert.ok(drawn.has("tree-d-src") && !drawn.has("tree-f-src/b.ts"));
+    assert.ok(drawn.has("tree-f-src/b.ts") && !drawn.has("tree-f-src/a.ts"));
+    // A binary file is its header alone: its header says so.
+    handlers.get("group-tab-z-button.on_click")({}, cx); drawn.clear(); p.render(cx);
+    assert.deepEqual(plain(p.items().map(i => i.key)), ["f:img/c.png"]);
     p.select("src/a.ts", cx); drawn.clear(); p.render(cx);
     assert.deepEqual([p.groupKey, p.current], ["x", "src/a.ts"]);
-    assert.ok(drawn.has("tree-f-src/a.ts"), "its folder opened");
     delete p.scrollToTop;
-    // Analyzed, the same.
+    // Analyzed, the same, and the group's summary heads its diff.
     p.apply({ ...structuredClone(two), source: "llm" }); drawn.clear(); p.render(cx);
-    assert.ok(drawn.has("group-tab-y") && drawn.has("tree-d-src") && p.groupKey === "x");
+    assert.ok(drawn.has("group-tab-y") && drawn.has("tree-d-src") && p.groupKey === "x" && drawn.has("group-summary"));
   }
   {
     // A group of a thousand files draws only the tree's rows in view, and the rest as the tree scrolls.

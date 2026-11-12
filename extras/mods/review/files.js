@@ -15,12 +15,13 @@ export const TREE = "review-files";
 // The column's head, as T3's diff file tree's: `Files` and how many, then Collapse all / Expand all.
 export function navHead(view, t) {
   treeOf(view);
-  const count = view.review.groups.reduce((n, g) => n + groupFiles(g).length + g.missing.length + g.children.reduce((m, c) => m + c.missing.length, 0), 0);
+  // The group shown's, as the tree lists them.
+  const g = view.group(), count = g ? groupFiles(g).length + g.missing.length + g.children.reduce((n, c) => n + c.missing.length, 0) : 0;
   const dirs = view.treeOf.dirs, folded = dirs.some(path => !isOpen(view, path));
   return h_flex().flex_1().min_w(0).gap(4).items_center()
     // 8 in, where Files' search icon and the rows' chevrons start.
     .child(div().text_size(12).font_medium().child("Files"))
-    .child(div().flex_1().min_w(0).text_size(11).text_color(t.dim).child(String(count)))
+    .child(div().id("review-nav-count").flex_1().min_w(0).text_size(11).text_color(t.dim).child(String(count)))
     .when(dirs.length > 0, el => el.child(foldAllButton(t, `mods/${PANE}`, "review-fold-all", folded, (cx) => {
       for (const path of dirs) setOpen(view, path, folded);
       cx.notify();

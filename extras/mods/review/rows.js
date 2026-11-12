@@ -57,7 +57,7 @@ export function rowsToAsk(paths, fileAt, inView, collapsed) {
   let lines = 0;
   for (const path of paths.slice(Math.max(first, 0), Math.max(last, 0) + LOOKAHEAD + 1)) {
     const f = fileAt(path);
-    if (!f || f.hunks || collapsed.has(path)) continue;
+    if (!f || f.hunks || f.isBinary || collapsed.has(path)) continue;
     const size = f.additions + f.deletions;
     if (out.length && lines + size > ROW_BUDGET) break;
     out.push(path); lines += size;
@@ -181,6 +181,8 @@ function fileItems(path, file, notes, whole, split, width, wrap) {
   // The file's own notes, and notes on lines no hunk shows, sit under its header as the app shows them; a rule ends them.
   const own = notes.filter(note => !note.anchor);
   for (const [i, note] of own.entries()) push({ key: `n:${path}:f${i}`, kind: "note", note, last: i === own.length - 1 }, noteHeight(note.text, width, false));
+  // A binary file has no rows: its header says `binary`.
+  if (file.isBinary) return items;
   const hunks = whole ? [{ header: null, rows: whole.rows }] : file.hunks;
   if (!hunks) {
     push({ key: `e:${path}`, kind: "empty", text: "Loading…", loading: true }, ROW);
