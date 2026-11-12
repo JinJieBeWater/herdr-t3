@@ -365,18 +365,18 @@ export default class Tabs extends View {
     const entries = strip.map(c => {
       const zi = c.active && zoomedIn(c.id);
       // In Lists it keeps the tab's status mark, as the tab did.
-      return { id: c.id, active: c.active, c, group: zi && { panes: zi.mine, z: zi.z, restore: true, status: inbox ? null : statusOf(c) } };
+      return { id: c.id, active: c.active, c, group: zi && { panes: zi.mine, z: zi.z, status: inbox ? null : statusOf(c) } };
     });
     const work = ctx?.tab && !ctx.away ? zoomedIn(ctx.tab) : null;
     if (ctx) {
       // With the Inbox, a rule between what's the work's (a zoomed tab's other panes, its sub-agents' tabs) and the space's programs.
       const tools = work ? work.mine.filter(p => !every.some(a => a.address === p.terminal)) : [], rule = (n) => ({ id: `rule-${n}`, rule: true });
       if (ctx.kin.length && ctx.programs.length) entries.splice(ctx.kin.length, 0, rule(2));
-      if (tools.length) entries.unshift({ id: `tools-${ctx.tab}`, active: tools.includes(work.z), group: { panes: tools, z: work.z, restore: false } }, ...(entries.length ? [rule(1)] : []));
+      if (tools.length) entries.unshift({ id: `tools-${ctx.tab}`, active: tools.includes(work.z), group: { panes: tools, z: work.z } }, ...(entries.length ? [rule(1)] : []));
     }
     const segWant = (p, on) => Math.min(on ? TAB_ACTIVE : TAB_FLOOR, this.nameW[`seg-${p.pane}`] ? Math.ceil(this.nameW[`seg-${p.pane}`]) + SEG_CHROME : TAB_FLOOR);
     const want = (e) => e.rule ? RULE_W
-      : e.group ? e.group.panes.reduce((sum, p) => sum + segWant(p, p === e.group.z), 2 + (e.group.restore ? 24 : 0) + (e.group.status ? 16 : 0))
+      : e.group ? e.group.panes.reduce((sum, p) => sum + segWant(p, p === e.group.z), 2 + (e.group.status ? 16 : 0))
       : this.nameW[e.id] ? (ctx ? Math.ceil(this.nameW[e.id]) + SNUG_CHROME : Math.max(TAB_MIN, Math.ceil(this.nameW[e.id]) + TAB_CHROME)) : TAB_FLOOR;
     // With the Inbox the strip asks for what its tabs want and gets what the breadcrumb leaves (measured: stripW); in Lists, the row.
     const area = this.area ?? 0, stripWant = Math.max(0, entries.reduce((sum, e) => sum + want(e) + TAB_GAP, -TAB_GAP));
@@ -501,7 +501,7 @@ export default class Tabs extends View {
       // The tabs' row, measured whole: with the Inbox the breadcrumb and the strip share it.
       .child(h_flex().id("tab-area").flex_1().min_w(0).h_full().items_center().gap(8)
         .on_size_change((size, cx) => { this.area = size.width / settings().zoom; cx.notify(); })
-        .when(Boolean(ctx), el => el.child(this.crumb(t, ctx, { every, all, under, st, ps, name: tabName, narrow: area - this.room - 8 < NARROW, stopPress, button, work })))
+        .when(Boolean(ctx), el => el.child(this.crumb(t, ctx, { every, all, under, st, ps, name: tabName, narrow: area - this.room - 8 < NARROW, stopPress })))
         .child(h_flex().id("tab-scroll").relative().h_full().items_center().overflow_hidden()
           // 8 from Actions, as from the breadcrumb: the bar's 4 and these 4.
           .when(Boolean(ctx), el => el.w(stripWant).flex_shrink(1).min_w(0).mr(4)
@@ -509,7 +509,7 @@ export default class Tabs extends View {
           .when(!ctx, el => el.flex_1().min_w(0))
           .child(h_flex().id("tab-strip").flex_none().h_full().items_center().gap(TAB_GAP).ml(-at)
             .children(entries.map(e => e.rule ? div().id(e.id).w(1).h(16).mx(4).flex_none().bg(t.border)
-              : e.group ? this.paneGroup(t, e, widths.get(e.id), { name: tabName, button, stopPress })
+              : e.group ? this.paneGroup(t, e, widths.get(e.id), { name: tabName, stopPress })
               : item(e.c, strip.indexOf(e.c)))))
           // A cut end fades out, in both modes: one way for the strip to run out of room, and a tab cut short reads as cut, not as
           // a narrow tab. 16px of the bar's own color in steps, there being no gradient fill for an element.
@@ -520,8 +520,8 @@ export default class Tabs extends View {
   // With the Inbox showing, who's in view, as T3's thread header: the space, a sub-agent's parent, then the tab's agents side by
   // side with the one in view lit, the card the Inbox lights (docs/research/inbox-tab-bar-plan.md). Held, a program there has the
   // focus: the one last looked at is outlined. Away, in a tab of programs: it all dims, and leads back. The title's ⌄ is the
-  // tab's menu; ⧉ shows a zoomed tab's panes again.
-  crumb(t, ctx, { every, all, under, st, ps, name, narrow, stopPress, button, work }) {
+  // tab's menu. A zoomed tab's panes come back by the pane header's zoom: the bar has no button for it.
+  crumb(t, ctx, { every, all, under, st, ps, name, narrow, stopPress }) {
     const space = ctx.space, dim = ctx.held || ctx.away, agentOf = (address) => every.find(a => a.address === address);
     const nameOf = (address) => { const a = agentOf(address); return a ? name(a) : address; };
     // The title's menu: the agent's (t3-menu's "agent", the same wherever it's opened), as T3's thread actions. It hangs 4 under
@@ -593,14 +593,13 @@ export default class Tabs extends View {
           .child(narrow ? div().child("…") : nameText("crumb-parent", nameOf(ctx.parent))),
         () => focusAgent(ctx.parent), { agent: ctx.parent, shown: !narrow })))
       .when(Boolean(ctx.head), el => el.child(sep("crumb-sep")).child(title(ctx.head)))
-      .when(Boolean(sub), el => el.child(sep("crumb-sep-sub")).child(sub))
-      .when(Boolean(work), el => el.child(button(`restore-${work.z.pane}`, svg("mods/t3-tabs/icons/minimize-2.svg").size(14), "Show all panes", () => run("pane.zoom", { pane: work.z.pane }), "pane.zoom")));
+      .when(Boolean(sub), el => el.child(sep("crumb-sep-sub")).child(sub));
   }
 
-  // A zoomed tab's panes, a segment each with the zoomed one lit: a click moves the zoom there (zoom.js), ⧉ shows them all again.
+  // A zoomed tab's panes, a segment each with the zoomed one lit: a click moves the zoom there (zoom.js).
   // Dashed: what one tab holds, unlike the tabs beside it. shortcut: it doesn't drag as a tab does; upgrade if Lists wants that.
-  paneGroup(t, e, width, { name, button, stopPress }) {
-    const { panes: list, z, restore, status } = e.group;
+  paneGroup(t, e, width, { name, stopPress }) {
+    const { panes: list, z, status } = e.group;
     const segment = (p) => {
       const on = p.pane === z.pane, id = `seg-${p.pane}`, label = name(p);
       const glyph = programIcon(programOf(p), 12, t.muted) ?? svg("mods/t3-tabs/icons/terminal.svg").size(12).text_color(t.muted);
@@ -617,8 +616,7 @@ export default class Tabs extends View {
     };
     return h_flex().id(`group-${e.id}`).w(width).h(24).flex_none().rounded(6).border(1).border_dashed().border_color(t.border).items_center().overflow_hidden()
       .children(list.map(segment))
-      .when(Boolean(status), el => el.child(div().w(16).flex_none().flex().items_center().justify_center().child(mark(t, status))))
-      .when(restore, el => el.child(button(`restore-${z.pane}`, svg("mods/t3-tabs/icons/minimize-2.svg").size(14), "Show all panes", () => run("pane.zoom", { pane: z.pane }), "pane.zoom")));
+      .when(Boolean(status), el => el.child(div().w(16).flex_none().flex().items_center().justify_center().child(mark(t, status))));
   }
 
   undoNotice(t) {

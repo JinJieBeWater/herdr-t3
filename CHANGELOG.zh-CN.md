@@ -10,6 +10,7 @@
 
 - 显示 Inbox 时，Settle 或 Snooze 一个和工作中的 agent 分屏在同一标签里的 agent，它会离开分屏，拆到同一 space 下自己的标签，分屏里只留在工作的。它回来时（有新工作、到点醒来、需要你、你点了 Undo，或它的 agent 退回 shell），会合回原来的分屏，放在最右。你正在看的那个，等你离开后再搬；你正看着时它回来，会带你一起回到它的分屏。
 - space 面板的快捷键改为跟随 VS Code：`cmd-alt-b` 打开或关闭面板，停在上次的页面；`cmd-shift-e` 打开 Files；装了 Review 扩展时 `cmd-shift-g` 打开 Review；面板已在显示那一页时，按这一页的键则关闭面板。Herdr 的 `cmd-b` 仍然隐藏侧栏，和 VS Code 一样。更新时 `scripts/update.sh` 会加上这两个新键。
+- 去掉了标签栏里的 `⧉`（Show all panes），agent 名字旁边和被 zoom 标签的窗格组末尾都不再有：还原分屏用窗格标题栏的缩放按钮或 `cmd-shift-enter`。
 - space 面板的快捷键改为照 T3：`cmd-alt-b` 打开或关闭面板，停在上次的页面；键盘在面板里时 `cmd-w` 关闭面板，而不是后面的标签；装了 Review 扩展时 `cmd-shift-g` 打开 Review，面板已在显示 Review 时则关闭。`cmd-d` 仍是 Herdr 的分屏。更新时 `scripts/update.sh` 会加上新键。
 - 每个 space 各记自己的面板，照 T3 按 thread 记的做法：开没开、在哪一页、放没放大，切回这个 space 时都会恢复；没打开过面板的 space 里它是关着的。宽度仍是整个窗口一份。
 

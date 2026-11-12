@@ -2446,15 +2446,14 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.deepEqual(taken().at(-1), ["agent.focus", { terminal: "C" }], "and leads back");
     at("mine", "p-A");
 
-    // Zoomed: the panes that aren't the agents' are segments beside them, ⧉ shows them all again.
+    // Zoomed: the panes that aren't the agents' are segments beside them; showing them all again is the pane header's zoom.
     f.panes().find(p => p.pane === "p-A").zoomed = true;
     root = at("mine", "p-A");
     assert.ok(find(root, "group-tools-mine"), "the tab's other panes");
     assert.equal(find(root, "seg-p-C"), null, "not its agents: each has its card");
     fire(find(root, "seg-p-git"), "on_click", {}, cx);
     assert.deepEqual(taken(), [["pane.zoom", { pane: "p-git" }], ["pane.focus", { pane: "p-git" }]], "a segment moves the zoom there");
-    fire(find(root, "restore-p-A"), "on_click", {}, cx);
-    assert.deepEqual(taken(), [["pane.zoom", { pane: "p-A" }]], "⧉ unzooms");
+    assert.equal(find(root, "restore-p-A"), null, "no unzoom button in the bar");
     // Shown alone, an agent's pane header leaves its name to the breadcrumb; in Lists it keeps it.
     const header = () => strings(f.load("t3-pane", { pane: "p-A" }).render(cx));
     assert.ok(!header().includes("layout"));
@@ -2462,7 +2461,8 @@ for (const width of [208, 240, 256, 320, 480]) {
     assert.ok(header().includes("layout"));
     assert.ok(find(f.load("t3-tabs", { part: "end" }).render(cx), "tab-new"), "Lists keeps its +");
     root = at("mine", "p-A");
-    assert.ok(find(root, "group-mine") && find(root, "seg-p-C") && find(root, "restore-p-A"), "in Lists the zoomed tab shows all its panes");
+    assert.ok(find(root, "group-mine") && find(root, "seg-p-C"), "in Lists the zoomed tab shows all its panes");
+    assert.equal(find(root, "restore-p-A"), null, "and no unzoom button there either");
     assert.ok(!strings(root).some(s => / Z$/.test(s)), "no Z after its name");
     f.agents()[0].status = "blocked";
     assert.ok(strings(find(at("mine", "p-A"), "group-mine")).includes("!"), "and the tab's status mark stays with it");
