@@ -17,6 +17,16 @@ Review 跟随你的主题，包括 Graphite 等主题里带透明度的复选框
 
 `extras/mods/t3-theme-export` 是 [pi-herdr-theme](https://github.com/JinJieBeWater/pi-stuff/tree/main/packages/pi-herdr-theme) 在 Herdr 这一侧的部分。pi-herdr-theme 是[我的 Pi 配置](https://github.com/JinJieBeWater/pi-stuff)里的一个 Pi 扩展，让 Pi 的配色跟着 Herdr 走。这个 mod 没有界面：Herdr 实际显示的颜色一变（设置页点选、布局主题、系统明暗、内置预设都算），它就把 `{ "name", "colors" }` 写到 `~/.cache/herdr-app-theme.json`；扩展监听这个文件，重新生成 Pi 主题。两边都要装：把目录复制进 `~/.config/herdr-app/mods/`，再让你的 Herdr agent 在这个布局的 `work` 列末尾加一次 `{ "id": "theme-export", "type": "block", "size": { "px": 0 }, "content": { "mod": "t3-theme-export" } }`。不要设成隐藏，隐藏的块不会启动。它只在放了这个块的布局里运行：切到其他布局后 Pi 保持原来的颜色，想跟随就在那个布局里也加上。`scripts/update.sh` 更新这个布局时会保留这个块。
 
+## asciicn 壁纸
+
+把 Home 换成一张静止的 [asciicn](https://asciicn.dev) 点阵画，颜色取自你的主题，换主题或明暗模式时跟着变。自带 4 张 asciicn 的画（灯塔、黄昏山峦、星云、余烬），也可以用你自己的：任意图片，按 asciicn 的 Studio 的方式画成 Braille 点阵。
+
+鼠标移到 Home 的右下角，那里会出现切换器：`‹ ›` 换画，`×` 删除当前显示的那张你加的画。`+` 打开一张卡片：**Choose picture…** 选一张图片（PNG、JPG、HEIC 等），稍等就会显示出来。想精细调整（对比度、抖动、换其他字符），点 **Open asciicn Studio**，它会打开已设好图片源、Braille 和真彩色的 Studio；在那里用画面下方的 **.ans** 按钮保存（会存到「下载」），再用同样的方式选这个文件。选中的会保留，新建的 Home 也一样。
+
+你加的画以 `.ans` 文件存在 `~/.config/herdr-app/asciicn-wallpaper/`：**Open folder** 会打开它，直接复制进来的 `.ans` 文件也会出现，在这里改了的会重新画。Braille、方块、象限和半调圆点画出来和 Studio 里一样；其他字符画成越暗越大的短条，所以用字母拼成的画保留明暗，但看不出字母。颜色会换成你主题里最接近的颜色。画面撑满 Home 的高度；Home 变窄或变宽时只是两边露得少或多，主体始终在视野里。比 Home 窄的画改为撑满宽度，上下各裁掉一点。手机照片在 Herdr 里横过来了，是相机记录的旋转信息没被采用：先在「预览」里转正再选。
+
+安装：把 `extras/mods/asciicn-wallpaper` 复制到 `~/.config/herdr-app/mods/`，然后在这套布局的设置里，把 **Home shows** 选成 asciicn wallpaper。它由 `scripts/update.sh` 负责更新，不会动你加的画。**Choose picture…** 在 macOS 上、以及装了 `zenity` 和 ImageMagick 的 Linux 上可用（没有 ImageMagick 时只能选 `.ans`）；Windows 上请用 **Open folder** 把 `.ans` 文件复制进去。自带的画来自 asciicn，MIT 许可（`LICENSE-asciicn`）。
+
 ## 主题和设置
 
 布局不指定主题，沿用你自己的。`extras/themes/` 里附带两对明暗主题，需要的话可以用：

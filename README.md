@@ -84,6 +84,7 @@ No network requests.
 
 - **pulls.review**: a Review bar and the panel's Review page.
 - **Theme export for Pi**: Pi's colors follow Herdr's.
+- **asciicn wallpaper**: Home as a picture in asciicn's dots, in your theme's colours: four built in, or any picture of yours.
 - **Themes**: Catppuccin and T3 Code, light and dark.
 
 How to add them: [the extras](docs/user/extras.md).

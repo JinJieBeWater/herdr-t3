@@ -28,6 +28,7 @@ if [ -d "$app/mods/pulls-review" ]; then
   for m in pulls-review review; do rsync -a --delete $gen --exclude config.json "$src/extras/mods/$m/" "$app/mods/$m/"; done
 fi
 [ ! -d "$app/mods/t3-theme-export" ] || rsync -a --delete $gen "$src/extras/mods/t3-theme-export/" "$app/mods/t3-theme-export/"
+[ ! -d "$app/mods/asciicn-wallpaper" ] || rsync -a --delete $gen "$src/extras/mods/asciicn-wallpaper/" "$app/mods/asciicn-wallpaper/"
 for t in "$src"/extras/themes/*.json; do [ ! -f "$app/themes/$(basename "$t")" ] || cp "$t" "$app/themes/"; done
 
 # The theme picker, stack switches, your focus ring color and the Review bar and theme-export blocks you added live in the installed layout; keep them across updates.
