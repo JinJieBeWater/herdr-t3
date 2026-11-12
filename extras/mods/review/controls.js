@@ -84,8 +84,11 @@ export function subAt(view, row, [min, max], h) {
 // State "all", "some", "none", or "changed" (reviewed, then changed: the app's orange half mark).
 export function checkMark(t, state) {
   const fill = state === "changed" ? "#f97316" : state === "none" ? null : t.accent;
+  // `input` can already be translucent: dark:bg-input/32 scales that alpha instead of appending another one.
+  const input = t.input.replace(/^#(.)(.)(.)$/, "#$1$1$2$2$3$3");
+  const wash = input.slice(0, 7) + Math.round(parseInt(input.slice(7) || "ff", 16) * 0.32).toString(16).padStart(2, "0");
   // Unchecked, as T3's Checkbox (border-input, dark:bg-input/32): `raised` would vanish on a `selected` row.
-  return div().size(16).flex_none().rounded(4).border_1().border_color(fill ?? t.input).bg(fill ?? t.input + "52")
+  return div().size(16).flex_none().rounded(4).border_1().border_color(fill ?? t.input).bg(fill ?? wash)
     .flex().items_center().justify_center().text_color(state === "changed" ? "#ffffff" : t.accent_foreground)
     .when(state === "all", el => el.child(svg("mods/review/icons/check.svg").size(12)))
     .when(state === "some" || state === "changed", el => el.child(svg("mods/review/icons/minus.svg").size(12)));

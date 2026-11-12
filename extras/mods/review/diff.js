@@ -182,7 +182,7 @@ export function diffView(view, t) {
         }))
       // Folding or marking the file from its stuck header folds it away under the top: its header, above the view, comes
       // back to the top in one scroll (the list scrolls to the near edge).
-      .when(Boolean(sticky), el => el.child(div().id("sticky-file").absolute().top(0).left(0).w_full()
+      .when(Boolean(sticky), el => el.child(div().id("sticky-file").absolute().top(0).left(0).w_full().bg(t.background)
         .on_click((_e, cx) => {
           const open = !view.collapsed.has(sticky.path);
           view.headerPress(sticky, view.pressX ?? 0, cx);

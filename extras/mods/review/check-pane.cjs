@@ -272,7 +272,7 @@ const env = {
   layout: () => ({ id: "root", children: [{ id: "work", hidden: workHidden, children: barIn ? [{ id: "review-bar", content: { mod: "pulls-review" } }] : [] }, { id: "panel", children: [{ id: "panel-body", active: pageShown, children: [{ id: "files" }, { id: "review" }] }] }] }),
   // Shared values every mod sees.
   shared: (key) => sharedStore.get(key) ?? null, setShared: (key, value) => sharedStore.set(key, value),
-  run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), nextCommand: () => new Promise(done => waiting.push(done)), theme: () => ({ foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888" }),
+  run: (name, args) => calls.push([name, args]), notify: (n) => notes.push(n), nextCommand: () => new Promise(done => waiting.push(done)), theme: () => ({ background: "#17191d", selected: "#ffffff17", foreground: "#eeeeee", ansi1: "#ff0000", ansi2: "#00ff00", dim: "#888888", input: "#ffffff24" }),
   watchFolder: () => new Promise(() => {}), FILE: 32, ROW: 20, CHAR: 7.25, groupFiles, buildItems, pageLabel, contentWidth, codeInset, noteWidth, clipRows, rowsToAsk, LOOKAHEAD, wrapRow, wrapColumns,
   // The daemon: rows only for the files asked for, and the first group's with `firstRows`; no run going. A later batch's
   // rows come on their own.
@@ -1254,6 +1254,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(!drawn.has("sticky-file"), "a header in view doesn't stick");
   pane.visible = { start: rowAt, end: rowAt + 2 }; drawn.clear(); pane.render(cx);
   assert.ok(drawn.has("sticky-file"));
+  assert.equal(styles["sticky-file"].bg, env.theme().background, "the stuck header covers code even when the theme's selection is translucent");
   pane.current = null; calls.length = 0;
   handlers.get("review-diff-area.on_mouse_down")({ local_position: { x: 300, y: 10 } }, cx);
   handlers.get("null.on_item_click")(pane.itemList[rowAt].key, cx);
