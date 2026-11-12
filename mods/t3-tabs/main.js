@@ -15,7 +15,7 @@ import { KEY, migrate } from "./store.js";
 import { pinList, pin, unpin, putBack } from "./pins.js";
 import { writeLabel } from "./labels.js";
 import { openMenu } from "./menu.js";
-import { panelState, togglePanel, syncPanel } from "./panel.js";
+import { panelState, togglePanel, syncPanel, restorePanel } from "./panel.js";
 
 const inboxShown = () => sidebarParts(layout()).stack?.active === "inbox";
 // The tab bar's row, as layouts/herdr-t3.json has it.
@@ -60,8 +60,8 @@ const SEG_CHROME = 32, RULE_W = 9;
 // name turns to `…`.
 const NARROW = 360;
 
-// The panes you were in, the one you're in first, for Go to's order (T3's recent threads): kept here, as this copy always
-// shows, so every way of moving counts. A closed pane leaves it.
+// The panes you were in, the one you're in first, for Go to's order (T3's recent threads): kept by the `keys` copy, as it
+// always shows, so every way of moving counts. A closed pane leaves it.
 const RECENT = 30;
 function keepRecent() {
   const here = focused()?.pane, open = new Set(panes().map(p => p.pane)), was = shared(KEY.recent) ?? [];
@@ -80,6 +80,13 @@ function fairCap(wants, room) {
   return Infinity;
 }
 
+// One navigation for every copy: where the person has been (navigation.js) is one memory, so what the strip draws and what the
+// keys do can't disagree. The `keys` copy, a floating block over the whole window that draws nothing, shows whatever else is
+// hidden (the sidebar, `work` under a wide panel): it answers every t3-tabs command and lays the window out. The strip tracks
+// it too before drawing, so it never draws a frame behind; tracking twice a frame changes nothing (check-navigation.cjs).
+let brain = null;
+const nav = () => brain ??= navigation();
+
 const lit = (view, id, color = theme().dim) => (view.hot === id ? theme().foreground : color);
 
 // A tab nobody named reads as its lead pane: the agent in it, else the focused one.
@@ -94,20 +101,26 @@ export default class Tabs extends View {
     this.over = null;
     this.strip = 0;
     this.nameW = {};
-    this.navigation = navigation((cx) => {
-      this.overTab = this.hot = null;
-      detailsFor(this, null, cx);
-      cx.notify();
-    });
-    this.navigation.arrive = () => this.fitRow(window());
     this.dragKeys = cx.focus_handle();
-    if (props()?.part !== "measure") stopsInit(this, cx);
-    // Only the tab strip's copy answers every person's way to close: the layout's other parts would each open a dialog.
-    if (!props()?.part) cx.spawn(async (cx) => {
+    const part = props()?.part;
+    if (part !== "measure" && part !== "keys") stopsInit(this, cx);
+    // A close may ask first: the dialog covers the strip, and nothing reports the pointer's leaving until it moves, so the
+    // strip, which hears the commands too, clears its hover then. Herdr's own wait, so a reload ends it.
+    if (!part) cx.spawn(async (cx) => {
+      for (;;) {
+        if (!(await nextCommand()).startsWith("close-")) continue;
+        this.overTab = this.hot = null;
+        detailsFor(this, null, cx);
+        cx.notify();
+      }
+    });
+    if (part !== "keys") return;
+    nav().arrive = (space) => { this.fitRow(window()); restorePanel(this, space); };
+    // Only this copy answers: every other copy would open its own dialog.
+    cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
         // One at a time: a second press finds the first's pane gone.
-        // Here because the tab bar always shows; the brand bar goes with the sidebar.
         if (command === "sidebar") run("layout.select", { stack: "sidebar-lists", child: inboxShown() ? "lists" : "inbox" });
         else if (command === "settle") await this.settle(cx);
         // The space panel (docs/adr/0011), keyed as VS Code's: a page opens on it, or closes the panel already showing it; `panel` keeps the last page.
@@ -125,6 +138,8 @@ export default class Tabs extends View {
       }
     });
   }
+
+  get navigation() { return nav(); }
 
   // `given`: an agent's menu names it; the key takes the agent in view.
   async settle(cx, given = null) {
@@ -310,6 +325,8 @@ export default class Tabs extends View {
   async close() {
     stopsEnd(this);
     if (props()?.part === "measure") setShared(KEY.compact, false);
+    // Another layout starts its own memory.
+    if (props()?.part === "keys") brain = null;
   }
 
   endDrag() {
@@ -326,7 +343,13 @@ export default class Tabs extends View {
     if (props()?.part === "measure") return div().id("bar-measure").size_full()
       .on_size_change((size) => setShared(KEY.compact, size.width / (Number(settings()?.zoom) || 1) < 1024));
     const t = theme(), w = window();
-    if (!props()?.part) { syncPanel(this, false); keepRecent(); }
+    if (props()?.part === "keys") {
+      syncPanel(this);
+      keepRecent();
+      this.navigation.frame();
+      this.fitRow(w);
+      return div();
+    }
     const stopPress = (_e, cx) => cx.stop_propagation();
     // 24 as T3's tab bar +; the window's own buttons 28, as its titlebar controls.
     const button = (id, glyph, label, action, key, size = 24) => tip(this, t, id, label, stop(this, t, id, div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(8).text_color(lit(this, id)).hover(s => s.bg(t.hover)).on_hover(glow(this, id))
@@ -356,7 +379,6 @@ export default class Tabs extends View {
     const { tabs: shown, context: ctx } = this.navigation.frame(!props()?.part), inbox = inboxShown();
     // With the Inbox, the breadcrumb holds the tab in view and the parent's: the strip has the rest.
     const strip = ctx ? [...ctx.kin, ...ctx.programs] : shown;
-    if (!props()?.part) this.fitRow(w);
     // A tab that goes under the pointer reports no leaving, and a lit × would keep every tab's card away.
     if (this.hot?.startsWith("close-") && !strip.some(c => this.hot === `close-${c.id}`)) this.hot = null;
     // Each agent with its sub-agents (tree.js).

@@ -108,7 +108,16 @@ function fixture(width) {
     mod.init?.(props, cx);
     return mod;
   }
-  return { ...env, load, slots, state, calls, overlays, stores, scopes, labelled, shown, commands, closed, ui, orderWrites, sharedWrites, notifications, answerHc: fn => { hcAnswer = fn; } };
+  // Another copy of a loaded mod, sharing its module as Herdr's copies do. props() is the module's: it reads `props` only in init.
+  function also(name, props) {
+    const context = scopes.get(name), was = context.props;
+    context.props = () => props;
+    const mod = new context.Mod();
+    mod.init?.(props, cx);
+    context.props = was;
+    return mod;
+  }
+  return { ...env, load, also, slots, state, calls, overlays, stores, scopes, labelled, shown, commands, closed, ui, orderWrites, sharedWrites, notifications, answerHc: fn => { hcAnswer = fn; } };
 }
 
 // Layout cases supply facts at the repository interface; scheduling is checked in check-repos.cjs.
@@ -656,8 +665,8 @@ for (const width of [208, 240, 256, 320, 480]) {
   f.terminals().find(c => c.address === "t0").labels = { settled: "1:0" };
   assert.equal(walk(find(f.load("t3-tabs").render(cx), "tab-b0")).some(n => n.style.rounded_full), false, "no done dot for a settled agent's tab");
   {
-    // The panes you were in, newest first, for Go to: the tab bar keeps them as focus moves, however it moved; a closed one goes.
-    const tabs = f.load("t3-tabs"), recent = () => plain(f.state["t3-tabs.recent"]);
+    // The panes you were in, newest first, for Go to: t3-tabs' keys copy keeps them as focus moves, however it moved; a closed one goes.
+    const tabs = f.load("t3-tabs", { part: "keys" }), recent = () => plain(f.state["t3-tabs.recent"]);
     f.shown.pane = "p0"; tabs.render(cx); f.shown.pane = "p2"; tabs.render(cx);
     assert.deepEqual(recent(), ["p2", "p0"]);
     f.shown.pane = "p0"; tabs.render(cx); tabs.render(cx);
@@ -2081,19 +2090,21 @@ for (const width of [208, 240, 256, 320, 480]) {
     }
   }
   {
-    // The strip alone consumes commands; opening its dialog clears the card under the pointer.
+    // The keys copy alone consumes commands; the dialog it opens clears the card under the pointer in the strip.
     const f = fixture(256), jobs = [], spawn = cx.spawn;
     f.spaces()[0].tabs.push({ id: "other" });
     Object.assign(f.shown, { tab: "b0", pane: "p0" });
     f.answerHc(() => ({ code: 0, stdout: JSON.stringify({ pid: 1, foreground: { pid: 2, name: "sleep" } }) }));
     cx.spawn = fn => jobs.push(fn);
     const view = f.load("t3-tabs");
-    f.load("t3-tabs", { part: "end", block: "tabs-end" });
-    f.load("t3-tabs", { part: "measure" });
+    f.also("t3-tabs", { part: "end", block: "tabs-end" });
+    f.also("t3-tabs", { part: "measure" });
+    f.also("t3-tabs", { part: "keys" });
     cx.spawn = spawn;
-    assert.equal(jobs.length, 1, "of the layout's three copies only the tab strip answers, or one close opens three dialogs");
+    assert.equal(jobs.length, 2, "the strip listens for closes; of the layout's copies only keys answers, or one close opens several dialogs");
     Object.assign(view, { overTab: "b0", hot: "close-b0", details: "b0" });
-    f.commands.push("close-tab"); jobs[0](cx); await new Promise(setImmediate);
+    // Each shown copy hears a command: one each for the strip and keys.
+    f.commands.push("close-tab", "close-tab"); for (const job of jobs) job(cx); await new Promise(setImmediate);
     assert.deepEqual([view.overTab, view.hot, view.details], [null, null, null], "cmd-w over a hovered tab takes its card too");
     assert.equal(f.overlays.length, 1);
     assert.deepEqual(f.calls, [], "the command listener waits for confirmation");
@@ -2102,9 +2113,9 @@ for (const width of [208, 240, 256, 320, 480]) {
     // Both modes walk their drawn rows and stop at either end, including while hidden.
     const f = fixture(256), jobs = [], spawn = cx.spawn;
     cx.spawn = fn => jobs.push(fn);
-    f.load("t3-tabs"); f.load("t3-tabs", { part: "end" }); f.load("t3-tabs", { part: "measure" }); f.load("t3-chrome"); f.load("t3-chrome", { footer: true });
+    f.load("t3-tabs", { part: "keys" }); f.also("t3-tabs", { part: "end" }); f.also("t3-tabs", { part: "measure" }); f.load("t3-chrome"); f.load("t3-chrome", { footer: true });
     cx.spawn = spawn;
-    assert.equal(jobs.length, 1, "only the tab strip's copy listens");
+    assert.equal(jobs.length, 1, "only the keys copy listens");
     assert.deepEqual(Object.values(JSON.parse(fs.readFileSync(path.join(modRoot, "..", "keys.json"), "utf8"))["layout:herdr-t3"]).filter(a => /^t3-(chrome|inbox)\./.test(a)), [], "a key's command goes to the mod that always shows: another's would miss it, or toast");
     f.slots.lists = { id: "sidebar-lists", active: "inbox" };
     const press = async (command, rows) => {
@@ -2230,7 +2241,7 @@ for (const width of [208, 240, 256, 320, 480]) {
     const f = fixture(256), list = f.spaces();
     f.slots["tabs-row"] = { id: "tabs-row", size: { px: 40 } };
     f.slots["work-main"] = { id: "work-main", type: "stack", active: "main" };
-    const bar = f.load("t3-tabs"), resized = () => plain(f.calls.splice(0).filter(([n]) => n.startsWith("layout.")));
+    const bar = f.load("t3-tabs", { part: "keys" }), resized = () => plain(f.calls.splice(0).filter(([n]) => n.startsWith("layout.")));
     bar.render(cx); assert.deepEqual(resized(), [], "away from Home, as the layout has it");
     list[0].active = false; list.push({ id: "h", name: "Home\u200b", named: true, active: true, machine: null, tabs: [{ id: "page", active: true }] }); f.state["t3-tabs.home"] = "h";
     // The fixture applies a resize and a select, as Herdr does.

@@ -14,6 +14,8 @@ const source = bundle("navigation.js");
 const plain = value => JSON.parse(JSON.stringify(value));
 const flush = () => new Promise(setImmediate);
 
+// twice: every frame() runs twice, as the tab strip and the keys copy both track one navigation each frame (main.js).
+let twice = false;
 // A fake Herdr core: tests change platform facts, advance time, and observe commands and labels.
 function fixture() {
   const program = { key: "pi", name: "Pi", agent: true, tint: true, icon: "icons/pi.svg" };
@@ -41,7 +43,11 @@ function fixture() {
   vm.runInContext(source, scope, { filename: "navigation.js" });
   Object.assign(core, vm.runInContext("({ namer, programOf, focusAgent, focusPane, writeLabel })", scope));
   return { ...core, cx, slots, state, shown, calls, labelled, overlays, closed, notifications, timers, events,
-    navigation: (beforeAsk, over = {}) => scope.navigation(beforeAsk, { ...core, ...over }),
+    navigation: (beforeAsk, over = {}) => {
+      const view = scope.navigation(beforeAsk, { ...core, ...over }), frame = view.frame;
+      if (twice) view.frame = (track) => { frame(track); return frame(track); };
+      return view;
+    },
     answerHc: fn => { hcAnswer = fn; }, advance: ms => { now += ms; },
     async tick() { assert.equal(timers.at(-1).ms, 25); timers.at(-1).fn(); await flush(); },
   };
@@ -804,7 +810,11 @@ async function check() {
     f.state["t3-inbox.rows"] = { order: ["A", "S"], view: "A", cards: 1 };
     assert.deepEqual([view.nextCard("A"), f.calls], [false, []], "a settled row isn't a card");
   }
-  console.log("ok: navigation Home, close order, history, visible tabs, zoom, unread repayment and retries.");
 }
 
-check().catch(e => { console.error(e); process.exit(1); });
+(async () => {
+  await check();
+  twice = true;
+  await check();
+  console.log("ok: navigation Home, close order, history, visible tabs, zoom, unread repayment and retries; the same tracked twice a frame.");
+})().catch(e => { console.error(e); process.exit(1); });

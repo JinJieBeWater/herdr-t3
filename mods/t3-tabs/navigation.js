@@ -173,7 +173,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     // tab.select brings the space along, so nothing else there shows on the way.
     if (own) {
       homing = Date.now();
-      api.arrive?.();
+      api.arrive?.(homeId());
       return run("tab.select", { id: own.tab });
     }
     run("tab.new", { space: homeId(), name: "Home", folder: home(), ...fill() });
@@ -439,7 +439,7 @@ export function navigation(beforeAsk = (_cx) => {}, core = { spaces, panes, agen
     run("tab.select", { id: list[(list.findIndex(c => c.active) + by + list.length) % list.length].id });
   }
 
-  // arrive: set by the view, lays the window out for Home in the same go as the select that shows it.
+  // arrive(space): set by the view, lays the window out for Home (row, frame, panel) in the same go as the select that shows it.
   const api = {
     get atHome() { return shownHome(); },
     nextCard,

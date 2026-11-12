@@ -8,6 +8,9 @@
   "preview": "layouts/herdr-t3.svg",
   "divider": { "width": 1, "color": "border" },
   "terminal_menu": "t3-menu",
+  "floating": [
+    { "id": "tabs-keys", "content": { "mod": "t3-tabs", "props": { "part": "keys" } }, "edge": "bottom", "align": "end" }
+  ],
   "children": [
     {
       "id": "sidebar",
@@ -168,6 +171,7 @@
     {
       "id": "panel",
       "type": "column",
+      "resizable": false,
       "hidden": true,
       "size": { "weight": 1 },
       "min": 480,
