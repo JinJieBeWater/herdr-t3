@@ -1,5 +1,7 @@
 // Context menus, one per thing (docs/research/context-menu-plan.md). Opened as a popup with
 // props { tab: "pane" | "tab" | "space" | "agent" | "snooze" | "checkout" | "machine", target }: which thing, not what it offers.
+// The agent's Snooze opens its times beside it, as T3's MenuSub (docs/research/submenu-plan.md): a second popup with
+// props { tab: "snooze", target, parents, lit }, `parents` the menus it hangs off, `lit` the row lit when keys opened it.
 // ↑/↓, Home, End and typeahead move, Enter runs, Esc closes. An item is [label, command, args, hint, group];
 // a command "worktree" opens the worktree dialog instead.
 // t3-menu: Herdr's menu (mod.clone), with a tab's and a pane's Close going through the tab bar (t3-tabs), which asks first
@@ -9,14 +11,31 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, keys, terminals, agents, spaces, panes, exec, setShared, layout } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, keys, terminals, agents, spaces, panes, exec, setShared, shared, layout, settings } from "herdr";
 import { menuJump } from "./list.js";
-import { openMenu } from "./menu.js";
+import { subPlace, hoverRow, subOpened, subLeft } from "./submenu.js";
 import { placeOf } from "./project.js";
 import { presets } from "./snooze-presets.js";
 import { ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { pinList } from "./pins.js";
 import { sidebarParts } from "./sidebar.js";
+import { KEY } from "./store.js";
+
+// The submenus open, [{ id, parents }], as win98's: a menu learns its submenu closed, and closes what hangs off it.
+const chain = () => /** @type {{ id: string, parents: string[] }[]} */ (shared(KEY.menuChain) ?? []);
+
+// Closes a submenu and every one opened from it.
+function closeTree(id) {
+  const all = chain(), doomed = [id, ...all.filter((m) => m.parents.includes(id)).map((m) => m.id)];
+  for (const d of doomed.reverse()) closeOverlay(d);
+  setShared(KEY.menuChain, all.filter((m) => !doomed.includes(m.id)));
+}
+
+// A menu's measures, as T3's: 220 wide, padding 4, rows 28, a rule 9 (4 above and below it).
+const WIDTH = 220, PAD = 4, ROW = 28, RULE = 9;
+// Where row `i` starts below the menu's top, its rules included.
+const rowTop = (list, i) => PAD + i * ROW + list.slice(1, i + 1).filter((it, j) => it[4] !== list[j][4]).length * RULE;
+const zoom = () => Number(settings()?.zoom) || 1;
 
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
@@ -180,11 +199,19 @@ function shortcut(name, args) {
 export default class Menu extends View {
   init(_props, cx) {
     // As T3's, nothing is lit until a key or the pointer gets there.
-    this.at = -1;
+    const p = props();
+    this.at = p?.lit ?? -1;
     this.git = null;
+    // The submenu's pointer state (submenu.js), the one open { id, row }, and each row's bounds as the pointer last found it.
+    this.s = {};
+    this.sub = null;
+    this.rows = [];
+    // Where it opened: the pointer, for placing a submenu keys open before the pointer has found its row.
+    this.origin = globalThis.window?.mouse_position?.();
+    // A menu opened starts the chain over: one closed by a click beside it leaves stale ids.
+    if (!p?.parents?.length && chain().length) setShared(KEY.menuChain, []);
     this.handle = cx.focus_handle();
     this.handle.focus();
-    const p = props();
     const space = p?.tab === "space" && spaces().find((s) => s.id === p.target?.id);
     const folder = space && place(space);
     if (folder)
@@ -195,28 +222,68 @@ export default class Menu extends View {
   }
 
   // For the control that opened it: a press on it that closed this mustn't reopen it (justClosed in focus.js).
+  // A submenu leaves the chain; a menu closes its submenu with it.
   async close() {
-    setShared("t3-menu.closed", Date.now());
+    const p = props() ?? {};
+    if (p.parents?.length) { if (chain().some((m) => m.id === p.overlay)) setShared(KEY.menuChain, chain().filter((m) => m.id !== p.overlay)); }
+    else setShared("t3-menu.closed", Date.now());
+    if (this.sub) closeTree(this.sub.id);
   }
 
-  choose(i, cx) {
+  // Row `i`'s Snooze times beside it. `lit`: keys opened it, so its first row is lit, as Base UI's.
+  openSub(i, lit) {
+    this.closeSub();
+    const p = props() ?? {}, list = items(p, this.git), z = zoom(), it = list[i];
+    // shortcut: with no row seen yet (keys only), the row is placed from the pointer where the menu opened, as Herdr opens it
+    // there; a menu Herdr pushed back into the window puts its submenu off by as much. Upgrade if Herdr reports where an element is.
+    const o = this.origin ?? { x: 0, y: 0 };
+    const b = this.rows[i] ?? { x: o.x + PAD * z, y: o.y + rowTop(list, i) * z, width: (WIDTH - 2 * PAD) * z, height: ROW * z };
+    const times = items({ tab: "snooze", target: it[2] }, null), h = rowTop(times, times.length) + PAD + 2;
+    // Herdr keeps a popup in the window, but doesn't flip it: subPlace does, in the menu's own px.
+    const at = subPlace({ x: b.x / z, y: b.y / z, width: b.width / z, height: b.height / z }, WIDTH, 0, globalThis.window.viewport_size().width / z);
+    const parents = [...(p.parents ?? []), p.overlay];
+    const id = openOverlay({ mod: "t3-menu", kind: "popup", width: WIDTH, height: h, at: { x: at.x * z, y: at.y * z },
+      props: { tab: "snooze", target: it[2], parents, ...(lit ? { lit: 0 } : {}) } });
+    setShared(KEY.menuChain, [...chain(), { id, parents }]);
+    this.sub = { id, row: i };
+    subOpened(this.s, it[1], { x: at.x * z, y: at.y * z, width: WIDTH * z, height: h * z }, at.side);
+  }
+
+  // Its submenu closed: the keyboard comes back here.
+  closeSub() {
+    if (!this.sub) return;
+    closeTree(this.sub.id);
+    this.sub = null;
+    subOpened(this.s, null);
+    this.handle.focus();
+  }
+
+  choose(i, cx, lit = false) {
     const it = /** @type {any} */ (items(props(), this.git)[i]);
     if (!it) return;
+    // Its times, beside it: this stays open.
+    if (it[1] === "snooze") return this.openSub(i, lit);
+    // The whole chain closes, submenu and the menus it hangs off.
     closeOverlay(props()?.overlay);
+    for (const id of [...(props()?.parents ?? [])].reverse()) closeOverlay(id);
     if (it[1] === "worktree") openOverlay({ mod: "worktree", kind: "dialog", ...(it[2].action === "open" ? { width: 560, height: 480 } : { width: 440, height: 260 }), props: it[2] });
     // The item keeps Herdr's command, for its icon, its divider and its key; only where it goes changes.
     else if (it[1] === "tab.close") run(`t3-tabs.close-tab:${it[2].id}`);
     else if (it[1] === "pane.close") run(`t3-tabs.close-pane:${it[2].pane}`);
     else if (it[1] === "copy") cx.write_to_clipboard(it[2].text);
-    // Its times, where the pointer is: on this row.
-    else if (it[1] === "snooze") openMenu(null, "snooze", { address: it[2].address }, cx);
     else if (it[1] === "custom-snooze") openOverlay({ mod: "t3-inbox", kind: "dialog", frame: "none", width: 384, props: { customSnooze: it[2].address, answer: "t3-tabs.snooze" } });
     else run(it[1], it[2]);
   }
 
   render() {
     const t = theme();
-    const list = items(props(), this.git);
+    const list = items(props(), this.git), p = props() ?? {};
+    // Its submenu closed itself (← or Esc in it, a click beside it): the keyboard comes back here.
+    if (this.sub && !chain().some((m) => m.id === this.sub.id)) {
+      this.sub = null;
+      subOpened(this.s, null);
+      this.handle.focus();
+    }
     return v_flex()
       .id("menu")
       .track_focus(this.handle)
@@ -225,9 +292,13 @@ export default class Menu extends View {
       .p(4)
       .bg(t.popover)
       .text_size(14)
+      // Off the menu, nothing pending opens; a submenu open stays.
+      .on_hover((on) => { if (!on) subLeft(this.s); })
       .on_key_down((e, cx) => {
-        if (e.key === "enter") { if (this.at >= 0) this.choose(this.at, cx); }
-        else if (e.key === "escape") closeOverlay(props().overlay);
+        if (e.key === "enter") { if (this.at >= 0) this.choose(this.at, cx, true); }
+        // A submenu's ← goes back to its menu, as its Esc does.
+        else if (e.key === "escape" || (e.key === "left" && p.parents?.length)) closeOverlay(p.overlay);
+        else if (e.key === "right") { if (list[this.at]?.[1] === "snooze") this.openSub(this.at, true); }
         else {
           const to = menuJump(this, e, list.map((it) => it[0]), this.at);
           if (to < 0) return;
@@ -249,13 +320,20 @@ export default class Menu extends View {
             .justify_between()
             // Only what deletes something is red, in words, as T3's destructive item: a Close asks first while a program runs.
             .text_color(it[1] === "worktree" && it[2].action === "remove" ? t.ansi1 : t.foreground)
-            .when(i === this.at, (el) => el.bg(t.selected))
+            // As T3's MenuSubTrigger, lit while its submenu is open.
+            .when(i === this.at || i === this.sub?.row, (el) => el.bg(t.selected))
             .on_hover((on, cx) => { const to = on ? i : this.at === i ? -1 : this.at; if (to !== this.at) { this.at = to; cx.notify(); } })
+            .on_mouse_move((e, cx) => {
+              this.rows[i] = e.bounds;
+              hoverRow(this.s, it[1] === "snooze" ? it[1] : null, e, cx, (key, _row, cx) => { if (key) this.openSub(i, false); else this.closeSub(); cx.notify(); });
+            })
             .on_click((_e, cx) => this.choose(i, cx))
             // As T3's MenuItem: the icon hangs 2px into each side's padding and gap.
             .when(Boolean(menuIcon(it[1], it[0], it[2])), (el) => el.child(svg(menuIcon(it[1], it[0], it[2])).size(16).mx(-2).flex_none().text_color(t.muted)))
             .child(div().flex_1().min_w(0).truncate().child(it[0]))
-            .child(div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[3] ?? (it[1] === "copy" ? it[2].text : shortcut(it[1], it[2]))))),
+            // T3's MenuSubTrigger ends in its chevron, 80% opaque, 2px into the padding.
+            .child(it[1] === "snooze" ? svg("mods/workspace-chrome/chevron-right.svg").size(16).mr(-2).flex_none().text_color(t.muted).opacity(0.8)
+              : div().flex_none().text_size(12).font_medium().text_color(t.dim).child(it[3] ?? (it[1] === "copy" ? it[2].text : shortcut(it[1], it[2]))))),
         ),
       );
   }

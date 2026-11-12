@@ -284,8 +284,11 @@ assert.equal(vm.runInContext('progressText({ kind: "thinking", step: 2 })', main
 }
 // The 150ms timer is the scroll spy; the others, by period, each pane's in the order they started. A test runs them by hand.
 let spy; const every = {};
-const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (ms, f) => ms === 0 ? queueMicrotask(() => f(cx)) : timers.push(f) } };
-// Timers wait until a test runs them.
+const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() { keyboard = "pane"; } }), timer: { every: (ms, f) => { if (ms === 150) spy = f; (every[ms] ??= []).push(f); }, after: (ms, f) => {
+  if (ms === 0) return queueMicrotask(() => f(cx));
+  const t = (c) => { if (!t.off) f(c); }; t.cancel = () => { t.off = true; }; timers.push(t); return t;
+} } };
+// Timers wait until a test runs them; a cancelled one does nothing.
 const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
 (async () => {
   {
@@ -537,10 +540,36 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   drawn.clear(); pane.render(cx);
   // The main page names each setting's value; a setting's list is a page its row opens, so none shows before.
   assert.ok(drawn.has("settings-language") && drawn.has("settings-agent") && drawn.has("settings-model") && !drawn.has("agent-claude") && !drawn.has("model-default"));
+  // A setting's list is its submenu, as T3's MenuSub: beside the panel, which stays; the panel on the pane's right, it opens
+  // to the left, its row lit while it's open. No back row: ← (its search empty) or Escape closes it.
+  delete styles["settings-model"];
   press("settings-model");
-  assert.ok(drawn.has("model-custom") && drawn.has("model-list") && drawn.has("settings-back") && !drawn.has("settings-agent"));
-  press("settings-back");
-  assert.ok(drawn.has("settings-agent") && !drawn.has("model-custom"));
+  assert.ok(drawn.has("model-custom") && drawn.has("model-list") && drawn.has("review-settings-sub") && drawn.has("settings-agent") && !drawn.has("settings-back"));
+  assert.ok(styles["settings-model"].bg, "its row stays lit");
+  const subBox = () => styles["review-sub-at"];
+  assert.ok(subBox().left + 320 <= pane.width - 336 + 5 && subBox().left >= 0, "left of the panel");
+  field.set_value("ab"); pane.key({ key: "left", keystroke: "left" }, cx);
+  assert.equal(pane.settingsPage, "model", "← in a search with words moves its caret");
+  field.set_value(""); pane.key({ key: "left", keystroke: "left" }, cx); drawn.clear(); pane.render(cx);
+  assert.ok(pane.settingsPage === null && drawn.has("settings-agent") && !drawn.has("model-custom") && !drawn.has("review-settings-sub"));
+  {
+    // Resting on a setting's row opens its submenu after a moment; on a row without one, the open one closes.
+    const at = (y) => ({ position: { x: pane.width - 200, y: y + 10 }, bounds: { x: pane.width - 331, y, width: 310, height: 28 } });
+    handlers.get("settings-language.on_mouse_move")(at(280), cx);
+    assert.equal(pane.settingsPage, null, "not at once");
+    tick(); drawn.clear(); pane.render(cx);
+    assert.ok(pane.settingsPage === "language" && drawn.has("locale-ja") && drawn.has("settings-agent"));
+    handlers.get("settings-credit.on_mouse_move")({ ...at(400), position: { x: pane.width - 100, y: 410 } }, cx);
+    tick();
+    assert.equal(pane.settingsPage, null);
+    // Narrow, neither side has room: the submenu stays inside the pane.
+    pane.width = 400; press("settings-model");
+    assert.ok(subBox().left >= 0 && subBox().left + styles["review-settings-sub"].w <= 400);
+    // Short of 320 left of the panel, narrower rather than over its rows.
+    pane.width = 620; press("settings-model");
+    assert.ok(styles["review-settings-sub"].w < 320 && subBox().left + styles["review-settings-sub"].w <= 620 - 336 + 5);
+    pane.key({ keystroke: "escape" }, cx); pane.width = 1200;
+  }
   press("settings-agent");
   press("agent-claude");
   assert.deepEqual(plain((await put()).llm), { provider: "local-agent", agent: "claude", agentModel: "" });
@@ -624,7 +653,7 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   // The language the analysis writes in, as the app's LanguageMenu: a page of its own, whose pick writes it back with the
   // rest of the settings. Unset, the daemon's default shows as picked.
   press("settings-language");
-  assert.ok(drawn.has("language-list") && drawn.has("locale-ja") && !drawn.has("settings-agent"));
+  assert.ok(drawn.has("language-list") && drawn.has("locale-ja") && drawn.has("settings-agent"));
   press("locale-ja");
   assert.equal((await put()).locale, "ja");
   assert.equal((await put()).llm.agentModel, "sonnet");
@@ -648,7 +677,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
     assert.deepEqual([(await put()).llm.agent, (await put()).llm.agentModel, pane.settingsPage], [pane.agents[0].name, "", null]);
     press("settings-language"); hit("enter");
     assert.equal(pane.settingsPage, "language", "nothing lit, Enter picks nothing");
-    pane.key({ keystroke: "escape" }, cx);
+    hit("left");
+    assert.deepEqual([pane.popup, pane.settingsPage], ["settings", null], "← closes the submenu, not the panel");
+    press("settings-language"); pane.key({ keystroke: "escape" }, cx);
+    assert.deepEqual([pane.popup, pane.settingsPage], ["settings", null]);
   }
   {
     // A save writes only its own field over the daemon's settings as they are now: a language another pane saved since
@@ -924,24 +956,55 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.ok(styles["scope-pull"].opacity < 1 && !(styles["scope-push"].opacity < 1));
   sharedStore.delete("review"); press("scope-pull");
   assert.ok(pane.popup === "scope" && !sharedStore.get("review"));
-  // Commits, a page of the same popover: the branch's commits, newest first, with their age, short sha and ↑ for unpushed.
+  // Commits, a submenu right of the menu, which stays, as T3's: the branch's commits, newest first, with their age, short sha
+  // and ↑ for unpushed; its first row level with Commits (5 above it), its search on top, no back row.
+  delete styles["scope-commits"];
   press("scope-commits");
-  assert.ok(pane.scopePage === "commits" && keyboard === "scope" && drawn.has("scope-back") && styles["review-scope-menu"].w === 384);
+  assert.ok(pane.scopePage === "commits" && keyboard === "scope" && !drawn.has("scope-back") && drawn.has("review-scope-sub") && drawn.has("scope-changes"));
+  assert.ok(styles["review-scope-menu"].w === 320 && styles["review-scope-sub"].w === 384 && styles["scope-commits"].bg);
+  assert.deepEqual([styles["review-sub-at"].left, styles["review-sub-at"].top], [16 + 320 - 5, 36 + 5 + 4 * 28 + 9 - 5]);
+  // A press in the submenu isn't outside the menu; one past both closes them.
+  handlers.get("review-scope-menu.on_mouse_down_out")({ position: { x: 500, y: 200 } }, cx);
+  assert.equal(pane.popup, "scope");
+  handlers.get("review-scope-menu.on_mouse_down_out")({ position: { x: 1000, y: 500 } }, cx);
+  assert.equal(pane.popup, null);
+  pane.popupClosedAt = 0; press("review-scope"); press("scope-commits");
   assert.ok(drawn.has("scope-commit-c2") && drawn.has("scope-commit-c1"));
   assert.ok(styles["scope-commit-c2"].accessibility_label.endsWith(", not pushed") && !styles["scope-commit-c1"].accessibility_label.includes("not pushed"));
   // A commit row is its subject and age; the sha only matters once picked, in the header.
   assert.ok(texts.get("scope-commit-c1-time") === "2h" && !drawn.has("scope-commit-c1-sha"));
   // ↑/↓ light rows, the search narrows by subject or sha, Escape goes back a page and then closes.
-  pane.key({ key: "down" }, cx); assert.equal(pane.scopeAt, 0);
-  pane.key({ key: "down" }, cx); assert.equal(pane.scopeAt, 1);
+  pane.key({ key: "down" }, cx); assert.equal(pane.scopeListAt, 0);
+  pane.key({ key: "down" }, cx); assert.equal(pane.scopeListAt, 1);
   scopeField.text = "two"; scopeEvents.change({}, cx); draw();
-  assert.ok(drawn.has("scope-commit-c2") && !drawn.has("scope-commit-c1") && pane.scopeAt === 0);
+  assert.ok(drawn.has("scope-commit-c2") && !drawn.has("scope-commit-c1") && pane.scopeListAt === 0);
+  pane.key({ key: "left", keystroke: "left" }, cx);
+  assert.equal(pane.scopePage, "commits", "← in a search with words moves its caret");
   scopeField.text = "nope"; scopeEvents.change({}, cx); draw();
   assert.ok(drawn.has("scope-none"));
   scopeEvents.submit({}, cx);
   assert.equal(pane.popup, "scope", "no match: Enter picks nothing");
   pane.key({ keystroke: "escape" }, cx); draw();
-  assert.ok(pane.popup === "scope" && pane.scopePage === null && scopeField.text === "" && keyboard === "pane");
+  assert.ok(pane.popup === "scope" && pane.scopePage === null && scopeField.text === "" && keyboard === "pane" && pane.scopeAt === 4 && !drawn.has("review-scope-sub"));
+  // On Commits, → opens it with its first commit lit; ← closes it back to Commits; Enter opens it too.
+  pane.key({ key: "right", keystroke: "right" }, cx);
+  assert.ok(pane.scopePage === "commits" && keyboard === "scope" && pane.scopeListAt === 0);
+  pane.key({ key: "left", keystroke: "left" }, cx);
+  assert.ok(pane.popup === "scope" && pane.scopePage === null && pane.scopeAt === 4 && keyboard === "pane");
+  pane.key({ key: "enter", keystroke: "enter" }, cx);
+  assert.ok(pane.scopePage === "commits" && pane.scopeListAt === 0);
+  pane.key({ keystroke: "escape" }, cx);
+  {
+    // Resting on Branches opens it after a moment; on a radio, it closes.
+    const at = (y) => ({ position: { x: 100, y: y + 10 }, bounds: { x: 21, y, width: 310, height: 28 } });
+    handlers.get("scope-branches.on_mouse_move")(at(190), cx);
+    assert.equal(pane.scopePage, null, "not at once");
+    tick(); draw();
+    assert.ok(pane.scopePage === "branches" && drawn.has("review-scope-sub") && drawn.has("scope-changes"));
+    handlers.get("scope-changes.on_mouse_move")({ ...at(41), position: { x: 60, y: 50 } }, cx);
+    tick(); draw();
+    assert.ok(pane.popup === "scope" && pane.scopePage === null && !drawn.has("review-scope-sub"));
+  }
   // Enter on a commit: one commit of this branch's diff, stepped within it; a pick from the menu starts no run.
   press("scope-commits"); scopeField.text = "c1"; scopeEvents.change({}, cx);
   // The request, handled when drawn; the commit page's read, then its base's commits.
@@ -990,6 +1053,13 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   assert.equal(sharedStore.get("review").page, "/worktree");
   pane.popupClosedAt = 0; pane.width = 300; press("review-scope");
   assert.equal(styles["review-scope-menu"].w, 268);
+  press("scope-commits");
+  assert.ok(styles["review-sub-at"].left >= 0 && styles["review-sub-at"].left + styles["review-scope-sub"].w <= 300, "narrow, kept inside the pane");
+  pane.key({ keystroke: "escape" }, cx); pane.key({ keystroke: "escape" }, cx);
+  // Short of 384 right of the menu, narrower down to 260 rather than over the menu.
+  pane.popupClosedAt = 0; pane.width = 620; press("review-scope"); press("scope-commits");
+  assert.deepEqual([styles["review-sub-at"].left, styles["review-scope-sub"].w], [16 + 320 - 5, 620 - 8 - (16 + 320 - 5)]);
+  pane.key({ keystroke: "escape" }, cx);
   pane.key({ keystroke: "escape" }, cx); pane.width = 1200;
   // `review.scope`, for a key or `herdr-app do`: the menu, as its button toggles it; `scope:commits` or `scope:branches` on that page.
   pane.popupClosedAt = 0; send("scope"); await settled(); draw();
@@ -997,7 +1067,10 @@ const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
   send("scope"); await settled();
   assert.equal(pane.popup, null);
   send("scope:branches"); await settled(); await settled(); draw();
-  assert.ok(pane.popup === "scope" && pane.scopePage === "branches" && keyboard === "scope" && drawn.has("scope-branch-other"));
+  assert.ok(pane.popup === "scope" && pane.scopePage === "branches" && keyboard === "scope" && drawn.has("scope-branch-other") && drawn.has("scope-changes"));
+  // `review.settings:model`, for `herdr-app do`: the settings with that submenu open.
+  pane.closePopup(cx); send("settings:model"); await settled(); draw();
+  assert.ok(pane.popup === "settings" && pane.settingsPage === "model" && drawn.has("review-settings-sub"));
   pane.closePopup(cx);
   review.analysis = beforeSwitch; mainScope.exec = env.exec;
   pane.page = pane.base = base; pane.baseCommits = null;

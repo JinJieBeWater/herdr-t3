@@ -26,8 +26,9 @@ share snooze-presets mods/t3-inbox mods/t3-menu
 share store mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-pane mods/t3-chrome mods/t3-spaces mods/t3-actions mods/t3-home mods/t3-new-menu mods/t3-picker mods/t3-menu mods/t3-files extras/mods/pulls-review extras/mods/review
 share labels mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
 share pins mods/t3-inbox mods/t3-agents mods/t3-tabs mods/t3-menu
-share menu mods/t3-menu mods/t3-inbox mods/t3-agents mods/t3-spaces mods/t3-tabs mods/t3-pane
+share menu mods/t3-inbox mods/t3-agents mods/t3-spaces mods/t3-tabs mods/t3-pane
 share panel mods/t3-chrome mods/t3-tabs mods/t3-files extras/mods/pulls-review extras/mods/review
+share submenu mods/t3-menu extras/mods/review
 share review-git extras/mods/pulls-review extras/mods/review
 share file-icons mods/t3-files extras/mods/review
 share file-icons-data mods/t3-files extras/mods/review

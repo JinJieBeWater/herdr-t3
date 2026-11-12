@@ -9,10 +9,11 @@ import { v_flex, h_flex, h_resizable, resizable_panel, VirtualListScrollHandle, 
 import { exec, nextCommand, setShared, shared, spaces, theme, window as appWindow } from "herdr";
 import { panelState, hidePanel } from "./panel.js";
 import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, wrapColumns, CHAR, LOOKAHEAD } from "./rows.js";
-import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button } from "./controls.js";
+import { PANE, WIDE, SPLIT_MIN, DISABLED, pref, setPref, zoom, button, subState } from "./controls.js";
+import { subOpened } from "./submenu.js";
 import { colors, loadReview, loadRows, pollReview, applyReview, analyzeReview } from "./review-load.js";
-import { loadSettings, models, submitModel, pageRows, locale, settingsPanel } from "./settings.js";
-import { diffCommits, scopeList, pickListed, openScope, openScopePage, scopeMenu } from "./scope.js";
+import { loadSettings, models, submitModel, pageRows, locale, settingsPanel, settingsSub, openPage } from "./settings.js";
+import { diffCommits, scopeList, pickListed, openScope, openScopePage, scopeMenu, scopeSub } from "./scope.js";
 import { groupSidebar, groupHeader, groupTabs } from "./groups.js";
 import { aside } from "./files.js";
 import { setReviewed, toggleFull, headerPress, diffView, hbars, foldMenu } from "./diff.js";
@@ -45,23 +46,25 @@ export default class ReviewPanel extends View {
     // The inputs are the panel's; what they act on is the space shown.
     this.modelInput.on("change", (_e, cx) => { const s = this.shown(); if (s) s.pageAt = -1; cx.notify(); });
     this.modelInput.on("submit", (_e, cx) => { const s = this.shown(); if (s) submitModel(s, cx); });
-    // The scope menu's page shown (null, "commits" or "branches"), the row lit on it, and its search: Enter picks the lit row.
-    this.scopePage = null; this.scopeAt = -1;
+    // The scope menu's lit row, its submenu open (null, "commits" or "branches"), the row lit there, and its search: Enter picks that row.
+    this.scopePage = null; this.scopeAt = -1; this.scopeListAt = -1;
     this.scopeSearch = InputState.new({ placeholder: "Search" });
-    this.scopeSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.scopeAt = 0; s.scrollTop = { ...s.scrollTop, "scope-list": 0 }; cx.notify(); });
-    this.scopeSearch.on("submit", (_e, cx) => { const s = this.shown(); if (s) pickListed(s, scopeList(s)[s.scopeAt], cx); });
+    this.scopeSearch.on("change", (_e, cx) => { const s = this.shown(); if (!s) return; s.scopeListAt = 0; s.scrollTop = { ...s.scrollTop, "scope-list": 0 }; cx.notify(); });
+    this.scopeSearch.on("submit", (_e, cx) => { const s = this.shown(); if (s) pickListed(s, scopeList(s)[s.scopeListAt], cx); });
     // The colors the rows on screen are in.
     this.colorsKey = JSON.stringify(colors(theme()));
     this.handle = cx.focus_handle();
     // `review.scope` (a key, or `herdr-app do`) toggles the shown review's scope menu, as its button does; `scope:commits` or
-    // `scope:branches` opens it on that page. `review.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
+    // `scope:branches` opens it with that submenu. `review.settings` the same for the settings, `settings:language`, `:agent`
+    // or `:model` with that submenu. `review.close`, cmd-w while it has the keyboard, closes the panel as T3's does.
     cx.spawn(async (cx) => {
       for (;;) {
         const [name, page] = (await nextCommand()).split(":"), s = this.shown();
         if (name === "close") hidePanel();
-        if (name !== "scope" || !s?.page) continue;
-        if (!page || s.popup !== "scope") s.togglePopup("scope", cx);
-        if (page === "commits" || page === "branches") openScopePage(s, page, cx);
+        if ((name !== "scope" && name !== "settings") || !s?.page) continue;
+        if (!page || s.popup !== name) s.togglePopup(name, cx);
+        if (name === "scope" && (page === "commits" || page === "branches")) openScopePage(s, page, cx, 0);
+        if (name === "settings" && ["language", "agent", "model"].includes(page)) openPage(s, page, cx);
         cx.notify();
       }
     });
@@ -214,6 +217,7 @@ export default class ReviewPanel extends View {
     if (!this.popup) return;
     this.closedPopup = outside ? this.popup : null; this.popup = null; this.popupClosedAt = Date.now();
     this.modelInput.set_value(""); this.scopeSearch.set_value(""); this.pageAt = -1; this.settingsPage = null; this.scopePage = null;
+    subOpened(subState(this), null);
     cx.notify();
   }
 
@@ -413,9 +417,13 @@ export default class ReviewPanel extends View {
     // Its run over, nothing else closes the panel: the next run would bring it back, or the next press only close it unseen.
     const { running, error } = analysisStatus(this);
     if (this.popup === "status" && (!this.review || this.switching || !(running || error))) this.popup = null;
+    // Set again by the submenu drawn, if one is.
+    this.subRect = null;
     return v_flex().id("review-pane").relative().size_full().min_h(0).bg(t.background).text_color(t.foreground).text_size(12)
       .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .on_mouse_down("left", () => this.handle.focus())
+      // Where the pane is in the window: a submenu goes by its rows' bounds, which come in the window's.
+      .on_mouse_move((e) => { this.paneAt = { x: e.bounds.x, y: e.bounds.y }; })
       .on_size_change((size, cx) => {
         const width = size.width / zoom(), height = size.height / zoom();
         if (Math.abs(width - this.width) >= 1 || Math.abs(height - this.height) >= 1) { this.width = width; this.height = height; cx.notify(); }
@@ -437,10 +445,12 @@ export default class ReviewPanel extends View {
       // Built only while open: render runs on every live change, and a catalog runs to hundreds of rows.
       // Each 4 under its button (T3's sideOffset) in the 40 header: 38 under the 28s, 36 under the 24 switch.
       .when(this.popup === "settings", el => el.child(div().absolute().top(38).right(16).child(settingsPanel(this, t))))
+      .when(this.popup === "settings" && Boolean(this.settingsPage), el => el.child(settingsSub(this, t)))
       // Under its button, the one left of the gear.
       .when(this.popup === "fold" && Boolean(this.review) && !this.switching && !hidden, el => el.child(div().absolute().top(38).right(48).child(foldMenu(this, t))))
       // Under the header's left end, where the scope button starts.
       .when(this.popup === "scope" && !hidden, el => el.child(div().absolute().top(36).left(16).child(scopeMenu(this, t))))
+      .when(this.popup === "scope" && Boolean(this.scopePage) && !hidden, el => el.child(scopeSub(this, t)))
       // At the pane's end rather than under its button: 320 wide, it would run off a narrow pane from there.
       .when(this.popup === "status", el => el.child(div().absolute().top(38).right(16).child(statusPanel(this, t))));
   }

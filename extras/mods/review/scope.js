@@ -6,7 +6,8 @@ import { v_flex, h_flex } from "gpui-base";
 import { setShared } from "herdr";
 import { scrollList } from "./list.js";
 import { readReview, readPicks, argPage } from "./review-git.js";
-import { PANE, LU, MONO, COMPACT, MODEL_ROW, hover, iconButton, pickMark, searchField, popover } from "./controls.js";
+import { hoverRow, subOpened, subLeft } from "./submenu.js";
+import { PANE, LU, MONO, COMPACT, MODEL_ROW, hover, iconButton, pickMark, searchField, popover, toPane, subState, subAt } from "./controls.js";
 
 // A conventional commit's type and scope (`fix(t3-tabs): `), dimmed so the words after it lead.
 const PREFIX = /^[a-z]+(\([^)]*\))?!?: /;
@@ -59,7 +60,7 @@ function readScope(view, cx) {
   });
 }
 
-/** The menu's first page: the scopes as radios, each with its count (none: greyed, kept), then the pages of commits and branches. */
+/** The menu's rows: the scopes as radios, each with its count (none: greyed, kept), then the submenus of commits and branches. */
 export function scopeRows(view) {
   const r = repo(view), p = repo(view) && view.picks, { kind } = scopeOf(view);
   const radio = (id, k, label, count, detail, page) => ({ id, kind: k, label, count, detail: r ? detail : "", page, on: page ? view.page === page : kind === k });
@@ -76,7 +77,7 @@ export function scopeRows(view) {
   ];
 }
 
-/** A second page's rows, as its search narrows them: this branch's commits, or the other branches against the default. */
+/** A submenu's rows, as its search narrows them: this branch's commits, or the other branches against the default. */
 export function scopeList(view) {
   const query = view.scopeSearch.value().trim().toLowerCase(), r = repo(view), p = r && view.picks;
   if (view.scopePage === "branches") return (p?.branches ?? []).filter(b => b.name.toLowerCase().includes(query) || (b.subject ?? "").toLowerCase().includes(query))
@@ -101,10 +102,10 @@ export function showPage(view, page, cx) {
   cx.notify();
 }
 
-// A radio asks as a count's click, the analysis included; Commits and Branches open their page.
-export function pickScopeRow(view, row, cx) {
+// A radio asks as a count's click, the analysis included; Commits and Branches open their submenu (`lit`: its row lit).
+export function pickScopeRow(view, row, cx, lit = -1) {
   if (!row.count) return;
-  if (row.sub) return openScopePage(view, row.sub, cx);
+  if (row.sub) return openScopePage(view, row.sub, cx, lit);
   ask(view, row.page, cx, { analyze: true });
 }
 
@@ -118,25 +119,35 @@ export function pickListed(view, item, cx) {
   ask(view, item.page, cx, { base: ofDiff ? view.base : r?.unmerged ? argPage([], r.branch) : undefined });
 }
 
-export function openScopePage(view, page, cx) {
+/** Opens the submenu `page` ("commits" or "branches") beside its row, which stays lit; the keyboard is its search's. */
+export function openScopePage(view, page, cx, lit = -1) {
   view.scopePage = page; view.scopeSearch.set_value(""); view.scrollTop = { ...view.scrollTop, "scope-list": 0 };
-  view.scopeAt = scopeList(view).findIndex(item => item.page === view.page);
+  view.scopeListAt = lit; view.scopeAt = scopeRows(view).findIndex(row => row.sub === page);
+  subOpened(subState(view), page);
   view.scopeSearch.focus();
   cx.notify();
 }
 
-/** Back to the first page, on the row that opened the one left. */
-export function scopeBack(view, cx) {
+/** Closes the submenu, the keyboard back on the menu: by keys, on the row that opened it (`lit`); by the pointer, where it is. */
+export function scopeBack(view, cx, lit = true) {
   const from = view.scopePage;
   view.scopePage = null; view.scopeSearch.set_value("");
-  view.scopeAt = scopeRows(view).findIndex(row => row.sub === from);
+  if (lit) view.scopeAt = scopeRows(view).findIndex(row => row.sub === from);
+  subOpened(subState(view), null);
   view.handle.focus();
   cx.notify();
 }
 
+// Resting on a row opens its submenu, or closes the open one (submenu.js).
+function scopeRest(view, key, e, cx) {
+  hoverRow(subState(view), key, toPane(view, e), cx, (key, _row, cx) => key ? openScopePage(view, key, cx) : view.scopePage && scopeBack(view, cx, false));
+}
+
+const menuWidth = (view) => Math.min(320, view.width - 32);
+
 /** Opening the menu: the shown scope lit, and git read again. */
 export function openScope(view, cx) {
-  view.scopePage = null;
+  view.scopePage = null; view.scopeListAt = -1;
   view.scopeAt = scopeRows(view).findIndex(row => row.on);
   readScope(view, cx);
 }
@@ -173,35 +184,45 @@ export function scopeHeader(view, t) {
       .child(div().id("review-ref-base").min_w(0).truncate().child(s.base))));
 }
 
-/** The scope menu, as T3's: radios, a rule, Commits › and Branches ›, whose pages (back, search, list) open in the same popover. */
+/** The scope menu, as T3's: radios, a rule, Commits › and Branches ›, whose submenus open beside it (scopeSub). */
 export function scopeMenu(view, t) {
-  const page = view.scopePage, now = Date.now();
+  const rows = scopeRows(view);
   const lit = (i) => (over, cx) => { if (over && view.scopeAt !== i) { view.scopeAt = i; cx.notify(); } };
-  const frame = popover(view, t, "review-scope-menu").w(Math.min(page ? 384 : 320, view.width - 32)).p(4);
-  if (!page) {
-    const rows = scopeRows(view);
-    // As T3's MenuRadioItem and MenuSubTrigger: 28 tall, 8 in, the mark's slot kept on every row so the words line up.
-    const row = (r, i) => h_flex().id(r.id).h(MODEL_ROW).px(8).gap(8).flex_none().items_center().rounded(4)
-      .when(Boolean(r.count), el => el.when(i === view.scopeAt, el => el.bg(t.selected)).on_hover(lit(i)))
-      .when(!r.count, el => el.opacity(GREYED))
-      .role(r.sub ? "button" : "radio_button").accessibility_label(`${r.label}${r.detail ? `, ${r.detail}` : ""}${r.on ? ", shown" : ""}`)
-      .on_click((_e, cx) => pickScopeRow(view, r, cx))
-      .child(pickMark(t, Boolean(r.on)))
-      .child(div().flex_1().min_w(0).truncate().child(r.label))
-      .when(Boolean(r.detail), el => el.child(div().id(`${r.id}-detail`).flex_none().ml(16).text_size(12).text_color(t.dim).child(r.detail)))
-      .when(Boolean(r.sub), el => el.child(svg(`${LU}/chevron-right.svg`).size(16).mr(-2).flex_none().text_color(t.dim)));
-    const radios = rows.filter(r => !r.sub).length;
-    return frame
-      .children(rows.slice(0, radios).map(row))
-      // As T3's MenuSeparator.
-      .child(div().h(1).my(4).mx(8).flex_none().bg(t.border))
-      .children(rows.slice(radios).map((r, i) => row(r, radios + i)));
-  }
+  // As T3's MenuRadioItem and MenuSubTrigger: 28 tall, 8 in, the mark's slot kept on every row so the words line up; a
+  // submenu's row stays lit while it's open.
+  const row = (r, i) => h_flex().id(r.id).h(MODEL_ROW).px(8).gap(8).flex_none().items_center().rounded(4)
+    .when(Boolean(r.count), el => el.when(i === view.scopeAt || (Boolean(r.sub) && r.sub === view.scopePage), el => el.bg(t.selected)).on_hover(lit(i)))
+    .when(!r.count, el => el.opacity(GREYED))
+    .on_mouse_move((e, cx) => scopeRest(view, r.count ? r.sub ?? null : null, e, cx))
+    .role(r.sub ? "button" : "radio_button").accessibility_label(`${r.label}${r.detail ? `, ${r.detail}` : ""}${r.on ? ", shown" : ""}`)
+    .on_click((_e, cx) => pickScopeRow(view, r, cx))
+    .child(pickMark(t, Boolean(r.on)))
+    .child(div().flex_1().min_w(0).truncate().child(r.label))
+    .when(Boolean(r.detail), el => el.child(div().id(`${r.id}-detail`).flex_none().ml(16).text_size(12).text_color(t.dim).child(r.detail)))
+    .when(Boolean(r.sub), el => el.child(svg(`${LU}/chevron-right.svg`).size(16).mr(-2).flex_none().text_color(t.dim)));
+  const radios = rows.filter(r => !r.sub).length;
+  return popover(view, t, "review-scope-menu").w(menuWidth(view)).p(4)
+    .children(rows.slice(0, radios).map(row))
+    // As T3's MenuSeparator.
+    .child(div().h(1).my(4).mx(8).flex_none().bg(t.border))
+    .children(rows.slice(radios).map((r, i) => row(r, radios + i)));
+}
+
+/** The open submenu of commits or branches, as T3's commit submenu: its search on top, its list at most 320 tall, beside
+ *  its row in the menu (main.js draws the menu at top 36, left 16: past its border and padding, rows of 28, a rule of 9). */
+export function scopeSub(view, t) {
+  const page = view.scopePage, now = Date.now(), rows = scopeRows(view), radios = rows.filter(r => !r.sub).length;
+  const at = rows.findIndex(r => r.sub === page);
+  const lit = (i) => (over, cx) => { if (over && view.scopeListAt !== i) { view.scopeListAt = i; cx.notify(); } };
   const items = scopeList(view), branches = page === "branches";
+  const listHeight = Math.min(items.length * MODEL_ROW, Math.max(MODEL_ROW * 3, Math.min(320, view.height - 180)));
+  // Its border and padding, the search and its margins, then the list or its 36 note.
+  const h = 10 + 43 + (items.length ? listHeight : 36);
+  const anchor = { x: 16 + 5, y: 36 + 5 + at * MODEL_ROW + (at >= radios ? 9 : 0), width: menuWidth(view) - 10, height: MODEL_ROW };
   const draw = (i) => {
     const item = items[i], on = item.page === view.page, tail = (id, text) => div().id(`${item.id}-${id}`).flex_none().text_size(12).text_color(t.dim).child(text);
     const el = h_flex().id(item.id).h(MODEL_ROW).px(8).gap(8).flex_none().items_center().rounded(4)
-      .when(i === view.scopeAt, el => el.bg(t.selected)).on_hover(lit(i))
+      .when(i === view.scopeListAt, el => el.bg(t.selected)).on_hover(lit(i))
       .on_click((_e, cx) => pickListed(view, item, cx))
       .child(pickMark(t, on));
     if (branches) {
@@ -221,17 +242,13 @@ export function scopeMenu(view, t) {
       .when(out, el => el.child(div().flex_none().text_size(12).text_color(t.ansi2).child("↑")))
       .when(Boolean(c.time), el => el.child(tail("time", ago(c.time, now))));
   };
-  // As T3's commit submenu, at most 320 tall, its search and back row above the list.
-  return frame
-    .child(h_flex().id("scope-back").h(MODEL_ROW).px(8).gap(8).flex_none().items_center().rounded(4).hover(el => el.bg(t.selected))
-      .role("button").accessibility_label("Back").on_click((_e, cx) => scopeBack(view, cx))
-      .child(svg(`${LU}/chevron-left.svg`).size(16).mx(-2).flex_none().text_color(t.dim))
-      .child(div().font_medium().child(branches ? "Branches" : "Commits"))
-      .child(div().flex_1())
-      .when(branches && Boolean(repo(view)?.base), el => el.child(div().flex_none().text_size(12).text_color(t.dim).child(`vs ${repo(view).base}`))))
+  // 384 where there's room right of the menu, else narrower down to 260 (its subjects truncate) rather than over the menu.
+  const { at: box, w } = subAt(view, anchor, [260, 384], h);
+  // The pointer on it: nothing pending on the menu's rows opens or closes it.
+  return box.child(popover(view, t, "review-scope-sub", false).w(w).p(4).on_hover((on) => { if (on) subLeft(subState(view)); })
     .child(searchField(t, view.scopeSearch).mx(8).mt(5).mb(5))
     .child(v_flex().flex_none()
-      .child(scrollList(view, "scope-list", { count: items.length, row: MODEL_ROW, at: view.scopeAt, draw,
-        height: Math.min(items.length * MODEL_ROW, Math.max(MODEL_ROW * 3, Math.min(320, view.height - 180))), wheeled: (keep) => { if (keep >= 0) view.scopeAt = keep; } }))
-      .when(!items.length, el => el.child(div().id("scope-none").p(8).flex_none().text_center().text_color(t.dim).child(view.picks ? "No matches" : "Reading…"))));
+      .child(scrollList(view, "scope-list", { count: items.length, row: MODEL_ROW, at: view.scopeListAt, draw, height: listHeight,
+        wheeled: (keep) => { if (keep >= 0) view.scopeListAt = keep; } }))
+      .when(!items.length, el => el.child(div().id("scope-none").p(8).flex_none().text_center().text_color(t.dim).child(view.picks ? "No matches" : "Reading…")))));
 }

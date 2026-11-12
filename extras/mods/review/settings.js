@@ -3,7 +3,8 @@ import { h_flex, Switch } from "gpui-base";
 import { exec, window as appWindow } from "herdr";
 import { request } from "./daemon.js";
 import { scrollList } from "./list.js";
-import { PANE, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, pickMark, searchField, popover } from "./controls.js";
+import { hoverRow, subOpened, subLeft } from "./submenu.js";
+import { PANE, MODEL_ROW, WIDE, SPLIT_MIN, pref, setPref, pickMark, searchField, popover, toPane, subState, subAt } from "./controls.js";
 
 // Models the settings list before the search must narrow them.
 const LISTED = 200;
@@ -85,7 +86,7 @@ export function submitModel(view, cx) {
   saveLlm(view, { agentModel: hit?.id ?? typed }, cx);
 }
 
-// The rows of the settings page shown, each with what picking it writes.
+// The rows of the settings submenu open, each with what picking it writes.
 export function pageRows(view) {
   const page = view.settingsPage, locale = view.locale(), { agent, model, rows } = view.models();
   if (page === "language") return LOCALES.map(([code, name]) => ({ id: `locale-${code}`, name, on: code === locale, pick: (cx) => saveShared(view, { locale: code }, cx) }));
@@ -94,108 +95,135 @@ export function pageRows(view) {
   return rows.map(m => ({ id: m.key ?? `model-${m.id}`, name: m.name, detail: m.detail, on: m.id === model, pick: (cx) => saveLlm(view, { agentModel: m.id }, cx) }));
 }
 
-// A press on the panel stops there, so the keyboard is sent where the page wants it: the model search, else the pane's keys.
-function openPage(view, id, cx) {
-  view.settingsPage = id; view.pageAt = -1;
+// The panel's rows at main.js's top 38, right 16, past its border and padding: a label, four choices of 36, a rule, a
+// label and the switch, then Language, Agent and Model.
+// shortcut: assumes all three rows and no error note above them; a row the pointer is on gives its own bounds instead.
+const navRow = (view, id) => ({ x: view.width - 16 - 320 + 5, y: 38 + 5 + 237 + MODEL_ROW * ["language", "agent", "model"].indexOf(id), width: 310, height: MODEL_ROW });
+
+// A setting's submenu, beside its row (`row`, in the pane), which stays lit. A press on the panel stops there, so the
+// keyboard is sent where the submenu wants it: the model search, else the pane's keys.
+export function openPage(view, id, cx, row = null) {
+  if (view.settingsPage !== id) { view.modelInput.set_value(""); view.pageAt = -1; }
+  view.settingsPage = id; view.subRow = row ?? navRow(view, id);
+  subOpened(subState(view), id);
   (id === "model" ? view.modelInput : view.handle).focus();
   cx.notify();
 }
 
-// Back to the settings' main page. The model field is going, and the keyboard with it unless it's sent back.
+// The submenu closed, the panel kept. The model field is going, and the keyboard with it unless it's sent back.
 export function settingsBack(view, cx) {
   view.settingsPage = null; view.modelInput.set_value(""); view.pageAt = -1;
+  subOpened(subState(view), null);
   view.handle.focus();
   cx.notify();
 }
 
+// Resting on a row opens its submenu (`key`), or closes the open one (submenu.js).
+function settingsRest(view, key, e, cx) {
+  const at = toPane(view, e);
+  if (key) view.navBox = { ...view.navBox, [key]: at.bounds };
+  hoverRow(subState(view), key, at, cx, (key, row, cx) => key ? openPage(view, key, cx, row) : view.settingsPage && settingsBack(view, cx));
+}
+
+// As T3's MenuGroupLabel and MenuSeparator, and its ComboboxStatus, its 12 in the panel's 4 and 8.
+const rule = (t) => div().h(1).my(4).mx(8).flex_none().bg(t.border);
+const note = (t, text, color = t.dim) => div().p(8).flex_none().text_size(12).font_medium().text_color(color).child(text);
+
 /**
  * The settings, as the app's settings dialog in a panel: the view's choices, then the analysis's - analyzing when a count opens a review,
- * and the language, agent and model, each a row naming its value. A row's press opens its list as a page of the panel,
- * as the app's selects open theirs (Herdr can't float a list over the rows after it); a pick, or Escape, comes back.
+ * and the language, agent and model, each a row naming its value. A row opens its list as a submenu left of the panel
+ * (settingsSub), as T3's MenuSub; a pick, ←, or Escape closes it.
  */
 export function settingsPanel(view, t) {
-  const page = view.settingsPage, locale = view.locale(), { agent, model, catalog, matches, shown } = view.models();
+  const page = view.settingsPage, locale = view.locale(), { agent, model, catalog } = view.models();
   const split = pref("split") === true, autoAnalyze = pref("autoAnalyze") === true;
-  // As T3's MenuGroupLabel and MenuSeparator.
   const label = (text) => div().h(28).px(8).flex_none().flex().items_center().text_size(12).font_medium().text_color(t.dim).child(text);
-  const rule = () => div().h(1).my(4).mx(8).flex_none().bg(t.border);
+  // A row without a submenu: resting on it closes the open one.
+  const off = (e, cx) => settingsRest(view, null, e, cx);
   const link = (id, text, url) => div().id(id).text_color(t.muted).hover(s => s.text_color(t.foreground).underline()).role("link")
     .on_click((_e, cx) => { cx.stop_propagation(); openUrl(url); }).child(text);
-  // As T3's ComboboxStatus, its 12 in the panel's 4 and 8.
-  const note = (text, color = t.dim) => div().p(8).flex_none().text_size(12).font_medium().text_color(color).child(text);
+  // A setting with a submenu, as T3's MenuSubTrigger: its name, its value and a chevron; lit while its submenu is open.
+  const nav = (id, text, value) => h_flex().id(`settings-${id}`).h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(t.selected))
+    .when(page === id, el => el.bg(t.selected))
+    .on_mouse_move((e, cx) => settingsRest(view, id, e, cx))
+    .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => openPage(view, id, cx, view.navBox?.[id]))
+    .child(div().flex_none().child(text))
+    .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
+    .child(svg("mods/review/icons/chevron-right.svg").size(16).mr(-2).flex_none().text_color(t.dim));
+  const current = view.agents?.find(a => a.name === agent);
+  const rows = [
+    label("View"),
+    // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
+    choiceRow(t, "Diff", [["view-unified", "Unified", !split], ["view-split", "Split", split, view.view < SPLIT_MIN]], (id, cx) => { if ((id === "view-split") !== split) view.toggleSplit(cx); }).on_mouse_move(off),
+    // As T3's line wrapping: long lines scroll sideways by default, or wrap at the diff's width.
+    choiceRow(t, "Lines", [["lines-scroll", "Scroll", pref("wrap") !== true], ["lines-wrap", "Wrap", pref("wrap") === true]], (id, cx) => {
+      setPref("wrap", id === "lines-wrap"); cx.notify();
+    }).on_mouse_move(off),
+    // A tree by default, as the app's own toggle.
+    choiceRow(t, "Files", [["files-tree", "Tree", pref("fileList") !== "list"], ["files-list", "List", pref("fileList") === "list"]], (id, cx) => {
+      setPref("fileList", id === "files-list" ? "list" : "tree"); cx.notify();
+    }).on_mouse_move(off),
+    // The sidebar needs the pane WIDE: narrower, the choice is kept and the groups are tabs, so it shows faded.
+    choiceRow(t, "Groups", [["groups-tabs", "Tabs", pref("groupNav") !== "sidebar"], ["groups-sidebar", "Sidebar", pref("groupNav") === "sidebar", view.width < WIDE]], (id, cx) => {
+      setPref("groupNav", id === "groups-sidebar" ? "sidebar" : "tabs"); cx.notify();
+    }).on_mouse_move(off),
+    rule(t),
+    label("AI"),
+    Switch.new("auto-analyze").checked(autoAnalyze).accessibility_label("Analyze automatically")
+      .on_change((on, cx) => { setPref("autoAnalyze", on); cx.notify(); })
+      // As T3's MenuCheckboxItem, its switch variant.
+      .child(h_flex().on_mouse_move(off).h(28).pl(8).pr(6).gap(16).items_center().rounded(4).hover(s => s.bg(t.selected))
+        .child(div().flex_1().child("Analyze automatically"))
+        .child(div().w(22).h(14).p(1).flex_none().flex().rounded_full().bg(autoAnalyze ? t.accent : t.input)
+          .when(autoAnalyze, el => el.justify_end())
+          .child(div().size(12).rounded_full().bg(t.background)))),
+    view.settingsError && note(t, view.settingsError, t.ansi1),
+    // As the app's LanguageMenu, the language the analysis writes in (the pane's own words stay English): unset, the
+    // daemon's default, the system's.
+    view.shared && nav("language", "Language", LOCALES.find(([code]) => code === locale)?.[1] ?? locale ?? ""),
+    !view.agents ? !view.settingsError && note(t, "Looking for agents…")
+      : view.agents.length ? nav("agent", "Agent", current ? `${current.label} ${current.version}` : "None") : note(t, "No agent CLI found on PATH"),
+    Boolean(current) && nav("model", "Model", !model ? "Default" : catalog.find(m => m.id === model)?.name ?? model),
+    rule(t),
+    // Credit, as the app's footer: pulls.review is antfu's; this pane draws from JinJieBeWater's fork of it.
+    h_flex().id("settings-credit").on_mouse_move(off).h(28).px(8).gap(4).flex_none().items_center().text_size(11).text_color(t.dim)
+      .child(image(`mods/${PANE}/icons/logo.svg`).w(12).h(12).flex_none())
+      .child(link("credit-upstream", "pulls.review", "https://github.com/antfu/pulls.review")).child("by")
+      .child(link("credit-antfu", "@antfu", "https://github.com/antfu")).child("·")
+      .child(link("credit-fork", "fork", "https://github.com/JinJieBeWater/pulls.review")).child("by")
+      .child(link("credit-jinjie", "@JinJieBeWater", "https://github.com/JinJieBeWater")),
+  ];
+  // Clipped: whatever outgrows the height is cut rather than drawn past the pane, 38 down and 8 short of its foot.
+  return popover(view, t, "review-settings-panel").w(320).max_h(Math.max(160, view.height - 46)).overflow_hidden().p(4)
+    .children(rows.filter(Boolean));
+}
+
+/** The open setting's submenu, left of the panel: its choices, the model's under a search. As T3's: a select as tall as
+ *  there's room for, 8 short of the pane's ends; a combobox, as the model's is, 368 at most. */
+export function settingsSub(view, t) {
+  const page = view.settingsPage, model = page === "model", { matches, shown } = view.models(), typed = view.modelInput.value().trim();
+  const row = view.subRow ?? navRow(view, page), options = view.pageRows();
   const choice = (r, i) => h_flex().id(r.id).h(28).px(8).gap(8).flex_none().items_center().rounded(4)
     .when(i === view.pageAt, el => el.bg(t.selected)).on_hover((on, cx) => { if (on && view.pageAt !== i) { view.pageAt = i; cx.notify(); } })
     .role("radio_button").accessibility_label(r.name).on_click((_e, cx) => { settingsBack(view, cx); r.pick(cx); })
     .child(pickMark(t, r.on))
     .child(div().flex_1().min_w(0).truncate().child(r.name))
     .when(Boolean(r.detail), el => el.child(div().flex_none().text_size(12).text_color(t.dim).child(r.detail)));
-  // A setting that opens its page, as T3's MenuSubTrigger: its name, its value and a chevron.
-  const nav = (id, text, value) => h_flex().id(`settings-${id}`).h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(t.selected))
-    .role("button").accessibility_label(`${text}: ${value}`).on_click((_e, cx) => openPage(view, id, cx))
-    .child(div().flex_none().child(text))
-    .child(div().flex_1().min_w(0).truncate().text_right().text_color(t.dim).child(value))
-    .child(svg("mods/review/icons/chevron-right.svg").size(16).mr(-2).flex_none().text_color(t.dim));
-  const current = view.agents?.find(a => a.name === agent), typed = view.modelInput.value().trim();
-  const options = page ? view.pageRows() : [];
-  const rows = !page ? [
-    label("View"),
-    // Split needs a diff SPLIT_MIN wide: narrower, the choice is kept and the diff unified, so it shows faded.
-    choiceRow(t, "Diff", [["view-unified", "Unified", !split], ["view-split", "Split", split, view.view < SPLIT_MIN]], (id, cx) => { if ((id === "view-split") !== split) view.toggleSplit(cx); }),
-    // As T3's line wrapping: long lines scroll sideways by default, or wrap at the diff's width.
-    choiceRow(t, "Lines", [["lines-scroll", "Scroll", pref("wrap") !== true], ["lines-wrap", "Wrap", pref("wrap") === true]], (id, cx) => {
-      setPref("wrap", id === "lines-wrap"); cx.notify();
-    }),
-    // A tree by default, as the app's own toggle.
-    choiceRow(t, "Files", [["files-tree", "Tree", pref("fileList") !== "list"], ["files-list", "List", pref("fileList") === "list"]], (id, cx) => {
-      setPref("fileList", id === "files-list" ? "list" : "tree"); cx.notify();
-    }),
-    // The sidebar needs the pane WIDE: narrower, the choice is kept and the groups are tabs, so it shows faded.
-    choiceRow(t, "Groups", [["groups-tabs", "Tabs", pref("groupNav") !== "sidebar"], ["groups-sidebar", "Sidebar", pref("groupNav") === "sidebar", view.width < WIDE]], (id, cx) => {
-      setPref("groupNav", id === "groups-sidebar" ? "sidebar" : "tabs"); cx.notify();
-    }),
-    rule(),
-    label("AI"),
-    Switch.new("auto-analyze").checked(autoAnalyze).accessibility_label("Analyze automatically")
-      .on_change((on, cx) => { setPref("autoAnalyze", on); cx.notify(); })
-      // As T3's MenuCheckboxItem, its switch variant.
-      .child(h_flex().h(28).pl(8).pr(6).gap(16).items_center().rounded(4).hover(s => s.bg(t.selected))
-        .child(div().flex_1().child("Analyze automatically"))
-        .child(div().w(22).h(14).p(1).flex_none().flex().rounded_full().bg(autoAnalyze ? t.accent : t.input)
-          .when(autoAnalyze, el => el.justify_end())
-          .child(div().size(12).rounded_full().bg(t.background)))),
-    view.settingsError && note(view.settingsError, t.ansi1),
-    // As the app's LanguageMenu, the language the analysis writes in (the pane's own words stay English): unset, the
-    // daemon's default, the system's.
-    view.shared && nav("language", "Language", LOCALES.find(([code]) => code === locale)?.[1] ?? locale ?? ""),
-    !view.agents ? !view.settingsError && note("Looking for agents…")
-      : view.agents.length ? nav("agent", "Agent", current ? `${current.label} ${current.version}` : "None") : note("No agent CLI found on PATH"),
-    Boolean(current) && nav("model", "Model", !model ? "Default" : catalog.find(m => m.id === model)?.name ?? model),
-    rule(),
-    // Credit, as the app's footer: pulls.review is antfu's; this pane draws from JinJieBeWater's fork of it.
-    h_flex().id("settings-credit").h(28).px(8).gap(4).flex_none().items_center().text_size(11).text_color(t.dim)
-      .child(image(`mods/${PANE}/icons/logo.svg`).w(12).h(12).flex_none())
-      .child(link("credit-upstream", "pulls.review", "https://github.com/antfu/pulls.review")).child("by")
-      .child(link("credit-antfu", "@antfu", "https://github.com/antfu")).child("·")
-      .child(link("credit-fork", "fork", "https://github.com/JinJieBeWater/pulls.review")).child("by")
-      .child(link("credit-jinjie", "@JinJieBeWater", "https://github.com/JinJieBeWater")),
-  ] : [
-    h_flex().id("settings-back").h(28).px(8).gap(8).flex_none().items_center().rounded(4).hover(s => s.bg(t.selected))
-      .role("button").accessibility_label("Back").on_click((_e, cx) => settingsBack(view, cx))
-      .child(svg("mods/review/icons/chevron-left.svg").size(16).mx(-2).flex_none().text_color(t.dim))
-      .child(div().font_medium().child({ language: "Language", agent: "Agent", model: "Model" }[page])),
-    page !== "model" && rule(),
-    // The search sits above the catalog, which runs to hundreds for some agents. Its own rule stands in for the page's.
-    page === "model" && searchField(t, view.modelInput).mx(8).mt(5).mb(5),
-    // A page's list shrinks where the panel runs short; everything above it stays put. Pi lists hundreds: past LISTED the search finds the rest.
-    scrollList(view, `${page}-list`, { count: options.length, row: MODEL_ROW, at: view.pageAt, draw: (i) => choice(options[i], i), wheeled: (keep) => { view.pageAt = keep; } })
-      .h(options.length * MODEL_ROW).min_h(0).flex_shrink_1(),
-    page === "model" && shown.length < matches.length && note(`${matches.length - LISTED} more: search to narrow`),
-    page === "model" && Boolean(typed) && !matches.length && note(`Enter to use “${typed}”`),
-  ];
-  // Clipped: whatever outgrows the height scrolls inside its list, or is cut, rather than drawn past the panel.
-  // As T3's: a select as tall as there's room for, 38 down and 8 short of the pane's foot; a combobox, as the search's page is, 368 at most.
-  return popover(view, t, "review-settings-panel").w(320).max_h(Math.max(160, Math.min(page === "model" ? 368 : view.height, view.height - 46))).overflow_hidden().p(4)
-    .children(rows.filter(Boolean));
+  // Pi lists hundreds: past LISTED the search finds the rest.
+  const notes = [model && shown.length < matches.length && note(t, `${matches.length - LISTED} more: search to narrow`),
+    model && Boolean(typed) && !matches.length && note(t, `Enter to use “${typed}”`)].filter(Boolean);
+  // Its border and padding, the search and its margins, and a note's 32 each.
+  const chrome = 10 + (model ? 43 : 0) + notes.length * 32;
+  const listHeight = Math.min(options.length * MODEL_ROW, Math.max(MODEL_ROW * 3, Math.min(model ? 368 : Infinity, view.height - 16) - chrome));
+  // 320 where there's room left of the panel, else narrower down to 240 rather than over its rows.
+  const { at: box, w } = subAt(view, row, [240, 320], chrome + listHeight);
+  // The pointer on it: nothing pending on the panel's rows opens or closes it.
+  return box
+    .child(popover(view, t, "review-settings-sub", false).w(w).p(4).on_hover((on) => { if (on) subLeft(subState(view)); })
+      // The search sits above the catalog, which runs to hundreds for some agents.
+      .when(model, el => el.child(searchField(t, view.modelInput).mx(8).mt(5).mb(5)))
+      .child(scrollList(view, `${page}-list`, { count: options.length, row: MODEL_ROW, at: view.pageAt, draw: (i) => choice(options[i], i), height: listHeight, wheeled: (keep) => { view.pageAt = keep; } }))
+      .children(notes));
 }
 
 // The language the analysis writes in: the one set, else the daemon's default.

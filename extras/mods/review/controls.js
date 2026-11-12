@@ -1,6 +1,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, Input } from "gpui-base";
 import { settings, setShared, shared } from "herdr";
+import { subPlace } from "./submenu.js";
 
 export const PANE = "review";
 
@@ -42,12 +43,40 @@ export function searchField(t, state) {
 }
 
 // A popup's frame. It floats over the diff, and Herdr hands a press or a wheel to what's under it too: they stop here.
-// A press outside closes it.
-export function popover(view, t, id) {
+// A press outside closes it, unless it lands in the popup's open submenu (`closes` false: the submenu's own frame).
+export function popover(view, t, id, closes = true) {
   return v_flex().id(id).rounded(8).bg(t.popover).border_1().border_color(t.border).text_size(14).shadow_lg()
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .on_scroll_wheel((_e, cx) => cx.stop_propagation())
-    .on_mouse_down_out((_e, cx) => view.closePopup(cx, true));
+    .when(closes, el => el.on_mouse_down_out((e, cx) => { if (!inSub(view, e)) view.closePopup(cx, true); }));
+}
+
+// A pointer event's position and bounds in the pane, in its own units: Herdr reports them in the window's, zoomed. The
+// pane's origin is noted as the pointer moves over it (main.js).
+export function toPane(view, e) {
+  const z = zoom(), o = view.paneAt ?? { x: 0, y: 0 }, b = e.bounds;
+  return { position: { x: (e.position.x - o.x) / z, y: (e.position.y - o.y) / z },
+    bounds: b && { x: (b.x - o.x) / z, y: (b.y - o.y) / z, width: b.width / z, height: b.height / z } };
+}
+
+function inSub(view, e) {
+  const r = view.subRect, p = r && toPane(view, e).position;
+  return Boolean(r) && p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
+}
+
+// The open popup's submenu's hover state, for submenu.js's hoverRow.
+export const subState = (view) => (view.subHover ??= {});
+
+// Where a submenu `h` tall goes beside `row` (in the pane), on the side subPlace picks for it `max` wide: as wide as
+// that side has room for, 8 short of the pane's edge, down to `min`; narrower still, `min` wide and kept 8 inside the
+// pane, over the menu. Noted for the safe triangle and for a press in it. The element to hold it, and its width.
+export function subAt(view, row, [min, max], h) {
+  const side = subPlace(row, max, 0, view.width).side, room = side === "right" ? view.width - 8 - (row.x + row.width) : row.x - 8;
+  const w = Math.min(max, Math.max(min, room), view.width - 16), p = subPlace(row, w, 0, view.width);
+  const x = Math.max(8, Math.min(p.x, view.width - w - 8)), y = Math.max(8, Math.min(p.y, view.height - h - 8));
+  view.subRect = { x, y, width: w, height: h };
+  Object.assign(subState(view), { sub: view.subRect, side: p.side });
+  return { at: div().id("review-sub-at").absolute().left(x).top(y), w };
 }
 
 // The reviewed box, drawn as the app's ReviewCheckbox: checked, partly (a folder), or not. Handlers are the caller's.
