@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Herdr · 需求交接与交互示意</title>
+<style>
+:root{color-scheme:dark;--bg:#11111b;--chrome:#181825;--card:#1e1e2e;--raised:#313244;--line:#45475a;--text:#cdd6f4;--dim:#a6adc8;--blue:#89b4fa;--green:#a6e3a1;--yellow:#f9e2af;--red:#f38ba8}
+*{box-sizing:border-box}[hidden]{display:none!important}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--blue);text-underline-offset:4px}button,input,select{font:inherit}button,select{color:var(--text);background:var(--raised);border:1px solid transparent;border-radius:6px;padding:5px 10px;cursor:pointer}button:hover{background:#45475a}button:disabled{opacity:.64;cursor:default}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}button[aria-pressed=true],button[aria-selected=true]{background:#89b4fa20;color:var(--blue)}kbd,code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace}kbd{border:1px solid var(--line);border-radius:4px;padding:2px 4px}code{overflow-wrap:anywhere}h1,h2,h3,p{margin:0}h1{font-size:32px;letter-spacing:-1px;line-height:1.3}h2{font-size:23px;line-height:1.4;margin-bottom:10px}h3{font-size:15px;margin-bottom:6px}p+p{margin-top:8px}.muted{color:var(--dim)}.eyebrow{color:var(--blue);font-size:11px;letter-spacing:2px;margin-bottom:12px}.shell{display:grid;grid-template-columns:190px minmax(0,1fr);max-width:1740px;margin:auto}.nav{position:sticky;top:0;height:100vh;padding:36px 18px;border-right:1px solid var(--line);background:var(--bg)}.nav strong{display:block;margin-bottom:20px}.nav a{display:block;text-decoration:none;color:var(--dim);padding:8px;border-radius:6px}.nav a:hover{background:var(--card);color:var(--text)}.nav small{display:block;margin:24px 8px;color:var(--dim);font-size:11px}main{min-width:0;padding:42px 36px 64px}.lead{max-width:880px;margin:14px 0 24px;color:var(--dim)}section{margin-top:52px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{padding:20px;border:1px solid var(--line);background:var(--card);border-radius:8px}.card .num{color:var(--blue);font:12px ui-monospace,monospace;margin-bottom:8px}.card p{color:var(--dim);font-size:13px}.chips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.chip{padding:3px 8px;border-radius:4px;background:#89b4fa15;font-size:11px;color:var(--blue)}.chip.default{color:var(--yellow);background:#f9e2af12}.notice{border-left:3px solid var(--blue);padding:12px 16px;background:var(--card);border-radius:0 6px 6px 0;font-size:13px;margin:18px 0}.notice strong{color:var(--blue)}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.text-card{padding:16px;background:var(--card);border-radius:8px;font-size:13px}.text-card ul{padding-left:20px;margin:8px 0 0}.text-card li{margin:4px 0}.table-wrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:8px}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}th{color:var(--dim);background:var(--chrome);font-weight:500}th,td{padding:12px 14px;vertical-align:top;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0}.toolbar label{color:var(--dim);font-size:12px}.toolbar select{font-size:12px;max-width:100%}.caption{font-size:12px;color:var(--dim);margin-top:10px}.diagram{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin:18px 0}.node{flex:1;min-width:130px;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:8px}.node small{display:block;color:var(--dim);font-size:12px}.arrow{align-self:center;color:var(--blue)}.pass{color:var(--green)}
+/* The preview uses the product's 40px headers, 28px controls and 24px tree rows. */
+.window{display:flex;min-height:510px;border:1px solid var(--line);border-radius:8px;background:var(--chrome);overflow:hidden}.sidebar{width:180px;flex:none;padding:18px 12px;font-size:12px;color:var(--dim)}.brand{font-size:14px;color:var(--text);margin-bottom:28px}.side-row{padding:6px;border-radius:6px}.side-row.selected{background:var(--raised);color:var(--text)}.stage{display:flex;flex:1;min-width:0;position:relative}.work{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;padding:0 8px 8px 0}.work-head,.panel-head{height:40px;display:flex;align-items:center;gap:4px;flex:none}.work-head{padding:0 4px}.work-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--dim)}.controls{display:flex;gap:4px;align-items:center;flex:none}.icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;padding:0;background:none;font-size:17px}.icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.terminal{background:var(--card);border-radius:8px;flex:1;min-height:350px;padding:18px;overflow:auto;font:12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.terminal .prompt{color:var(--green)}.details{position:absolute;z-index:8;right:8px;top:40px;width:280px;max-width:calc(100% - 8px);background:#232334;border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 16px 36px #0008}.detail-row{min-height:36px;display:flex;align-items:center;gap:8px;font-size:12px}.detail-row span{flex:1;min-width:0;overflow-wrap:anywhere}.detail-row button{font-size:12px}.action-split{display:flex;width:100%;border:1px solid var(--line);border-radius:8px;overflow:hidden}.action-split button{background:none;border-radius:0;font-size:12px}.action-split button:first-child{flex:1;text-align:left}.action-split button+button{border-left:1px solid var(--line)}.actions-menu{border:1px solid var(--line);padding:4px;border-radius:8px;background:var(--card);margin-top:4px}.actions-menu button{display:block;width:100%;text-align:left;background:none;font-size:12px}.panel{width:53%;min-width:0;padding:0 8px 8px 0;display:flex;flex-direction:column}.panel-head{position:relative}.tabstrip{display:flex;flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin;gap:2px}.panel-tab{display:flex;flex:none;align-items:center;height:28px;border-radius:6px;background:none;font-size:12px;max-width:155px}.panel-tab .tab-label{padding:2px 7px;background:none;min-width:0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;font-size:12px}.panel-tab .close{padding:0;width:16px;height:16px;border-radius:4px;background:none;font-size:12px;flex:none;margin-right:4px}.panel-tab.active{background:#cdd6f41f}.add{flex:none}.panel-card{flex:1;display:flex;min-height:0;flex-direction:column;background:var(--card);border-radius:8px;overflow:hidden}.page-tools{height:40px;padding:0 10px;display:flex;align-items:center;gap:8px;flex:none;border-bottom:1px solid var(--line);font-size:12px}.page-tools .path{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.body{display:flex;flex:1;min-height:320px}.content{flex:1;min-width:0;padding:16px;overflow:auto;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.tree{width:150px;flex:none;border-left:1px solid var(--line);padding-top:4px}.tree h4{font-size:11px;font-weight:400;color:var(--dim);margin:0;padding:6px 8px}.tree button{display:block;width:calc(100% - 4px);margin:0 2px;height:24px;padding:0 6px;text-align:left;border-radius:6px;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}.tree button.selected{background:#cdd6f41f}.groups{display:flex;gap:6px;overflow-x:auto;padding:6px;border-bottom:1px solid var(--line)}.groups button{white-space:nowrap;font-size:11px;padding:4px 6px;background:none}.groups button[aria-pressed=true]{background:#cdd6f41f}.empty{display:flex;align-items:center;justify-content:center;flex:1;text-align:center;padding:30px;color:var(--dim);font-size:13px}.menu{position:absolute;z-index:10;right:8px;top:38px;width:210px;max-width:calc(100% - 16px);padding:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px #0008}.menu button{display:block;width:100%;height:28px;text-align:left;padding:0 8px;background:none;border-radius:4px;font-size:12px}.menu button:hover{background:var(--raised)}.window.wide .work{display:none}.window.wide .panel{width:100%}.status{min-height:24px;margin-top:10px;font-size:12px;color:var(--blue)}.footline{border-top:1px solid var(--line);padding-top:16px;margin-top:28px;font-size:12px;color:var(--dim)}
+.wall-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:12px;margin-top:16px}.wall-canvas{position:relative;overflow:hidden;height:350px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--chrome);touch-action:none}.wall-canvas.editing{cursor:grab}.wall-canvas.editing:active{cursor:grabbing}.wall-canvas svg{position:absolute;pointer-events:none}.wall-overlay{position:absolute;left:14px;top:12px;z-index:2;font-size:11px;color:var(--dim);background:#11111bbb;border-radius:4px;padding:3px 7px}.wall-controls{background:var(--card);padding:16px;border-radius:8px;font-size:12px}.wall-controls label{display:block;margin:12px 0 4px}.wall-controls input{width:100%;accent-color:var(--blue)}.wall-controls .segmented{display:flex;gap:4px}.wall-controls button{font-size:12px}.wall-controls .segmented button{flex:1}.wall-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}.wall-actions .primary{background:var(--blue);color:var(--bg)}.wall-summary{margin-top:12px;color:var(--dim);font-size:11px;overflow-wrap:anywhere}.link-list{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+@media(min-width:1600px){.sidebar{width:256px}.tree{width:190px}}
+@media(max-width:1150px){.shell{grid-template-columns:150px minmax(0,1fr)}main{padding:32px 20px}.sidebar{display:none}.tree{width:125px}.nav{padding:30px 10px}.panel{width:57%}}
+@media(max-width:800px){.shell{display:block}.nav{position:static;height:auto;display:flex;flex-wrap:wrap;padding:12px;border-right:0;border-bottom:1px solid var(--line);gap:4px}.nav strong,.nav small{display:none}.nav a{font-size:12px;padding:4px 8px}main{padding:24px 14px}h1{font-size:27px}.cards{grid-template-columns:1fr}.card{padding:14px}.two{grid-template-columns:1fr}.wall-layout{grid-template-columns:1fr}.wall-canvas{height:300px}.wall-controls{display:block}.window{min-height:480px}.panel{width:62%}.tree{width:105px}.content{padding:10px}.terminal{padding:12px}.panel-head{gap:0}.icon{width:24px}.window{font-size:12px}}
+@media(max-width:540px){.stage{flex-direction:column}.work{min-height:140px;padding:0 6px 6px}.terminal{min-height:110px;max-height:160px}.panel{width:100%;flex:1;min-height:330px;padding:0 6px 6px}.body{min-height:240px}.window.wide .panel{min-height:480px}.tree{width:128px}.details{right:6px}.window{overflow:visible}.panel-card{min-height:300px}.diagram{gap:6px}.node{min-width:100%;flex:none}.arrow{display:none}.table-wrap{font-size:12px}th,td{padding:10px}.wall-controls .segmented{max-width:320px}}
+@media print{.nav,.toolbar{display:none}.shell{display:block}main{padding:0}.window{break-inside:avoid}body{background:white;color:#222}section{break-before:auto}.card,.text-card{background:#f5f5f5}.muted,.caption{color:#444}}
+</style>
+<svg hidden aria-hidden="true"><defs><symbol id="details-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></symbol><symbol id="panel-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol><symbol id="expand-icon" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></symbol></defs></svg>
+<div class="shell">
+<nav class="nav" aria-label="需求目录"><strong>Herdr / 需求交接</strong><a href="#scope">总览与分工</a><a href="#panel-demo">A + B 交互示意</a><a href="#details-spec">A · 详情与控件</a><a href="#tabs-spec">B · 动态标签</a><a href="#reading">阅读规则</a><a href="#wallpaper">C · 壁纸构图</a><a href="#delivery">验收与交接</a><small>2026-11-13<br>以原始目标与已确认选择为依据<br><br>本页示例只在内存中运行</small></nav>
+<main>
+<header id="scope"><div class="eyebrow">HERDR · EXPERIENCE REQUIREMENTS</div><h1>让下一位接手者，直接知道要做什么。</h1><p class="lead">把右上角入口、右侧面板标签和 Home 壁纸导入整理成三个工作包。这里展示目标布局与操作；完整边界、默认值和验收条件收在配套交接稿。</p><div class="link-list"><a href="herdr-experience-requirements.md">打开完整需求交接稿 ↗</a><a href="#panel-demo">先操作面板 ↓</a><a href="#wallpaper">试试壁纸构图 ↓</a></div></header>
+<div class="chips"><span class="chip">已确认：用户指定行为</span><span class="chip default">建议默认：交接补齐的边缘规则</span><span class="chip">待验证：原生宿主实测</span></div>
+<div class="cards"><article class="card"><div class="num">A / ENTRY & CONTEXT</div><h3>详情与布局控件</h3><p>右上角两个入口；详情只放机器／目录、Open in 和 Actions。popup 不挤终端。</p></article><article class="card"><div class="num">B / PANEL TABS</div><h3>文件多个，Review 一个</h3><p>文件各有标签，共享一棵 Files 树。Review 自己管理范围、分组和 diff。</p></article><article class="card"><div class="num">C / IMPORT COMPOSITION</div><h3>导入时调好，保存后固定</h3><p>新图片固定 Dots；在预览里定位、缩放，Apply 后按构图显示。</p></article></div>
+
+<section id="panel-demo"><div class="eyebrow">SHOW ME / A + B</div><h2>两个入口，一块可加减标签的面板</h2><p class="muted">点击详情、面板开关和 <code>+</code>，再点文件。右键标签可试关闭菜单。示意只操作本页样例。</p>
+<div class="toolbar"><label for="space-select">space</label><select id="space-select"><option value="herdr-t3">herdr-t3 · 本机</option><option value="remote">workspace · kvm</option></select><button id="scenario-files">演示：两个文件 + Review</button><button id="reset-panel">重置面板示意</button></div>
+<div class="window" id="demo-window">
+<aside class="sidebar"><div class="brand">◉ &nbsp; Herdr</div><div class="muted">INBOX</div><div class="side-row selected">需求整理</div><div class="side-row">实现与验收</div><br><div class="muted">SPACES</div><div class="side-row">herdr-t3</div><div class="side-row">workspace · kvm</div></aside>
+<div class="stage" id="stage">
+<div class="work" id="demo-work"><header class="work-head"><span class="work-title" id="work-title">herdr-t3 / 需求整理</span><div class="controls" id="work-controls"><button class="icon" id="details-toggle" aria-label="详情" title="详情 · ⌘⇧B" aria-pressed="false"><svg><use href="#details-icon"/></svg></button></div></header><div class="terminal" id="demo-terminal" tabindex="0"><span class="muted">~/projects/herdr-t3 · main</span>
+
+<span class="prompt">❯</span> 当前终端与 agent 的工作区
+
+打开详情，只覆盖一小块区域。
+终端宽度和分屏保持原样。
+
+右侧面板属于 space；
+同一 space 换终端标签，仍保留阅读内容。
+
+<span class="prompt">❯</span> ▍</div>
+<aside id="details-popup" class="details" aria-label="工作详情" hidden><div class="detail-row"><span id="machine-label">本机 · ~/projects/herdr-t3</span><button id="copy-directory" title="示意：复制目录">复制</button></div><div class="detail-row"><span id="open-in-label">Open in Finder</span><button id="open-directory">打开</button></div><div class="detail-row"><div class="action-split"><button id="run-action">▷ 运行旁路审计</button><button id="actions-toggle" aria-label="Actions 菜单" aria-expanded="false">⌄</button></div></div><div id="actions-menu" class="actions-menu" hidden><button id="pick-action">运行旁路审计</button><button id="edit-action">编辑 Actions…</button><button id="add-action">Add action…</button></div></aside></div>
+<aside id="demo-panel" class="panel" aria-label="space 面板" tabindex="-1" hidden><header class="panel-head"><div id="tabstrip" class="tabstrip" aria-label="面板标签"></div><button class="icon add" id="add-tab" title="添加 Files / Review" aria-label="添加标签" aria-expanded="false">+</button><div class="controls" id="panel-controls"></div><div id="add-menu" class="menu" hidden><button id="add-files">Files</button><button id="add-review">Review</button></div><div id="tab-menu" class="menu" aria-label="标签右键菜单" hidden></div></header><div class="panel-card" id="panel-card"></div></aside>
+<div class="controls" id="end-controls"><button class="icon" id="wide-toggle" title="放大 / 恢复" aria-label="放大面板" hidden><svg><use href="#expand-icon"/></svg></button><button class="icon" id="panel-toggle" title="面板 · ⌘⌥B" aria-label="面板开关" aria-pressed="false"><svg><use href="#panel-icon"/></svg></button></div>
+</div></div>
+<div class="status" id="panel-status" aria-live="polite">先点右上角「详情」或「面板」。</div><p class="caption">桌面示意：同一行并排；手机阅读时示意上下排列，便于检查内容。此排版不规定 Herdr 的窄窗实现。中键关闭与面板内 ⌘W 可在示意中尝试，原生事件仍需 demo 验证。</p></section>
+
+<section id="details-spec"><div class="eyebrow">WORK PACKAGE A</div><h2>详情只保留三行</h2><div class="table-wrap"><table><thead><tr><th>内容</th><th>必须做到</th><th>边界</th></tr></thead><tbody><tr><td>机器／目录</td><td>真实机器名、完整路径提示与复制；复用 space 菜单</td><td>机器是事实，不迁移终端</td></tr><tr><td>Open in</td><td>本机用系统文件管理器；多个可用目标才有下拉</td><td>远程路径不交给本机 Finder</td></tr><tr><td>Actions</td><td>现有运行／下拉／新增／编辑／删除；完整动作名称</td><td>保留执行位置、cwd、数据和删除确认</td></tr></tbody></table></div>
+<div class="two"><article class="text-card"><h3>布局与键盘</h3><ul><li>详情全宽度默认收起，只在点击时弹出。</li><li>面板开关稳定在窗口右上角，放大／恢复在它旁边。</li><li><kbd>⌘⇧B</kbd> 详情，<kbd>⌘⌥B</kbd> 面板，<kbd>⌘⇧G</kbd> Review。</li><li>Inbox／Lists 用现有侧栏按钮。</li></ul></article><article class="text-card"><h3>执行与焦点</h3><ul><li>打开时记录来源，popup 焦点不改变执行目标。</li><li>来源失效时关闭并提示重新打开。</li><li>Escape 先关子菜单，再关详情。</li><li>外点关详情；正常外点保留工具面板。</li></ul></article></div><div class="notice"><strong>验收核心：</strong>打开详情前后终端几何一致；Actions 的真实目录和运行位置正确；关闭 popup 不误关终端。</div></section>
+
+<section id="tabs-spec"><div class="eyebrow">WORK PACKAGE B</div><h2>一个文件一个标签，Review 始终只有一个</h2><div class="diagram"><div class="node">空面板<small>只有 +</small></div><span class="arrow">→</span><div class="node">+ Files<small>出现通用 Files 入口</small></div><span class="arrow">→</span><div class="node">点 a.md<small>替换为 a.md 标签</small></div><span class="arrow">→</span><div class="node">再点 b.js<small>a.md 与 b.js 各一个</small></div></div>
+<div class="table-wrap"><table><thead><tr><th>操作</th><th>结果</th></tr></thead><tbody><tr><td>再点已打开的文件</td><td>激活已有标签，不重复创建</td></tr><tr><td>Review 树中点文件</td><td>只在当前 diff 内定位，不开 Files 标签</td></tr><tr><td>面包屑点文件夹</td><td>在共用文件树中定位，不开文件夹标签</td></tr><tr><td>×、中键、面板内 ⌘W</td><td>关闭相应／当前标签；关闭最后一个收起面板</td></tr><tr><td>右键标签</td><td>Copy path（文件）、Close、Close others、Close to the right、Close all</td></tr><tr><td>面板开关、切 space</td><td>保留未关闭标签；按 space 恢复开关、放大、标签和活动项</td></tr></tbody></table></div>
+<div class="two"><article class="text-card"><h3>已确认的首版范围</h3><p>文件标签共用 Files 视图和一棵树。Review 内部管理范围与组。不加入重开历史、拖动排序、终端／浏览器／PR 标签。</p></article><article class="text-card"><h3>建议默认 · 边缘情况</h3><p>关活动标签选右邻，右侧无标签选左邻；关非活动标签不换当前。已有文件时 + Files 回到最近文件。再开空面板仍只有 +。标签溢出横向滚动。</p></article></div></section>
+
+<section id="reading"><div class="eyebrow">SHARED CONSTRAINTS</div><h2>切换页面，不改变另一页的阅读状态</h2><div class="two"><article class="text-card"><h3>Files · 工作目录</h3><p>本机和远程只读浏览、路径搜索、代码／Markdown／图片预览。文件树在右，目录自然排序；每页自己的导航宽度与换行选择。</p><p class="muted">文本 ≤ 1 MiB；远程图片 ≤ 512 KiB。首版保持文件浏览，不加入编辑和文件管理。</p></article><article class="text-card"><h3>Review · 所选变更</h3><p>范围选择在顶栏；组是整页一行标签。选组时 diff 和树共同筛选，子组在树里。保留 AI 分组、说明、已看进度和阅读键位。</p><p class="muted">只读；不加入批注交给 agent、GitHub PR 评审或 Git 写操作。</p></article></div><div class="notice">两页共用外框、树行、菜单与状态组件；各自保留文件、位置和偏好。取消隐式跨页跳转。只在可见时轮询，显示时补读；递归 watcher 不作为前置依赖。详细资源与刷新边界见交接稿第 4 节。</div></section>
+
+<section id="wallpaper"><div class="eyebrow">SHOW ME / WORK PACKAGE C</div><h2>把构图留在导入这一步</h2><p class="muted">点「选择图片」进入 Dots 示例预览，再拖动画面、切铺放方式或缩放。Apply 后控制项收起；Cancel 回到之前保存的构图。</p><div class="chips"><span class="chip">已确认：新图片固定 Dots</span><span class="chip">已确认：只在导入时调整</span><span class="chip default">建议默认：填满 / 完整显示 · 1–4 倍</span></div>
+<div class="wall-layout"><div id="wall-canvas" class="wall-canvas" tabindex="0" aria-label="壁纸构图示例，预览时可拖动或用方向键定位"><span class="wall-overlay" id="wall-mode">已保存 · 日常显示</span><svg id="wall-art" viewBox="0 0 600 360" aria-hidden="true"><defs><pattern id="dots" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="2.2" fill="white"/></pattern><mask id="dot-mask"><rect width="600" height="360" fill="url(#dots)"/></mask></defs><g mask="url(#dot-mask)"><rect width="600" height="360" fill="#313244"/><circle cx="430" cy="95" r="53" fill="#f9e2af"/><path d="M0 210 130 90 230 230 350 120 520 270 600 190V360H0Z" fill="#89b4fa"/><path d="M0 275 130 205 250 290 370 180 600 285V360H0Z" fill="#a6e3a1"/><path d="M0 312Q150 275 300 320T600 310V360H0Z" fill="#cba6f7"/></g></svg></div>
+<div class="wall-controls"><h3 id="wall-title">Home 壁纸</h3><div id="wall-idle"><p class="muted">示例字符画随主题色显示。选择图片开始一次导入。</p><div class="wall-actions"><button class="primary" id="choose-image">选择图片</button><button id="choose-ans">导入 .ans</button></div></div><div id="wall-editor" hidden><label>铺放方式</label><div class="segmented"><button id="cover-mode" aria-pressed="true">填满</button><button id="contain-mode" aria-pressed="false">完整显示</button></div><label for="wall-zoom">缩放 <output id="zoom-value">1.0×</output></label><input id="wall-zoom" type="range" min="1" max="4" value="1" step="0.1"><label>位置</label><p class="muted">直接拖动，或聚焦画布后按方向键。保存相对位置。</p><div class="wall-actions"><button id="wall-reset">重置</button><button id="wall-cancel">Cancel</button><button class="primary" id="wall-apply">Apply</button></div></div><p class="wall-summary" id="wall-summary"></p></div></div>
+<div class="status" id="wall-status" aria-live="polite">这是 Dots 构图的示例画面，不转换或保存真实图片。</div><div class="diagram"><div class="node">图片 → Dots<small>.ans 保留已有字形</small></div><span class="arrow">→</span><div class="node">导入预览<small>位置 · 铺放 · 缩放</small></div><span class="arrow">→</span><div class="node">Apply<small>文件与缓存就绪后提交</small></div><span class="arrow">→</span><div class="node">日常固定显示<small>重启、调窗口后按参数计算</small></div></div><div class="two"><article class="text-card"><h3>数据与失败恢复</h3><ul><li>草稿在内存，Apply 后保存相对构图。</li><li>失败保留草稿和重试入口，原选择不变。</li><li>Cancel 不改原壁纸；迟到任务不能覆盖新选择。</li><li>构图独立于可重建的 SVG 缓存。</li></ul></article><article class="text-card"><h3>首版边界</h3><ul><li>保留旧壁纸、内置画与 .ans 字形渲染。</li><li>导入后固定，日常不能拖动编辑。</li><li>不加入平铺、拉伸、旋转或保存后重编辑。</li><li>已有 Home 闪空白另作故障诊断。</li></ul></article></div></section>
+
+<section id="delivery"><div class="eyebrow">HANDOFF / ACCEPTANCE</div><h2>交付按用户操作验收</h2><div class="table-wrap"><table><thead><tr><th>工作包</th><th>最小完整验收</th><th>建议归属</th></tr></thead><tbody><tr><td>A · 详情与控件</td><td>三行内容、执行目录、终端尺寸不变、嵌套 Escape；三种面板状态下控件完整</td><td>A/B 同一整合负责人，先约定标签与末端控件边界</td></tr><tr><td>B · 动态标签</td><td>空面板 → 两文件 → 单例 Review → 全部关闭；切 space 恢复；焦点关闭不伤终端</td><td>状态、面板头、Files 选择链一起验证</td></tr><tr><td>C · 壁纸构图</td><td>横竖方图、真实拖动与缩放、Apply／Cancel／失败重试；重开和窗口变化</td><td>可以独立分工</td></tr></tbody></table></div><div class="notice"><strong>共同完成条件：</strong>相关测试通过；sync 后核对安装与关联仓库；全量检查输出 <code>all checks passed</code>；默认侧栏宽度下看过 demo 整窗；真实事件的未验项单列。HTML 的通过结果只证明本页示意。</div><div class="link-list"><a href="herdr-experience-requirements.md">完整交接稿：操作、边界、验收和源文件 ↗</a><a href="layout-controls-refactor-plan.md">详情与控件参考</a><a href="home-wallpaper-composition-plan.md">壁纸构图参考</a></div><p class="footline">本页不访问文件系统、执行 Actions 或修改 Herdr 配置。示意状态只留在当前页面内存。控件边缘行为中使用的“建议默认”已在交接稿明确标记。</p></section>
+</main></div>
+<script>
+const $ = id => document.getElementById(id);
+const files = { 'README.md': '# Herdr T3\n\n让多个 agent 的工作，\n有清楚的入口与阅读位置。\n\n本页是只读文件示例。', 'src/main.js': 'export function main() {\n  return "Herdr";\n}\n\n// 每个文件一个标签。\n// Files 树只有一棵。', 'docs/guide.md': '# Guide\n\n点面包屑里的文件夹，\n只在文件树中定位。\n\nReview 的范围与阅读位置\n由 Review 自己保存。' };
+const freshPanel = () => ({ open:false, wide:false, tabs:[], active:null, lastFile:null, group:0, reviewFile:'src/main.js' });
+const panels = { 'herdr-t3':freshPanel(), remote:freshPanel() };
+let currentSpace = 'herdr-t3', popup = false, actionMenu = false, addMenu = false, menuTarget = null;
+const state = () => panels[currentSpace];
+const notice = text => { $('panel-status').textContent = text; };
+function closePopup() { popup = false; actionMenu = false; }
+function nameOf(id) { return id === 'review' ? 'Review' : id === 'files' ? 'Files' : id.slice(5).split('/').pop(); }
+function add(id) {
+  const p = state();
+  if (id === 'files' && p.tabs.some(t => t.startsWith('file:'))) id = p.tabs.includes(p.lastFile) ? p.lastFile : p.tabs.find(t => t.startsWith('file:'));
+  if (!p.tabs.includes(id)) p.tabs.push(id);
+  p.active = id; p.open = true; addMenu = false; menuTarget = null;
+  if (id.startsWith('file:')) p.lastFile = id;
+  renderPanel();
+}
+function openFile(path) {
+  const p = state(), id = 'file:' + path, index = p.tabs.indexOf('files');
+  if (index >= 0 && !p.tabs.includes(id)) p.tabs.splice(index, 1, id);
+  add(id); notice('Files：' + path + '。重复打开会激活原标签。');
+}
+function closeTabs(kind, id) {
+  const p = state(), index = p.tabs.indexOf(id), previous = p.active;
+  if (index < 0) return;
+  if (kind === 'close') p.tabs.splice(index, 1);
+  if (kind === 'others') p.tabs = [id];
+  if (kind === 'right') p.tabs = p.tabs.slice(0, index + 1);
+  if (kind === 'all') p.tabs = [];
+  p.active = p.tabs.includes(previous) ? previous : p.tabs[Math.min(index, p.tabs.length - 1)] ?? null;
+  if (!p.tabs.length) { p.open = false; p.wide = false; }
+  menuTarget = null; renderPanel(); notice(p.tabs.length ? '标签已关闭；当前阅读项按规则保留或切到相邻标签。' : '最后一个标签关闭，面板收起；再开仍为空面板。');
+}
+function renderPanel() {
+  const p = state(), remote = currentSpace === 'remote';
+  $('demo-window').classList.toggle('wide', p.wide && p.open);
+  $('demo-panel').hidden = !p.open;
+  const controls = p.open ? $('panel-controls') : $('work-controls');
+  controls.append($('end-controls'));
+  $('panel-toggle').setAttribute('aria-pressed', String(p.open));
+  $('wide-toggle').hidden = !p.open;
+  $('wide-toggle').setAttribute('aria-label', p.wide ? '恢复面板' : '放大面板');
+  $('details-popup').hidden = !popup || p.wide;
+  $('actions-menu').hidden = !popup || !actionMenu;
+  $('details-toggle').setAttribute('aria-pressed', String(popup && !p.wide));
+  $('actions-toggle').setAttribute('aria-expanded', String(actionMenu));
+  $('work-title').textContent = currentSpace + ' / 需求整理';
+  $('machine-label').textContent = remote ? 'kvm · ~/work/workspace' : '本机 · ~/projects/herdr-t3';
+  $('open-in-label').textContent = remote ? '远程目录 · 本机无法打开' : 'Open in Finder';
+  $('open-directory').disabled = remote;
+  $('add-menu').hidden = !addMenu;
+  $('add-tab').setAttribute('aria-expanded', String(addMenu));
+  $('add-review').hidden = remote;
+  $('tabstrip').replaceChildren();
+  for (const id of p.tabs) {
+    const tab = document.createElement('div'); tab.className = 'panel-tab' + (id === p.active ? ' active' : ''); tab.dataset.tab = id;
+    const label = document.createElement('button'); label.className = 'tab-label'; label.textContent = nameOf(id); label.title = id; label.setAttribute('aria-pressed', String(id === p.active));
+    label.onclick = () => { p.active = id; if (id.startsWith('file:')) p.lastFile = id; renderPanel(); };
+    const close = document.createElement('button'); close.className = 'close'; close.textContent = '×'; close.setAttribute('aria-label', '关闭 ' + nameOf(id)); close.onclick = () => closeTabs('close', id);
+    tab.onauxclick = e => { if (e.button === 1) { e.preventDefault(); closeTabs('close', id); } };
+    tab.onmousedown = e => { if (e.button === 1) e.preventDefault(); };
+    tab.oncontextmenu = e => { e.preventDefault(); addMenu = false; menuTarget = id; renderMenu(); };
+    tab.append(label, close); $('tabstrip').append(tab);
+  }
+  const activeTab = [...$('tabstrip').children].find(el => el.dataset.tab === p.active);
+  if (activeTab) { const strip = $('tabstrip'); if (activeTab.offsetLeft < strip.scrollLeft || activeTab.offsetLeft + activeTab.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = activeTab.offsetLeft; }
+  renderMenu(); renderPage();
+}
+function renderMenu() {
+  $('add-menu').hidden = !addMenu;
+  $('tab-menu').hidden = !menuTarget; $('tab-menu').replaceChildren();
+  if (!menuTarget) return;
+  const target = menuTarget;
+  const items = target.startsWith('file:') ? [['copy','Copy path']] : [];
+  items.push(['close','Close'],['others','Close others'],['right','Close to the right'],['all','Close all']);
+  for (const [kind, text] of items) { const button = document.createElement('button'); button.textContent = text; button.dataset.command = kind; button.onclick = () => { if (kind === 'copy') { notice('示意路径：' + target.slice(5)); menuTarget = null; renderMenu(); } else closeTabs(kind, target); }; $('tab-menu').append(button); }
+}
+function renderPage() {
+  const p = state(), card = $('panel-card'); card.replaceChildren();
+  if (!p.active) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = '空面板 · 点击 + 添加 Files 或 Review'; card.append(empty); return; }
+  const review = p.active === 'review', path = review ? p.reviewFile : p.active.startsWith('file:') ? p.active.slice(5) : null;
+  const tools = document.createElement('div'); tools.className = 'page-tools';
+  const crumb = document.createElement('button'); crumb.className = 'path'; crumb.style.background = 'none'; crumb.style.textAlign = 'left'; crumb.style.padding = '0'; crumb.textContent = review ? 'Changes ⌄ · feat → main' : currentSpace + (path ? ' / ' + path : '');
+  crumb.onclick = () => notice(review ? 'Review 范围在本页内选择；完整菜单沿用现有实现。' : '面包屑：在 Files 树里定位文件夹，不增加标签。'); tools.append(crumb); card.append(tools);
+  if (review) { const groups = document.createElement('div'); groups.className = 'groups'; ['布局入口 +12 −3 ◔ 1/2','文档 +8 −1 ◔ 0/1'].forEach((text, i) => { const button = document.createElement('button'); button.textContent = text; button.setAttribute('aria-pressed', String(p.group === i)); button.onclick = () => { p.group = i; p.reviewFile = i ? 'docs/guide.md' : 'src/main.js'; renderPage(); notice('组筛选：diff 与树只显示当前组。'); }; groups.append(button); }); card.append(groups); }
+  const body = document.createElement('div'); body.className = 'body'; const content = document.createElement('div'); content.className = 'content';
+  content.textContent = review ? 'Review · ' + path + '\n\n' + (p.group ? '+ 统一入口与阅读规则\n+ 按用户操作验收\n\n这里只显示文档组。' : '@@ layout controls @@\n- 固定 Files / Review\n+ 文件标签 + 单例 Review\n\n点击右树只在 diff 内定位。') : path ? files[path] : '在右侧树里点一个文件。\n\n第一个文件会替换 Files 标签。\n后续文件各有一个标签。';
+  const tree = document.createElement('aside'); tree.className = 'tree'; const title = document.createElement('h4'); title.textContent = review ? '当前组 Files' : 'Files · 共用文件树'; tree.append(title);
+  const paths = review ? p.group ? ['docs/guide.md'] : ['src/main.js','README.md'] : Object.keys(files);
+  for (const file of paths) { const button = document.createElement('button'); button.textContent = (file.includes('/') ? '  ' : '') + file.split('/').pop(); button.dataset.file = file; button.title = file; if (path === file) button.className = 'selected'; button.onclick = () => { if (review) { p.reviewFile = file; renderPage(); notice('Review 内定位 ' + file + '；没有创建文件标签。'); } else openFile(file); }; tree.append(button); }
+  body.append(content,tree); card.append(body);
+}
+$('details-toggle').onclick = () => { popup = !popup; actionMenu = false; renderPanel(); notice('详情按需弹出，终端尺寸不变。'); };
+$('panel-toggle').onclick = () => { const p = state(); p.open = !p.open; p.wide = false; closePopup(); addMenu = false; menuTarget = null; renderPanel(); notice(p.open ? '面板恢复这个 space 的标签；空列表只有 +。' : '面板隐藏，未关闭的标签保留。'); };
+$('wide-toggle').onclick = () => { state().wide = !state().wide; closePopup(); renderPanel(); };
+$('add-tab').onclick = () => { addMenu = !addMenu; menuTarget = null; renderPanel(); };
+$('add-files').onclick = () => add('files'); $('add-review').onclick = () => add('review');
+$('actions-toggle').onclick = () => { actionMenu = !actionMenu; renderPanel(); };
+for (const id of ['run-action','pick-action','edit-action','add-action']) $(id).onclick = () => { closePopup(); renderPanel(); notice('示意：' + $(id).textContent.trim() + '。实际命令和编辑器未运行。'); };
+for (const id of ['copy-directory','open-directory']) $(id).onclick = () => notice('示意：使用打开详情时的真实来源目录。');
+$('space-select').onchange = e => { currentSpace = e.target.value; closePopup(); addMenu = false; menuTarget = null; renderPanel(); notice('已切换 space，各自保留面板标签和阅读状态。'); };
+$('scenario-files').onclick = () => { openFile('README.md'); openFile('src/main.js'); if (currentSpace !== 'remote') add('review'); notice('可以切回文件标签，或右键标签试试 Close others。'); };
+$('reset-panel').onclick = () => { panels['herdr-t3'] = freshPanel(); panels.remote = freshPanel(); currentSpace = 'herdr-t3'; $('space-select').value = currentSpace; closePopup(); addMenu = false; menuTarget = null; renderPanel(); notice('示意已重置。'); };
+document.addEventListener('pointerdown', e => { if (!$('details-popup').contains(e.target) && !$('details-toggle').contains(e.target) && popup) { closePopup(); renderPanel(); } if (!$('demo-panel').contains(e.target) && (addMenu || menuTarget)) { addMenu = false; menuTarget = null; renderPanel(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (menuTarget || addMenu) { menuTarget = null; addMenu = false; renderPanel(); $('add-tab').focus(); }
+    else if (actionMenu) { actionMenu = false; renderPanel(); $('actions-toggle').focus(); }
+    else if (popup) { closePopup(); renderPanel(); $('details-toggle').focus(); } else return;
+    e.preventDefault();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w' && $('demo-panel').contains(document.activeElement)) { e.preventDefault(); if (state().active) closeTabs('close', state().active); }
+});
+// Wallpaper calculations illustrate the proposal; no image conversion or persistent writes occur here.
+const basePlacement = () => ({ mode:'cover', zoom:1, x:.5, y:.5 });
+let saved = basePlacement(), draft = null, drag = null;
+const placement = () => draft ?? saved;
+const clamp = n => Math.max(0, Math.min(1, n));
+function wallGeometry(p) { const canvas = $('wall-canvas'); const scale = (p.mode === 'cover' ? Math.max(canvas.clientWidth / 600, canvas.clientHeight / 360) : Math.min(canvas.clientWidth / 600, canvas.clientHeight / 360)) * p.zoom; return { width:600 * scale, height:360 * scale, cw:canvas.clientWidth, ch:canvas.clientHeight }; }
+function renderWall() {
+  const p = placement(), g = wallGeometry(p), art = $('wall-art'); art.style.width = g.width + 'px'; art.style.height = g.height + 'px'; art.style.left = (g.cw - g.width) * p.x + 'px'; art.style.top = (g.ch - g.height) * p.y + 'px';
+  $('wall-canvas').classList.toggle('editing', Boolean(draft)); $('wall-idle').hidden = Boolean(draft); $('wall-editor').hidden = !draft;
+  $('wall-mode').textContent = draft ? '导入预览 · 可以调整' : '已保存 · 日常显示';
+  $('cover-mode').setAttribute('aria-pressed', String(p.mode === 'cover')); $('contain-mode').setAttribute('aria-pressed', String(p.mode === 'contain'));
+  $('wall-zoom').value = p.zoom; $('zoom-value').textContent = p.zoom.toFixed(1) + '×';
+  $('wall-summary').textContent = `${p.mode} · ${p.zoom.toFixed(1)}× · x ${p.x.toFixed(2)} / y ${p.y.toFixed(2)}${draft ? ' · 草稿' : ' · 固定参数'}`;
+}
+function beginImport(ans) { draft = basePlacement(); $('wall-title').textContent = ans ? '导入 .ans · 保留原字形' : '导入图片 · 固定 Dots'; $('wall-status').textContent = ans ? '示意沿用同一张画；真实 .ans 保留其原始字符风格。' : '示例 Dots 已就绪。拖动或缩放后 Apply；Cancel 返回原构图。'; renderWall(); }
+$('choose-image').onclick = () => beginImport(false); $('choose-ans').onclick = () => beginImport(true);
+for (const mode of ['cover','contain']) $(mode + '-mode').onclick = () => { if (draft) { draft.mode = mode; renderWall(); } };
+$('wall-zoom').oninput = e => { if (draft) { draft.zoom = Number(e.target.value); renderWall(); } };
+$('wall-reset').onclick = () => { if (draft) { draft = { ...basePlacement(), mode:draft.mode }; renderWall(); } };
+$('wall-apply').onclick = () => { if (!draft) return; saved = {...draft}; draft = null; drag = null; $('wall-title').textContent = 'Home 壁纸'; renderWall(); $('wall-status').textContent = '构图已在示意内应用。日常画面不能拖动；只固定参数，不锁死窗口尺寸。'; };
+$('wall-cancel').onclick = () => { draft = null; drag = null; $('wall-title').textContent = 'Home 壁纸'; renderWall(); $('wall-status').textContent = '草稿已丢弃，返回原构图。'; };
+$('wall-canvas').onpointerdown = e => { if (!draft || e.button !== 0) return; const g = wallGeometry(draft); drag = { pointer:e.pointerId, px:e.clientX, py:e.clientY, x:draft.x, y:draft.y, dx:g.cw - g.width, dy:g.ch - g.height }; e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.focus(); e.preventDefault(); };
+$('wall-canvas').onpointermove = e => { if (!draft || !drag || drag.pointer !== e.pointerId) return; if (Math.abs(drag.dx) > 1) draft.x = clamp(drag.x + (e.clientX - drag.px) / drag.dx); if (Math.abs(drag.dy) > 1) draft.y = clamp(drag.y + (e.clientY - drag.py) / drag.dy); renderWall(); };
+for (const event of ['pointerup','pointercancel','lostpointercapture']) $('wall-canvas').addEventListener(event, () => { drag = null; });
+$('wall-canvas').onkeydown = e => { if (!draft || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return; e.preventDefault(); const g = wallGeometry(draft), dx = g.cw - g.width, dy = g.ch - g.height; if (Math.abs(dx) > 1 && ['ArrowLeft','ArrowRight'].includes(e.key)) draft.x = clamp(draft.x + (e.key === 'ArrowLeft' ? -12 : 12) / dx); if (Math.abs(dy) > 1 && ['ArrowUp','ArrowDown'].includes(e.key)) draft.y = clamp(draft.y + (e.key === 'ArrowUp' ? -12 : 12) / dy); renderWall(); };
+new ResizeObserver(renderWall).observe($('wall-canvas'));
+renderPanel(); renderWall();
+</script>
+</html>
