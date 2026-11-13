@@ -7,6 +7,12 @@ app=${HERDR_APP_HOME:-$HOME/.config/herdr-app}
 cd "$src"
 fail=0
 
+# Gallery skips recipes over 64 KB; leave room in both translations.
+for recipe in RECIPE.md RECIPE.zh-CN.md; do
+  bytes=$(wc -c < "$recipe") || exit 1
+  [ "$bytes" -le 60000 ] || { echo "FAIL $recipe is $bytes bytes; maximum 60000 for Gallery"; exit 1; }
+done
+
 # shared/ holds the one source; scripts/sync.sh makes the copies.
 for s in shared/*.js; do
   for c in $(find mods extras/mods -name "$(basename "$s")"); do

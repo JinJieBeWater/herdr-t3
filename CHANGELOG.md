@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-13
+
+- Shortened and aligned the English and Chinese layout recipes to fit Gallery's collection limit; the previous recipe was too large to be listed. The layout behaves the same.
+
 ## 2026-11-12
 
 - Buttons now look and behave the same across the layout and its extras. A primary button is filled with your theme's ink, so asciicn wallpaper's **Choose image…** stays readable while it says **Opening…**. A disabled button fades to 64% and keeps its colours: the Actions editor's Save no longer turns grey, and Review's greyed buttons are easier to read. Hover now shows on dialogs, popovers, pane headers and the side panel in every theme, including Catppuccin, where it didn't show before. Icon buttons in Files and Review rest a little dimmer, like the rest of the layout. A few buttons changed size slightly: the pane header's sub-agents button, the pin in Lists, the Snooze calendar arrows and the Review bar's buttons.

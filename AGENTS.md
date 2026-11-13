@@ -22,9 +22,13 @@ Two audiences, two sets:
 - **Using the layout**: the READMEs, the changelogs and `docs/user/`. They say what the person sees and does, and link only to each other.
 - **Working on it**: this file, `GLOSSARY.md`, `docs/adr/`, `docs/internals/` and `docs/research/`. Rules we hold ourselves to, trade-offs and implementation notes go here.
 
+`RECIPE.md` and `RECIPE.zh-CN.md` are matching briefs for rebuilding the layout from an empty folder. Keep the official six-part structure, the visible geometry, behaviour, dependencies and observable acceptance criteria in each brief. Keep each file at most 60,000 UTF-8 bytes so Gallery can collect it. Function-level algorithms, host workarounds and maintenance notes belong in `docs/internals/`; link them where the reader needs that detail. Use `t3-tokens.md` and `storage.md` as their subjects' single source instead of repeating their tables and rules.
+
 `docs/internals/t3-tokens.md`: read before changing a size, radius, spacing or color.
 
 `docs/internals/storage.md`: read before keeping anything past a frame: a terminal label, a shared key, `localStorage`, a layout file write.
+
+`docs/internals/layout-implementation.md`: read before changing render/timers, focus/hover, measurement/scrolling, Review text or wallpaper conversion.
 
 ## Agent skills
 
