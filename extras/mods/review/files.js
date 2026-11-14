@@ -6,7 +6,8 @@ import { PANE, checkMark } from "./controls.js";
 import { groupFiles } from "./rows.js";
 import { categoryIcon, criticalMark } from "./groups.js";
 import { fileMenuItems, agentFor, runCommon } from "./file-menu.js";
-import { spaces, window as appWindow } from "herdr";
+import { spaces, panes, window as appWindow } from "herdr";
+import { placeOf } from "./place.js";
 
 export const TREE = "review-files";
 
@@ -138,7 +139,8 @@ export function showGroup(view, key, cx) {
 // The file's or folder's menu (file-menu.js), `target` as its row's right-click noted it: `path` from the repository's top,
 // `files` the reviewed box's. Its relative path is from the space's folder where the repository holds it.
 export function menuItems(view, target) {
-  const abs = `${view.root}/${target.path}`, folder = spaces().find(s => s.id === view.space)?.folder?.replace(/\/$/, "");
+  const abs = `${view.root}/${target.path}`, space = spaces().find(s => s.id === view.space);
+  const folder = (space && placeOf(space, panes()))?.replace(/\/$/, "");
   const rel = folder && abs.startsWith(`${folder}/`) ? abs.slice(folder.length + 1) : target.path;
   const files = target.files.map(path => view.fileAt(path)).filter(Boolean), reviewed = files.length > 0 && files.every(f => f.reviewed);
   const agent = agentFor(view.space), platform = appWindow()?.platform;

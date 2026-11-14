@@ -35,12 +35,12 @@ function element(...made) {
 const walk = (node, out = []) => { if (node && typeof node === "object" && node.items) { out.push(node); node.items.forEach((c) => walk(c, out)); } return out; };
 const find = (root, id) => walk(root).find((n) => n.key === id) ?? null;
 const labels = (root) => walk(root).map((n) => n.calls.accessibility_label?.[0]).filter(Boolean);
-const space = (id, folder, active = false, machine = null) => ({ id, folder, machine, active, tabs: [] });
+const space = (id, folder, active = false, machine = null, tabs = [{ id: `${id}-tab` }]) => ({ id, folder, machine, active, tabs });
 
 // The page, started in a fake `herdr`: the panel on `page` with Review installed too, every folder holding a.js (changed) and
 // b.js. Each folder is in Git but `/n…`. `w` is the world: what ran, what's watched, the editors made, reads held back.
-function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
-  const w = { spaces, windowActive: true, ran: [], read: [], watchers: [], made: [], hold: null, held: [], stall: null, stalled: [], files: ["a.js", "b.js"], notified: 0 };
+function makePage({ page = "files", spaces = [space("s1", "/r", true)], panes = [] } = {}) {
+  const w = { spaces, panes, now: Date.now(), panesRead: 0, windowActive: true, ran: [], read: [], watchers: [], made: [], hold: null, held: [], stall: null, stalled: [], files: ["a.js", "b.js"], notified: 0 };
   const shared = { "t3.wrap": false, "t3.navWidth": 300 }, wrote = [], store = new Map(), timers = [], everies = [], failed = [];
   const commands = [];
   let wake = null, running = null;
@@ -71,7 +71,7 @@ function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
   const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); if (failed.length) throw failed[0]; };
   const fire = async (ms) => { for (const [at, f] of timers.splice(0)) if (at <= ms) f(cx); else timers.push([at, f]); await settle(); };
   // A second of Herdr's clock: what runs on the page's repeating timers, hidden or not.
-  const tick = async () => { for (const [, f] of everies) f(cx); await settle(); await fire(0); };
+  const tick = async (ms = 0) => { w.now += ms; for (const [, f] of everies) f(cx); await settle(); await fire(0); };
   const body = { id: "panel-body", active: page, children: [{ id: "files" }, { id: "review" }] };
   const layout = { id: "root", children: [{ id: "work" }, { id: "panel", children: [body] }] };
   const ctx = vm.createContext({
@@ -79,7 +79,7 @@ function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
     Input: { new: element }, Editor: { new: element }, TextView: { markdown: element },
     InputState: { new: () => { let v = ""; return { on() {}, value: () => v, set_value(x) { v = x; } }; } },
     EditorState: { new: (o) => { const e = { wrap: o.soft_wrap, text: o.value, released: false, release() { this.released = true; return true; } }; w.made.push(e); return e; } },
-    spaces: () => w.spaces, agents: () => [], layout: () => layout,
+    spaces: () => w.spaces, panes: () => { w.panesRead++; return w.panes; }, agents: () => [], layout: () => layout,
     theme: () => ({}), settings: () => ({ zoom: 1, font_family: "mono" }), window: () => ({ active: w.windowActive, platform: "macos" }), appHome: () => "/tmp/none",
     shared: (k) => shared[k], setShared: (k, v) => { wrote.push(k); shared[k] = v; },
     run() {}, notify() {}, exec,
@@ -88,9 +88,9 @@ function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
     nextCommand: () => commands.length ? Promise.resolve(commands.shift()) : new Promise((r) => { wake = r; }),
     fs: { unlink: async () => {}, mkdir: async () => {}, writeFile: async () => {} },
     localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
-    Date, Promise, Math, Number, String, Boolean, Map, Set, Object, Array, JSON, RegExp, Error, Uint8Array,
+    Date: class extends Date { static now() { return w.now; } }, Promise, Math, Number, String, Boolean, Map, Set, Object, Array, JSON, RegExp, Error, Uint8Array,
   });
-  const files = ["vendor/ufuzzy.js", "store.js", "list.js", "panel.js", "file-icons-data.js", "file-icons.js", "file-tree.js", "nav-column.js", "file-menu.js", "panel-states.js", "model.js", "main.js"];
+  const files = ["vendor/ufuzzy.js", "store.js", "place.js", "list.js", "panel.js", "file-icons-data.js", "file-icons.js", "file-tree.js", "nav-column.js", "file-menu.js", "panel-states.js", "model.js", "main.js"];
   const buttons = "const drawButton = (() => {\n" + load("button.js") + "\nreturn button;\n})();\n";
   vm.runInContext((buttons + files.map(load).join("\n")).replace("export default class", "globalThis.Mod = class"), ctx);
   const send = (c) => { if (wake) { const x = wake; wake = null; x(c); } else commands.push(c); };
@@ -99,6 +99,77 @@ function makePage({ page = "files", spaces = [space("s1", "/r", true)] } = {}) {
   const show = (p) => { body.active = p; };
   const activate = (id) => { w.spaces = w.spaces.map((s) => ({ ...s, active: s.id === id })); };
   return { view, cx, w, settle, fire, tick, send, shared, wrote, store, show, activate };
+}
+
+// A terminal moving changes the root through the normal timer, here or on another machine. Each new location starts fresh.
+async function root() {
+  for (const on of [null, "vps"]) {
+    const { view, cx, w, settle, tick, send } = makePage({ spaces: [space("s1", "/r", true, on)] });
+    view.render(cx); await settle();
+    const kept = view.current();
+    assert.equal(kept.root, "/r", "no live folder: where the space was made");
+    send("open:a.js"); await settle();
+    const editor = kept.view.code;
+    send("search:b"); await settle(); view.render(cx);
+    assert.equal(view.search.value(), "b");
+    const reads = w.panesRead;
+    w.panes = [{ tab: "other-tab", cwd: "/other" }, { tab: "s1-tab", cwd: "" },
+      { tab: "s1-tab", cwd: "/r/src" }, { tab: "s1-tab", cwd: "/later" }];
+    await tick(999); view.render(cx);
+    assert.equal(view.current(), kept, "the pane snapshot lasts one second");
+    assert.equal(w.panesRead, reads, "draws reuse it");
+    await tick(1); view.render(cx); await settle();
+    const moved = view.current();
+    assert.notEqual(moved, kept, "a live folder rebuilds the tree");
+    assert.equal(moved.root, "/r/src", "the first matching nonempty cwd, not another space's or a later pane's");
+    assert.ok(w.ran.some((r) => r.cwd === "/r/src" && r.on === on), "the next read follows it on the same machine");
+    assert.ok(editor.released, "the old folder's Editor is released");
+    assert.deepEqual([moved.file, moved.query, moved.results, view.search.value()], [null, "", null, ""], "selection and search reset together");
+    await tick(1000); view.render(cx);
+    assert.equal(view.current(), moved, "the same location keeps its state");
+    w.panes = [{ tab: "other-tab", cwd: "/other" }, { tab: "s1-tab", cwd: "" }];
+    await tick(1000); view.render(cx); await settle();
+    assert.equal(view.current().root, "/r", "no matching live cwd falls back to the space's folder");
+    send("search:b"); await settle(); view.render(cx);
+    const fallback = view.current(), machine = on ? null : "vps";
+    w.spaces = [space("s1", "/r", true, machine)];
+    await tick(1000); view.render(cx); await settle();
+    assert.notEqual(view.current(), fallback, "the same path on another machine is a new location");
+    assert.deepEqual([view.current().root, view.current().on, view.search.value()], ["/r", machine, ""]);
+    assert.ok(w.ran.some((r) => r.cwd === "/r" && r.on === machine));
+  }
+}
+
+// A read or search from the old folder can finish after the new folder has its own file and search, without touching either.
+async function movedReads() {
+  for (const on of [null, "vps"]) for (const kind of ["file", "search"]) {
+    const { view, cx, w, settle, tick, send } = makePage({ spaces: [space("s1", "/r", true, on)] });
+    view.render(cx); await settle();
+    send("open:a.js"); await settle();
+    const old = view.current(), editor = old.view.code;
+    if (kind === "file") { w.hold = "/r"; view.open(old, "a.js", cx, true); }
+    else { w.stall = (line) => line.includes(on ? m.REMOTE_SEARCH : "ls-files"); send("search:a"); }
+    await settle();
+    assert.equal(w.held.length + w.stalled.length, 1, `${on ?? "local"}: old ${kind} is pending`);
+    w.stall = null;
+    w.panes = [{ tab: "s1-tab", cwd: "/next" }];
+    await tick(1000); view.render(cx); await settle();
+    assert.ok(editor.released, "changing location releases the old Editor");
+    send("open:b.js"); await settle();
+    send("search:b"); await settle(); view.render(cx);
+    const current = view.current(), shown = current.view, results = current.results, made = w.made.length;
+    w.held.splice(0).forEach((finish) => finish());
+    w.stalled.splice(0).forEach((finish) => finish());
+    await settle(); view.render(cx);
+    assert.equal(view.current(), current);
+    assert.deepEqual([current.root, current.file, current.query, view.search.value()], ["/next", "b.js", "b", "b"]);
+    assert.equal(current.view, shown, "the new preview and its loading/error state stay untouched");
+    assert.equal(current.view.text, "const a = 1;\n");
+    assert.ok(!current.view.loading && !current.view.failed && !current.error);
+    assert.equal(current.results, results, "the new search stays untouched");
+    assert.equal(w.made.length, made, "a late file answer creates no Editor");
+    assert.deepEqual([old.view, old.results], [null, null], "the old state stays empty");
+  }
 }
 
 async function page() {
@@ -447,6 +518,8 @@ async function resources() {
     fs.rmSync(path.join(dir, ".git"), { recursive: true });
     assert.deepEqual(search("pkg"), ["node_modules/pkg/i.js"], "outside Git: find");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  await root();
+  await movedReads();
   await page();
   await resources();
   console.log("t3-files checks passed");

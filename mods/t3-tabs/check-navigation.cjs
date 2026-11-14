@@ -8,7 +8,7 @@ function bundle(file, seen = new Set()) {
   seen.add(file);
   const src = fs.readFileSync(path.join(__dirname, file), "utf8");
   const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map(m => bundle(m[1], seen)).join("\n");
-  return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ");
+  return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export \{[^}]*\};?\r?$/gm, "").replace(/^export (function|const) /gm, "$1 ");
 }
 const source = bundle("navigation.js");
 const plain = value => JSON.parse(JSON.stringify(value));

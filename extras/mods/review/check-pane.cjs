@@ -264,10 +264,11 @@ const env = {
   hoverKept: (view, key, id, el) => el.on_hover((on) => { if (on) view[key] = id; else if (view[key] === id) view[key] = null; }),
   // Paths build into nothing here; painting one is an element like any other.
   PathBuilder: (() => { const chain = new Proxy({}, { get: () => () => chain }); return { stroke: () => chain, fill: () => chain }; })(),
-  window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (...args) => { browsed.push(args); return Promise.resolve({ code: 0 }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search" ? scopeField : options.placeholder === "Search refs" ? refField : field },
+  window: { paint_path: () => element() }, appWindow: () => ({ platform: "macos", active: windowActive }), exec: (cmd, args, options) => { if (cmd !== "git") browsed.push([cmd, args]); return Promise.resolve({ code: 0, stdout: args.includes("--show-toplevel") ? `${options?.cwd ?? "/repo"}\n` : args.includes("symbolic-ref") ? "fix\n" : "" }); }, Input: { new: () => element() }, InputState: { new: (options) => options.placeholder === "Search" ? scopeField : options.placeholder === "Search refs" ? refField : field },
   v_virtual_list: (_id, count, sizes, _key, render) => { assert.equal(sizes.length, count); lists.push(() => render({ start: 0, end: count }).forEach(Boolean)); return element(); },
   VirtualListScrollHandle: { new: () => ({ scroll_to_item: (i) => calls.push(["scroll", i]) }) },
   TextView: { markdown: element },
+  panes: () => [],
   spaces: () => [["s1", "/repo"], ["s2", "/other"], ["r1", "/srv", "kvm"]].map(([id, folder, machine = null]) => ({ id, folder, machine, active: id === activeSpace, tabs: [] })),
   // Herdr T3's layout: the panel open, on the page shown.
   layout: () => ({ id: "root", children: [{ id: "work", hidden: workHidden, children: barIn ? [{ id: "review-bar", content: { mod: "pulls-review" } }] : [] }, { id: "panel", children: [{ id: "panel-body", active: pageShown, children: [{ id: "files" }, { id: "review" }] }] }] }),
@@ -337,7 +338,123 @@ const cx = { spawn: (f) => f(cx), notify() {}, stop_propagation() {}, focus_hand
 } } };
 // Timers wait until a test runs them; a cancelled one does nothing.
 const timers = [], tick = () => timers.splice(0).forEach(f => f(cx));
+// A saved space folder and a saved review are candidates, never a substitute for the terminal's live location.
+async function locationChecks() {
+  const make = ({ restored = null, cwd = "/live/src" } = {}) => {
+    const w = { now: Date.now(), cwd, machine: null, visible: true, closed: false, panesRead: 0, git: [], reads: [], pending: [], holdTop: false, holdRead: false, holdAnalysis: false, late: [] };
+    const store = new Map(restored ? [["review.shown", { s: restored }]] : []), times = [], failed = [];
+    const sp = () => ({ id: "s", folder: "/saved", machine: w.machine, active: true, tabs: [{ id: "tb" }] });
+    const ctx = { ...cx, spawn(f) { Promise.resolve().then(() => f(ctx)).catch(e => failed.push(e)); },
+      timer: { every(ms, f) { times.push([ms, f]); }, after(ms, f) { w.pending.push([ms, f]); } } };
+    const scope = load("main.js", { ...env, spaces: () => w.closed ? [] : [sp()],
+      layout: () => ({ id: "root", children: [{ id: "panel", children: [{ id: "panel-body", active: w.visible ? "review" : "files", children: [{ id: "files" }, { id: "review" }] }] }] }),
+      panes: () => { w.panesRead++; return [{ tab: "elsewhere", cwd: "/wrong" }, { tab: "tb", cwd: "" }, { tab: "tb", cwd: w.cwd }]; },
+      Date: class extends Date { static now() { return w.now; } },
+      shared: k => store.get(k) ?? null, setShared: (k, v) => store.set(k, v),
+      exec: async (_cmd, args, opts = {}) => {
+        w.git.push([args, opts.cwd]);
+        const root = opts.cwd?.startsWith("/live") ? "/live" : opts.cwd?.startsWith("/other") ? "/other" : null;
+        if (args.includes("--show-toplevel") && w.holdTop) await new Promise(r => w.late.push(r));
+        return args.includes("--show-toplevel") ? { code: root ? 0 : 1, stdout: root ? `${root}\n` : "" }
+          : { code: 0, stdout: args.includes("symbolic-ref") ? "fix\n" : "" };
+      },
+      review: async (root, route, body) => {
+        w.reads.push([root, route, body]);
+        if ((route === "/api/review" && w.holdRead) || (route === "/api/review/analyze" && w.holdAnalysis)) await new Promise(r => w.late.push(r));
+        return route === "/api/review/status" ? { running: false } : structuredClone(review);
+      } });
+    const view = new scope.Mod(); view.init({}, ctx);
+    const settle = async () => { for (let n = 0; n < 4; n++) { const zero = w.pending.filter(([ms]) => ms === 0); w.pending = w.pending.filter(([ms]) => ms !== 0); zero.forEach(([, f]) => f(ctx)); await new Promise(setImmediate); } if (failed.length) throw failed[0]; };
+    const draw = async () => { view.render(ctx); await settle(); view.render(ctx); await settle(); return view.shown(); };
+    const tick = async (ms = 1000, redraw = true) => { w.now += ms; times.filter(([at]) => at === 1000).forEach(([, f]) => f(ctx)); await settle(); return redraw ? draw() : view.shown(); };
+    return { w, store, view, scope, ctx, draw, tick, settle };
+  };
+  for (const restored of [null, { root: "/wrong", page: "/commit/old", base: "/branch/old" }, { root: "/live", page: "/commit/c1", base: "/branch/fix" }]) {
+    const { w, scope, draw } = make({ restored });
+    const st = await draw();
+    assert.equal(st.root, "/live", "Review resolves the live terminal, not the saved folder or another space");
+    assert.ok(w.git.some(([args, cwd]) => args.includes("--show-toplevel") && cwd === "/live/src"));
+    assert.ok(w.reads.every(([root]) => root === "/live"), "a wrong persisted review is never loaded");
+    assert.equal(st.page, restored?.root === "/live" ? "/commit/c1" : "/branch/fix", "restore a scope only in the same repository");
+    let copied;
+    const menu = vm.runInContext("menuItems", scope)(st, { path: "src/a.ts", files: [] });
+    menu.find(it => it.id === "copy-relative").run({ write_to_clipboard: text => { copied = text; } });
+    assert.equal(copied, "a.ts", "the file menu is relative to the live folder");
+  }
+  {
+    const { w, view, ctx, store, draw, tick, settle } = make();
+    const old = await draw();
+    const cached = w.panesRead;
+    w.cwd = "/other";
+    await tick(999); assert.equal(view.shown(), old); assert.equal(w.panesRead, cached);
+    // Both an old diff and analysis finish only after the new repository has loaded.
+    w.holdRead = w.holdAnalysis = true; old.load(ctx); old.analyze(ctx, false); await settle();
+    assert.equal(w.late.length, 2);
+    w.holdRead = w.holdAnalysis = false;
+    const current = await tick(1);
+    assert.notEqual(current, old); assert.equal(current.root, "/other"); assert.ok(current.review);
+    const published = JSON.stringify([...store]), reads = w.reads.length;
+    w.late.splice(0).forEach(f => f());
+    w.now += 10001;
+    w.pending.filter(([ms]) => ms === 10000).forEach(([, f]) => f(ctx));
+    await settle();
+    assert.equal(JSON.stringify([...store]), published, "retired analysis callbacks cannot overwrite the new state");
+    assert.equal(w.reads.length, reads, "retired callbacks start no further daemon reads");
+    assert.equal(old.review, null, "a late diff cannot refill the old state");
+    store.set("review", { space: "s", root: "/chosen", page: "/worktree", n: w.now + 1 });
+    await draw(); assert.equal(view.shown().root, "/chosen", "an explicit request may pick another worktree");
+    await tick(); assert.equal(view.shown().root, "/chosen", "it stays until the terminal moves");
+    w.cwd = "/live"; await tick(); assert.equal(view.shown().root, "/live", "a consumed request is not replayed after a move");
+    w.machine = "vps";
+    const before = [w.git.length, w.reads.length]; await tick();
+    assert.deepEqual([w.git.length, w.reads.length], before, "a remote space starts no local reads");
+    assert.ok(!view.bySpace.has("s"), "the local review is retired on a machine change");
+    w.machine = null;
+    assert.equal((await tick()).root, "/live", "returning locally within FRESH cannot replay the consumed worktree request");
+    store.set("review", { space: "s", root: "/new-choice", page: "/worktree", n: w.now + 1 });
+    assert.equal((await draw()).root, "/new-choice", "a genuinely new request is still accepted");
+    w.closed = true; await tick();
+    assert.equal(view.handledBySpace.size, 0, "a closed space leaves no consumed-request record");
+  }
+  {
+    const { w, draw, tick } = make({ cwd: "" });
+    assert.ok((await draw()).noRepo, "without a live cwd, the saved folder is checked");
+    assert.ok(w.git.some(([args, cwd]) => args.includes("--show-toplevel") && cwd === "/saved"));
+    w.cwd = "/live"; assert.equal((await tick()).root, "/live", "entering a repository recovers from a non-repository");
+  }
+  for (const cwd of ["/live", "/missing"]) {
+    const { w, view, ctx, store, draw, settle } = make({ cwd, restored: { root: "/chosen", page: "/worktree" } });
+    w.holdTop = true; await draw(); assert.equal(w.late.length, 1);
+    view.shown().refresh(ctx); await settle();
+    assert.equal(w.reads.length, 0, "refresh waits for saved-root validation");
+    store.set("review", { space: "s", root: "/chosen", page: "/worktree", n: w.now + 1 });
+    await draw(); const current = view.shown(), shown = current.review;
+    assert.equal(current.root, "/chosen"); assert.ok(shown);
+    w.late.splice(0).forEach(f => f()); await settle();
+    assert.equal(current.root, "/chosen"); assert.equal(current.review, shown); assert.ok(!current.noRepo && !current.error);
+    assert.ok(w.reads.every(([root]) => root === "/chosen"), "a late successful or failed probe cannot override a request");
+  }
+  {
+    const { w, view, draw, tick } = make();
+    await draw(); w.visible = false; w.cwd = "/other";
+    const before = [w.git.length, w.reads.length];
+    // A hidden page is not drawn by Herdr; run only its normal wake timer.
+    await tick(1000, false);
+    assert.deepEqual([w.git.length, w.reads.length], before, "hidden moves retire old data without reading");
+    w.visible = true; assert.equal((await draw()).root, "/other");
+  }
+  {
+    const { w, draw, tick, settle, view } = make();
+    w.holdTop = true; await draw();
+    w.holdTop = false; w.cwd = "/other"; await tick();
+    w.late.splice(0).forEach(f => f()); await settle();
+    assert.equal(view.shown().root, "/other", "a late discovery cannot replace the new repository");
+    assert.ok(w.reads.every(([root]) => root === "/other"));
+  }
+}
+
 (async () => {
+  await locationChecks();
   {
     // A space's review starts its first read on its own timer, not in the render that made it: a render's cx is gone by
     // the time an answer comes (gpui-kit.d.ts). With nothing asked of it, it shows what review.shown says it showed.
