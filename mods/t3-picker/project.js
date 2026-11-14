@@ -8,6 +8,9 @@ import { Buffer } from "buffer";
 import { createHash } from "crypto";
 import * as fs from "fs/promises";
 import { KEY } from "./store.js";
+import { placeOf } from "./place.js";
+
+export { placeOf };
 
 // T3's project colors in its order, each as Tailwind's 400 (dark themes) and 600 (light).
 const PALETTE = [
@@ -101,12 +104,6 @@ async function lookUp(on, dir) {
     await fs.writeFile(`${appHome()}/${name}`, bytes);
   }
   return name;
-}
-
-// Where a space is now, as t3-spaces has it: its first terminal's live folder, else where it was made.
-export function placeOf(s, ps) {
-  const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return ps?.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
 
 // A terminal tab where the space is now, as its mark and folder say: Herdr's tab.new alone starts where the space was made.

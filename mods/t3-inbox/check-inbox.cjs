@@ -12,7 +12,7 @@ function bundle(dir, file = "main.js", seen = new Set()) {
   // Keep the helper's private tint separate from project.js's exported tint.
   if (file === "button.js") return "const { button, radiusOf } = (() => {\n" + src.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") + "\nreturn { button, radiusOf }; })();";
   const needs = [...src.matchAll(/^import [^;]*? from "\.\/(.+?)";/gm)].map((m) => bundle(dir, m[1], seen)).join("\n");
-  return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
+  return needs + "\n" + src.replace(/^import [^;]*;\r?\n/gm, "").replace(/^export \{[^}]*\};?\r?$/gm, "").replace(/^export (function|const) /gm, "$1 ").replace("export default class", "globalThis.Mod = class");
 }
 
 function element() {

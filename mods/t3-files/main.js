@@ -3,7 +3,7 @@
 // One copy serves every space, here or on another machine: what each one shows is kept by its id.
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Editor, EditorState, TextView } from "gpui-base";
-import { spaces, nextCommand, exec, readTextFile, theme, settings, shared, setShared, appHome, window } from "herdr";
+import { spaces, panes, nextCommand, exec, readTextFile, theme, settings, shared, setShared, appHome, window } from "herdr";
 import * as fs from "fs/promises";
 import uFuzzy from "./vendor/ufuzzy.js";
 import { panelState, hidePanel } from "./panel.js";
@@ -13,6 +13,7 @@ import { TREE_ROW, treeRows, rowAt, treeKey, treeList, treeRow, revealRow } from
 import { withNav, navToggle, foldAllButton, ghostButton, navOpen, setNavOpen, holdWidth } from "./nav-column.js";
 import { fileMenuItems, fileMenuView, agentFor, runCommon } from "./file-menu.js";
 import { migratePagePrefs, wrapLines, setWrapLines } from "./store.js";
+import { placeOf } from "./place.js";
 import { loadingState, emptyState, errorBar } from "./panel-states.js";
 import { LIST, IGNORED, PROBE, REMOTE_SEARCH, RANKED, join, parentOf, nameOf, ancestors, parseListing, parseStatus, parseIgnored, markIgnored, folderEntries, terms, narrows,
   filterPaths, rank, kindOf, languageOf, readProblem, failedRead, ticket } from "./model.js";
@@ -35,8 +36,8 @@ const count = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const zoom = () => Number(settings()?.zoom) || 1;
 
 // What one space's page knows and shows.
-function blank(sp) {
-  return { id: sp.id, root: sp.folder, on: sp.machine ?? null, git: undefined, entries: new Map(), expanded: new Set(), ignored: new Set(),
+function blank(sp, root) {
+  return { id: sp.id, root, on: sp.machine ?? null, git: undefined, entries: new Map(), expanded: new Set(), ignored: new Set(),
     marks: new Map(), dirs: new Set(), version: 0, file: null, view: null, lit: null, focus: null, query: "", at: -1, results: null, total: 0, paths: null };
 }
 
@@ -86,8 +87,12 @@ export default class Files extends View {
   // A space's state, made the first time and made again when its folder moves; the latest one last. The FULL last keep all
   // they read; older ones only how they were being read, and read again when back.
   stateFor(sp) {
+    // panes() copies every pane, and this runs on each draw and each second. The same second keeps the last read.
+    const now = Date.now();
+    if (this.panesAt == null || now - this.panesAt >= 1000) { this.panesAt = now; this.panes = panes(); }
+    const root = placeOf(sp, this.panes);
     let st = this.states.get(sp.id);
-    if (!st || st.root !== sp.folder || st.on !== (sp.machine ?? null)) { if (st) this.drop(st); st = blank(sp); }
+    if (!st || st.root !== root || st.on !== (sp.machine ?? null)) { if (st) this.drop(st); st = blank(sp, root); }
     else if ([...this.states.keys()].at(-1) === sp.id) return st;
     this.states.delete(sp.id);
     this.states.set(sp.id, st);
@@ -105,7 +110,7 @@ export default class Files extends View {
   // A space let go of, keeping its file, open folders and search's words.
   slim(st) {
     this.drop(st);
-    return Object.assign(blank({ id: st.id, folder: st.root, machine: st.on }), { file: st.file, expanded: new Set(st.expanded), focus: st.focus, query: st.query });
+    return Object.assign(blank({ id: st.id, machine: st.on }, st.root), { file: st.file, expanded: new Set(st.expanded), focus: st.focus, query: st.query });
   }
 
   // It works only while it shows: the page in the open panel, the window in front, for the active space. Shown, it reads at
@@ -410,8 +415,8 @@ export default class Files extends View {
       old.release();
       cx.notify();
     });
-    // The search field shows this space's words.
-    if (this.searchFor !== st.id) { this.searchFor = st.id; if (this.search.value() !== st.query) this.search.set_value(st.query); }
+    // A new location has a new state, even in the same space; the field follows its reset query too.
+    if (this.searchFor !== st) { this.searchFor = st; if (this.search.value() !== st.query) this.search.set_value(st.query); }
     const width = this.size?.width ?? 800;
     return v_flex().id("t3-files").relative().size_full().min_h(0).text_color(t.foreground).text_size(13)
       .on_size_change((size, cx) => { this.size = { width: size.width / zoom(), height: size.height / zoom() }; cx.notify(); })

@@ -65,7 +65,7 @@ const cx = { notify() {}, stop_propagation() {}, focus_handle: () => ({ focus() 
 // The shared modules are inlined as the mod's own copies are.
 function load(...files) {
   const src = files.map((f) => fs.readFileSync(f, "utf8")).join("\n")
-    .replace(/^import .*;\r?\n/gm, "").replace(/export (function|const) /g, "$1 ").replace("export default class", "globalThis.Mod = class");
+    .replace(/^import .*;\r?\n/gm, "").replace(/^export \{[^}]*\};?\r?$/gm, "").replace(/export (function|const) /g, "$1 ").replace("export default class", "globalThis.Mod = class");
   const context = vm.createContext({ ...env });
   // Load the real synced helper, including the alias main.js imports.
   vm.runInContext("(() => {\n" + fs.readFileSync(path.join(__dirname, "button.js"), "utf8").replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") + "\nglobalThis.drawButton = button; globalThis.radiusOf = radiusOf;\n})();", context);
@@ -73,7 +73,7 @@ function load(...files) {
   const mod = new context.Mod(); mod.init({}, cx); return mod;
 }
 const take = () => JSON.parse(JSON.stringify(calls.splice(0)));
-const parts = ["store.js", "name.js", "tree.js", "tip.js", "focus.js", "list.js", "project.js", "program.js", "details.js", "menu.js", "sidebar.js", "main.js"].map((f) => path.join(__dirname, f));
+const parts = ["store.js", "name.js", "tree.js", "tip.js", "focus.js", "list.js", "place.js", "project.js", "program.js", "details.js", "menu.js", "sidebar.js", "main.js"].map((f) => path.join(__dirname, f));
 const header = load(...parts);
 header.hovered = true;
 find(header.render(), "pane-head-p2").handlers.click({}, cx);

@@ -14,7 +14,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, openOverlay, theme, keys, terminals, agents, spaces, panes, exec, setShared, shared, layout, settings } from "herdr";
 import { menuJump } from "./list.js";
 import { subPlace, hoverRow, subOpened, subLeft } from "./submenu.js";
-import { placeOf } from "./project.js";
+import { placeOf } from "./place.js";
 import { presets } from "./snooze-presets.js";
 import { ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
 import { pinList } from "./pins.js";
@@ -36,12 +36,6 @@ const WIDTH = 220, PAD = 4, ROW = 28, RULE = 9;
 // Where row `i` starts below the menu's top, its rules included.
 const rowTop = (list, i) => PAD + i * ROW + list.slice(1, i + 1).filter((it, j) => it[4] !== list[j][4]).length * RULE;
 const zoom = () => Number(settings()?.zoom) || 1;
-
-// Where a space is now: its first terminal's live folder, else where it was made.
-function place(s) {
-  const tabs = new Set((s.tabs ?? []).map((c) => c.id));
-  return panes().find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
-}
 
 // A space's checkout: "main" (a repo's own), "linked" (a worktree), or null.
 async function checkout(folder, on) {
@@ -152,7 +146,7 @@ function items(p, git) {
       return grouped(presets(Date.now()).map((p) => [p.label, `t3-tabs.snooze:${tg.address}:${p.at}`, {}, p.when]), [["Custom…", "custom-snooze", { address: tg.address }]]);
     case "space": {
       const s = spaces().find((s) => s.id === tg.id);
-      const folder = s && place(s);
+      const folder = s && placeOf(s, panes());
       return grouped(
         [["New tab", "tab.new", { space: tg.id, folder }]],
         [["Rename", "space.rename", { id: tg.id }], ...(folder ? [["Copy path", "copy", { text: folder }, ""]] : [])],
@@ -213,7 +207,7 @@ export default class Menu extends View {
     this.handle = cx.focus_handle();
     this.handle.focus();
     const space = p?.tab === "space" && spaces().find((s) => s.id === p.target?.id);
-    const folder = space && place(space);
+    const folder = space && placeOf(space, panes());
     if (folder)
       cx.spawn(async (cx) => {
         this.git = await checkout(folder, space.machine).catch(() => null);

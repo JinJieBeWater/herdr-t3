@@ -33,7 +33,7 @@ const context = vm.createContext({
   shared: (k) => state[k], setShared: (k, v) => { state[k] = v; }, hc: async () => ({ code: 0 }), notify() {},
   layout: () => ({ id: "root", children: [{ id: "sidebar-lists", active: list, children: [] }] }),
 });
-const src = ["store.js", "labels.js", "pins.js", "tree.js", "sidebar.js", "project.js", "list.js", "snooze-presets.js", "submenu.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
+const src = ["store.js", "labels.js", "pins.js", "tree.js", "sidebar.js", "place.js", "project.js", "list.js", "snooze-presets.js", "submenu.js", "main.js"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n")
   .replace(/^import .*;\r?\n/gm, "").replace("export default class", "globalThis.Menu = class").replace(/^export /gm, "");
 vm.runInContext(src, context);
 // Timers run when the test says time has passed.
