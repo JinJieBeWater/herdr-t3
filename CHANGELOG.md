@@ -4,6 +4,7 @@ English · [中文](CHANGELOG.zh-CN.md)
 
 ## 2026-11-13
 
+- Review now resolves its repository and file-menu relative paths from the space's live terminal folder too. It validates saved reviews before loading, resets reading data on a location change, and ignores late results from the old location. Explicit Review requests still select their requested worktree.
 - Files follows the first terminal in the space with a reported folder, falling back to the folder the space was created in. It used to stay at that original folder after a terminal moved elsewhere. A root folder or machine change clears the selected file, expanded folders and search together.
 - Shortened and aligned the English and Chinese layout recipes to fit Gallery's collection limit; the previous recipe was too large to be listed. The layout behaves the same.
 

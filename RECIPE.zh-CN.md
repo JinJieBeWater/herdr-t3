@@ -94,7 +94,7 @@ Files 只读，根取 space 各标签中第一个有非空 cwd 的 pane，缺省
 
 ### 可选 Review 页
 
-Review 用于 [pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)，CLI `jin.review`，只支持本机仓库，跟随 space 的 folder。40px 工具栏：范围、分支比较或 commit SHA／前后、Analyze、折叠菜单、设置、导航开关；24px ghost、12px 字、14px 图标。非仓库／远程只写 `Review`，导航禁用；范围无变化写 `No changes`。
+Review 用于 [pulls.review fork](https://github.com/JinJieBeWater/pulls.review/tree/multi-repo)，CLI `jin.review`，只支持本机仓库，从 space 中第一个有目录信息的终端 cwd 查所在仓库，没有时回退到保存的 folder。位置变化后丢弃旧 diff 和阅读缓存、重新校验仓库；只在同一仓库恢复保存的范围。文件菜单的相对路径以实时目录为准。显式 Review 请求可选另一 worktree，直到终端位置变化。40px 工具栏：范围、分支比较或 commit SHA／前后、Analyze、折叠菜单、设置、导航开关；24px ghost、12px 字、14px 图标。非仓库／远程只写 `Review`，导航禁用；范围无变化写 `No changes`。
 
 范围菜单是带数量的 Changes、Uncommitted、Outgoing、Incoming（0 保留并禁用），分隔线后是可搜索 Commits 子菜单（列表最高 320）。分支范围显示 `head → base`，窄于 640 时 `vs base`；单 commit 显示短 SHA、`‹ ›`。Changes 另有宽 36–192 的比较目标按钮，打开 288 宽可搜索 popover，BRANCH／REMOTE 分区、28px 行、列表最高 256。搜索时不列 Automatic。本地分支不含 head，配同名远程（origin 优先）和 22×14 远程开关，再列最多 200 个最新远程独有分支、不含 HEAD；默认分支先、其余按新到旧。选择 base 打开 `base...head`，不分析；拨远程开关不关菜单。base 按 space 保存，Changes 数量和 Commits 随它。
 

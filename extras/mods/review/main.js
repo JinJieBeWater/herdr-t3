@@ -6,7 +6,8 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, VirtualListScrollHandle, InputState, TextView } from "gpui-base";
-import { exec, nextCommand, setShared, shared, spaces, theme, window as appWindow } from "herdr";
+import { exec, nextCommand, setShared, shared, spaces, panes, theme, window as appWindow } from "herdr";
+import { placeOf } from "./place.js";
 import { panelState, hidePanel } from "./panel.js";
 import { buildItems, contentWidth, groupFiles, pageLabel, rowsToAsk, wrapColumns, CHAR, LOOKAHEAD } from "./rows.js";
 import { PANE, LU, SPLIT_MIN, DISABLED, pref, setPref, zoom, subState } from "./controls.js";
@@ -45,6 +46,9 @@ export default class ReviewPanel extends View {
     if (prefs && GONE.some(k => k in prefs)) setShared(`${PANE}.prefs`, Object.fromEntries(Object.entries(prefs).filter(([k]) => !GONE.includes(k))));
     // Each space's review, by space id, for this run; what each shows is kept in review.shown.
     this.panel = this; this.bySpace = new Map();
+    // Only this run, including time spent on a remote machine with no local Review state.
+    this.handledBySpace = new Map();
+    this.panesAt = null; this.panes = [];
     // The one popup open over the diff, if any: "settings", "status", "fold" or "scope".
     this.popup = null; this.closedPopup = null; this.popupClosedAt = 0;
     this.agents = null; this.shared = null; this.settingsError = null;
@@ -97,7 +101,10 @@ export default class ReviewPanel extends View {
     cx.timer.every(15000, (cx) => each(s => s.refresh(cx)));
     // Unseen, a review is due a read, which follows within a second of it being seen again. A space closed leaves nothing.
     cx.timer.every(1000, (cx) => {
-      const ids = new Set(spaces().map(s => s.id));
+      const all = spaces(), active = all.find(s => s.active), ids = new Set(all.map(s => s.id));
+      for (const id of this.handledBySpace.keys()) if (!ids.has(id)) this.handledBySpace.delete(id);
+      const current = active && this.bySpace.get(active.id);
+      if (current) this.spaceReview(active, cx, current.onScreen());
       for (const [id, s] of this.bySpace) {
         if (!ids.has(id)) { s.evict(); this.bySpace.delete(id); if (this.front === s) this.front = null; }
         else if (!s.onScreen()) s.dirty = true;
@@ -126,23 +133,38 @@ export default class ReviewPanel extends View {
    * take `view` work on it unchanged, while what it writes - and what its reads write when they answer, after the space has
    * changed - stays its own.
    */
-  spaceReview(space, cx) {
-    const panel = this.panel;
-    let s = panel.bySpace.get(space.id);
-    if (!s) { s = Object.create(panel); s.begin(space.id); panel.bySpace.set(space.id, s); }
+  spaceReview(space, cx, wake = true) {
+    const panel = this.panel, now = Date.now();
+    // Only this run: panes() copies every pane, so redraws share one snapshot for a second.
+    if (panel.panesAt == null || now - panel.panesAt >= 1000) { panel.panesAt = now; panel.panes = panes(); }
+    const folder = placeOf(space, panel.panes), on = space.machine ?? null;
+    let s = panel.bySpace.get(space.id), previous;
+    if (s && (s.folder !== folder || s.on !== on)) {
+      previous = { root: s.root, page: s.page, base: s.base, handled: s.handled };
+      s.retire(); panel.bySpace.delete(space.id); if (panel.front === s) panel.front = null;
+      s = null;
+    }
+    if (on) return null;
+    if (!s) {
+      s = Object.create(panel); s.begin(space.id, previous ?? shared(`${PANE}.shown`)?.[space.id], folder);
+      s.on = on;
+      if (previous) s.handled = previous.handled;
+      s.handled = Math.max(s.handled, panel.handledBySpace.get(space.id) ?? 0);
+      panel.bySpace.set(space.id, s);
+    }
     // Shown after another: the latest again, on its own timer, as is its list's scroll and its first read: none can start
     // while drawing (gpui-kit.d.ts). A request in that draw has asked for a read already.
-    if (panel.front !== s) { panel.front = s; cx.timer.after(0, (cx) => panel.bring(s, space, cx)); }
+    if (wake && panel.front !== s) { panel.front = s; cx.timer.after(0, (cx) => panel.bring(s, space, cx)); }
     return s;
   }
 
   bring(s, space, cx) {
-    if (this.bySpace.get(s.space) !== s) return;
+    if (this.bySpace.get(s.space) !== s || s.retired) return;
     this.bySpace.delete(s.space); this.bySpace.set(s.space, s);
     [...this.bySpace.values()].slice(0, -KEEP).forEach(old => old.evict());
     if (!s.scroll) {
       s.evicted = false; s.scroll = VirtualListScrollHandle.new();
-      if (!s.root) s.start(space, cx); else if (!s.loading && !s.review) s.load(cx);
+      if (!s.located) s.start(space, cx); else if (!s.loading && !s.review) s.load(cx);
     }
     cx.notify();
   }
@@ -162,9 +184,15 @@ export default class ReviewPanel extends View {
     for (const key of ["itemList", "itemsId", "sizes", "visible", "paths", "pathsOf", "treeOf", "tabStats", "settling", "lastSpied", "revealedCurrent", "scopeGit", "picks", "refs"]) delete this[key];
   }
 
-  // A space's review's own state, at its start: what review.shown says it showed, and requests from before it ignored.
-  begin(space) {
-    const was = shared(`${PANE}.shown`)?.[space];
+  // A location replaced is never brought back. Late analysis callbacks cannot publish or read for its successor.
+  retire() {
+    this.keep("shown", null); this.keep("status", null);
+    this.evict(); this.retired = true; this.root = this.page = null; this.startingUntil = 0; this.awayAnalysis = null;
+  }
+
+  // A space's review's own state, at its start: a saved root and scope await live Git validation.
+  begin(space, was = shared(`${PANE}.shown`)?.[space], folder = null) {
+    this.folder = folder; this.located = false;
     this.space = space; this.root = was?.root ?? null; this.page = was?.page ?? null; this.base = was?.base ?? this.page;
     this.handled = Date.now() - FRESH; this.noRepo = false; this.evicted = false; this.awayAnalysis = null;
     // The width wrapped lines are cut at (`at`), a moment behind a width that's moving (nav-column.js holdWidth).
@@ -182,13 +210,17 @@ export default class ReviewPanel extends View {
   // base picked for the space; a detached HEAD, with no branch, on its uncommitted changes.
   start(space, cx) {
     // Evicted or closed meanwhile (evict bumps loadId): a late answer sets nothing and reads no further.
-    const id = this.loadId, live = () => !this.evicted && id === this.loadId;
+    const id = this.loadId, live = () => !this.retired && !this.evicted && id === this.loadId;
     cx.spawn(async (cx) => {
-      const git = (args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd: space.folder || undefined }).catch(() => null);
+      const git = (args) => exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", ...args], { cwd: this.folder || undefined }).catch(() => null);
       const top = await git(["rev-parse", "--show-toplevel"]);
       if (!live()) return;
-      if (this.root || top?.code !== 0) { this.noRepo = !this.root; return cx.notify(); }
-      this.root = top.stdout.trim();
+      const root = top?.code === 0 ? top.stdout.trim() : null;
+      this.located = true;
+      if (root !== this.root) { this.root = root; this.page = this.base = null; this.keep("shown", null); }
+      this.noRepo = !root;
+      if (!root) return cx.notify();
+      if (this.page) { this.load(cx); return cx.notify(); }
       const head = await git(["symbolic-ref", "--short", "-q", "HEAD"]), branch = head?.code === 0 && head.stdout.trim();
       if (!live()) return;
       if (!this.page) { this.page = this.base = branch ? changesPage(chosenBase(this), branch) : "/worktree"; this.load(cx); }
@@ -217,7 +249,7 @@ export default class ReviewPanel extends View {
 
   refresh(cx) { if (this.onScreen()) this.load(cx); else this.dirty = true; }
 
-  load(cx, poll = false) { return loadReview(this, cx, poll); }
+  load(cx, poll = false) { if (this.located && !this.retired) return loadReview(this, cx, poll); }
 
   loadRows(cx) { return loadRows(this, cx); }
 
@@ -237,6 +269,7 @@ export default class ReviewPanel extends View {
   // ended until this review is looked at. In the review, the button keeps a failure.
   // shortcut: the panel's review page starts only when first shown, so the Review bar drops a run's word from before a restart (its main.js); with no bar in the layout, that word stays until the page is shown.
   report() {
+    if (this.retired) return;
     const a = this.runState(), real = a?.state === "running";
     if (this.wasRunning && !real) this.news = this.analyzeError ?? a?.error ? "blocked" : "done";
     this.wasRunning = real;
@@ -247,6 +280,7 @@ export default class ReviewPanel extends View {
   // This space's entry in a value shared by space, none with no value. Every write redraws every mod: only a change, and
   // spaces gone (or the tabs these were keyed by before) drop out.
   keep(name, value) {
+    if (this.retired) return;
     const key = `${PANE}.${name}`, all = shared(key) ?? {}, ids = new Set(spaces().map(s => s.id));
     const live = Object.entries(all).filter(([id]) => id !== this.space && ids.has(id));
     if (JSON.stringify(all[this.space] ?? null) === JSON.stringify(value) && live.length === Object.keys(all).length - (this.space in all ? 1 : 0)) return;
@@ -254,7 +288,7 @@ export default class ReviewPanel extends View {
   }
 
   // What this space's review shows: for the Review bar to light its count, and to show it again after a restart.
-  publish() { if (this.page) this.keep("shown", { root: this.root, page: this.page, base: this.base }); }
+  publish() { if (this.located && this.page) this.keep("shown", { root: this.root, page: this.page, base: this.base }); }
 
   diffCommits() { return diffCommits(this); }
 
@@ -415,10 +449,10 @@ export default class ReviewPanel extends View {
       .child(div().id("review-note").flex_1().min_h(0).child(body));
     const starting = () => note(loadingState(t, "review-loading", "Loading the review…"));
     if (!space) return starting();
-    if (space.machine) return note(emptyState(t, "review-empty", `${LU}/file-diff.svg`, "Not on this computer", `Review reads repositories on this machine only, and this space is on ${space.machine}.`));
     const s = this.spaceReview(space, cx);
+    if (space.machine) return note(emptyState(t, "review-empty", `${LU}/file-diff.svg`, "Not on this computer", `Review reads repositories on this machine only, and this space is on ${space.machine}.`));
     s.follow(cx);
-    if (!s.scroll) return starting();
+    if (!s.scroll || !s.located) return starting();
     if (!s.page) return s.noRepo ? note(emptyState(t, "review-empty", `${LU}/file-diff.svg`, "Not a git repository", "This space's folder isn't in a git repository.")) : starting();
     return s.draw(cx);
   }
@@ -430,6 +464,10 @@ export default class ReviewPanel extends View {
     const request = shared(PANE);
     if (request && request.space === this.space && request.n > this.handled) {
       this.handled = request.n;
+      this.panel.handledBySpace.set(this.space, this.handled);
+      const discovering = !this.located;
+      if (discovering) { this.loadId++; this.located = true; }
+      this.noRepo = false;
       if (request.root !== this.root) { this.root = request.root; this.seen.clear(); this.collapsed.clear(); this.flipped.clear(); this.page = null; this.forget(); }
       // With the same base, ‹ › stepping to another page of the same diff: its commits stay.
       if (!request.base || request.base !== this.base) this.baseCommits = null;
@@ -437,7 +475,7 @@ export default class ReviewPanel extends View {
       // Only the bar's counts ask for an analysis, so anything else takes back an ask not yet read.
       this.analyzeFor = request.analyze === true ? request.page : null;
       // The page already shown has no read coming to act on the ask.
-      const again = this.analyzeFor && request.page === this.page;
+      const again = (this.analyzeFor || discovering) && request.page === this.page;
       this.open(request.page, cx);
       if (again) this.load(cx);
     }
