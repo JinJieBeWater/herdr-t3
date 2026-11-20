@@ -2,6 +2,11 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-21
+
+- Splitting a named tab across two or more top-level agents no longer drops the tab name to the program name for agents without a session name or a telling terminal title, such as an unnamed Pi. Agents with their own telling titles still show those titles, and Pi with a session name still shows its session. Sub-agents still never inherit a tab name, and agents started from a plain shell count as top-level.
+- In an agent's right-click menu, **Rename** (or **Rename tab** when another top-level agent shares the tab) stays available for top-level agents not named by Pi's session, including non-Pi agents running in a shell that has a leftover `pi.session` label, and stays hidden for sub-agents even in their own tab.
+
 ## 2026-11-20
 
 - At Home with a single page or mod, such as the asciicn wallpaper, Home is the whole area right of the sidebar, up to the window's top: no frame, no margin around it. The wallpaper's picture runs under the top row too, as one picture, and with the sidebar hidden its button sits on it. Default's page has its own colour all the way up. A terminal or a split Home keeps its frame. A framing you saved may sit about 8 px differently, as Home's corner is now the window's.

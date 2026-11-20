@@ -10,7 +10,7 @@ import { hoverRow, subLeft } from "./submenu.js";
 import { openBeside, closeSub, subGone, closeChain, menuClosed } from "./popup-menu.js";
 import { presets } from "./snooze-presets.js";
 import { agentKids, kidStatus, ownStatus, stillSettled, subAgents, treeStatus } from "./tree.js";
-import { namer, programOf } from "./name.js";
+import { isSubAgent, namer, programOf } from "./name.js";
 import { programIcon } from "./program.js";
 import { statusMark, took } from "./status-mark.js";
 import { alpha } from "./color.js";
@@ -81,9 +81,9 @@ function agentItems(address) {
   const busy = [own, ...kids].some((s) => s === "working" || s === "blocked");
   const parent = k.parent && byAddress.get(k.parent);
   const head = a && above(address);
-  // Rename names the tab: only for its lone agent, whose name the tab's would be, and not when Pi names it (name.js).
-  const heads = a ? every.filter((x) => x.tab === a.tab && above(x.address)?.tab !== a.tab) : [];
-  const rename = heads.length === 1 && heads[0] === a && !k.labels?.["pi.session"];
+  // Rename names the tab: aligned with name.js's top-level check, hidden while Pi's session names the agent.
+  const tabLeads = a ? every.filter((x) => x.tab === a.tab && !isSubAgent(x.address, byAddress)).length : 0;
+  const rename = a && !isSubAgent(address, byAddress) && !(a.program?.key === "pi" && k.labels?.["pi.session"]);
   const pinned = pinList().includes(address), napping = Number(k.labels?.snoozed) > Date.now();
   // The settle key acts on the agent in view, so its key shows only there.
   const inView = every.find((x) => x.focused)?.address === address;
@@ -94,7 +94,7 @@ function agentItems(address) {
       ...(inbox && a ? napping ? [["Wake", `t3-tabs.wake:${address}`, {}]] : treeStatus(own, kids) !== "blocked" ? [["Snooze", "snooze", { address }]] : [] : []),
     ],
     [
-      ...(rename ? [["Rename", "tab.rename", { id: a.tab }]] : []),
+      ...(rename ? [[tabLeads >= 2 ? "Rename tab" : "Rename", "tab.rename", { id: a.tab }]] : []),
       ["Copy address", "copy", { text: address }],
       ...(parent ? [[`Send back to ${parent.name || parent.address}`, "terminal.park", { terminal: address }]] : []),
     ],

@@ -84,7 +84,7 @@ Home's default page: centred Next agent, Go to and New tab buttons with keycaps,
 
 ### Names and status marks
 
-Cards, Agents rows, tabs and headers use one naming rule: Pi's `pi.session` while Pi runs; then an explicitly named tab for a top-level agent, unless another top-level agent shares it; then a meaningful terminal title with only that program's decorations removed (Pi's `π - … - <folder>`, OpenCode's `OC | `); else the program name. Titles that are only a path, `user@host`, the program or the folder are rejected, as are agent-decorated leftovers on a terminal no longer running an agent. Sub-agents don't inherit their tab's name. An unnamed tab reads as its agent, else its focused pane.
+Cards, Agents rows, tabs and headers use one naming rule: Pi's `pi.session` while Pi runs; for a lone top-level agent (no live agent ancestor), an explicitly named tab before a meaningful terminal title; when two or more top-level agents share a tab, each meaningful terminal title before the named tab, so agents with telling titles stay distinct while unnamed peers keep the tab name; else the program name. Only that program's decorations come off (Pi's `π - … - <folder>`, OpenCode's `OC | `). Titles that are only a path, `user@host`, the program or the folder are rejected, as are agent-decorated leftovers on a terminal no longer running an agent. Sub-agents don't inherit their tab's name. An unnamed tab reads as its agent, else its focused pane.
 
 A parent's status rolls up its live descendants: any blocked or error first; then its own unread done; then working if it or a descendant works; else its own state. A sub-agent's own row shows an error as Failed with the same `!` in `ansi1`. A live terminal is an agent if it reports status or its program is marked agent; a command shell isn't, but agents started through one count. Working is a still dashed circle (Lucide `circle-dashed`) in `working`; blocked a rounded `!` on 15% `blocked`; done a 6px `done` dot (green `Done` in Inbox); idle a ring in Agents and nothing elsewhere.
 
@@ -140,7 +140,7 @@ Context menus don't select or switch what was right-clicked; impossible items ar
 
 | Target | Available actions |
 | --- | --- |
-| Agent, including breadcrumb parent/sub-agent row | Pin/Unpin for top-level; in Inbox Settle/Un-settle when tree not busy, Snooze/Wake when eligible; Rename for a lone tab-named non-Pi agent; Copy address; Send back to parent; Close pane |
+| Agent, including breadcrumb parent/sub-agent row | Pin/Unpin for top-level; in Inbox Settle/Un-settle when tree not busy, Snooze/Wake when eligible; Rename (or Rename tab when sharing a tab with another top-level agent) for top-level agents not named by `pi.session`; Copy address; Send back to parent; Close pane |
 | Space, including group/breadcrumb/filter row | New tab; Rename; Copy current path; New/Open worktree in repository; Remove worktree in linked worktree (`ansi1`); Close |
 | Synthetic unopened checkout | Open, Copy path |
 | Connected/rebuilt machine | New space here, Connect |

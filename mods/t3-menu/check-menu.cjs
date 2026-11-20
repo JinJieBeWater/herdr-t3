@@ -148,7 +148,7 @@ assert.deepEqual(choose({ tab: "space", target: { id: "s1" } }, "Close"), [["spa
   agent({}, { snoozed: String(Date.now() + 3600000) });
   assert.deepEqual(labels().slice(0, 3), ["Pin", "Settle", "Wake"], "snoozed: Wake");
   assert.deepEqual(choose({ tab: "agent", target: { address: "t1" } }, "Wake"), [["t3-tabs.wake:t1", {}]]);
-  agent({}, { "pi.session": "x" });
+  agent({ program: { key: "pi", name: "Pi", agent: true } }, { "pi.session": "x" });
   assert.ok(!labels().includes("Rename"), "Pi names the tab");
   agent();
   assert.deepEqual(choose({ tab: "agent", target: { address: "t1" } }, "Settle"), [["t3-tabs.settle:t1", {}]], "the agent it was opened on, in view or not");
@@ -165,13 +165,91 @@ assert.deepEqual(choose({ tab: "space", target: { id: "s1" } }, "Close"), [["spa
   // A sub-agent kept in the tab beside its parent: no pin or rename of its own, and it can go back.
   agentList = [{ address: "t1", pane: "p1", tab: "b1", status: "working" }, { address: "t2", pane: "p2", tab: "b1", status: "done", focused: true }];
   paneList.push({ pane: "p2", tab: "b1", terminal: "t2" });
-  terms = [{ address: "t1", name: "lead", state: "live", labels: {} }, { address: "t2", parent: "t1", state: "live", labels: {} }];
+  terms = [{ address: "t1", name: "lead", state: "live", status: "working", labels: {} }, { address: "t2", parent: "t1", state: "live", status: "done", labels: {} }];
   assert.deepEqual(JSON.parse(JSON.stringify(items({ tab: "agent", target: { address: "t2" } }, null).map((it) => it[0]))), ["Settle", "Snooze", "Copy address", "Send back to lead", "Close pane"]);
   paneList.pop();
   // One with no pane (a sub-agent the parent still holds): only its address.
-  terms = [{ address: "t1", state: "live", labels: {} }, { address: "t3", parent: "t1", state: "live", labels: {} }];
+  terms = [{ address: "t1", state: "live", status: "working", labels: {} }, { address: "t3", parent: "t1", state: "live", status: "done", labels: {} }];
   assert.deepEqual(JSON.parse(JSON.stringify(items({ tab: "agent", target: { address: "t3" } }, null).map((it) => it[0]))), ["Copy address", "Send back to t1"]);
   terms = [{ address: "t1", labels: {} }]; agentList = [];
+
+  // Rename / Rename tab rules aligned with shared/name.js.
+  {
+    const pi = { key: "pi", name: "Pi", agent: true };
+    const codex = { key: "codex", name: "Codex", agent: true };
+    const zsh = { key: "shell", name: "zsh", shell: true };
+    const labelsFor = (addr) => JSON.parse(JSON.stringify(items({ tab: "agent", target: { address: addr } }, null).map((it) => it[0])));
+    const hasRename = (addr) => labelsFor(addr).some((l) => l === "Rename" || l === "Rename tab");
+
+    // Non-Pi agent (e.g. codex) with leftover pi.session still offers Rename.
+    agentList = [{ address: "t1", pane: "p1", tab: "b1", status: "done", program: codex }];
+    terms = [{ address: "t1", state: "live", status: "done", program: codex, labels: { "pi.session": "old" } }];
+    assert.ok(labelsFor("t1").includes("Rename"), "non-Pi agent with leftover pi.session still offers Rename");
+
+    // One top-level agent plus a non-agent shell in the same tab: still Rename.
+    terms.push({ address: "t-sh", state: "live", status: null, program: zsh, labels: {} });
+    paneList.push({ pane: "p-sh", tab: "b1", terminal: "t-sh" });
+    assert.ok(labelsFor("t1").includes("Rename"), "a non-agent shell beside the agent keeps Rename");
+    assert.ok(!labelsFor("t1").includes("Rename tab"));
+    paneList.pop();
+
+    // Two top-level agents in the same tab (e.g. two unnamed Pis): both show "Rename tab" targeting the same tab.
+    agentList = [
+      { address: "t1", pane: "p1", tab: "b1", status: "done", program: pi },
+      { address: "t2", pane: "p2", tab: "b1", status: "idle", program: pi },
+    ];
+    terms = [
+      { address: "t1", state: "live", status: "done", program: pi, labels: {} },
+      { address: "t2", state: "live", status: "idle", program: pi, labels: {} },
+    ];
+    paneList.push({ pane: "p2", tab: "b1", terminal: "t2" });
+    assert.ok(labelsFor("t1").includes("Rename tab") && !labelsFor("t1").includes("Rename"), "first split peer offers Rename tab");
+    assert.ok(labelsFor("t2").includes("Rename tab") && !labelsFor("t2").includes("Rename"), "second split peer offers Rename tab");
+    assert.deepEqual(choose({ tab: "agent", target: { address: "t1" } }, "Rename tab"), [["tab.rename", { id: "b1" }]]);
+    assert.deepEqual(choose({ tab: "agent", target: { address: "t2" } }, "Rename tab"), [["tab.rename", { id: "b1" }]]);
+    assert.equal(vm.runInContext("menuIcon", context)("tab.rename", "Rename tab", { id: "b1" }), "mods/t3-menu/icons/square-pen.svg", "Rename tab keeps the rename icon");
+
+    // One Pi with pi.session and one without in the same tab: former hides rename, latter shows Rename tab.
+    terms[0].labels["pi.session"] = "Fix login";
+    assert.ok(!hasRename("t1"), "Pi with pi.session hides Rename / Rename tab");
+    assert.ok(labelsFor("t2").includes("Rename tab"), "split peer without session still offers Rename tab");
+    delete terms[0].labels["pi.session"];
+
+    // Sub-agent in its own separate tab still hides Rename / Rename tab.
+    agentList = [
+      { address: "t1", pane: "p1", tab: "b1", status: "working", program: pi },
+      { address: "t2", pane: "p2", tab: "b2", status: "done", program: pi },
+    ];
+    terms = [
+      { address: "t1", state: "live", status: "working", program: pi, labels: {} },
+      { address: "t2", parent: "t1", state: "live", status: "done", program: pi, labels: {} },
+    ];
+    assert.ok(!hasRename("t2"), "sub-agent in its own tab hides Rename");
+
+    // Agent spawned from a live non-agent shell is top-level: offers Rename when alone, Rename tab when paired.
+    agentList = [{ address: "t2", pane: "p2", tab: "b1", status: "done", program: pi }];
+    terms = [
+      { address: "t-sh", state: "live", status: null, program: zsh, labels: {} },
+      { address: "t2", parent: "t-sh", state: "live", status: "done", program: pi, labels: {} },
+    ];
+    assert.ok(labelsFor("t2").includes("Rename"), "shell-spawned agent alone in a tab offers Rename");
+    agentList.push({ address: "t1", pane: "p1", tab: "b1", status: "idle", program: pi });
+    terms.push({ address: "t1", state: "live", status: "idle", program: pi, labels: {} });
+    assert.ok(labelsFor("t2").includes("Rename tab"), "shell-spawned agent sharing a tab offers Rename tab");
+
+    // Grandchild whose root exited but middle pane-less parent is a live sub-agent: stays a sub-agent, hides Rename.
+    agentList = [{ address: "t2", pane: "p2", tab: "b2", status: "done", program: pi }];
+    terms = [
+      { address: "t0", state: "exited", status: "idle", program: pi, labels: {} },
+      { address: "t1", parent: "t0", state: "live", status: "working", program: pi, labels: {} },
+      { address: "t2", parent: "t1", state: "live", status: "done", program: pi, labels: {} },
+    ];
+    assert.ok(!hasRename("t2"), "grandchild under a live pane-less sub-agent hides Rename");
+
+    paneList.pop();
+    terms = [{ address: "t1", labels: {} }];
+    agentList = [];
+  }
   const snooze = choose({ tab: "agent", target: { address: "t1" } }, "Snooze");
   assert.deepEqual(snooze, [], "gone: nothing");
   agent();

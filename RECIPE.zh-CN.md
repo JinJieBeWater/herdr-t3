@@ -84,7 +84,7 @@ Home 的默认页面：正中 Next agent、Go to、New tab 三个带键帽的按
 
 ### 名字与状态标记
 
-卡片、Agents 行、标签、标题统一命名：Pi 在跑先用 `pi.session`；再用人为命名的标签，但只给顶层 agent，且不能与另一个顶层 agent 共用此标签；然后是有意义的终端标题，只去掉该程序自己的装饰（Pi `π - … - <目录>`，OpenCode `OC | `）；最后程序名。拒绝纯路径／`user@host`／程序／目录标题，以及不再跑 agent 时残留的 agent 装饰标题。子 agent 不继承标签名。未命名标签按里面的 agent，否则按聚焦 pane 命名。
+卡片、Agents 行、标签、标题统一命名：Pi 在跑先用 `pi.session`；顶层 agent（存活父链上没有 agent 祖先）独占标签时，人为命名的标签优先于有意义的终端标题；多个顶层 agent 共用标签时，有意义的终端标题优先于人为命名的标签，让自带标题的 agent 各自显示、没有会话名或标题的同伴仍保留标签名；最后程序名。终端标题只去掉该程序自己的装饰（Pi `π - … - <目录>`，OpenCode `OC | `），拒绝纯路径／`user@host`／程序／目录标题，以及不再跑 agent 时残留的 agent 装饰标题。子 agent 不继承标签名。未命名标签按里面的 agent，否则按聚焦 pane 命名。
 
 父级汇总活着的后代：任一 blocked/error 优先；然后自己的未读 done；再是自己或后代 working；否则自己的状态。子 agent 自身行把 error 写成 Failed（同一个 `!`、`ansi1` 色）。会报告状态或程序标成 agent 的活终端才算 agent；命令 shell 不算，但经过 shell 启动的 agent 算。Working 是静止的虚线圆（Lucide `circle-dashed`）、`working` 色；blocked 是 15% `blocked` 底的圆角 `!`；done 是 6px `done` 点（Inbox 写绿色 `Done`）；idle 在 Agents 里是环，其他地方不画。
 
@@ -140,7 +140,7 @@ pane mod 只有通过 `shared("<mod>.program") = { icon, tint, name, inbox: true
 
 | 对象 | 可用动作 |
 | --- | --- |
-| Agent，含面包屑父级／子 agent 行 | 顶层 Pin/Unpin；Inbox 下子树不忙时 Settle/Un-settle、符合条件 Snooze/Wake；名字来自唯一标签且不是 Pi 时 Rename；Copy address；Send back 父级；Close pane |
+| Agent，含面包屑父级／子 agent 行 | 顶层 Pin/Unpin；Inbox 下子树不忙时 Settle/Un-settle、符合条件 Snooze/Wake；未由 `pi.session` 命名的顶层 agent 显示 Rename（与另一顶层 agent 共用标签时显示 Rename tab）；Copy address；Send back 父级；Close pane |
 | Space，含分组／面包屑／筛选行 | New tab；Rename；Copy 当前 path；仓库 New/Open worktree；linked worktree 的 Remove worktree（`ansi1`）；Close |
 | 未开 checkout 虚行 | Open、Copy path |
 | 已连接／重建机器 | New space here、Connect |

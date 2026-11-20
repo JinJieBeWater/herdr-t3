@@ -1,6 +1,6 @@
 // What a terminal is on, one rule for Inbox cards, the agents list, tabs and pane headers:
-// its Pi session while Pi runs, then (agents only) a tab someone named, then a telling terminal title, else the program.
-// A tab's name is its one agent's: with two in the tab, or for a sub-agent, it would name them alike, as Herdr's agents list stopped doing.
+// its Pi session while Pi runs; for a lone top-level agent, a named tab before a telling title; when top-level agents share a tab,
+// each telling title before the named tab; else the program. Sub-agents never inherit a tab's name.
 // A terminal with no title of its own reports its address (t9) as one: that tells nothing.
 import { terminals, spaces, shared, agents } from "herdr";
 
@@ -19,13 +19,27 @@ export const programOf = (x) => x.mod ? shared(`${x.mod}.program`) ?? null : x.p
 // What a mod pane reports of its tab in shared("<mod>.status"), as the word an agent would.
 export const modStatus = (x) => shared(`${x.mod}.status`)?.[x.tab] ?? null;
 
+// Whether `address` has a live agent ancestor (through any live intermediate shells), using a `Map<address, terminal>`.
+export function isSubAgent(address, byAddress) {
+  const visited = new Set([address]);
+  let parent = byAddress.get(address)?.parent;
+  while (parent && !visited.has(parent)) {
+    const k = byAddress.get(parent);
+    if (k?.state !== "live") return false;
+    if (k.status != null || Boolean(k.program?.agent)) return true;
+    visited.add(parent);
+    parent = k.parent;
+  }
+  return false;
+}
+
 // Snapshot once per render; the returned function takes an agent or a pane (status set = an agent). `held`: the lists the
 // caller's draw has read, as each read copies the whole list; one it leaves out is read here.
 /** @param {{ terminals?: any[], spaces?: any[], agents?: any[] }} [held] */
 export function namer({ terminals: all = terminals(), spaces: sp = spaces(), agents: every = agents() } = {}) {
   const term = new Map(all.map((k) => [k.address, k]));
   const tabs = new Map(sp.flatMap((s) => s.tabs.map((c) => [c.id, { ...c, space: s.name }])));
-  const sub = (address) => term.get(term.get(address)?.parent)?.state === "live";
+  const sub = (address) => isSubAgent(address, term);
   const leads = new Map();
   for (const a of every) if (!sub(a.address)) leads.set(a.tab, (leads.get(a.tab) ?? 0) + 1);
   return (x) => {
@@ -43,7 +57,10 @@ export function namer({ terminals: all = terminals(), spaces: sp = spaces(), age
     const telling = live && live !== x.program?.name && live.toLowerCase() !== x.program?.key
       && !/^[~/]|^[A-Za-z]:\\/.test(live) && !live.includes("@") && live !== address
       && live !== folder && live !== (x.space_name ?? tab?.space);
-    return (x.program?.key === "pi" && term.get(address)?.labels?.["pi.session"]) || (x.status != null && tab?.named && !sub(address) && (leads.get(x.tab) ?? 0) < 2 && tab.name)
-      || (telling && live) || x.program?.name || address || "shell";
+    const tabName = x.status != null && tab?.named && !sub(address) && tab.name;
+    const title = telling && live;
+    return (x.program?.key === "pi" && term.get(address)?.labels?.["pi.session"])
+      || (tabName && (leads.get(x.tab) ?? 0) < 2 ? tabName : (title || tabName))
+      || x.program?.name || address || "shell";
   };
 }
