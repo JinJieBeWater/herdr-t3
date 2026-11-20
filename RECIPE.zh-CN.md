@@ -96,7 +96,7 @@ Space 标记用 Project 的 favicon，没有则取名字首字母，颜色按名
 
 | 规则 | Inbox | Lists |
 | --- | --- | --- |
-| Settle／Snooze 控件 | 满足条件时提供 | 不提供；Settle 键无作用 |
+| Settle／Snooze／Mark unread 控件 | 满足条件时提供 | 不提供；Settle 键无作用 |
 | Snooze 中的 working | 藏进 Snoozed、不计 working 数 | 原有行和顺序照样标出工作中 |
 | Settled／snoozed 未读 done | 隐去 | 隐去 |
 | 关闭当前查看的 agent 整标签／最后 pane | Home | space 上一次看的标签 |
@@ -140,7 +140,7 @@ pane mod 只有通过 `shared("<mod>.program") = { icon, tint, name, inbox: true
 
 | 对象 | 可用动作 |
 | --- | --- |
-| Agent，含面包屑父级／子 agent 行 | 顶层 Pin/Unpin；Inbox 下子树不忙时 Settle/Un-settle、符合条件 Snooze/Wake；未由 `pi.session` 命名的顶层 agent 显示 Rename（与另一顶层 agent 共用标签时显示 Rename tab）；Copy address；Send back 父级；Close pane |
+| Agent，含面包屑父级／子 agent 行 | 顶层 Pin/Unpin；Inbox 下子树不忙时 Settle/Un-settle、符合条件 Snooze/Wake、子树空闲且 `turn > 0` 时 Mark unread；未由 `pi.session` 命名的顶层 agent 显示 Rename（与另一顶层 agent 共用标签时显示 Rename tab）；Copy address；Send back 父级；Close pane |
 | Space，含分组／面包屑／筛选行 | New tab；Rename；Copy 当前 path；仓库 New/Open worktree；linked worktree 的 Remove worktree（`ansi1`）；Close |
 | 未开 checkout 虚行 | Open、Copy path |
 | 已连接／重建机器 | New space here、Connect |

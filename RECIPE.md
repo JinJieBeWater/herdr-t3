@@ -96,7 +96,7 @@ Space marks are the Project's favicon, else the name's first letter in a name-ha
 
 | Rule | Inbox | Lists |
 | --- | --- | --- |
-| Settle / Snooze controls | Available under their eligibility rules | Absent; Settle key does nothing |
+| Settle / Snooze / Mark unread controls | Available under their eligibility rules | Absent; Settle key does nothing |
 | Snoozed working agent | Hidden in Snoozed and from working count | Still working in its existing row/order |
 | Settled/snoozed unread done | Suppressed | Suppressed |
 | Close viewed agent's whole tab / last pane | Home | Space's last-viewed tab |
@@ -140,7 +140,7 @@ Context menus don't select or switch what was right-clicked; impossible items ar
 
 | Target | Available actions |
 | --- | --- |
-| Agent, including breadcrumb parent/sub-agent row | Pin/Unpin for top-level; in Inbox Settle/Un-settle when tree not busy, Snooze/Wake when eligible; Rename (or Rename tab when sharing a tab with another top-level agent) for top-level agents not named by `pi.session`; Copy address; Send back to parent; Close pane |
+| Agent, including breadcrumb parent/sub-agent row | Pin/Unpin for top-level; in Inbox Settle/Un-settle when tree not busy, Snooze/Wake when eligible, Mark unread when tree is idle with `turn > 0`; Rename (or Rename tab when sharing a tab with another top-level agent) for top-level agents not named by `pi.session`; Copy address; Send back to parent; Close pane |
 | Space, including group/breadcrumb/filter row | New tab; Rename; Copy current path; New/Open worktree in repository; Remove worktree in linked worktree (`ansi1`); Close |
 | Synthetic unopened checkout | Open, Copy path |
 | Connected/rebuilt machine | New space here, Connect |

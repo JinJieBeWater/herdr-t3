@@ -6,6 +6,7 @@
 
 - 已命名的标签分屏运行多个顶层 agent 时，没有会话名也没有有效终端标题的 agent（例如未命名会话的 Pi）不再退回程序名，改为继续显示自定义标签名；自带有效终端标题的 agent 仍各自显示自己的标题，带会话名的 Pi 仍优先显示会话名。子 agent 仍不继承标签名，由普通 shell 启动的 agent 按顶层处理。
 - agent 右键菜单里，未由 Pi 会话名命名的顶层 agent 始终提供 **Rename**（与另一顶层 agent 共用标签时显示 **Rename tab**），包括在残留 `pi.session` 的终端里运行的非 Pi agent；子 agent 即使在独立标签里也不显示重命名项。
+- 选中 Inbox 时，右键已结束过一轮的空闲 agent（或从面包屑标题打开它的菜单）新增 **Mark unread**：原地把该 agent 重新标回 Done、不切换路由（Inbox 卡片、窗格头、space 切换菜单以及 Lists 下的 Agents 和标签栏都会重新显示未读圆点），已 Settle 或 Snooze 的 agent 会随之回到 Active，侧栏隐藏时也可用。
 
 ## 2026-11-20
 

@@ -262,8 +262,11 @@ function keysBlock(f, over = {}) {
     nextCommand: () => new Promise(resolve => pending.push(resolve)), ...over,
   });
   vm.runInContext([source, kit.strip(read("pins.js")), kit.strip(read("main.js")).replace("export default class", "globalThis.Mod = class")].join("\n"), scope);
-  new scope.Mod().init({}, { ...f.cx, focus_handle() {}, spawn: fn => fn(f.cx) });
-  return async name => { pending.shift()(name); await flush(); };
+  const mod = new scope.Mod();
+  mod.init({}, { ...f.cx, focus_handle() {}, spawn: fn => fn(f.cx) });
+  const send = async name => { pending.shift()(name); await flush(); };
+  send.advance = () => mod.navigation.advance();
+  return send;
 }
 
 async function checkCleanupDispatch() {
@@ -303,6 +306,135 @@ async function checkMenuAtHome() {
   at(home);
   await send("undo");
   assert.deepEqual(did(), [["t0 settled="], [["agent.focus", { terminal: "t0" }]]], "its Undo at Home goes back to it");
+}
+
+// Mark unread (t3-tabs.unread:<address>) works even with the sidebar hidden (ADR 0003), stays Inbox-only (ADR 0002),
+// and puts an idle agent back to Done in place without switching routes (whether in view or in the background).
+async function checkUnread() {
+  const setup = () => {
+    const f = fixture(), [a, far] = f.agents(), [k, kFar] = f.terminals(), [project, , remote] = f.spaces();
+    const home = { id: "h", machine: null, named: true, name: "Home\u200b", active: false, tabs: [{ id: "hp", active: true }] };
+    project.tabs[0].active = true;
+    remote.tabs[0].active = true;
+    f.slots.sidebar = { id: "sidebar", hidden: true };
+    f.slots.lists = { id: "sidebar-lists", active: "inbox" };
+    f.state["t3-tabs.home"] = "h";
+    f.spaces().push(home);
+    f.panes().push({ pane: "ph", tab: "hp", mod: "t3-home" });
+    Object.assign(a, { status: "idle", focused: false });
+    Object.assign(far, { status: "idle", focused: false });
+    Object.assign(k, { status: "idle", turn: 2, labels: { "herdr.seen": "2" } });
+    Object.assign(kFar, { status: "idle", turn: 3, labels: { "herdr.seen": "3" } });
+    const focus = (where) => {
+      project.active = where === "t0";
+      remote.active = where === "vps/t2";
+      home.active = where === "home";
+      a.focused = where === "t0";
+      far.focused = where === "vps/t2";
+      Object.assign(f.shown, where === "home"
+        ? { space: "h", tab: "hp", pane: "ph", terminal: null, agent: null }
+        : where === "vps/t2"
+          ? { space: "s2", tab: "b2", pane: "p2", terminal: "vps/t2", agent: "vps/t2" }
+          : { space: "s0", tab: "b0", pane: "p0", terminal: "t0", agent: "t0" });
+    };
+    focus("home");
+    let clock = 1000000;
+    const send = keysBlock(f, { Date: { now: () => clock }, terminals: () => [...f.terminals()] });
+    const did = () => [f.labelled.splice(0).map(l => l.slice(1).join(" ")), plain(f.calls.splice(0))];
+    return { f, a, far, k, kFar, project, remote, home, focus, send, did, now: () => clock, advance: ms => { clock += ms; } };
+  };
+
+  // Lists mode and invalid states/turns do nothing.
+  {
+    const { f, a, k, send, did } = setup();
+    f.slots.lists.active = "lists";
+    await send("unread:t0");
+    assert.deepEqual(did(), [[], []], "Lists mode ignores Mark unread (ADR 0002)");
+    f.slots.lists.active = "inbox";
+
+    for (const status of ["working", "blocked", "done"]) {
+      a.status = k.status = status;
+      await send("unread:t0");
+      assert.deepEqual(did(), [[], []], `${status}: ignored`);
+    }
+    a.status = "idle"; k.status = "error";
+    await send("unread:t0");
+    assert.deepEqual(did(), [[], []], "own error status counts as blocked: ignored");
+    k.status = "idle";
+    for (const kidStatus of ["working", "blocked", "error"]) {
+      f.terminals().push({ address: "kid", parent: "t0", state: "live", status: kidStatus, labels: {} });
+      await send("unread:t0");
+      assert.deepEqual(did(), [[], []], `idle with ${kidStatus} sub-agent: ignored`);
+      f.terminals().pop();
+    }
+    k.turn = 0;
+    await send("unread:t0");
+    assert.deepEqual(did(), [[], []], "turn 0: ignored");
+    delete k.turn;
+    await send("unread:t0");
+    assert.deepEqual(did(), [[], []], "missing turn: ignored");
+    await send("unread:missing");
+    assert.deepEqual(did(), [[], []], "unknown agent: ignored");
+  }
+
+  // Background agent with sidebar hidden: writes herdr.seen directly, clears settled (with KEY.unsettled) and snoozed/Woke.
+  {
+    const { f, k, kFar, send, did } = setup();
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1"], []], "hidden sidebar: background idle agent becomes unread without moving");
+
+    k.labels = { "herdr.seen": "2", settled: "1:2" };
+    f.state["t3-tabs.unsettled"] = { gone: 500, t0: 1000000 };
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1", "t0 settled="], []], "settled background agent clears settled after herdr.seen");
+    assert.deepEqual(plain(f.state["t3-tabs.unsettled"]), { t0: 1000001 }, "KEY.unsettled prunes dead terminals and advances monotonically");
+
+    k.labels = { "herdr.seen": "2", snoozed: String(1000000 + 3600000) };
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1", "t0 snoozed="], []], "snoozed background agent clears snoozed");
+
+    k.labels = { "herdr.seen": "2", snoozed: "1" };
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1", "t0 snoozed="], []], "Woke background agent clears expired snoozed");
+
+    kFar.labels = { "herdr.seen": "3", settled: "1:3" };
+    await send("unread:vps/t2");
+    assert.deepEqual(did(), [["vps/t2 herdr.seen=2", "vps/t2 settled="], []], "remote machine background agent works");
+
+    // Failed herdr.seen write stops before touching settled, KEY.unsettled or snoozed.
+    k.labels = { "herdr.seen": "2", settled: "1:2", snoozed: "1" };
+    f.state["t3-tabs.unsettled"] = { t0: 99 };
+    f.answerHc(() => ({ code: 1, stderr: "offline" }));
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1"], []], "failed herdr.seen aborts without polluting settled/snoozed");
+    assert.deepEqual(plain(f.state["t3-tabs.unsettled"]), { t0: 99 }, "KEY.unsettled unchanged on failure");
+  }
+
+  // In-view agent: stays in view (no route change, no timers), writes herdr.seen directly and clears settled/snoozed.
+  {
+    const { f, k, focus, send, did } = setup();
+    f.state["t3.settings"] = { afterAway: "next" };
+    f.state["t3-inbox.rows"] = { order: ["t0", "vps/t2"], view: "t0", cards: 2 };
+    k.labels = {}; // herdr.seen not echoed on terminal yet
+    focus("t0");
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1"], []], "in-view agent marks unread in place without navigating Home or to the next card");
+    assert.equal(f.timers.length, 0, "no timers needed");
+
+    k.labels = { "herdr.seen": "2", settled: "1:2", snoozed: "1" };
+    await send("unread:t0");
+    assert.deepEqual(did(), [["t0 herdr.seen=1", "t0 settled=", "t0 snoozed="], []], "in-view settled/snoozed agent clears labels in place");
+    assert.ok(f.state["t3-tabs.unsettled"]?.t0 > 0, "KEY.unsettled updated when settled cleared");
+
+    // Failed herdr.seen write stops before touching settled, KEY.unsettled or snoozed.
+    const fail = setup();
+    fail.k.labels = { "herdr.seen": "2", settled: "1:2", snoozed: "1" };
+    fail.focus("t0");
+    fail.f.answerHc(() => ({ code: 1, stderr: "boom" }));
+    await fail.send("unread:t0");
+    assert.deepEqual(fail.did(), [["t0 herdr.seen=1"], []], "failed herdr.seen aborts without touching settled or snoozed");
+    assert.equal(fail.f.state["t3-tabs.unsettled"], undefined);
+  }
 }
 
 // The Details key opens it at once. A maximized panel hides the bar that answers, so only then is it un-maximized and waited for.
@@ -1244,7 +1376,7 @@ async function check() {
 }
 
 (async () => {
-  const additions = { bookmarks: checkBookmarks, cleanup: checkCleanup, dispatch: checkCleanupDispatch, menu: checkMenuAtHome, details: checkDetailsKey };
+  const additions = { bookmarks: checkBookmarks, cleanup: checkCleanup, dispatch: checkCleanupDispatch, menu: checkMenuAtHome, unread: checkUnread, details: checkDetailsKey };
   if (process.argv[2]) { await additions[process.argv[2]](); return; }
   for (const verify of Object.values(additions)) await verify();
   await check();

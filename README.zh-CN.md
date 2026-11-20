@@ -17,7 +17,7 @@
 ## 功能
 
 - **Inbox 搜索**：输入名字，侧栏显示紧凑的结果列表。用 ↑、↓ 选择，Enter 打开。
-- **Inbox 和 Lists**：用 `cmd-shift-l` 或在布局设置里切换。Inbox 按注意力排列 agent，支持 Settle 和 Snooze。**Settled** 收纳已收起的 agent，**Filter by space** 只列出有 Inbox 条目或已在筛选中选中的 space。Lists 列出 space 和其中的 agent。
+- **Inbox 和 Lists**：用 `cmd-shift-l` 或在布局设置里切换。Inbox 按注意力排列 agent，支持 Settle、Snooze 和 Mark unread（从右键菜单把已读空闲 agent 标回 Done）。**Settled** 收纳已收起的 agent，**Filter by space** 只列出有 Inbox 条目或已在筛选中选中的 space。Lists 列出 space 和其中的 agent。
 - **切换 space** 或从 Home 返回 space 时，目标标签栏、终端和上次打开的右侧面板一起出现。
 - **Home**：收起正在看的 agent 后，回到一个安静的页面，不会自动跳到下一张卡片。下一步看什么由你决定。也可以在设置（`cmd-shift-,`）里改成跳到下一张卡片，或者把 Home 换成终端或你自己的 mod。
 - **同一个名字，同一套标记**：卡片、列表、标签和窗格标题用同样的方式给终端取名、标状态。
@@ -82,7 +82,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 - `t3-inbox`：Settle 或取消 Settle 时运行 `hc label <agent> settled=<ms>:<turn>`。
 - `t3-inbox`：Snooze 或唤醒时运行 `hc label <agent> snoozed=<ms>`。
 - `t3-inbox` 在窗格所在机器的工作目录中用 `git rev-parse` 和 `git worktree list --porcelain -z` 识别链接工作树。
-- `t3-tabs`：关闭终端前运行 `hc get`，看里面有没有程序在跑。用 `cmd-shift-s` Settle 或取回 agent 时运行 `hc label`；Herdr 显示了你没选的标签、清掉了未读的 done（`herdr.seen`）或 Woke 标记（`snoozed`）时，也用它还回去；这一轮失败或查看时有新工作结束 Snooze 时，运行 `hc label <agent> snoozed=`。
+- `t3-tabs`：关闭终端前运行 `hc get`，看里面有没有程序在跑。用 `cmd-shift-s` Settle 或取回 agent、用 Mark unread 写 `herdr.seen` 并清除 `settled` 或 `snoozed` 时运行 `hc label`；Herdr 显示了你没选的标签、清掉了未读的 done（`herdr.seen`）或 Woke 标记（`snoozed`）时，也用它还回去；这一轮失败或查看时有新工作结束 Snooze 时，运行 `hc label <agent> snoozed=`。
 - `t3-tabs`：用 `hc get` 检查 shell 是否空闲、能否纳入 **Clean up**，以及运行中的终端前台是什么进程。
 - `t3-agents`：置顶一个 Snooze 中的 agent、结束它的 Snooze 时，运行 `hc label <agent> snoozed=`。
 - `t3-actions`：读取 ComputerName，用 `open -Ra` 检测编辑器，通过 `open` 打开所选目录；Review 行异步复用Review页的只读Git范围助手，不执行Git写操作。

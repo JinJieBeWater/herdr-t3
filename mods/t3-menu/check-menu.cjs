@@ -143,6 +143,42 @@ assert.deepEqual(choose({ tab: "space", target: { id: "s1" } }, "Close"), [["spa
   assert.deepEqual(labels(), ["Pin", "Snooze", "Rename", "Copy address", "Close pane"], "busy: no Settle");
   agent({ status: "blocked" });
   assert.deepEqual(labels(), ["Pin", "Rename", "Copy address", "Close pane"], "needing you: neither Settle nor Snooze");
+  agent({ status: "idle" });
+  assert.deepEqual(labels(), ["Pin", "Settle", "Snooze", "Mark unread", "Rename", "Copy address", "Close pane"], "idle with a completed turn: Mark unread in the state group");
+  assert.deepEqual(groups(), [0, 0, 0, 0, 1, 1, 2], "Mark unread belongs to the state group");
+  assert.deepEqual(choose({ tab: "agent", target: { address: "t1" } }, "Mark unread"), [["t3-tabs.unread:t1", {}]]);
+  {
+    target = { tab: "agent", target: { address: "t1" } };
+    const m = new context.Menu(); m.init(target, cx);
+    const walk = (n) => !n || typeof n !== "object" ? [] : [n, ...n.items.flatMap(walk)];
+    const icon = walk(rowNamed(m.render(), "Mark unread")).find((n) => typeof n.style.path === "string")?.style.path;
+    assert.equal(icon, "mods/t3-menu/icons/circle-dot.svg", "Mark unread uses t3-menu's circle-dot icon");
+    const svg = fs.readFileSync(path.join(__dirname, icon.replace("mods/t3-menu/", "")), "utf8");
+    assert.deepEqual([...new Set(svg.match(/stroke-width="[^"]*"/g))], ['stroke-width="1.75"'], "Mark unread icon is drawn at 1.75");
+    target = {};
+  }
+  terms[0].turn = 0;
+  assert.ok(!labels().includes("Mark unread"), "no completed turn yet: no Mark unread");
+  delete terms[0].turn;
+  assert.ok(!labels().includes("Mark unread"), "missing turn: no Mark unread");
+  agent({ status: "idle" });
+  terms[0].status = "error";
+  assert.ok(!labels().includes("Mark unread"), "failed own turn counts as blocked: no Mark unread");
+  for (const kidStatus of ["working", "blocked", "error"]) {
+    agent({ status: "idle" });
+    terms.push({ address: "t1k", parent: "t1", state: "live", status: kidStatus, labels: {} });
+    assert.ok(!labels().includes("Mark unread"), `idle with ${kidStatus} sub-agent: no Mark unread`);
+  }
+  agent({ status: "idle" });
+  terms.push({ address: "t1k", parent: "t1", state: "live", status: "done", labels: {} });
+  assert.ok(labels().includes("Mark unread"), "idle with quiet sub-agent keeps Mark unread");
+  agent({ status: "idle" }, { settled: "1:2" });
+  assert.deepEqual(labels().slice(0, 4), ["Pin", "Un-settle", "Snooze", "Mark unread"], "settled idle agent still offers Mark unread");
+  agent({ status: "idle" }, { snoozed: String(Date.now() + 3600000) });
+  assert.deepEqual(labels().slice(0, 4), ["Pin", "Settle", "Wake", "Mark unread"], "snoozed idle agent offers Mark unread after Wake");
+  list = "lists";
+  assert.ok(!labels().includes("Mark unread"), "Lists mode hides Mark unread (docs/adr/0002)");
+  list = "inbox";
   agent({}, { settled: "1:2" });
   assert.ok(labels().includes("Un-settle"), "settled since its last turn");
   agent({}, { snoozed: String(Date.now() + 3600000) });

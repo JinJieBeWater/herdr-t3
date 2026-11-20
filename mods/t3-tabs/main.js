@@ -144,6 +144,7 @@ export default class Tabs extends View {
         // The Inbox breadcrumb title's menu (t3-menu).
         else if (command.startsWith("pin:")) pin(command.slice("pin:".length));
         else if (command.startsWith("snooze:")) await this.snooze(command.slice("snooze:".length), cx);
+        else if (command.startsWith("unread:")) await this.unread(command.slice("unread:".length));
         else if (command === "undo") await this.undo();
         else await this.navigation.handle(command, cx);
       }
@@ -174,11 +175,7 @@ export default class Tabs extends View {
     const kids = subAgents(every, all)(address), own = ownStatus(a.status, address, all);
     if ([own, ...kids].some(s => s === "working" || s === "blocked")) return;
     if (stillSettled(k, own, kids)) {
-      if (await writeLabel(address, "settled", "")) {
-        // Kept for live terminals only, so the record doesn't grow with every agent ever brought back.
-        const unsettled = Object.fromEntries(Object.entries(shared(KEY.unsettled) ?? {}).filter(([at]) => all.some(t => t.address === at)));
-        setShared(KEY.unsettled, { ...unsettled, [address]: Math.max(Date.now(), (unsettled[address] ?? 0) + 1) });
-      }
+      await this.unsettle(address, all);
       return;
     }
     const snoozed = k?.labels?.snoozed ?? "";
@@ -206,6 +203,26 @@ export default class Tabs extends View {
     this.remember("Snoozed", { address, snoozed: was, viewed: inView }, cx);
     const current = focused();
     if (inView && ["space", "tab", "pane", "terminal", "agent"].every(key => current?.[key] === f[key]) && !this.navigation.nextCard(address)) run("t3-tabs.home");
+  }
+
+  async unsettle(address, all) {
+    if (!await writeLabel(address, "settled", "")) return false;
+    // Kept for live terminals only, so the record doesn't grow with every agent ever brought back.
+    const unsettled = Object.fromEntries(Object.entries(shared(KEY.unsettled) ?? {}).filter(([at]) => all.some(t => t.address === at)));
+    setShared(KEY.unsettled, { ...unsettled, [address]: Math.max(Date.now(), (unsettled[address] ?? 0) + 1) });
+    return true;
+  }
+
+  // Mark unread is the Inbox's (docs/adr/0002): puts an idle agent back to Done in place by rolling `herdr.seen` back a turn.
+  async unread(address) {
+    if (sidebarParts(layout()).stack?.active === "lists") return;
+    const every = agents(), all = terminals(), a = every.find(a => a.address === address), k = all.find(k => k.address === address);
+    if (!a || !k) return;
+    const kids = subAgents(every, all)(address), own = ownStatus(a.status, address, all), turn = Number(k.turn);
+    if (treeStatus(own, kids) !== "idle" || !(turn > 0)) return;
+    if (!await writeLabel(address, "herdr.seen", String(turn - 1))) return;
+    if (k.labels?.settled && !await this.unsettle(address, all)) return;
+    if (k.labels?.snoozed) await writeLabel(address, "snoozed", "");
   }
 
   unpin(address, cx) {

@@ -122,6 +122,6 @@ The floating `tabs-keys` copy handles these even with the sidebar hidden or the 
 
 - `t3-tabs.{panel,review,files,home,settings,new,next,prev,settle,undo,details,cleanup}`, `t3-tabs.new:<space>`
 - `t3-tabs.close-tab:<id>`, `t3-tabs.close-pane:<id>`, `t3-tabs.cleanup-now:<serial>`
-- `t3-tabs.pin:<address>`, `unpin:<address>`, `settle:<address>`, `wake:<address>`, `snooze:<address>:<wake-ms>`. Settle and Wake of a background agent don't go Home; the viewed agent leaves as with the key.
+- `t3-tabs.pin:<address>`, `unpin:<address>`, `settle:<address>`, `wake:<address>`, `snooze:<address>:<wake-ms>`, `unread:<address>`. Settle and Wake of a background agent don't go Home; the viewed agent leaves as with the key. Mark unread (`unread:<address>`) is Inbox-only, requires `treeStatus === "idle"` and `turn > 0`, and acts in place without switching routes: it rolls `herdr.seen` back to `turn - 1` and clears `settled` (updating `t3-tabs.unsettled`) and `snoozed`.
 - `t3-tabs.space:<n>`, `space-next`, `space-prev`, `tab:<n>`, `tab-next`, `tab-prev`
 - `t3-tabs` (`keys` block) also records live non-Home spaces into `t3.projects` ([storage](../storage.md)) outside `checking()`, and owns Clean up with its `stop-pane:<pane>` and `go-pane:<pane>` ([dialogs](dialogs.md#clean-up)).

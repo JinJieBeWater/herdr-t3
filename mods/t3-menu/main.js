@@ -92,6 +92,7 @@ function agentItems(address) {
       ...(a && !head ? [[pinned ? "Unpin" : "Pin", `t3-tabs.${pinned ? "unpin" : "pin"}:${address}`, {}]] : []),
       ...(inbox && a && !busy ? [[stillSettled(k, own, kids) ? "Un-settle" : "Settle", `t3-tabs.settle:${address}`, {}, inView ? shortcut("t3-tabs.settle") : ""]] : []),
       ...(inbox && a ? napping ? [["Wake", `t3-tabs.wake:${address}`, {}]] : treeStatus(own, kids) !== "blocked" ? [["Snooze", "snooze", { address }]] : [] : []),
+      ...(inbox && a && treeStatus(own, kids) === "idle" && Number(k.turn) > 0 ? [["Mark unread", `t3-tabs.unread:${address}`, {}]] : []),
     ],
     [
       ...(rename ? [[tabLeads >= 2 ? "Rename tab" : "Rename", "tab.rename", { id: a.tab }]] : []),
@@ -193,6 +194,7 @@ function menuIcon(command, label, args) {
   if (command === "snooze-preset" || command === "custom-snooze") return null;
   const name = command === "copy" ? "copy" : command.startsWith("t3-tabs.settle") ? (label === "Settle" ? "check" : "undo") : command.startsWith("t3-tabs.pin:") ? "pin"
     : command.startsWith("t3-tabs.unpin:") ? "pin-off" : command === "snooze" ? "alarm-clock" : command.startsWith("t3-tabs.wake:") ? "alarm-clock-off"
+    : command.startsWith("t3-tabs.unread:") ? "circle-dot"
     : command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command === "space.new" && args?.folder ? "folder"
     : command.endsWith(".new") ? "plus" : command === "worktree" ? (args?.action === "remove" ? "x" : "git-branch") : command.startsWith("t3-spaces.reconnect:") ? "server"
     : command === "pane.split" ? (args?.direction === "down" ? "panel-bottom" : "panel-right") : command === "pane.zoom" ? "square" : "terminal";
