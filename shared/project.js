@@ -94,14 +94,22 @@ function linkedIcon(source) {
   return null;
 }
 
-// The icon of the project a folder is in (its repo's top, as T3's project root), copied under the app's
-// folder (images show only from there); null if it has none. All through exec and readTextFile, so another
-// machine's space works the same.
-async function lookUp(on, dir) {
-  const top = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "rev-parse", "--show-toplevel"], { cwd: dir, on });
-  const root = (top.code === 0 && top.stdout.trim()) || dir;
+// Each folder's project top (its repo's, as T3's project root, else the folder) and the first well-known place there,
+// NUL-separated: one command for all of them, as each command Herdr starts forks its whole process.
+const ICON_SCAN = `for d; do top=$(cd "$d" 2>/dev/null && git --no-optional-locks -c core.fsmonitor=false rev-parse --show-toplevel 2>/dev/null)
+  [ -n "$top" ] || top=$d; hit=
+  for f in ${PLACES.join(" ")}; do [ -f "$top/$f" ] && { hit=$f; break; }; done
+  printf '%s\\0%s\\0' "$top" "$hit"; done`;
+
+// The icon of the project each folder is in, copied under the app's folder (images show only from there); null if it has
+// none, undefined if it couldn't be read. All through exec and readTextFile, so another machine's space works the same.
+async function lookUpAll(on, dirs) {
+  const out = (await exec("sh", ["-c", ICON_SCAN, "sh", ...dirs], { on })).stdout.split("\0");
+  return Promise.all(dirs.map((dir, i) => finishLook(on, out[2 * i] || dir, out[2 * i + 1] || null).catch(() => undefined)));
+}
+
+async function finishLook(on, root, hit) {
   const first = async (paths) => (await exec("sh", ["-c", 'for f; do [ -f "$f" ] && { printf %s "$f"; exit; }; done', "sh", ...paths], { cwd: root, on })).stdout || null;
-  let hit = await first(PLACES);
   for (const page of PAGES) {
     if (hit) break;
     const href = linkedIcon((await readTextFile(`${root}/${page}`, { on })) ?? "")?.replace(/^\//, "");
@@ -156,16 +164,40 @@ function projectIcon(s, ps, follow) {
   const stale = !seen.has(key) || Date.now() - seen.get(key) > (known ? 600000 : 60000);
   if (stale && !(follow && key in icons)) {
     seen.set(key, Date.now());
-    lookUp(s.machine ?? null, folder).then((found) => {
-      const all = shared(KEY.spaceIcons) ?? {};
-      if (all[key] === found) return;
-      // Each folder a terminal passes through would otherwise stay listed as having none.
-      const ps = panes(), used = new Set(spaces().map((x) => iconKey(x, ps)));
-      setShared(KEY.spaceIcons, { ...Object.fromEntries(Object.entries(all).filter(([k, icon]) => icon || used.has(k))), [key]: found });
-    }, () => {}); // a machine away, no sh: the next look tries again
+    lookLater(s.machine ?? null, key, folder);
   }
   // Until a place new to it answers (a cd), the space keeps the icon it had, not a flash of its letter.
   if (!(key in icons)) return lastIcon.get(s.id) ?? null;
   lastIcon.set(s.id, known);
   return known;
+}
+
+// machine -> key -> folder, due since its last scan. One scan at a time on each machine; what comes due meanwhile waits for it.
+const iconsDue = new Map(), iconScans = new Set();
+function lookLater(on, key, folder) {
+  if (!iconsDue.has(on)) iconsDue.set(on, new Map());
+  iconsDue.get(on).set(key, folder);
+  if (iconScans.has(on)) return;
+  iconScans.add(on);
+  // After the draw, so the scan takes every place it found due.
+  Promise.resolve().then(() => scanIcons(on));
+}
+
+async function scanIcons(on) {
+  const batch = [...iconsDue.get(on)];
+  iconsDue.delete(on);
+  try {
+    const found = await lookUpAll(on, batch.map(([, folder]) => folder));
+    publishIcons(batch.map(([key], i) => [key, found[i]]).filter(([, icon]) => icon !== undefined));
+  } catch {} // a machine away, no sh: the next look tries again
+  if (iconsDue.has(on)) scanIcons(on);
+  else iconScans.delete(on);
+}
+
+function publishIcons(found) {
+  const all = shared(KEY.spaceIcons) ?? {};
+  if (found.every(([key, icon]) => all[key] === icon)) return;
+  // Each folder a terminal passes through would otherwise stay listed as having none.
+  const ps = panes(), used = new Set(spaces().map((x) => iconKey(x, ps)));
+  setShared(KEY.spaceIcons, { ...Object.fromEntries(Object.entries(all).filter(([k, icon]) => icon || used.has(k))), ...Object.fromEntries(found) });
 }

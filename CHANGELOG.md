@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-26
+
+- With many spaces, the Lists sidebar no longer shows "This view could not be re-rendered … interrupted" about once a minute (#16). Project icons are now looked up with one command per machine, not two or more per space. Since Herdr 0.1.18 every command a mod starts forks the whole app, and a burst of them made the Spaces list miss its render limit.
+
 ## 2026-11-23
 
 - Removed the right-end status mark (`working`, `blocked`, `done`, and Inbox `Settled` / `Snoozed` marks plus their snooze countdown timer) from pane headers (`t3-pane`); status stays in the sidebar and tabs. The sub-agent button remains and shows the working mark whenever any descendant is working.

@@ -2,6 +2,10 @@
 
 [English](CHANGELOG.md) · 中文
 
+## 2026-11-26
+
+- space 较多时，Lists 侧栏不再大约每分钟出现一次「This view could not be re-rendered … interrupted」（#16）。项目图标改为每台机器用一条命令查找，不再每个 space 两条以上。Herdr 0.1.18 起 mod 启动的每条命令都会让整个应用 fork 一次，这些命令集中出现时，Spaces 列表会超出绘制时限。
+
 ## 2026-11-23
 
 - 移除窗格标题栏（`t3-pane`）右端的状态标记（`working`／`blocked`／`done` 以及 Inbox 下的 `Settled` 勾、`Snoozed` 闹钟与倒计时定时器），不再与侧栏和标签栏重复显示状态。子 agent 按钮保留，并在任意后代工作中时直接显示工作标记。

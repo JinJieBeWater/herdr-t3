@@ -38,7 +38,7 @@ The sidebar keeps two icon columns at its right edge, in Inbox and Lists alike: 
 - Drawn 16px, radius 25%.
 - Otherwise the name's first letter or digit, capitalised, bold mono at 8.25/16 of the mark, in one of T3's 18 colours picked by a hash of the name (Tailwind 400 on dark themes, 600 on light), on a 14% wash of that colour. No usable character: a folder icon.
 - Found icons are rechecked after ten minutes, missing ones after one.
-- Reads run on the space's machine: `git rev-parse --show-toplevel`, `sh -c` file tests, `base64`. Copies are kept under the app's `cache/t3-icons/`; icon and colour metadata is shared (`t3.spaceIcons`, see [storage](../storage.md)).
+- Reads run on the space's machine. Every place a draw finds due shares one `sh -c` per machine (`git rev-parse --show-toplevel`, then the well-known file tests); only a found icon adds a `base64`, and a page's linked icon a file test. Each command Herdr starts forks the whole app, so the count must not grow with the spaces. Copies are kept under the app's `cache/t3-icons/`; icon and colour metadata is shared (`t3.spaceIcons`, see [storage](../storage.md)).
 
 ## Status marks
 

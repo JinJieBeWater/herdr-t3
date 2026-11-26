@@ -1791,7 +1791,7 @@ async function checkInbox() {
       assert.equal(f.state["t3.spaceIcons"][key("/old")], "cache/t3-icons/y.svg");
       // Agents draws beside Spaces, which keeps asking: it asks only where nobody has answered (a worktree has no mark in Spaces).
       const ag = f.load("t3-agents"), asks = [];
-      f.scopes.get("t3-agents").exec = async (_cmd, args, { cwd }) => { if (args.includes("--show-toplevel")) asks.push(cwd); return { code: 1, stdout: "", stderr: "" }; };
+      f.scopes.get("t3-agents").exec = async (_cmd, args) => { if (args[1]?.includes("--show-toplevel")) asks.push(...args.slice(3)); return { code: 1, stdout: "", stderr: "" }; };
       delete f.state["t3.spaceIcons"][JSON.stringify(["vps", "/work/s2"])];
       ag.render(cx);
       await flush();
