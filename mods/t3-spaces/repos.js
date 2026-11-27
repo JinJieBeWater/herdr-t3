@@ -104,7 +104,8 @@ export function repoFacts({ exec, watchFolder, cx }) {
     try {
       // No optional locks: a status that touched the index would wake the watch again.
       // Writes nothing under .git (index lock, fsmonitor cookie): watch() would wake on it.
-      const r = await exec("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v2", "--branch", "--untracked-files=no"], { cwd, on });
+      // The C locale: in another, git's "not a git repository" below is translated.
+      const r = await exec("env", ["LC_ALL=C", "git", "--no-optional-locks", "-c", "core.fsmonitor=false", "status", "--porcelain=v2", "--branch", "--untracked-files=no"], { cwd, on });
       if (!wanted()) return;
       unsure.delete(key); // Only now: until it answers, what it couldn't say stays unsaid.
       if (r.code !== 0) {

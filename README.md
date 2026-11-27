@@ -78,7 +78,7 @@ It checks your configuration and required mod entry points before copying files.
 
 ## What it runs
 
-- `t3-spaces`: read-only `git status` / `git rev-parse` in your spaces' folders, watches those repos for changes (`watchFolder`), and `hc machine ls --json`. Clicking Connect on a rebuilt machine runs `hc machine rm` and `hc machine add`.
+- `t3-spaces`: read-only `git status` (through `env LC_ALL=C`) / `git rev-parse` in your spaces' folders, watches those repos for changes (`watchFolder`), and `hc machine ls --json`. Clicking Connect on a rebuilt machine runs `hc machine rm` and `hc machine add`.
 - `t3-inbox`: `hc label <agent> settled=<ms>:<turn>` when an agent is settled or unsettled.
 - `t3-inbox`: `hc label <agent> snoozed=<ms>` when an agent is snoozed or wakes.
 - `t3-inbox` identifies linked checkouts with `git rev-parse` and `git worktree list --porcelain -z` in the pane's working directory on its machine.

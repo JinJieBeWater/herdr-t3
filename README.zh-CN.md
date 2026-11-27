@@ -78,7 +78,7 @@ git clone --depth 1 https://github.com/JinJieBeWater/herdr-t3 && herdr-t3/script
 
 ## 它会运行什么
 
-- `t3-spaces`：在各 space 的目录里运行只读的 `git status` / `git rev-parse`，监听这些仓库的变化（`watchFolder`），运行 `hc machine ls --json`。点重装机器的 Connect 时运行 `hc machine rm` 和 `hc machine add`。
+- `t3-spaces`：在各 space 的目录里运行只读的 `git status`（经 `env LC_ALL=C`）/ `git rev-parse`，监听这些仓库的变化（`watchFolder`），运行 `hc machine ls --json`。点重装机器的 Connect 时运行 `hc machine rm` 和 `hc machine add`。
 - `t3-inbox`：Settle 或取消 Settle 时运行 `hc label <agent> settled=<ms>:<turn>`。
 - `t3-inbox`：Snooze 或唤醒时运行 `hc label <agent> snoozed=<ms>`。
 - `t3-inbox` 在窗格所在机器的工作目录中用 `git rev-parse` 和 `git worktree list --porcelain -z` 识别链接工作树。

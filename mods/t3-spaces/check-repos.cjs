@@ -109,7 +109,7 @@ async function check() {
     for (const s of [s0, s1, s2]) {
       const commands = f.commands.filter(([, , o]) => o.cwd === s.folder);
       assert.deepEqual(commands, [
-        ["git", status, { cwd: s.folder, on: s.machine }],
+        ["env", ["LC_ALL=C", "git", ...status], { cwd: s.folder, on: s.machine }],
         ["git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"], { cwd: s.folder, on: s.machine }],
       ], "all git arguments and the target machine survive extraction");
     }
@@ -198,6 +198,18 @@ async function check() {
     f.update(1183000);
     await f.flush();
     assert.deepEqual(f.looks(), [], "a confirmed non-repository isn't polled");
+  }
+  {
+    // Git as a Chinese locale has it: its "no" is translated unless the C locale is asked for.
+    const f = fixture([space("s", "/work/hg")]);
+    f.answer((cmd, args) => ({ code: 128, stdout: "", stderr: cmd === "env" && args[0] === "LC_ALL=C"
+      ? "fatal: not a git repository (or any of the parent directories): .git" : "fatal: 不是 Git 仓库（或者任何父目录）：.git" }));
+    f.snapshot.active = true;
+    f.update(); await f.flush();
+    assert.deepEqual(f.fact(f.snapshot.spaces[0]), { git: null, answered: true });
+    f.commands.splice(0);
+    f.update(1061000); await f.flush();
+    assert.deepEqual(f.looks(), [], "a non-repository is a trusted no in any language");
   }
   {
     // Unknown, transient failure and a confirmed no have different trusted results.

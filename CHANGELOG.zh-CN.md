@@ -2,6 +2,10 @@
 
 [English](CHANGELOG.md) · 中文
 
+## 2026-11-27
+
+- git 输出其他语言时（例如装了语言包的 Ubuntu），Spaces 列表不再反复检查 Git 之外的目录是不是仓库（#16）。之前 Herdr 在前台时每分钟问一遍，切回 Herdr 时全部一起问。原因是它只认英文的「not a git repository」。
+
 ## 2026-11-26
 
 - space 较多时，Lists 侧栏不再大约每分钟出现一次「This view could not be re-rendered … interrupted」（#16）。项目图标改为每台机器用一条命令查找，不再每个 space 两条以上。Herdr 0.1.18 起 mod 启动的每条命令都会让整个应用 fork 一次，这些命令集中出现时，Spaces 列表会超出绘制时限。

@@ -2,6 +2,10 @@
 
 English · [中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-27
+
+- When git speaks another language (Ubuntu with a language pack), the Spaces list no longer asks again, every minute while Herdr is in front and all at once when you come back to it, whether each folder outside Git is a repo (#16). It used to understand git's "not a git repository" only in English.
+
 ## 2026-11-26
 
 - With many spaces, the Lists sidebar no longer shows "This view could not be re-rendered … interrupted" about once a minute (#16). Project icons are now looked up with one command per machine, not two or more per space. Since Herdr 0.1.18 every command a mod starts forks the whole app, and a burst of them made the Spaces list miss its render limit.
